@@ -2,6 +2,9 @@
   "name": "tile-bath-plus-proposal-app",
   "version": "0.1.0",
   "private": true,
+  "dependencies": {
+    "skia-canvas": "3.0.8"
+  },
   "scripts": {
     "start": "node server.js",
     "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""

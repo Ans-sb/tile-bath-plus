@@ -5,6 +5,7 @@ node_modules/
 !vendor/@oai/artifact-tool/
 !vendor/@oai/artifact-tool/node_modules/
 !vendor/@oai/artifact-tool/node_modules/**
+vendor/@oai/artifact-tool/node_modules/skia-canvas/
 server.err.log
 server.out.log
 outputs/
