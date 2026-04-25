@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { Presentation, PresentationFile } from "@oai/artifact-tool";
+import { Presentation, PresentationFile } from "../vendor/@oai/artifact-tool/dist/artifact_tool.mjs";
 
 const W = 1280;
 const H = 720;
@@ -28,7 +28,7 @@ if (!inputPath) {
 }
 
 const raw = await fs.readFile(inputPath, "utf8");
-const payload = JSON.parse(raw);
+const payload = JSON.parse(raw.replace(/^\uFEFF/, ""));
 const rootDir = path.resolve(path.dirname(inputPath), "..", "..");
 
 await fs.mkdir(payload.outputDir, { recursive: true });
