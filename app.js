@@ -1,0 +1,2567 @@
+const TILE_KINDS = ["바닥 타일", "벽 타일", "부자재"];
+const TILE_SIZES = ["600*600", "300*600", "600*1200", "300*300", "200*200", "100*300", "800*800", "400*800", "100*100", "150*600"];
+const SANITARY_KINDS = ["양변기", "비데", "소변기", "세면대", "수전 금구", "악세사리"];
+const MATERIAL_KINDS = ["부자재"];
+const PRODUCT_TYPE_LABELS = {
+  tile: "타일",
+  sanitary: "위생도기",
+  material: "부자재"
+};
+
+const DEFAULT_APPROVAL_RULES = {
+  businessTypes: [
+    "인테리어",
+    "타일",
+    "건축",
+    "건설",
+    "종합건설업",
+    "전문건설업",
+    "건물건설업",
+    "건설장비운영업",
+    "인테리어디자인업",
+    "인테리어시공업",
+    "리모델링공사업",
+    "건축자재도매업",
+    "건축자재소매업",
+    "타일도매업",
+    "타일소매업",
+    "위생도기도매업",
+    "위생도기소매업",
+    "욕실용품도매업",
+    "욕실용품소매업",
+    "수전도매업",
+    "수전소매업",
+    "샤워기및욕실설비도매업",
+    "샤워기및욕실설비소매업",
+    "전자상거래소매업",
+    "통신판매업"
+  ],
+  businessItems: [
+    "종합건설업",
+    "전문건설업",
+    "실내건축공사업",
+    "건물건설업",
+    "주거용건물건설업",
+    "비주거용건물건설업",
+    "건축공사업",
+    "토목공사업",
+    "조경공사업",
+    "시설물유지관리업",
+    "건설장비운영업",
+    "인테리어디자인업",
+    "실내인테리어공사업",
+    "인테리어시공업",
+    "상업공간인테리어업",
+    "주거공간인테리어업",
+    "인테리어설계및시공업",
+    "리모델링공사업",
+    "타일및방수공사업",
+    "도장및도배공사업",
+    "미장타일방수공사업",
+    "유리및창호공사업",
+    "금속구조물창호온실공사업",
+    "전기공사업",
+    "설비공사업",
+    "배관및냉난방공사업",
+    "건축자재도매업",
+    "건축자재소매업",
+    "타일도매업",
+    "타일소매업",
+    "위생도기도매업",
+    "위생도기소매업",
+    "욕실용품도매업",
+    "욕실용품소매업",
+    "수전도매업",
+    "수전소매업",
+    "샤워기및욕실설비도매업",
+    "샤워기및욕실설비소매업",
+    "전자상거래소매업",
+    "통신판매업"
+  ]
+};
+const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
+
+const money = new Intl.NumberFormat("ko-KR", {
+  style: "currency",
+  currency: "KRW",
+  maximumFractionDigits: 0
+});
+
+const shortDate = new Intl.DateTimeFormat("ko-KR", {
+  year: "numeric",
+  month: "long",
+  day: "numeric"
+});
+
+let products = [];
+let cart = loadCart();
+let selectedProductId = "";
+let selectedRenderCartId = "";
+let pendingRenderResultImage = "";
+let pendingSiteImage = "";
+let pendingSignupAuthCode = "";
+let isPhoneVerified = false;
+let selectedSignupProvider = "일반 회원가입";
+let authUser = loadAuthSession();
+let businessVerification = { status: "idle", message: "사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다." };
+let tesseractLoaderPromise = null;
+let extractedBusinessInfo = {
+  companyName: "",
+  businessAddress: "",
+  representative: "",
+  openingDate: "",
+  businessType: "",
+  businessItem: "",
+  businessCategorySection: "",
+  approvalStatus: "판정 전"
+};
+let approvalRules = loadApprovalRules();
+let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
+const pageHistory = [];
+const pageScrollPositions = new Map([[currentPageId, 0]]);
+let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };
+let suppressHistoryState = false;
+let serverConnection = { online: false, checked: false, failures: 0 };
+let serverConnectionTimer = null;
+let businessScanRequestId = 0;
+let cartSyncTimer = null;
+
+const productForm = document.querySelector("#productForm");
+const proposalForm = document.querySelector("#proposalForm");
+const signupForm = document.querySelector("#signupForm");
+const loginForm = document.querySelector("#loginForm");
+
+init();
+
+async function init() {
+  history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
+  bindEvents();
+  setupDbForm();
+  syncDefaultApprovalRules();
+  renderApprovalRules();
+  await loadProducts();
+  await hydrateApprovalRulesFromServer();
+  await refreshServerConnection();
+  startServerConnectionWatcher();
+  await hydrateCartFromServer();
+  renderAll();
+  renderAuthControls();
+}
+
+function bindEvents() {
+  document.querySelectorAll("[data-page-target]").forEach((button) => {
+    button.addEventListener("click", () => switchPage(button.dataset.pageTarget));
+  });
+
+  document.querySelectorAll("[data-back-action]").forEach((button) => {
+    button.addEventListener("click", goBackPage);
+  });
+
+  document.querySelectorAll("[data-main-category]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openProductCategory(button.dataset.mainCategory);
+    });
+  });
+
+  ["#mainCategoryFilter", "#kindFilter", "#sizeFilter", "#optionFilter", "#productSearch"].forEach((selector) => {
+    document.querySelector(selector).addEventListener("input", () => {
+      if (selector === "#mainCategoryFilter" || selector === "#kindFilter") syncProductFilters();
+      renderProducts();
+    });
+  });
+
+  document.querySelector("#productList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-add-product]");
+    if (button) {
+      addToCart(button.dataset.addProduct);
+      return;
+    }
+
+    const productCard = event.target.closest("[data-view-product]");
+    if (productCard) openProductDetail(productCard.dataset.viewProduct, productCard);
+  });
+
+  document.querySelector("#productList").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.target.closest("[data-add-product]")) return;
+    const productCard = event.target.closest("[data-view-product]");
+    if (!productCard) return;
+    event.preventDefault();
+    openProductDetail(productCard.dataset.viewProduct, productCard);
+  });
+
+  const cartList = document.querySelector("#cartList");
+  cartList.addEventListener("input", (event) => {
+    const qtyInput = event.target.closest("[data-cart-qty]");
+    const quoteInput = event.target.closest("[data-cart-price]");
+    if (qtyInput && qtyInput.value !== "") updateCartLine(qtyInput.dataset.cartQty, { qty: Number(qtyInput.value) }, { rerenderList: false, removeEmpty: false });
+    if (quoteInput && quoteInput.value !== "") updateCartLine(quoteInput.dataset.cartPrice, { quotePrice: Number(quoteInput.value) }, { rerenderList: false, removeEmpty: false });
+  });
+
+  cartList.addEventListener("change", (event) => {
+    const qtyInput = event.target.closest("[data-cart-qty]");
+    const quoteInput = event.target.closest("[data-cart-price]");
+    if (qtyInput) updateCartLine(qtyInput.dataset.cartQty, { qty: Number(qtyInput.value) || 0 });
+    if (quoteInput) updateCartLine(quoteInput.dataset.cartPrice, { quotePrice: Number(quoteInput.value) || 0 });
+  });
+
+  cartList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-remove-product]");
+    if (button) removeFromCart(button.dataset.removeProduct);
+  });
+
+  document.querySelectorAll("[data-doc-tab]").forEach((button) => {
+    button.addEventListener("click", () => switchDoc(button.dataset.docTab));
+  });
+
+  document.querySelector("#proposalItems").addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-render-product]");
+    if (trigger) openRenderForCartItem(trigger.dataset.renderProduct);
+  });
+
+  document.querySelector("#renderSiteImage").addEventListener("change", async (event) => {
+    pendingSiteImage = await readImageFile(event.target.files[0], 1400);
+    renderRenderWorkspace();
+  });
+
+  document.querySelector("#renderResultUpload").addEventListener("change", async (event) => {
+    pendingRenderResultImage = await readImageFile(event.target.files[0], 1600);
+    renderRenderWorkspace();
+  });
+
+  document.querySelector("#saveRenderResultBtn").addEventListener("click", saveRenderResultToProposal);
+  document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
+  document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
+    if (selectedProductId) addToCart(selectedProductId);
+  });
+  document.querySelector("#sendAuthBtn").addEventListener("click", requestSignupAuth);
+  document.querySelector("#verifyAuthBtn").addEventListener("click", verifySignupAuth);
+  document.querySelector("#signupPhone").addEventListener("input", resetPhoneVerification);
+  document.querySelector("#signupBizFile").addEventListener("change", handleBusinessFileChange);
+  document.querySelector("#signupBizNo").addEventListener("input", () => resetBusinessVerification(false));
+  document.querySelector("#scanBusinessFileBtn").addEventListener("click", scanBusinessRegistrationFile);
+  document.querySelector("#verifyBusinessBtn").addEventListener("click", verifyBusinessRegistration);
+  document.querySelector("#saveApprovalRulesBtn").addEventListener("click", saveApprovalRulesFromForm);
+  document.querySelector("#googleSignupBtn").addEventListener("click", () => selectSignupProvider("Google 가입"));
+  document.querySelector("#kakaoSignupBtn").addEventListener("click", () => selectSignupProvider("카카오톡 가입"));
+  document.querySelector("#openLoginBtn").addEventListener("click", () => switchPage("loginPage"));
+  document.querySelector("#openSignupBtn").addEventListener("click", () => switchPage("signupPage"));
+  document.querySelector("#createProProposalBtn").addEventListener("click", generateProfessionalProposalDeck);
+  document.querySelector("#restartServerBtn").addEventListener("click", () => controlServer("restart"));
+  document.querySelector("#stopServerBtn").addEventListener("click", () => controlServer("stop"));
+  document.querySelector("#refreshServerBtn").addEventListener("click", async () => {
+    setText("#serverControlStatus", "서버 상태를 다시 확인하고 있습니다...");
+    const online = await refreshServerConnection();
+    setText("#serverControlStatus", online ? "서버가 연결되어 있습니다." : getServerRequiredMessage());
+  });
+  document.querySelector("#startServerGuideBtn").addEventListener("click", showServerStartGuide);
+  document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
+  document.querySelector("#googleLoginBtn").addEventListener("click", () => setText("#loginStatus", "Google 로그인은 추후 OAuth 연결 시 활성화됩니다."));
+  document.querySelector("#kakaoLoginBtn").addEventListener("click", () => setText("#loginStatus", "카카오톡 로그인은 추후 OAuth 연결 시 활성화됩니다."));
+  window.addEventListener("popstate", handleBrowserBack);
+  window.addEventListener("focus", handleServerReconnectCheck);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") handleServerReconnectCheck();
+  });
+
+  proposalForm.addEventListener("input", renderDocuments);
+  productForm.addEventListener("submit", addProductFromForm);
+  signupForm.addEventListener("input", renderSignupSummary);
+  signupForm.addEventListener("submit", submitSignupForm);
+  loginForm.addEventListener("submit", submitLoginForm);
+  document.querySelector("#dbProductType").addEventListener("change", setupDbForm);
+  document.querySelector("#resetCartBtn").addEventListener("click", clearCart);
+  document.querySelector("#printBtn").addEventListener("click", () => window.print());
+}
+
+async function loadProducts() {
+  const localProducts = loadLocalProducts();
+  if (Array.isArray(window.PRODUCTS_DB)) {
+    products = mergeProducts(window.PRODUCTS_DB, localProducts);
+    syncProductFilters();
+    return;
+  }
+
+  try {
+    const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 5000 });
+    products = mergeProducts(remoteProducts, localProducts);
+    serverConnection = { online: true, checked: true, failures: 0 };
+  } catch (error) {
+    console.warn(error);
+    serverConnection = { ...serverConnection, online: false, checked: true, failures: (serverConnection.failures || 0) + 1 };
+    products = localProducts;
+    if (!products.length) {
+      document.querySelector("#productList").innerHTML = `<div class="empty-state">상품 DB를 불러오지 못했습니다. 서버를 실행하거나 index.html을 다시 열어주세요.</div>`;
+    }
+    return;
+  }
+
+  syncProductFilters();
+}
+
+function loadLocalProducts() {
+  try {
+    return JSON.parse(localStorage.getItem("tbpLocalProducts")) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalProduct(product) {
+  const localProducts = loadLocalProducts();
+  const index = localProducts.findIndex((item) => item.id === product.id);
+  if (index >= 0) localProducts[index] = product;
+  else localProducts.push(product);
+  localStorage.setItem("tbpLocalProducts", JSON.stringify(localProducts));
+}
+
+async function hydrateApprovalRulesFromServer() {
+  try {
+    const remoteRules = await requestJson("/api/approval-rules", {}, { retries: 1, timeoutMs: 5000 });
+    if (Array.isArray(remoteRules.businessTypes) && Array.isArray(remoteRules.businessItems)
+      && (remoteRules.businessTypes.length || remoteRules.businessItems.length)) {
+      approvalRules = {
+        businessTypes: remoteRules.businessTypes.map((item) => normalizeRuleValue(item)),
+        businessItems: remoteRules.businessItems.map((item) => normalizeRuleValue(item))
+      };
+      localStorage.setItem("tbpApprovalRules", JSON.stringify(approvalRules));
+      renderApprovalRules();
+      extractedBusinessInfo.approvalStatus = evaluateBusinessApprovalStatus();
+    }
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+async function hydrateCartFromServer(options = {}) {
+  if (!authUser?.businessNumber) return;
+
+  try {
+    const remoteCart = await requestJson(`/api/cart?businessNumber=${encodeURIComponent(authUser.businessNumber)}`, {}, { retries: 1, timeoutMs: 5000 });
+    const remoteItems = Array.isArray(remoteCart.items) ? remoteCart.items : [];
+    cart = options.mergeLocal ? mergeCartCollections(remoteItems, cart) : remoteItems;
+    saveCartToLocalOnly();
+    renderCart();
+    renderDocuments();
+    if (options.mergeLocal && cart.length) scheduleCartSync();
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+function mergeCartCollections(baseItems, overlayItems) {
+  const merged = new Map();
+  for (const item of Array.isArray(baseItems) ? baseItems : []) {
+    if (item?.id) merged.set(item.id, { ...item });
+  }
+  for (const item of Array.isArray(overlayItems) ? overlayItems : []) {
+    if (!item?.id) continue;
+    if (!merged.has(item.id)) {
+      merged.set(item.id, { ...item });
+      continue;
+    }
+    const previous = merged.get(item.id);
+    merged.set(item.id, {
+      ...previous,
+      ...item,
+      qty: Math.max(Number(previous.qty || 0), Number(item.qty || 0)),
+      quotePrice: Number(item.quotePrice ?? previous.quotePrice ?? 0)
+    });
+  }
+  return [...merged.values()];
+}
+
+function mergeProducts(baseProducts, localProducts) {
+  const merged = new Map();
+  for (const product of baseProducts) merged.set(product.id, product);
+  for (const product of localProducts) merged.set(product.id, product);
+  return [...merged.values()];
+}
+
+function setupDbForm() {
+  const type = document.querySelector("#dbProductType").value;
+  const kindSelect = document.querySelector("#dbKind");
+  const sizeInput = document.querySelector("#dbSize");
+  const finishSelect = document.querySelector("#dbFinish");
+  const optionInput = document.querySelector("#dbOption");
+
+  const kinds = getKinds(type);
+  kindSelect.innerHTML = kinds.map((kind) => `<option value="${escapeHtml(kind)}">${escapeHtml(kind)}</option>`).join("");
+
+  if (type === "tile") {
+    sizeInput.placeholder = "예: 600*600";
+    finishSelect.disabled = false;
+    optionInput.placeholder = "타일 옵션 메모";
+  } else {
+    sizeInput.placeholder = type === "sanitary" ? "예: 원피스, 탑볼, 600mm" : "예: 대형타일 겸용";
+    finishSelect.value = "";
+    finishSelect.disabled = true;
+    optionInput.placeholder = type === "sanitary" ? "예: 절수형, 치마형, 크롬, 무광 니켈" : "부자재 옵션";
+  }
+}
+
+function getKinds(type) {
+  if (type === "tile") return TILE_KINDS;
+  if (type === "sanitary") return SANITARY_KINDS;
+  if (type === "material") return MATERIAL_KINDS;
+  return [...new Set(products.map((product) => product.kind))];
+}
+
+function syncProductFilters(config = {}) {
+  const type = document.querySelector("#mainCategoryFilter").value;
+  const kindFilter = document.querySelector("#kindFilter");
+  const sizeFilter = document.querySelector("#sizeFilter");
+  const optionFilter = document.querySelector("#optionFilter");
+  const previousKind = config.resetSubFilters ? "all" : kindFilter.value;
+
+  const filteredByType = type === "all" ? products : products.filter((product) => product.productType === type);
+  const kinds = [...new Set(filteredByType.map((product) => product.kind).filter(Boolean))];
+  kindFilter.innerHTML = `<option value="all">전체</option>${kinds.map((kind) => `<option value="${escapeHtml(kind)}">${escapeHtml(kind)}</option>`).join("")}`;
+  kindFilter.value = kinds.includes(previousKind) ? previousKind : "all";
+
+  const filteredByKind = kindFilter.value === "all" ? filteredByType : filteredByType.filter((product) => product.kind === kindFilter.value);
+  const productSizes = [...new Set(filteredByKind.map((product) => product.size).filter(Boolean))];
+  const sizes = type === "tile"
+    ? [
+        ...TILE_SIZES.filter((size) => productSizes.includes(size)),
+        ...productSizes.filter((size) => !TILE_SIZES.includes(size))
+      ]
+    : productSizes;
+  const options = [...new Set(filteredByKind.map((product) => product.option).filter(Boolean))];
+
+  sizeFilter.innerHTML = `<option value="all">전체</option>${sizes.map((size) => `<option value="${escapeHtml(size)}">${escapeHtml(size)}</option>`).join("")}`;
+  optionFilter.innerHTML = `<option value="all">전체</option>${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}`;
+  sizeFilter.value = "all";
+  optionFilter.value = "all";
+}
+
+function renderAll() {
+  renderProducts();
+  renderCart();
+  renderDocuments();
+  renderRenderWorkspace();
+  renderSignupSummary();
+}
+
+function openProductCategory(productType) {
+  document.querySelector("#mainCategoryFilter").value = productType;
+  document.querySelector("#productSearch").value = "";
+  syncProductFilters({ resetSubFilters: true });
+  renderProducts();
+  switchPage("productsPage");
+}
+
+function renderProducts() {
+  const type = document.querySelector("#mainCategoryFilter").value;
+  const kind = document.querySelector("#kindFilter").value;
+  const size = document.querySelector("#sizeFilter").value;
+  const option = document.querySelector("#optionFilter").value;
+  const keyword = document.querySelector("#productSearch").value.trim().toLowerCase();
+  const normalizedKeyword = normalizeSearchText(keyword);
+
+  const filtered = products.filter((product) => {
+    const name = normalizeSearchText(product.name);
+    return (type === "all" || product.productType === type)
+      && (normalizedKeyword || kind === "all" || product.kind === kind)
+      && (normalizedKeyword || size === "all" || product.size === size)
+      && (normalizedKeyword || option === "all" || product.option === option)
+      && (!normalizedKeyword || name.includes(normalizedKeyword));
+  });
+
+  document.querySelector("#productList").innerHTML = filtered.map((product) => `
+    <article class="product-card">
+      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
+        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
+      </button>
+      <div>
+        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
+        <span>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType])} · ${escapeHtml(product.kind)} · ${escapeHtml(product.size || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
+        <span>제조사 ${escapeHtml(product.maker)} · 재고 ${number(product.stockQty)}${escapeHtml(product.unit)}</span>
+        <span class="cost-only">원가 ${money.format(product.costPrice)} · 소매가 ${money.format(product.retailPrice)} · 도매가 ${money.format(product.wholesalePrice)}</span>
+      </div>
+      <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
+    </article>
+  `).join("") || `<div class="empty-state">${keyword ? "품명 검색 결과가 없습니다." : "조건에 맞는 상품이 없습니다."}</div>`;
+}
+
+function openProductDetail(id, sourceElement = null) {
+  const product = products.find((item) => item.id === id);
+  if (!product) return;
+  const card = sourceElement?.closest(".product-card") || document.querySelector(`[data-view-product="${cssEscape(id)}"]`)?.closest(".product-card");
+  productListReturnState = {
+    scrollY: window.scrollY,
+    productId: id,
+    viewportTop: card ? card.getBoundingClientRect().top : 0
+  };
+  pageScrollPositions.set("productsPage", window.scrollY);
+  selectedProductId = id;
+  renderProductDetail(product);
+  switchPage("productDetailPage");
+}
+
+function renderProductDetail(product) {
+  setText("#detailProductTitle", product.name || "상품 상세");
+  const primaryImage = getProductImage(product, ["image", "originalImage", "liveImage", "closeImage"], true);
+
+  document.querySelector("#detailMainMedia").innerHTML = primaryImage
+    ? `<img src="${escapeHtml(primaryImage)}" alt="${escapeHtml(product.name)} 대표 이미지" />`
+    : `<div class="detail-main-placeholder">이미지 준비중</div>`;
+
+  const specs = [
+    ["대분류", PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"],
+    ["종류", product.kind || "-"],
+    ["품명", product.name || "-"],
+    ["규격", product.size || "-"],
+    ["제조사", product.maker || "-"],
+    ["단위", product.unit || "-"],
+    ["유광/무광", product.finish || "-"],
+    ["옵션", product.option || "-"],
+    ["원가", money.format(product.costPrice)],
+    ["소매가", money.format(product.retailPrice)],
+    ["도매가", money.format(product.wholesalePrice)],
+    ["재고량", `${number(product.stockQty)}${product.unit || ""}`],
+    ["카탈로그", product.catalogSource || "-"],
+    ["카탈로그 페이지", product.catalogPage ? `${product.catalogPage}P` : "-"]
+  ];
+
+  document.querySelector("#detailSpecGrid").innerHTML = specs.map(([label, value]) => `
+    <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+  `).join("");
+
+  const gallerySlots = [
+    ["제품 원장 실사 이미지", ["originalImage", "liveImage", "rawImage", "fieldImage", "image"], true],
+    ["클로즈 이미지", ["closeImage", "closeupImage", "zoomImage"], false],
+    ["디테일 이미지", ["detailImage", "textureImage", "surfaceImage"], false],
+    ["자연광 이미지", ["daylightImage", "naturalLightImage"], false],
+    ["형광등 이미지", ["fluorescentImage", "lampImage", "indoorLightImage"], false],
+    ["연출 이미지", ["sceneImage", "stagedImage", "lifestyleImage", "renderImage"], false]
+  ];
+
+  document.querySelector("#detailGalleryGrid").innerHTML = gallerySlots.map(([label, keys, allowPrimary]) => {
+    const image = getProductImage(product, keys, allowPrimary);
+    return `
+      <article class="detail-image-card">
+        <strong>${escapeHtml(label)}</strong>
+        ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${escapeHtml(label)}" loading="lazy" />` : `<div class="detail-image-empty">이미지 준비중</div>`}
+      </article>
+    `;
+  }).join("");
+}
+
+function getProductImage(product, keys, allowPrimary = false) {
+  for (const key of keys) {
+    const value = readImageValue(product, key);
+    if (value) return value;
+  }
+  if (allowPrimary && product.image) return product.image;
+  return "";
+}
+
+function readImageValue(product, key) {
+  const direct = product[key];
+  if (Array.isArray(direct)) return direct.find(Boolean) || "";
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+
+  const imageMap = product.images || product.detailImages || {};
+  const mapped = imageMap[key];
+  if (Array.isArray(mapped)) return mapped.find(Boolean) || "";
+  if (typeof mapped === "string" && mapped.trim()) return mapped.trim();
+  return "";
+}
+
+function renderCart() {
+  renderCartSummary();
+  renderCartList();
+}
+
+function renderCartSummary() {
+  const itemCount = cart.length;
+  const totalCost = cart.reduce((sum, item) => sum + Number(item.costPrice || 0) * Number(item.qty || 0), 0);
+  const totalQuote = cart.reduce((sum, item) => sum + Number(item.quotePrice || 0) * Number(item.qty || 0), 0);
+  const expectedMargin = totalQuote - totalCost;
+  const marginRate = totalQuote > 0 ? expectedMargin / totalQuote * 100 : 0;
+  document.querySelector("#navCartCount").textContent = String(itemCount);
+  document.querySelector("#cartSummary").textContent = `${itemCount}개 품목 · 견적 ${money.format(totalQuote)}`;
+  document.querySelector("#costSummary").innerHTML = `
+    <div><span>원가 합계</span><strong>${money.format(totalCost)}</strong></div>
+    <div><span>견적 합계</span><strong>${money.format(totalQuote)}</strong></div>
+    <div><span>예상 마진</span><strong>${money.format(expectedMargin)}</strong></div>
+    <div><span>마진율</span><strong>${number(marginRate)}%</strong></div>
+  `;
+}
+
+function renderCartList() {
+  document.querySelector("#cartList").innerHTML = cart.map((item) => `
+    <article class="cart-item">
+      <div>
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${escapeHtml(PRODUCT_TYPE_LABELS[item.productType])} · ${escapeHtml(item.kind)} · ${escapeHtml(item.size || "-")} · ${escapeHtml(item.option || item.finish || "-")}</span>
+        <span class="cost-only">재고 ${number(item.stockQty)}${escapeHtml(item.unit)}</span>
+      </div>
+      <div class="cart-controls">
+        <label>수량<input type="number" min="0.1" step="0.1" value="${item.qty}" data-cart-qty="${escapeHtml(item.id)}" /></label>
+        <div class="cart-price-readout"><span>원가</span><strong>${money.format(item.costPrice)}</strong></div>
+        <label>견적단가<input type="number" min="0" step="100" value="${item.quotePrice}" data-cart-price="${escapeHtml(item.id)}" /></label>
+        <button type="button" data-remove-product="${escapeHtml(item.id)}">삭제</button>
+      </div>
+    </article>
+  `).join("") || `<div class="empty-state">장바구니가 비어 있습니다.</div>`;
+}
+
+function renderDocuments() {
+  const proposalState = getProposalState();
+  const { customer, address, validDate, date, subtotal, vat, total, memo } = proposalState;
+
+  setText("#proposalDate", shortDate.format(date));
+  setText("#estimateDate", shortDate.format(date));
+  setText("#docCustomer", customer);
+  setText("#docAddress", address);
+  setText("#docItemCount", `${cart.length}개 품목`);
+  setText("#docTotal", money.format(total));
+  setText("#proposalIntro", `${customer}의 ${address} 현장에 맞춰 장바구니에 선정한 타일, 위생도기, 부자재를 기준으로 제안드립니다.`);
+  setText("#proposalNote", `본 제안은 ${shortDate.format(validDate)}까지 유효합니다. 현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다. ${memo}`);
+
+  document.querySelector("#proposalItems").innerHTML = cart.map((item) => `
+    <li class="proposal-item-card ${item.renderedImage ? "has-rendered-image" : ""}">
+      <button class="proposal-image-button" type="button" data-render-product="${escapeHtml(item.id)}" title="실사 보정으로 이동">
+        ${item.image ? `<img class="proposal-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-item-image proposal-item-image-empty">이미지 없음</div>`}
+      </button>
+      <div>
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${escapeHtml(item.kind)} · ${escapeHtml(item.option || item.finish || "-")}</span>
+        <span class="proposal-item-size">규격 ${escapeHtml(item.size || "-")}</span>
+      </div>
+      ${item.renderedImage ? `
+        <div class="proposal-rendered-preview">
+          <span>실사 보정 이미지${item.renderTarget ? ` · ${escapeHtml(item.renderTarget)}` : ""}${item.renderPointMemo ? ` · ${escapeHtml(item.renderPointMemo)}` : ""}</span>
+          <img src="${escapeHtml(item.renderedImage)}" alt="${escapeHtml(item.name)} 실사 보정 이미지" loading="lazy" />
+        </div>
+      ` : ""}
+    </li>
+  `).join("") || `<li class="proposal-item-card proposal-item-empty">선정된 품목이 없습니다.</li>`;
+  document.querySelector("#estimateRows").innerHTML = cart.map((item) => {
+    return `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.size || "-")}</td><td>${number(item.qty)}${escapeHtml(item.unit)}</td><td>${money.format(item.quotePrice)}</td></tr>`;
+  }).join("");
+  setText("#estimateSubtotal", money.format(subtotal));
+  setText("#estimateVat", money.format(vat));
+  setText("#estimateTotal", money.format(total));
+}
+
+function getProposalState() {
+  const data = new FormData(proposalForm);
+  const customer = String(data.get("customerName") || "고객님");
+  const address = String(data.get("siteAddress") || "현장 주소 미입력");
+  const validDays = Number(data.get("validDays") || 14);
+  const date = new Date();
+  const validDate = new Date(date);
+  validDate.setDate(validDate.getDate() + validDays);
+
+  const subtotal = cart.reduce((sum, item) => sum + Number(item.quotePrice || 0) * Number(item.qty || 0), 0);
+  const vat = Math.round(subtotal * 0.1);
+  const total = subtotal + vat;
+  const memo = String(data.get("memo") || "").trim();
+
+  return {
+    customer,
+    phone: String(data.get("customerPhone") || "").trim(),
+    address,
+    startDate: String(data.get("startDate") || "").trim(),
+    validDays,
+    validDate,
+    date,
+    memo,
+    subtotal,
+    vat,
+    total
+  };
+}
+
+async function generateProfessionalProposalDeck() {
+  const status = document.querySelector("#proposalPptStatus");
+  const downloadLink = document.querySelector("#proposalPptDownloadLink");
+  const button = document.querySelector("#createProProposalBtn");
+
+  if (!cart.length) {
+    status.textContent = "장바구니에 상품이 있어야 프로 제안서를 만들 수 있습니다.";
+    downloadLink.classList.add("hidden");
+    downloadLink.removeAttribute("href");
+    return;
+  }
+
+  const serverOnline = await refreshServerConnection();
+  if (!serverOnline) {
+    status.textContent = getServerRequiredMessage();
+    downloadLink.classList.add("hidden");
+    downloadLink.removeAttribute("href");
+    return;
+  }
+
+  const proposalState = getProposalState();
+  const payload = {
+    proposal: {
+      customerName: proposalState.customer,
+      customerPhone: proposalState.phone,
+      siteAddress: proposalState.address,
+      startDate: proposalState.startDate,
+      validDays: proposalState.validDays,
+      proposalDate: proposalState.date.toISOString(),
+      validDate: proposalState.validDate.toISOString(),
+      memo: proposalState.memo
+    },
+    summary: {
+      itemCount: cart.length,
+      subtotal: proposalState.subtotal,
+      vat: proposalState.vat,
+      total: proposalState.total
+    },
+    cart: cart.map((item) => ({
+      id: item.id,
+      productType: item.productType || "",
+      kind: item.kind || "",
+      name: item.name || "",
+      size: item.size || "",
+      option: item.option || "",
+      finish: item.finish || "",
+      maker: item.maker || "",
+      unit: item.unit || "",
+      qty: Number(item.qty || 0),
+      quotePrice: Number(item.quotePrice || 0),
+      costPrice: Number(item.costPrice || 0),
+      image: item.image || "",
+      renderedImage: item.renderedImage || "",
+      renderTarget: item.renderTarget || "",
+      renderPointMemo: item.renderPointMemo || ""
+    }))
+  };
+
+  button.disabled = true;
+  status.textContent = "프로 제안서를 생성하고 있습니다...";
+  downloadLink.classList.add("hidden");
+  downloadLink.removeAttribute("href");
+
+  try {
+    const result = await requestJson("/api/proposal-ppt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }, { retries: 1, timeoutMs: 15000 });
+
+    status.textContent = "프로 제안서가 준비되었습니다. 바로 다운로드할 수 있습니다.";
+    downloadLink.href = result.downloadUrl;
+    downloadLink.download = result.fileName || "";
+    downloadLink.classList.remove("hidden");
+    downloadLink.click();
+  } catch (error) {
+    status.textContent = error.message || "프로 제안서 생성 중 오류가 발생했습니다.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function refreshServerConnection() {
+  const wasOnline = serverConnection.online;
+
+  try {
+    await requestJson("/api/health", { cache: "no-store" }, { retries: 2, timeoutMs: 2500 });
+    serverConnection = { online: true, checked: true, failures: 0 };
+  } catch {
+    const failures = (serverConnection.failures || 0) + 1;
+    serverConnection = {
+      online: failures >= 2 ? false : Boolean(serverConnection.online),
+      checked: true,
+      failures
+    };
+  }
+
+  if (!wasOnline && serverConnection.online) {
+    try {
+      await loadProducts();
+      renderProducts();
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+
+  renderServerConnection();
+  return serverConnection.online;
+}
+
+function renderServerConnection() {
+  const pill = document.querySelector("#serverStatusPill");
+  const homeStatus = document.querySelector("#homeServerStatus");
+  if (!pill) return;
+
+  pill.classList.remove("online", "offline");
+  homeStatus?.classList.remove("online", "offline");
+  if (!serverConnection.checked) {
+    pill.textContent = "서버 확인 중";
+    if (homeStatus) homeStatus.textContent = "상태 확인 중";
+    return;
+  }
+
+  if (serverConnection.online) {
+    pill.classList.add("online");
+    pill.textContent = "서버 연결됨";
+    if (homeStatus) {
+      homeStatus.classList.add("online");
+      homeStatus.textContent = "서버 연결됨";
+    }
+    return;
+  }
+
+  if (serverConnection.failures < 2) {
+    pill.textContent = "서버 재확인 중";
+    if (homeStatus) homeStatus.textContent = "상태 재확인 중";
+    return;
+  }
+
+  pill.classList.add("offline");
+  pill.textContent = "서버 연결 안 됨";
+  if (homeStatus) {
+    homeStatus.classList.add("offline");
+    homeStatus.textContent = "서버 연결 안 됨";
+  }
+}
+
+function getServerRequiredMessage() {
+  return "프로 제안서는 서버 연결이 필요합니다. run-app.bat 실행 후 서버 주소로 다시 접속해주세요.";
+}
+
+async function controlServer(action) {
+  const status = document.querySelector("#serverControlStatus");
+  const actionLabel = action === "restart" ? "재시작" : "종료";
+  status.textContent = `서버 ${actionLabel} 요청을 보내는 중입니다...`;
+
+  try {
+    const result = await requestJson("/api/server-control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    }, { retries: 0, timeoutMs: 5000 });
+
+    status.textContent = result.message || `서버 ${actionLabel} 요청을 완료했습니다.`;
+
+    if (action === "restart") {
+      serverConnection = { online: false, checked: true, failures: 1 };
+      renderServerConnection();
+      setTimeout(() => refreshServerConnection(), 3000);
+      setTimeout(() => refreshServerConnection(), 7000);
+      return;
+    }
+
+    serverConnection = { online: false, checked: true, failures: 2 };
+    renderServerConnection();
+    status.textContent = "서버를 종료했습니다. 다시 켜려면 run-app.bat 또는 run-server.bat를 실행해주세요.";
+  } catch (error) {
+    status.textContent = error.message || `서버 ${actionLabel} 요청 중 오류가 발생했습니다.`;
+  }
+}
+
+function showServerStartGuide() {
+  setText("#serverControlStatus", "서버 켜기는 브라우저 보안 때문에 페이지 안에서 직접 실행할 수 없습니다. run-app.bat 또는 run-server.bat를 실행해주세요.");
+}
+
+function startServerConnectionWatcher() {
+  if (serverConnectionTimer) clearInterval(serverConnectionTimer);
+  serverConnectionTimer = window.setInterval(() => {
+    refreshServerConnection();
+  }, 12000);
+}
+
+function handleServerReconnectCheck() {
+  refreshServerConnection();
+}
+
+async function requestJson(url, options = {}, config = {}) {
+  const retries = Number(config.retries ?? 0);
+  const timeoutMs = Number(config.timeoutMs ?? 8000);
+
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(new Error("timeout")), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+
+      let payload = null;
+      const text = await response.text();
+      payload = text ? JSON.parse(text) : null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || payload?.message || "request failed");
+      }
+
+      return payload;
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await delay(500 * (attempt + 1));
+        continue;
+      }
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  throw lastError || new Error("request failed");
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function openRenderForCartItem(id) {
+  selectedRenderCartId = id;
+  const item = cart.find((entry) => entry.id === id);
+  pendingRenderResultImage = item?.renderedImage || "";
+  pendingSiteImage = "";
+  document.querySelector("#renderSiteImage").value = "";
+  document.querySelector("#renderResultUpload").value = "";
+  setText("#renderStatus", "");
+  renderRenderWorkspace();
+  switchPage("renderPage");
+}
+
+function renderRenderWorkspace() {
+  const selected = document.querySelector("#renderSelectedProduct");
+  const sitePreview = document.querySelector("#renderSitePreview");
+  const resultPreview = document.querySelector("#renderResultPreview");
+  const item = cart.find((entry) => entry.id === selectedRenderCartId);
+
+  if (!item) {
+    selected.innerHTML = "제안서의 제품 이미지를 클릭하면 이곳에서 실사 보정 대상 상품을 확인할 수 있습니다.";
+    sitePreview.innerHTML = "이미지 없음";
+    resultPreview.innerHTML = "이미지 없음";
+    return;
+  }
+
+  selected.innerHTML = `
+    <div class="render-product-card">
+      ${item.image ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" />` : `<div class="render-product-empty">이미지 없음</div>`}
+      <div>
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${escapeHtml(item.kind)} · 규격 ${escapeHtml(item.size || "-")}</span>
+      </div>
+    </div>
+  `;
+
+  sitePreview.innerHTML = pendingSiteImage
+    ? `<img src="${escapeHtml(pendingSiteImage)}" alt="현장사진 미리보기" />`
+    : "이미지 없음";
+  resultPreview.innerHTML = pendingRenderResultImage
+    ? `<img src="${escapeHtml(pendingRenderResultImage)}" alt="보정 완료 이미지 미리보기" />`
+    : "이미지 없음";
+}
+
+function saveRenderResultToProposal() {
+  const item = cart.find((entry) => entry.id === selectedRenderCartId);
+  if (!item) {
+    setText("#renderStatus", "제안서에서 보정할 상품 이미지를 먼저 선택해주세요.");
+    return;
+  }
+  if (!pendingRenderResultImage) {
+    setText("#renderStatus", "보정 완료 이미지를 업로드해주세요.");
+    return;
+  }
+
+  item.renderedImage = pendingRenderResultImage;
+  item.renderTarget = document.querySelector("#renderTarget").value;
+  item.renderPointMemo = document.querySelector("#renderPointMemo").value.trim();
+  if (!saveCart()) {
+    setText("#renderStatus", "이미지 용량이 커서 저장하지 못했습니다. 조금 작은 이미지로 다시 업로드해주세요.");
+    return;
+  }
+
+  renderCartSummary();
+  renderDocuments();
+  switchDoc("proposalDoc");
+  switchPage("proposalPage");
+}
+
+function requestSignupAuth() {
+  const phone = document.querySelector("#signupPhone").value.trim();
+  if (!phone) {
+    setText("#authStatus", "전화번호를 먼저 입력해주세요.");
+    return;
+  }
+
+  pendingSignupAuthCode = String(Math.floor(100000 + Math.random() * 900000));
+  isPhoneVerified = false;
+  document.querySelector("#signupAuthCode").value = pendingSignupAuthCode;
+  setText("#authStatus", `인증번호가 발급되었습니다. 테스트용 인증번호 ${pendingSignupAuthCode}`);
+  renderSignupSummary();
+}
+
+function verifySignupAuth() {
+  const input = document.querySelector("#signupAuthCheck").value.trim();
+  if (!pendingSignupAuthCode) {
+    setText("#authStatus", "먼저 인증 요청을 진행해주세요.");
+    return;
+  }
+
+  isPhoneVerified = input === pendingSignupAuthCode;
+  setText("#authStatus", isPhoneVerified ? "전화번호 인증이 완료되었습니다." : "인증번호가 일치하지 않습니다.");
+  renderSignupSummary();
+}
+
+function resetPhoneVerification() {
+  isPhoneVerified = false;
+  pendingSignupAuthCode = "";
+  document.querySelector("#signupAuthCode").value = "";
+  document.querySelector("#signupAuthCheck").value = "";
+  setText("#authStatus", "전화번호가 변경되었습니다. 다시 인증해주세요.");
+  renderSignupSummary();
+}
+
+async function handleBusinessFileChange() {
+  const file = document.querySelector("#signupBizFile")?.files?.[0];
+  setText("#businessFileName", file ? file.name : "첨부 전");
+  setText("#businessScanStatus", file ? "등록증 파일이 첨부되었습니다. 자동으로 스캔을 시작합니다." : "PDF 또는 이미지 등록증에서 사업자번호를 자동 추출합니다.");
+  extractedBusinessInfo = {
+    companyName: "",
+    businessAddress: "",
+    representative: "",
+    openingDate: "",
+    businessType: "",
+    businessItem: "",
+    businessCategorySection: "",
+    approvalStatus: "판정 전"
+  };
+  resetBusinessVerification(false);
+  renderSignupSummary();
+  if (file) {
+    await scanBusinessRegistrationFile({ autoTriggered: true });
+  }
+}
+
+function resetBusinessVerification(resetNumber = true) {
+  if (resetNumber) document.querySelector("#signupBizNo").value = "";
+  businessVerification = { status: "idle", message: "사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다." };
+  extractedBusinessInfo.approvalStatus = evaluateBusinessApprovalStatus();
+  setText("#businessVerifyStatus", businessVerification.message);
+  renderSignupSummary();
+}
+
+async function scanBusinessRegistrationFile(options = {}) {
+  const { autoTriggered = false } = options;
+  const file = document.querySelector("#signupBizFile")?.files?.[0];
+  if (!file) {
+    setText("#businessScanStatus", "사업자등록증 파일을 먼저 첨부해주세요.");
+    return;
+  }
+
+  const requestId = Date.now();
+  businessScanRequestId = requestId;
+  setText("#businessScanStatus", autoTriggered ? "등록증을 자동 스캔하는 중입니다..." : "사업자등록증을 스캔하는 중입니다...");
+  try {
+    const documentData = await extractBusinessDocumentData(file);
+    if (businessScanRequestId !== requestId) return;
+    const combinedText = Object.values(documentData).filter(Boolean).join("\n");
+    const businessNumber = extractBusinessNumber(combinedText);
+    extractedBusinessInfo = extractBusinessInfo(documentData.text, documentData);
+    autofillSignupFieldsFromBusinessInfo(extractedBusinessInfo);
+    extractedBusinessInfo.approvalStatus = evaluateBusinessApprovalStatus();
+    if (!businessNumber) {
+      setText(
+        "#businessScanStatus",
+        file.type.startsWith("image/")
+          ? "스캔은 완료됐지만 사업자등록번호를 찾지 못했습니다. 추출된 업체명과 주소는 반영했고, 사업자번호는 직접 입력해주세요."
+          : "파일에서 사업자등록번호를 찾지 못했습니다. 추출된 업체명과 주소는 반영했고, 사업자번호는 직접 입력해주세요."
+      );
+      renderSignupSummary();
+      return;
+    }
+
+    document.querySelector("#signupBizNo").value = formatBusinessNumber(businessNumber);
+    businessVerification = { status: "scanned", message: `등록증에서 사업자등록번호 ${formatBusinessNumber(businessNumber)}를 추출했습니다.` };
+    setText("#businessScanStatus", businessVerification.message);
+    setText("#businessVerifyStatus", "사업자등록번호가 자동 입력되었습니다. 사업자 확인 버튼으로 상태를 검증해주세요.");
+    renderSignupSummary();
+  } catch (error) {
+    if (businessScanRequestId !== requestId) return;
+    console.warn(error);
+    setText("#businessScanStatus", "등록증 스캔에 실패했습니다. PDF 텍스트형 파일인지 확인하거나 직접 입력해주세요.");
+  }
+}
+
+async function extractBusinessDocumentData(file) {
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    const buffer = await file.arrayBuffer();
+    return {
+      text: decodePdfText(buffer),
+      registrationText: "",
+      companyText: "",
+      representativeText: "",
+      openingDateText: "",
+      addressText: "",
+      typeText: "",
+      itemText: "",
+      categoryText: ""
+    };
+  }
+
+  if (file.type.startsWith("image/")) {
+    const tesseract = await loadTesseract();
+    if (!tesseract) throw new Error("OCR unavailable");
+    const preparedImage = await prepareBusinessImageForOcr(file);
+    const text = await runBusinessOcr(tesseract, preparedImage, "등록증 전체 OCR 진행 중...");
+    const regionTexts = await extractBusinessRegionTexts(tesseract, preparedImage);
+    return {
+      text,
+      ...regionTexts
+    };
+  }
+
+  return {
+    text: "",
+    registrationText: "",
+    companyText: "",
+    representativeText: "",
+    openingDateText: "",
+    addressText: "",
+    typeText: "",
+    itemText: "",
+    categoryText: ""
+  };
+}
+
+async function extractBusinessDocumentText(file) {
+  const data = await extractBusinessDocumentData(file);
+  return [
+    data.text,
+    data.registrationText,
+    data.companyText,
+    data.representativeText,
+    data.openingDateText,
+    data.addressText,
+    data.typeText,
+    data.itemText,
+    data.categoryText
+  ].filter(Boolean).join("\n");
+}
+
+async function runBusinessOcr(tesseract, imageSource, statusPrefix) {
+  const result = await tesseract.recognize(imageSource, "kor+eng", {
+    logger: (message) => {
+      if (message.status === "recognizing text") {
+        const progress = Math.round((message.progress || 0) * 100);
+        setText("#businessScanStatus", `${statusPrefix} ${progress}%`);
+      }
+    }
+  });
+  return result?.data?.text || "";
+}
+
+async function extractBusinessRegionTexts(tesseract, preparedImage) {
+  const image = await loadImageFromUrl(preparedImage);
+  if (!image) {
+    return {
+      registrationText: "",
+      companyText: "",
+      representativeText: "",
+      openingDateText: "",
+      addressText: "",
+      typeText: "",
+      itemText: "",
+      categoryText: ""
+    };
+  }
+
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const regions = [
+    {
+      key: "registrationText",
+      status: "등록번호 영역 OCR 진행 중...",
+      crop: { left: Math.round(width * 0.22), top: Math.round(height * 0.10), width: Math.round(width * 0.46), height: Math.round(height * 0.10) }
+    },
+    {
+      key: "companyText",
+      status: "상호 영역 OCR 진행 중...",
+      crop: { left: Math.round(width * 0.07), top: Math.round(height * 0.24), width: Math.round(width * 0.58), height: Math.round(height * 0.045) }
+    },
+    {
+      key: "representativeText",
+      status: "대표자 영역 OCR 진행 중...",
+      crop: { left: Math.round(width * 0.07), top: Math.round(height * 0.29), width: Math.round(width * 0.34), height: Math.round(height * 0.04) }
+    },
+    {
+      key: "openingDateText",
+      status: "개업일자 영역 OCR 진행 중...",
+      crop: { left: Math.round(width * 0.07), top: Math.round(height * 0.36), width: Math.round(width * 0.34), height: Math.round(height * 0.045) }
+    },
+    {
+      key: "addressText",
+      status: "사업장주소 영역 OCR 진행 중...",
+      crop: { left: Math.round(width * 0.05), top: Math.round(height * 0.40), width: Math.round(width * 0.76), height: Math.round(height * 0.12) }
+    },
+    {
+      key: "typeText",
+      status: "업태 영역 OCR 진행 중...",
+      crop: { left: Math.round(width * 0.28), top: Math.round(height * 0.53), width: Math.round(width * 0.16), height: Math.round(height * 0.12) }
+    },
+    {
+      key: "itemText",
+      status: "종목 영역 OCR 진행 중...",
+      crop: { left: Math.round(width * 0.61), top: Math.round(height * 0.53), width: Math.round(width * 0.21), height: Math.round(height * 0.12) }
+    }
+  ];
+
+  const extracted = {};
+  for (const region of regions) {
+    const crop = cropBusinessImageRegion(image, region.crop);
+    extracted[region.key] = crop ? await runBusinessOcr(tesseract, crop, region.status) : "";
+  }
+
+  extracted.categoryText = [extracted.typeText, extracted.itemText].filter(Boolean).join("\n");
+  return extracted;
+}
+
+function cropBusinessImageRegion(image, crop) {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) return "";
+
+  canvas.width = Math.max(1, crop.width);
+  canvas.height = Math.max(1, crop.height);
+  context.drawImage(
+    image,
+    crop.left,
+    crop.top,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+  return canvas.toDataURL("image/png");
+}
+
+async function prepareBusinessImageForOcr(file) {
+  const dataUrl = await readImageFile(file, 2200);
+  if (!dataUrl) return file;
+
+  const image = await loadImageFromUrl(dataUrl);
+  if (!image) return file;
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return file;
+
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const frame = context.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = frame.data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    const r = pixels[index];
+    const g = pixels[index + 1];
+    const b = pixels[index + 2];
+    const gray = Math.round((r * 0.299) + (g * 0.587) + (b * 0.114));
+    const boosted = gray > 180 ? 255 : gray < 125 ? 0 : Math.min(255, Math.round(gray * 1.08));
+    pixels[index] = boosted;
+    pixels[index + 1] = boosted;
+    pixels[index + 2] = boosted;
+  }
+  context.putImageData(frame, 0, 0);
+
+  return canvas.toDataURL("image/png");
+}
+
+function decodePdfText(buffer) {
+  const utf8 = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+  const latin1 = new TextDecoder("latin1").decode(buffer);
+  return `${utf8}\n${latin1}`.replace(/\u0000/g, " ");
+}
+
+function extractBusinessNumber(text) {
+  const normalized = String(text || "").replace(/\s+/g, " ");
+  const labeledMatch = normalized.match(/사업자\s*등록\s*번호[^0-9]{0,20}([0-9]{3}[-\s]?[0-9]{2}[-\s]?[0-9]{5})/i);
+  if (labeledMatch) return cleanBusinessNumber(labeledMatch[1]);
+
+  const genericMatches = normalized.match(/([0-9]{3}[-\s]?[0-9]{2}[-\s]?[0-9]{5})/g) || [];
+  for (const candidate of genericMatches) {
+    const clean = cleanBusinessNumber(candidate);
+    if (clean.length === 10) return clean;
+  }
+  return "";
+}
+
+function extractBusinessInfo(text, regionTexts = {}) {
+  const source = String(text || "");
+  const lines = source
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const registrationLines = getTrimmedLines(regionTexts.registrationText);
+  const companyLines = getTrimmedLines(regionTexts.companyText);
+  const representativeLines = getTrimmedLines(regionTexts.representativeText);
+  const openingDateLines = getTrimmedLines(regionTexts.openingDateText);
+  const addressLines = String(regionTexts.addressText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const typeLines = getTrimmedLines(regionTexts.typeText);
+  const itemLines = getTrimmedLines(regionTexts.itemText);
+  const businessCategoryInfo = extractBusinessCategoryInfo(lines, source, regionTexts.categoryText || "");
+  const focusedBusinessTypes = extractFieldListFromCrop(regionTexts.typeText, ["업태", "업태명"]);
+  const focusedBusinessItems = extractFieldListFromCrop(regionTexts.itemText, ["종목", "업종", "업종명"]);
+  const focusedBusinessCategorySection = [focusedBusinessTypes.join(", "), focusedBusinessItems.join(", ")].filter(Boolean).join(" / ");
+  const businessCategorySection = focusedBusinessCategorySection || businessCategoryInfo.section;
+  const semanticInfo = extractBusinessInfoByMeaning(source, regionTexts);
+  const normalizedText = lines.join("\n");
+  const normalizedCompanyText = companyLines.join("\n");
+  const normalizedRepresentativeText = representativeLines.join("\n");
+  const normalizedOpeningDateText = openingDateLines.join("\n");
+  const normalizedAddressText = addressLines.join("\n");
+  const companyNameFromCrop = extractCompanyNameFromCrop(regionTexts.companyText);
+  const representativeFromCrop = extractRepresentativeNameFromCrop(regionTexts.representativeText);
+  const openingDateFromCrop = normalizeOpeningDate(regionTexts.openingDateText || "");
+  const businessAddressFromCrop = extractBusinessAddressFromCrop(regionTexts.addressText);
+
+  return {
+    companyName: sanitizeExtractedField(
+      semanticInfo.companyName
+      || companyNameFromCrop
+      || extractLabeledLineValue(companyLines, ["상호", "법인명", "법인명(단체명)", "단체명", "업체명"], ["성명", "대표자", "대표자명"])
+      || extractFieldFromWholeText(normalizedCompanyText, ["상호", "법인명", "법인명(단체명)", "단체명", "업체명"], ["성명", "대표자", "대표자명"])
+      ||
+      extractLabeledLineValue(lines, ["상호", "법인명", "단체명"], ["성명", "대표자", "대표자명", "생년월일", "개업연월일"])
+      || extractFieldFromWholeText(normalizedText, ["상호", "법인명", "단체명"], ["성명", "대표자", "대표자명", "생년월일", "개업연월일"])
+      || ""
+    ),
+    businessAddress: normalizeBusinessAddress(
+      semanticInfo.businessAddress
+      || businessAddressFromCrop
+      || extractAddressCandidateFromText(normalizedAddressText)
+      || extractLabeledLineValue(addressLines, ["사업장소재지", "사업장 주소", "주소"], ["사업의종류", "업태", "업종", "종목", "발급사유"])
+      || extractFieldFromWholeText(normalizedAddressText, ["사업장소재지", "사업장 주소", "주소"], ["사업의종류", "업태", "업종", "종목", "발급사유"])
+      ||
+      extractLabeledLineValue(lines, ["사업장소재지", "사업장 주소", "주소"], ["사업의종류", "업태", "업종", "종목", "발급사유"])
+      || extractFieldFromWholeText(normalizedText, ["사업장소재지", "사업장 주소", "주소"], ["사업의종류", "업태", "업종", "종목", "발급사유"])
+      || ""
+    ),
+    representative: sanitizeExtractedField(
+      semanticInfo.representative
+      || representativeFromCrop
+      || extractLabeledLineValue(representativeLines, ["성명", "대표자", "대표자명"], ["생년월일", "개업연월일", "사업장소재지"])
+      || extractFieldFromWholeText(normalizedRepresentativeText, ["성명", "대표자", "대표자명"], ["생년월일", "개업연월일", "사업장소재지"])
+      ||
+      extractLabeledLineValue(lines, ["성명", "대표자", "대표자명"], ["생년월일", "개업연월일", "사업장소재지"])
+      || extractFieldFromWholeText(normalizedText, ["성명", "대표자", "대표자명"], ["생년월일", "개업연월일", "사업장소재지"])
+      || ""
+    ),
+    openingDate: normalizeOpeningDate(
+      sanitizeExtractedField(
+        semanticInfo.openingDate
+        || openingDateFromCrop
+        || extractLabeledLineValue(openingDateLines, ["개업연월일", "개업일자", "개업년월일"], ["사업장소재지", "사업의종류", "업태", "업종", "종목"])
+        || extractFieldFromWholeText(normalizedOpeningDateText, ["개업연월일", "개업일자", "개업년월일"], ["사업장소재지", "사업의종류", "업태", "업종", "종목"])
+        ||
+        extractLabeledLineValue(lines, ["개업연월일", "개업일자", "개업년월일"], ["사업장소재지", "사업의종류", "업태", "업종", "종목"])
+        || extractFieldFromWholeText(normalizedText, ["개업연월일", "개업일자", "개업년월일"], ["사업장소재지", "사업의종류", "업태", "업종", "종목"])
+        || ""
+      )
+    ),
+    businessType: sanitizeExtractedField(
+      semanticInfo.businessType
+      || focusedBusinessTypes.join(", ")
+      || extractLabeledLineValue(typeLines, ["업태", "업태명"], ["업종", "종목", "발급사유"])
+      || extractFieldFromWholeText(regionTexts.typeText || "", ["업태", "업태명"], ["업종", "종목", "발급사유"])
+      ||
+      extractLabeledLineValue(lines, ["업태", "업태명"], ["업종", "종목", "발급사유"])
+      || businessCategoryInfo.businessType
+      || businessCategorySection
+      || ""
+    ),
+    businessItem: sanitizeExtractedField(
+      semanticInfo.businessItem
+      || focusedBusinessItems.join(", ")
+      || extractLabeledLineValue(itemLines, ["종목", "업종", "업종명"], ["발급사유", "공동사업자"])
+      || extractFieldFromWholeText(regionTexts.itemText || "", ["종목", "업종", "업종명"], ["발급사유", "공동사업자"])
+      || extractLabeledLineValue(lines, ["종목", "업종", "업종명"], ["발급사유", "공동사업자"])
+      || businessCategoryInfo.businessItem
+      || businessCategorySection
+      || ""
+    ),
+    businessCategorySection: semanticInfo.businessCategorySection || businessCategorySection,
+    approvalStatus: "판정 전"
+  };
+}
+
+function extractBusinessInfoByMeaning(source, regionTexts = {}) {
+  const prioritizedLines = [
+    ...getTrimmedLines(regionTexts.companyText),
+    ...getTrimmedLines(regionTexts.representativeText),
+    ...getTrimmedLines(regionTexts.openingDateText),
+    ...getTrimmedLines(regionTexts.addressText),
+    ...getTrimmedLines(regionTexts.typeText),
+    ...getTrimmedLines(regionTexts.itemText),
+    ...getTrimmedLines(regionTexts.categoryText),
+    ...getTrimmedLines(source)
+  ].map((line) => normalizeBusinessMeaningLine(line)).filter(Boolean);
+
+  const uniqueLines = [...new Set(prioritizedLines)];
+  const companyName = detectBusinessCompanyName(uniqueLines);
+  const representative = detectBusinessRepresentative(uniqueLines);
+  const openingDate = detectBusinessOpeningDate(uniqueLines);
+  const businessAddress = detectBusinessAddress(uniqueLines);
+  const categoryInfo = detectBusinessCategoryByMeaning(uniqueLines);
+
+  return {
+    companyName,
+    representative,
+    openingDate,
+    businessAddress,
+    businessType: categoryInfo.businessType,
+    businessItem: categoryInfo.businessItem,
+    businessCategorySection: categoryInfo.businessCategorySection
+  };
+}
+
+function getTrimmedLines(text) {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function stripLabelPrefix(value, labels = []) {
+  let cleaned = String(value || "").trim();
+  for (const label of labels) {
+    cleaned = cleaned.replace(new RegExp(`^${buildLooseLabelPattern(label)}\\s*[:：]?[\\s]*`, "i"), "").trim();
+  }
+  return sanitizeExtractedField(cleaned);
+}
+
+function extractFieldListFromCrop(text, labels = []) {
+  const lines = getTrimmedLines(text);
+  const values = [];
+
+  for (const line of lines) {
+    const cleaned = cleanupCategoryNoise(stripLabelPrefix(line, labels));
+    if (!cleaned || /^(업태|업종|종목|업태명|업종명)$/i.test(cleaned)) continue;
+    if (/@|fax|mail|naver|co\.|www|http/i.test(cleaned)) continue;
+    if (/개업|연월일|사업장|소재지|발급|정정|등록번호|법인등록번호|대표자|세무서|국세청/i.test(cleaned)) continue;
+    if (!/[가-힣]/.test(cleaned)) continue;
+    if (/[A-Za-z]{4,}/.test(cleaned)) continue;
+    if (cleaned.length > 40) continue;
+    values.push(cleaned);
+  }
+
+  return [...new Set(values)];
+}
+
+function extractCompanyNameFromCrop(text) {
+  const lines = getTrimmedLines(text);
+  for (const line of lines) {
+    const cleaned = sanitizeExtractedField(
+      stripLabelPrefix(line, ["상호", "법인명", "법인명(단체명)", "단체명", "업체명"])
+        .replace(/개\s*업.*$/i, "")
+        .replace(/연\s*월\s*일.*$/i, "")
+        .replace(/등록번호.*$/i, "")
+        .replace(/사업장.*$/i, "")
+        .trim()
+    );
+    if (!cleaned) continue;
+    if (!/[가-힣]/.test(cleaned)) continue;
+    if (/@|fax|mail|naver/i.test(cleaned)) continue;
+    if (/개업|연월일|등록번호|사업장|소재지|대표자|업태|종목/i.test(cleaned)) continue;
+    return cleaned;
+  }
+  return "";
+}
+
+function extractRepresentativeNameFromCrop(text) {
+  const source = stripLabelPrefix(text, ["성명", "대표자", "대표자명"]);
+  const matches = String(source || "").match(/[가-힣]{2,5}/g) || [];
+  return matches[0] || "";
+}
+
+function extractBusinessAddressFromCrop(text) {
+  const source = String(text || "");
+  return normalizeBusinessAddress(
+    extractAddressCandidateFromText(source)
+    || stripLabelPrefix(source, ["사업장소재지", "사업장 주소", "주소", "본점소재지", "본점 소재지"])
+  );
+}
+
+function normalizeBusinessMeaningLine(line) {
+  return String(line || "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[|]/g, " ")
+    .trim();
+}
+
+function isMostlyKoreanText(value) {
+  const source = String(value || "");
+  const koreanCount = (source.match(/[가-힣]/g) || []).length;
+  const alphaNumCount = (source.match(/[가-힣A-Za-z0-9]/g) || []).length;
+  if (!alphaNumCount) return false;
+  return koreanCount / alphaNumCount >= 0.45;
+}
+
+function looksLikeBusinessNoise(value) {
+  const source = String(value || "");
+  return !source
+    || /@|fax|mail|naver|co\.|http|www/i.test(source)
+    || /정정|발급사유|세무서|국세청|전자세금계산서|사업자단위|과세적용/i.test(source);
+}
+
+function detectBusinessCompanyName(lines) {
+  const companyPattern = /(주식회사|유한회사|합자회사|합명회사|㈜|\(주\))/;
+  const candidates = [];
+
+  for (const line of lines) {
+    const cleaned = sanitizeExtractedField(stripLabelPrefix(line, ["상호", "법인명", "법인명(단체명)", "단체명", "업체명"]));
+    if (!cleaned || looksLikeBusinessNoise(cleaned)) continue;
+    if (/대표자|개업|연월일|사업장|소재지|업태|종목|등록번호|법인등록번호/i.test(cleaned)) continue;
+    if (!isMostlyKoreanText(cleaned)) continue;
+    if (!companyPattern.test(cleaned) && cleaned.length < 5) continue;
+    candidates.push(cleaned);
+  }
+
+  return candidates.sort((a, b) => {
+    const aScore = (companyPattern.test(a) ? 10 : 0) + a.length;
+    const bScore = (companyPattern.test(b) ? 10 : 0) + b.length;
+    return bScore - aScore;
+  })[0] || "";
+}
+
+function detectBusinessRepresentative(lines) {
+  const candidates = [];
+
+  for (const line of lines) {
+    if (looksLikeBusinessNoise(line)) continue;
+    const cleaned = stripLabelPrefix(line, ["성명", "대표자", "대표자명", "대 표 자"]);
+    const matches = cleaned.match(/[가-힣]{2,5}/g) || [];
+    for (const match of matches) {
+      if (/주식회사|사업장|경기도|서울|부산|업태|종목/.test(match)) continue;
+      candidates.push(match);
+    }
+  }
+
+  return candidates[0] || "";
+}
+
+function detectBusinessOpeningDate(lines) {
+  for (const line of lines) {
+    if (!/\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일/.test(line) && !/\b(20\d{2}|19\d{2})(\d{2})(\d{2})\b/.test(line)) continue;
+    const normalized = normalizeOpeningDate(line);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
+  }
+  return "";
+}
+
+function detectBusinessAddress(lines) {
+  const candidates = [];
+
+  for (const line of lines) {
+    if (looksLikeBusinessNoise(line)) continue;
+    const address = normalizeBusinessAddress(
+      extractAddressCandidateFromText(line)
+      || stripLabelPrefix(line, ["사업장소재지", "사업장 주소", "주소", "본점소재지", "본점 소재지"])
+    );
+    if (!address) continue;
+    if (!/(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/.test(address)) continue;
+    if (address.length < 8) continue;
+    candidates.push(address);
+  }
+
+  return candidates.sort((a, b) => b.length - a.length)[0] || "";
+}
+
+function detectBusinessCategoryByMeaning(lines) {
+  const typeMatches = [];
+  const itemMatches = [];
+
+  for (const line of lines) {
+    const cleaned = cleanupCategoryNoise(stripLabelPrefix(line, ["사업의종류", "업태", "업태명", "업종", "업종명", "종목"]));
+    if (!cleaned || looksLikeBusinessNoise(cleaned)) continue;
+    if (!isMostlyKoreanText(cleaned)) continue;
+
+    if (looksLikeBusinessType(cleaned)) typeMatches.push(cleaned);
+    if (looksLikeBusinessItem(cleaned)) itemMatches.push(cleaned);
+  }
+
+  const businessType = [...new Set(typeMatches)].slice(0, 3).join(", ");
+  const businessItem = [...new Set(itemMatches)].slice(0, 5).join(", ");
+  return {
+    businessType,
+    businessItem,
+    businessCategorySection: [businessType, businessItem].filter(Boolean).join(" / ")
+  };
+}
+
+function looksLikeBusinessType(value) {
+  return /(도매\s*및\s*소매업|건설업|제조업|서비스업|부동산업|정보통신업|전문[, ]*과학\s*및\s*기술서비스업|전자상거래업|통신판매업)/.test(value);
+}
+
+function looksLikeBusinessItem(value) {
+  return /(공사업|무역|건축자재|타일|위생도기|조명기구|소매업|도매업|인테리어|실내건축|방수|설비|창호|금구|욕실용품)/.test(value)
+    && !looksLikeBusinessType(value);
+}
+
+function extractBusinessCategoryInfo(lines, sourceText = "", focusedCategoryText = "") {
+  const section = extractBusinessCategorySection(lines, focusedCategoryText);
+  const sectionSource = focusedCategoryText
+    ? [focusedCategoryText, section].filter(Boolean).join("\n")
+    : [section, String(sourceText || "").trim()].filter(Boolean).join("\n");
+  const typeMatches = collectCategoryValues(sectionSource, ["업태", "업태명"], ["업종", "종목", "업종명", "발급사유", "공동사업자"]);
+  const itemMatches = collectCategoryValues(sectionSource, ["업종", "종목", "업종명"], ["업태", "업태명", "발급사유", "공동사업자"]);
+  const inferredTypes = typeMatches.length ? typeMatches : inferBusinessTypes(section);
+  const inferredItems = itemMatches.length ? itemMatches : inferBusinessItems(section);
+
+  return {
+    section,
+    businessType: [...new Set(inferredTypes)].slice(0, 3).join(", "),
+    businessItem: [...new Set(inferredItems)].slice(0, 5).join(", ")
+  };
+}
+
+function extractBusinessCategorySection(lines, focusedCategoryText = "") {
+  const focusedLines = String(focusedCategoryText || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const sourceLines = focusedLines.length ? focusedLines : lines;
+  if (!Array.isArray(sourceLines) || !sourceLines.length) return "";
+
+  const startIndex = sourceLines.findIndex((line) => /사\s*업\s*의\s*종\s*류|업\s*태|업\s*종|종\s*목/i.test(line));
+  const actualStartIndex = startIndex === -1 ? 0 : startIndex;
+
+  const collected = [];
+  for (let index = actualStartIndex; index < sourceLines.length; index += 1) {
+    const line = sourceLines[index].trim();
+    if (!line) continue;
+    if (
+      index > actualStartIndex &&
+      /발\s*급\s*사\s*유|공\s*동\s*사\s*업\s*자|사\s*업\s*자\s*단\s*위|과\s*세\s*적\s*용|전\s*자\s*세\s*금\s*계\s*산\s*서|개\s*업\s*연\s*월\s*일|사\s*업\s*장\s*소\s*재\s*지/i.test(line)
+    ) {
+      break;
+    }
+    collected.push(sanitizeExtractedField(line.replace(/사\s*업\s*의\s*종\s*류\s*[:：]?\s*/i, "").trim()));
+  }
+
+  return [...new Set(collected)]
+    .map((line) => cleanupCategoryNoise(line))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function collectCategoryValues(text, labels, stopLabels = []) {
+  const source = String(text || "").replace(/\r/g, " ").replace(/\n/g, " ");
+  const values = [];
+
+  for (const label of labels) {
+    const regex = new RegExp(`${buildLooseLabelPattern(label)}\\s*[:：]?\\s*([^\\n]+?)\\s*(?=${stopLabels.map((item) => buildLooseLabelPattern(item)).join("|")}|$)`, "gi");
+    let match;
+    while ((match = regex.exec(source))) {
+      const cleaned = cleanupValueAfterLabel(match[1] || "", stopLabels);
+      if (cleaned && !/^(업태|업종|종목)$/i.test(cleaned)) values.push(cleaned);
+    }
+  }
+
+  return values.map((value) => cleanupCategoryNoise(value)).filter(Boolean);
+}
+
+function extractLabeledLineValue(lines, labels, stopLabels = []) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    for (const label of labels) {
+      const regex = new RegExp(`${buildLooseLabelPattern(label)}\\s*[:：]?\\s*(.+)?$`, "i");
+      const match = line.match(regex);
+      if (!match) continue;
+
+      const value = cleanupValueAfterLabel(match[1] || "", stopLabels);
+      if (value && value !== label) return value;
+      const nextLine = lines[index + 1]?.trim() || "";
+      if (nextLine && !labels.some((item) => nextLine.startsWith(item))) {
+        return cleanupValueAfterLabel(nextLine, stopLabels);
+      }
+    }
+  }
+  return "";
+}
+
+function extractFieldFromWholeText(text, labels, stopLabels = []) {
+  const source = String(text || "").replace(/\r/g, " ");
+  for (const label of labels) {
+    const regex = new RegExp(`${buildLooseLabelPattern(label)}\\s*[:：]?\\s*([^\\n]+)`, "i");
+    const match = source.match(regex);
+    if (!match) continue;
+    const value = cleanupValueAfterLabel(match[1] || "", stopLabels);
+    if (value) return value;
+  }
+  return "";
+}
+
+function buildLooseLabelPattern(label) {
+  return String(label || "")
+    .split("")
+    .map((character) => escapeRegex(character))
+    .join("\\s*");
+}
+
+function cleanupValueAfterLabel(value, stopLabels = []) {
+  let cleaned = String(value || "").trim();
+  if (!cleaned) return "";
+
+  for (const stopLabel of stopLabels) {
+    const regex = new RegExp(`\\s+${buildLooseLabelPattern(stopLabel)}\\s*[:：]?.*$`, "i");
+    cleaned = cleaned.replace(regex, "").trim();
+  }
+
+  return sanitizeExtractedField(cleaned);
+}
+
+function inferBusinessTypes(section) {
+  const text = cleanupCategoryNoise(section);
+  if (!text) return [];
+
+  const patterns = [
+    /도매\s*및\s*소매업/gi,
+    /건설업/gi,
+    /제조업/gi,
+    /서비스업/gi,
+    /부동산업/gi,
+    /정보통신업/gi,
+    /전문[, ]*과학\s*및\s*기술서비스업/gi,
+    /전자상거래업/gi,
+    /통신판매업/gi
+  ];
+
+  const matches = [];
+  for (const pattern of patterns) {
+    const found = text.match(pattern) || [];
+    for (const item of found) matches.push(sanitizeExtractedField(item));
+  }
+  return [...new Set(matches)];
+}
+
+function inferBusinessItems(section) {
+  const text = cleanupCategoryNoise(section);
+  if (!text) return [];
+
+  const preferred = extractRuleMatchesFromSection(text, approvalRules.businessItems);
+  if (preferred.length) return preferred;
+
+  const patterns = [
+    /[가-힣A-Za-z0-9(),\s]+공사업/gi,
+    /건축자재\s*\([^)]+\)/gi,
+    /[가-힣A-Za-z0-9(),\s]+무역/gi,
+    /[가-힣A-Za-z0-9(),\s]+도매업/gi,
+    /[가-힣A-Za-z0-9(),\s]+소매업/gi
+  ];
+
+  const matches = [];
+  for (const pattern of patterns) {
+    const found = text.match(pattern) || [];
+    for (const item of found) matches.push(cleanupCategoryNoise(item));
+  }
+  return [...new Set(matches)].filter((item) => item.length <= 40);
+}
+
+function extractRuleMatchesFromSection(section, rules) {
+  const normalizedSection = normalizeRuleValue(section);
+  return (Array.isArray(rules) ? rules : [])
+    .filter((rule) => normalizedSection.includes(normalizeRuleValue(rule)))
+    .map((rule) => formatRuleLabel(rule));
+}
+
+function formatRuleLabel(rule) {
+  const value = String(rule || "").trim();
+  return value
+    .replaceAll("및", " 및 ")
+    .replaceAll("도매업", " 도매업")
+    .replaceAll("소매업", " 소매업")
+    .replaceAll("공사업", " 공사업")
+    .replaceAll("판매업", " 판매업")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function cleanupCategoryNoise(value) {
+  return String(value || "")
+    .replace(/국세청.*$/i, "")
+    .replace(/등록번호.*$/i, "")
+    .replace(/법인등록번호.*$/i, "")
+    .replace(/대표자.*$/i, "")
+    .replace(/대표명.*$/i, "")
+    .replace(/정정.*$/i, "")
+    .replace(/사유.*$/i, "")
+    .replace(/발행.*$/i, "")
+    .replace(/세무서.*$/i, "")
+    .replace(/사업자단위.*$/i, "")
+    .replace(/과세적용.*$/i, "")
+    .replace(/전자세금계산서.*$/i, "")
+    .replace(/발급사유.*$/i, "")
+    .replace(/소재지.*$/i, "")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "")
+    .replace(/\b\d{4}\s*년\s*\d{2}\s*월\s*\d{2}\s*일\b/g, "")
+    .replace(/\b\d{3}[-\s]?\d{2}[-\s]?\d{5}\b/g, "")
+    .replace(/\b\d{6}[-\s]?\d{7}\b/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[,.;:)\]-]+/g, "")
+    .trim();
+}
+
+function normalizeBusinessAddress(value) {
+  const cleaned = cleanupAddressNoise(value);
+  const match = cleaned.match(/((서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^\n]*)/);
+  return sanitizeExtractedField(match ? match[1] : cleaned);
+}
+
+function extractAddressCandidateFromText(text) {
+  const source = cleanupAddressNoise(text);
+  const lineMatch = source.match(/(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^0-9\n]*(?:\d+[^\n]*)?/);
+  return lineMatch ? lineMatch[0].trim() : "";
+}
+
+function cleanupAddressNoise(value) {
+  return String(value || "")
+    .replace(/^\d{4}\s*년\s*\d{2}\s*월\s*\d{2}\s*일\s*/g, "")
+    .replace(/\b\d{4}\s*년\s*\d{2}\s*월\s*\d{2}\s*일\b/g, "")
+    .replace(/개업연월일.*$/i, "")
+    .replace(/법인등록번호.*$/i, "")
+    .replace(/사업의종류.*$/i, "")
+    .replace(/업태.*$/i, "")
+    .replace(/업종.*$/i, "")
+    .replace(/종목.*$/i, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function autofillSignupFieldsFromBusinessInfo(info) {
+  const companyNameInput = signupForm?.elements?.namedItem("companyName");
+  const companyAddressInput = signupForm?.elements?.namedItem("companyAddress");
+
+  if (companyNameInput && info.companyName) {
+    companyNameInput.value = info.companyName;
+  }
+
+  if (companyAddressInput && info.businessAddress) {
+    companyAddressInput.value = info.businessAddress;
+  }
+}
+
+function sanitizeExtractedField(value) {
+  return String(value || "")
+    .replace(/^[)\]}>」』]+/g, "")
+    .replace(/^[^가-힣A-Za-z0-9(주)\[]+/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function escapeRegex(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeOpeningDate(value) {
+  const source = String(value || "").trim();
+  const koreanDateMatch = source.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if (koreanDateMatch) {
+    return `${koreanDateMatch[1]}-${String(koreanDateMatch[2]).padStart(2, "0")}-${String(koreanDateMatch[3]).padStart(2, "0")}`;
+  }
+
+  const compactDateMatch = source.match(/\b(20\d{2}|19\d{2})(\d{2})(\d{2})\b/);
+  if (compactDateMatch) {
+    return `${compactDateMatch[1]}-${compactDateMatch[2]}-${compactDateMatch[3]}`;
+  }
+
+  const digits = source.replace(/\D/g, "");
+  if (digits.length >= 8) {
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  }
+
+  return source;
+}
+
+function cleanBusinessNumber(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function formatBusinessNumber(value) {
+  const digits = cleanBusinessNumber(value);
+  if (digits.length !== 10) return digits;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+}
+
+async function loadTesseract() {
+  if (window.Tesseract) return window.Tesseract;
+  if (tesseractLoaderPromise) return tesseractLoaderPromise;
+
+  tesseractLoaderPromise = new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    script.onload = () => resolve(window.Tesseract || null);
+    script.onerror = () => resolve(null);
+    document.head.appendChild(script);
+  });
+
+  return tesseractLoaderPromise;
+}
+
+async function verifyBusinessRegistration() {
+  const businessNumber = cleanBusinessNumber(document.querySelector("#signupBizNo").value);
+  if (businessNumber.length !== 10) {
+    businessVerification = { status: "invalid", message: "사업자등록번호 10자리를 먼저 입력해주세요." };
+    setText("#businessVerifyStatus", businessVerification.message);
+    renderSignupSummary();
+    return;
+  }
+
+  businessVerification = { status: "checking", message: "국세청 사업자 상태를 확인하는 중입니다..." };
+  setText("#businessVerifyStatus", businessVerification.message);
+
+  try {
+    const payload = await requestJson("/api/business-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessNumber })
+    }, { retries: 1, timeoutMs: 10000 });
+
+    businessVerification = {
+      status: payload.valid ? "verified" : "rejected",
+      message: payload.message,
+      data: payload
+    };
+  } catch (error) {
+    businessVerification = {
+      status: "error",
+      message: error.message || "사업자 확인 중 오류가 발생했습니다."
+    };
+  }
+
+  extractedBusinessInfo.approvalStatus = evaluateBusinessApprovalStatus();
+  setText("#businessVerifyStatus", businessVerification.message);
+  renderSignupSummary();
+}
+
+function evaluateBusinessApprovalStatus() {
+  if (businessVerification.status !== "verified") return "판정 전";
+  if (!approvalRules.businessTypes.length && !approvalRules.businessItems.length) return "기준 미설정";
+
+  const normalizedType = normalizeRuleValue(`${extractedBusinessInfo.businessType} ${extractedBusinessInfo.businessCategorySection}`);
+  const normalizedItem = normalizeRuleValue(`${extractedBusinessInfo.businessItem} ${extractedBusinessInfo.businessCategorySection}`);
+  const typeMatched = approvalRules.businessTypes.length
+    ? approvalRules.businessTypes.some((rule) => normalizedType.includes(rule))
+    : false;
+  const itemMatched = approvalRules.businessItems.length
+    ? approvalRules.businessItems.some((rule) => normalizedItem.includes(rule))
+    : false;
+
+  return typeMatched || itemMatched ? "가입승인" : "가입보류";
+}
+
+function normalizeRuleValue(value) {
+  return String(value || "").toLowerCase().replace(/\s+/g, "");
+}
+
+function loadApprovalRules() {
+  try {
+    const stored = JSON.parse(localStorage.getItem("tbpApprovalRules") || "null");
+    if (!stored) return cloneApprovalRules(DEFAULT_APPROVAL_RULES);
+    return {
+      businessTypes: Array.isArray(stored.businessTypes) && stored.businessTypes.length ? stored.businessTypes : DEFAULT_APPROVAL_RULES.businessTypes,
+      businessItems: Array.isArray(stored.businessItems) && stored.businessItems.length ? stored.businessItems : DEFAULT_APPROVAL_RULES.businessItems
+    };
+  } catch {
+    return cloneApprovalRules(DEFAULT_APPROVAL_RULES);
+  }
+}
+
+function cloneApprovalRules(source) {
+  return {
+    businessTypes: [...source.businessTypes],
+    businessItems: [...source.businessItems]
+  };
+}
+
+function syncDefaultApprovalRules() {
+  const savedVersion = localStorage.getItem("tbpApprovalRulesVersion");
+  if (savedVersion === DEFAULT_APPROVAL_RULES_VERSION) return;
+
+  approvalRules = cloneApprovalRules(DEFAULT_APPROVAL_RULES);
+  localStorage.setItem("tbpApprovalRules", JSON.stringify(approvalRules));
+  localStorage.setItem("tbpApprovalRulesVersion", DEFAULT_APPROVAL_RULES_VERSION);
+}
+
+function renderApprovalRules() {
+  document.querySelector("#allowedBusinessTypes").value = approvalRules.businessTypes.join(", ");
+  document.querySelector("#allowedBusinessItems").value = approvalRules.businessItems.join(", ");
+}
+
+async function saveApprovalRulesFromForm() {
+  const businessTypes = parseRuleInput(document.querySelector("#allowedBusinessTypes").value);
+  const businessItems = parseRuleInput(document.querySelector("#allowedBusinessItems").value);
+  approvalRules = { businessTypes, businessItems };
+  localStorage.setItem("tbpApprovalRules", JSON.stringify(approvalRules));
+  try {
+    await requestJson("/api/approval-rules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        businessTypes: businessTypes.map((item) => formatRuleLabel(item)),
+        businessItems: businessItems.map((item) => formatRuleLabel(item))
+      })
+    }, { retries: 1, timeoutMs: 5000 });
+  } catch (error) {
+    console.warn(error);
+  }
+  extractedBusinessInfo.approvalStatus = evaluateBusinessApprovalStatus();
+  setText("#approvalRuleStatus", "가입 승인 기준이 저장되었습니다. 이후 스캔 결과와 자동 비교합니다.");
+  renderSignupSummary();
+}
+
+function parseRuleInput(value) {
+  return String(value || "")
+    .split(/[,\n]/)
+    .map((item) => normalizeRuleValue(item))
+    .filter(Boolean);
+}
+
+function selectSignupProvider(provider) {
+  selectedSignupProvider = provider;
+  setText("#signupStatus", `${provider} 연동 화면은 준비되었습니다. 실제 OAuth 연결은 추후 API 연동 시 활성화됩니다.`);
+  renderSignupSummary();
+}
+
+function renderSignupSummary() {
+  const file = document.querySelector("#signupBizFile")?.files?.[0];
+  const data = signupForm ? new FormData(signupForm) : new FormData();
+  const name = data.get("name") || "미입력";
+  const company = data.get("companyName") || "미입력";
+  const summary = [
+    ["전화번호 인증", isPhoneVerified ? "완료" : "미완료"],
+    ["사업자등록증", file ? file.name : "첨부 전"],
+    ["사업자 확인", businessVerification.status === "verified" ? "확인 완료" : businessVerification.status === "rejected" ? "확인 실패" : "미확인"],
+    ["가입 방식", selectedSignupProvider],
+    ["상태", name !== "미입력" && company !== "미입력" ? "입력 진행 중" : "입력 대기"]
+  ];
+
+  document.querySelector("#signupSummary").innerHTML = summary.map(([label, value]) => `
+    <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+  `).join("");
+
+  const extractedSummary = [
+    ["상호", extractedBusinessInfo.companyName || "미추출"],
+    ["사업장주소", extractedBusinessInfo.businessAddress || "미추출"],
+    ["대표자명", extractedBusinessInfo.representative || "미추출"],
+    ["개업일자", extractedBusinessInfo.openingDate || "미추출"],
+    ["업태", extractedBusinessInfo.businessType || "미추출"],
+    ["종목", extractedBusinessInfo.businessItem || "미추출"],
+    ["가입판정", extractedBusinessInfo.approvalStatus]
+  ];
+  if (extractedBusinessInfo.businessCategorySection) {
+    extractedSummary.splice(5, 0, ["추출 업태/종목", extractedBusinessInfo.businessCategorySection]);
+  }
+  document.querySelector("#businessExtractSummary").innerHTML = extractedSummary.map(([label, value]) => `
+    <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+  `).join("");
+}
+
+async function submitSignupForm(event) {
+  event.preventDefault();
+  if (!isPhoneVerified) {
+    setText("#signupStatus", "전화번호 인증을 완료한 뒤 회원가입을 진행해주세요.");
+    return;
+  }
+
+  const formData = new FormData(signupForm);
+  const password = String(formData.get("password") || "");
+  const passwordConfirm = String(formData.get("passwordConfirm") || "");
+  if (!password || password.length < 6) {
+    setText("#signupStatus", "비밀번호는 6자 이상으로 입력해주세요.");
+    return;
+  }
+  if (password !== passwordConfirm) {
+    setText("#signupStatus", "비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+    return;
+  }
+  if (businessVerification.status !== "verified") {
+    setText("#signupStatus", "사업자 확인 버튼으로 올바른 사업자인지 먼저 확인해주세요.");
+    return;
+  }
+  if (extractedBusinessInfo.approvalStatus === "기준 미설정") {
+    setText("#signupStatus", "허용 업태/업종 승인 기준을 먼저 저장해주세요.");
+    return;
+  }
+
+  const businessFile = document.querySelector("#signupBizFile").files?.[0];
+  const approvalStatus = extractedBusinessInfo.approvalStatus === "가입승인" ? "승인" : "보류";
+  const signupPayload = {
+    phone: formData.get("phone"),
+    businessNumber: formData.get("businessNumber"),
+    name: formData.get("name"),
+    title: formData.get("title"),
+    companyName: formData.get("companyName"),
+    companyAddress: formData.get("companyAddress"),
+    password,
+    provider: selectedSignupProvider,
+    extractedCompanyName: extractedBusinessInfo.companyName,
+    extractedBusinessAddress: extractedBusinessInfo.businessAddress,
+    representative: extractedBusinessInfo.representative,
+    openingDate: extractedBusinessInfo.openingDate,
+    businessType: extractedBusinessInfo.businessType,
+    businessItem: extractedBusinessInfo.businessItem,
+    businessCategorySection: extractedBusinessInfo.businessCategorySection,
+    approvalStatus,
+    businessFileName: businessFile?.name || "",
+    submittedAt: new Date().toISOString()
+  };
+
+  try {
+    await requestJson("/api/signup-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(signupPayload)
+    }, { retries: 1, timeoutMs: 8000 });
+  } catch (error) {
+    console.warn(error);
+    saveSignupRequest(signupPayload);
+  }
+  setText("#signupStatus", approvalStatus === "승인"
+    ? `${signupPayload.companyName} 회원가입이 승인 상태로 저장되었습니다.`
+    : `${signupPayload.companyName} 회원가입은 업태/업종 기준에 맞지 않아 가입보류로 저장되었습니다.`);
+  setText("#loginStatus", approvalStatus === "승인"
+    ? `${signupPayload.companyName} 회원가입이 저장되었습니다. 같은 사업자등록번호와 비밀번호로 로그인해주세요.`
+    : `${signupPayload.companyName} 계정은 현재 가입보류 상태입니다. 관리자 확인 후 로그인할 수 있습니다.`);
+  signupForm.reset();
+  isPhoneVerified = false;
+  pendingSignupAuthCode = "";
+  selectedSignupProvider = "일반 회원가입";
+  businessVerification = { status: "idle", message: "사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다." };
+  extractedBusinessInfo = {
+    companyName: "",
+    businessAddress: "",
+    representative: "",
+    openingDate: "",
+    businessType: "",
+    businessItem: "",
+    businessCategorySection: "",
+    approvalStatus: "판정 전"
+  };
+  setText("#authStatus", "간편인증 시스템 연동 전 단계입니다. 현재는 화면에서 인증 흐름을 먼저 설정합니다.");
+  setText("#businessVerifyStatus", businessVerification.message);
+  setText("#businessScanStatus", "PDF 또는 이미지 등록증에서 사업자번호를 자동 추출합니다.");
+  setText("#businessFileName", "첨부 전");
+  renderSignupSummary();
+  switchPage("loginPage");
+}
+
+function saveSignupRequest(payload) {
+  try {
+    const current = JSON.parse(localStorage.getItem("tbpSignupRequests") || "[]");
+    current.push(payload);
+    localStorage.setItem("tbpSignupRequests", JSON.stringify(current));
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+async function submitLoginForm(event) {
+  event.preventDefault();
+  const formData = new FormData(loginForm);
+  const businessNumber = String(formData.get("businessNumber") || "").trim();
+  const password = String(formData.get("password") || "");
+  let matchedUser = null;
+
+  try {
+    const result = await requestJson("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessNumber, password })
+    }, { retries: 1, timeoutMs: 8000 });
+    matchedUser = result.user;
+  } catch (error) {
+    const requests = loadSignupRequests();
+    const localMatchedUser = requests.find((item) => item.businessNumber === businessNumber && item.password === password);
+    if (!localMatchedUser) {
+      setText("#loginStatus", error.message || "사업자등록번호 또는 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+    if (localMatchedUser.approvalStatus !== "승인") {
+      setText("#loginStatus", `${localMatchedUser.companyName} 계정은 현재 가입보류 상태입니다. 업태/업종 승인 후 로그인할 수 있습니다.`);
+      return;
+    }
+    matchedUser = {
+      phone: localMatchedUser.phone,
+      businessNumber: localMatchedUser.businessNumber,
+      name: localMatchedUser.name,
+      title: localMatchedUser.title,
+      companyName: localMatchedUser.companyName,
+      companyAddress: localMatchedUser.companyAddress,
+      provider: localMatchedUser.provider || "일반 회원가입"
+    };
+  }
+
+  authUser = {
+    phone: matchedUser.phone,
+    businessNumber: matchedUser.businessNumber,
+    name: matchedUser.name,
+    title: matchedUser.title,
+    companyName: matchedUser.companyName,
+    companyAddress: matchedUser.companyAddress,
+    provider: matchedUser.provider || "일반 회원가입"
+  };
+  saveAuthSession(authUser);
+  await hydrateCartFromServer({ mergeLocal: true });
+  renderAuthControls();
+  setText("#loginStatus", `${matchedUser.companyName} 계정으로 로그인되었습니다.`);
+  loginForm.reset();
+  switchPage("homePage");
+}
+
+function loadSignupRequests() {
+  try {
+    return JSON.parse(localStorage.getItem("tbpSignupRequests") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function loadAuthSession() {
+  try {
+    return JSON.parse(localStorage.getItem("tbpAuthSession") || "null");
+  } catch {
+    return null;
+  }
+}
+
+function saveAuthSession(user) {
+  localStorage.setItem("tbpAuthSession", JSON.stringify(user));
+}
+
+function logoutUser() {
+  authUser = null;
+  localStorage.removeItem("tbpAuthSession");
+  if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
+  renderAuthControls();
+  switchPage("homePage");
+}
+
+function renderAuthControls() {
+  const authActions = document.querySelector("#authActions");
+  const authSession = document.querySelector("#authSession");
+  const authBadge = document.querySelector("#authBadge");
+
+  const isLoggedIn = Boolean(authUser);
+  authActions.classList.toggle("hidden", isLoggedIn);
+  authSession.classList.toggle("hidden", !isLoggedIn);
+
+  if (isLoggedIn) {
+    authBadge.textContent = `${authUser.companyName} · ${authUser.name}`;
+  }
+}
+
+function readImageFile(file, maxWidth, quality = 0.84) {
+  if (!file) return Promise.resolve("");
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const context = canvas.getContext("2d");
+        context.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(String(reader.result || ""));
+      img.src = String(reader.result || "");
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageFromUrl(src) {
+  if (!src) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+}
+
+async function addProductFromForm(event) {
+  event.preventDefault();
+  const formData = new FormData(productForm);
+  const product = {
+    id: createProductId(formData),
+    productType: formData.get("productType"),
+    kind: formData.get("kind"),
+    name: formData.get("name").trim(),
+    size: formData.get("size") || "",
+    finish: formData.get("finish") || "",
+    maker: formData.get("maker").trim(),
+    unit: formData.get("unit").trim(),
+    option: formData.get("option").trim(),
+    costPrice: Number(formData.get("costPrice")),
+    retailPrice: Number(formData.get("retailPrice")),
+    wholesalePrice: Number(formData.get("wholesalePrice")),
+    stockQty: Number(formData.get("stockQty")),
+    image: formData.get("image").trim(),
+    originalImage: formData.get("originalImage").trim(),
+    closeImage: formData.get("closeImage").trim(),
+    detailImage: formData.get("detailImage").trim(),
+    daylightImage: formData.get("daylightImage").trim(),
+    fluorescentImage: formData.get("fluorescentImage").trim(),
+    sceneImage: formData.get("sceneImage").trim()
+  };
+
+  try {
+    products = await requestJson("/api/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(product)
+    }, { retries: 1, timeoutMs: 8000 });
+    serverConnection = { online: true, checked: true, failures: 0 };
+  } catch {
+    saveLocalProduct(product);
+    products = mergeProducts(products, [product]);
+  }
+
+  productForm.reset();
+  setupDbForm();
+  syncProductFilters();
+  renderProducts();
+  setText("#dbStatus", "등록 완료");
+}
+
+function createProductId(formData) {
+  const source = `${formData.get("productType")}-${formData.get("kind")}-${formData.get("name")}-${Date.now()}`;
+  return source.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function addToCart(id) {
+  const product = products.find((item) => item.id === id);
+  if (!product) return;
+
+  const existing = cart.find((item) => item.id === id);
+  if (existing) existing.qty += 1;
+  else cart.push({ ...product, qty: 1, quotePrice: product.retailPrice });
+
+  saveCart();
+  renderCart();
+  renderDocuments();
+}
+
+function updateCartLine(id, changes, options = {}) {
+  const item = cart.find((entry) => entry.id === id);
+  if (!item) return;
+
+  if (changes.qty !== undefined) item.qty = Math.max(Number(changes.qty) || 0, 0);
+  if (changes.quotePrice !== undefined) item.quotePrice = Math.max(Number(changes.quotePrice) || 0, 0);
+  if (options.removeEmpty !== false) cart = cart.filter((entry) => entry.qty > 0);
+  saveCart();
+  if (options.rerenderList === false) renderCartSummary();
+  else renderCart();
+  renderDocuments();
+}
+
+function removeFromCart(id) {
+  cart = cart.filter((item) => item.id !== id);
+  saveCart();
+  renderCart();
+  renderDocuments();
+}
+
+function clearCart() {
+  cart = [];
+  saveCart();
+  renderCart();
+  renderDocuments();
+}
+
+function switchPage(pageId, options = {}) {
+  if (pageId === currentPageId) {
+    restorePageScroll(pageId, options.scrollY ?? window.scrollY);
+    return;
+  }
+
+  if (currentPageId) {
+    pageScrollPositions.set(currentPageId, window.scrollY);
+    if (options.pushHistory !== false) {
+      pageHistory.push({ pageId: currentPageId, scrollY: window.scrollY });
+    }
+  }
+
+  document.querySelectorAll(".app-page").forEach((page) => {
+    page.classList.toggle("active", page.id === pageId);
+  });
+
+  currentPageId = pageId;
+  const activeNavPage = pageId === "productDetailPage" ? "productsPage" : pageId;
+  document.querySelectorAll("[data-page-target]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.pageTarget === activeNavPage);
+  });
+
+  const targetScroll = options.scrollY ?? 0;
+  restorePageScroll(pageId, targetScroll);
+
+  if (options.updateBrowserHistory !== false) {
+    history.pushState({ pageId }, "", `#${pageId}`);
+  }
+}
+
+function restorePageScroll(pageId, scrollY) {
+  const targetScroll = Math.max(Number(scrollY) || 0, 0);
+  const restore = () => {
+    if (pageId === "productsPage" && productListReturnState.productId) {
+      restoreProductListPosition(targetScroll);
+      return;
+    }
+    window.scrollTo({ top: targetScroll, behavior: "auto" });
+  };
+
+  requestAnimationFrame(() => {
+    restore();
+  });
+
+  setTimeout(restore, 80);
+  setTimeout(restore, 250);
+  setTimeout(restore, 600);
+}
+
+function restoreProductListPosition(fallbackScrollY) {
+  const productTrigger = document.querySelector(`[data-view-product="${cssEscape(productListReturnState.productId)}"]`);
+  const card = productTrigger?.closest(".product-card");
+  if (!card) {
+    window.scrollTo({ top: fallbackScrollY, behavior: "auto" });
+    return;
+  }
+
+  window.scrollTo({ top: fallbackScrollY, behavior: "auto" });
+  const rect = card.getBoundingClientRect();
+  const targetTop = window.scrollY + rect.top - productListReturnState.viewportTop;
+  window.scrollTo({ top: Math.max(targetTop, 0), behavior: "auto" });
+}
+
+function goBackPage() {
+  pageScrollPositions.set(currentPageId, window.scrollY);
+  const previous = pageHistory.pop();
+  if (!previous) {
+    switchPage("homePage", { pushHistory: false, updateBrowserHistory: false, scrollY: pageScrollPositions.get("homePage") || 0 });
+    return;
+  }
+
+  switchPage(previous.pageId, { pushHistory: false, updateBrowserHistory: false, scrollY: previous.scrollY });
+}
+
+function returnToProductsPage() {
+  pageScrollPositions.set(currentPageId, window.scrollY);
+  const previous = pageHistory[pageHistory.length - 1];
+  if (previous?.pageId === "productsPage") {
+    goBackPage();
+    return;
+  }
+
+  switchPage("productsPage", {
+    pushHistory: false,
+    updateBrowserHistory: false,
+    scrollY: productListReturnState.scrollY || pageScrollPositions.get("productsPage") || 0
+  });
+}
+
+function handleBrowserBack() {
+  if (suppressHistoryState) return;
+  if (currentPageId === "productDetailPage") {
+    suppressHistoryState = true;
+    returnToProductsPage();
+    history.replaceState({ pageId: "productsPage" }, "", "#productsPage");
+    suppressHistoryState = false;
+    return;
+  }
+  goBackPage();
+}
+
+function switchDoc(docId) {
+  document.querySelectorAll("[data-doc-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.docTab === docId);
+  });
+  document.querySelectorAll(".document-view").forEach((view) => {
+    view.classList.toggle("hidden", view.id !== docId);
+  });
+}
+
+function loadCart() {
+  try {
+    return JSON.parse(localStorage.getItem("tbpCart")) || [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCart() {
+  const stored = saveCartToLocalOnly();
+  if (stored && authUser?.businessNumber) scheduleCartSync();
+  return stored;
+}
+
+function saveCartToLocalOnly() {
+  try {
+    localStorage.setItem("tbpCart", JSON.stringify(cart));
+    return true;
+  } catch (error) {
+    console.warn(error);
+    return false;
+  }
+}
+
+function scheduleCartSync() {
+  if (!authUser?.businessNumber) return;
+  if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
+  cartSyncTimer = window.setTimeout(() => {
+    pushCartToServer().catch((error) => console.warn(error));
+  }, 300);
+}
+
+async function pushCartToServer() {
+  if (!authUser?.businessNumber) return;
+  await requestJson("/api/cart", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      businessNumber: authUser.businessNumber,
+      companyName: authUser.companyName || "",
+      items: cart
+    })
+  }, { retries: 1, timeoutMs: 8000 });
+}
+
+function setText(selector, value) {
+  document.querySelector(selector).textContent = value;
+}
+
+function number(value) {
+  return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 }).format(Number(value) || 0);
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? "").toLowerCase().replace(/[\s\-_./]/g, "");
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) return CSS.escape(String(value));
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}

@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>타일앤바스플러스 플랫폼</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Tile & Bath Plus</p>
+          <h1>타일·위생도기 제안 플랫폼</h1>
+        </div>
+        <div class="top-actions">
+          <div class="server-status-pill" id="serverStatusPill">서버 확인 중</div>
+          <button class="icon-button" id="resetCartBtn" type="button" title="장바구니 비우기" aria-label="장바구니 비우기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 7.6A7 7 0 1 1 5 12H2.8a9.2 9.2 0 1 0 2.7-6.5L3.2 3.2V10h6.8L7.2 7.6Z"/></svg>
+          </button>
+          <button class="primary-action" id="printBtn" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8V3h12v5h2a2 2 0 0 1 2 2v7h-4v4H6v-4H2v-7a2 2 0 0 1 2-2h2Zm2-3v3h8V5H8Zm0 11v3h8v-3H8Zm11-2v-4H5v4h1v-2h12v2h1Z"/></svg>
+            인쇄
+          </button>
+          <div class="auth-actions" id="authActions">
+            <button class="secondary-action" id="openLoginBtn" type="button">로그인</button>
+            <button class="secondary-action" id="openSignupBtn" type="button">회원가입</button>
+          </div>
+          <div class="auth-session hidden" id="authSession">
+            <span class="auth-badge" id="authBadge"></span>
+            <button class="secondary-action" id="logoutBtn" type="button">로그아웃</button>
+          </div>
+        </div>
+      </header>
+
+      <nav class="app-nav" aria-label="페이지 이동">
+        <button class="active" type="button" data-page-target="homePage">메인</button>
+        <button type="button" data-page-target="productsPage">상품</button>
+        <button type="button" data-page-target="dbPage">DB 등록</button>
+        <button type="button" data-page-target="cartPage">장바구니 <span id="navCartCount">0</span></button>
+        <button type="button" data-page-target="proposalPage">제안서·견적서</button>
+        <button type="button" data-page-target="renderPage">실사 보정</button>
+      </nav>
+
+      <main class="app-page page-panel active" id="homePage">
+        <section class="hero-panel">
+          <p class="eyebrow">Platform Flow</p>
+          <h2>상품을 고르고, 장바구니에서 견적 금액을 조정한 뒤, 제안서와 견적서를 만듭니다.</h2>
+          <p>타일, 위생도기, 부자재 DB를 운영하면서 현장별 장바구니를 제안 문서로 전환하는 플랫폼입니다.</p>
+        </section>
+        <section class="server-control-panel">
+          <div class="server-control-header">
+            <div>
+              <p class="eyebrow">Server Control</p>
+              <h3>로컬 서버 제어</h3>
+            </div>
+            <div class="status-pill" id="homeServerStatus">상태 확인 중</div>
+          </div>
+          <div class="server-control-actions">
+            <button class="primary-action" id="restartServerBtn" type="button">서버 재시작</button>
+            <button class="secondary-action" id="stopServerBtn" type="button">서버 종료</button>
+            <button class="secondary-action" id="refreshServerBtn" type="button">상태 확인</button>
+            <button class="secondary-action" id="startServerGuideBtn" type="button">서버 켜기 안내</button>
+          </div>
+          <div class="signup-status-bar" id="serverControlStatus">서버 연결 상태를 확인한 뒤 여기에서 다시 제어할 수 있습니다.</div>
+        </section>
+        <section class="category-grid">
+          <button class="category-card" type="button" data-main-category="tile">
+            <strong>타일</strong>
+            <span>종류와 규격으로 상품을 찾습니다.</span>
+          </button>
+          <button class="category-card" type="button" data-main-category="sanitary">
+            <strong>위생도기</strong>
+            <span>종류 선택 후 옵션을 고릅니다.</span>
+          </button>
+          <button class="category-card" type="button" data-main-category="material">
+            <strong>부자재</strong>
+            <span>접착제, 줄눈 등 시공 자재를 담습니다.</span>
+          </button>
+        </section>
+      </main>
+
+      <main class="app-page workspace" id="loginPage">
+        <section class="input-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Login</p>
+              <h2>로그인</h2>
+            </div>
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+          </div>
+          <form id="loginForm" class="form-grid">
+            <label>
+              사업자등록번호
+              <input name="businessNumber" type="text" placeholder="123-45-67890" required />
+            </label>
+            <label>
+              비밀번호
+              <input name="password" type="password" placeholder="비밀번호 입력" required />
+            </label>
+            <button class="primary-action wide" type="submit">로그인</button>
+          </form>
+        </section>
+        <section class="preview-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Quick Access</p>
+              <h2>간편 로그인</h2>
+            </div>
+          </div>
+          <div class="social-signup-grid">
+            <button class="social-signup-button google-signup" id="googleLoginBtn" type="button">
+              <strong>Google 로그인</strong>
+              <span>추후 OAuth 연결 예정</span>
+            </button>
+            <button class="social-signup-button kakao-signup" id="kakaoLoginBtn" type="button">
+              <strong>카카오톡 로그인</strong>
+              <span>추후 카카오 간편 로그인 연결 예정</span>
+            </button>
+          </div>
+          <div class="signup-status-bar" id="loginStatus">사업자등록번호와 비밀번호로 로그인할 수 있습니다.</div>
+        </section>
+      </main>
+
+      <main class="app-page workspace" id="signupPage">
+        <section class="input-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Membership</p>
+              <h2>회원가입</h2>
+            </div>
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+          </div>
+          <form id="signupForm" class="form-grid">
+            <label>
+              전화번호
+              <input id="signupPhone" name="phone" type="tel" placeholder="01012345678" required />
+            </label>
+            <label>
+              간편인증 발급
+              <div class="inline-field">
+                <input id="signupAuthCode" name="authCode" type="text" placeholder="발급된 인증번호 표시" readonly />
+                <button class="secondary-action compact-action" id="sendAuthBtn" type="button">인증 요청</button>
+              </div>
+            </label>
+            <label class="wide">
+              전화번호 인증 확인
+              <div class="inline-field">
+                <input id="signupAuthCheck" type="text" placeholder="발급된 인증번호 입력" />
+                <button class="secondary-action compact-action" id="verifyAuthBtn" type="button">인증 확인</button>
+              </div>
+              <small class="field-note" id="authStatus">간편인증 시스템 연동 전 단계입니다. 현재는 화면에서 인증 흐름을 먼저 설정합니다.</small>
+            </label>
+            <label>
+              사업자등록번호
+              <div class="inline-field">
+                <input id="signupBizNo" name="businessNumber" type="text" placeholder="123-45-67890" required />
+                <button class="secondary-action compact-action" id="verifyBusinessBtn" type="button">사업자 확인</button>
+              </div>
+              <small class="field-note" id="businessVerifyStatus">사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다.</small>
+            </label>
+            <label>
+              사업자등록증 첨부
+              <input id="signupBizFile" name="businessFile" type="file" accept=".pdf,image/*" required />
+              <div class="inline-field">
+                <button class="secondary-action compact-action" id="scanBusinessFileBtn" type="button">재스캔</button>
+                <span class="file-hint" id="businessFileName">첨부 전</span>
+              </div>
+              <small class="field-note" id="businessScanStatus">파일을 선택하면 자동으로 등록증을 스캔하고 추출 정보를 채웁니다.</small>
+            </label>
+            <label>
+              이름
+              <input name="name" type="text" required />
+            </label>
+            <label>
+              직함
+              <input name="title" type="text" placeholder="대표, 실장, 팀장" required />
+            </label>
+            <label>
+              업체명
+              <input name="companyName" type="text" required />
+            </label>
+            <label class="wide">
+              업체주소
+              <input name="companyAddress" type="text" required />
+            </label>
+            <label>
+              비밀번호
+              <input name="password" type="password" placeholder="사업자번호 로그인 비밀번호" required />
+            </label>
+            <label>
+              비밀번호 확인
+              <input name="passwordConfirm" type="password" placeholder="비밀번호 다시 입력" required />
+            </label>
+            <button class="primary-action wide" type="submit">회원가입 신청</button>
+          </form>
+        </section>
+        <section class="preview-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Social Signup</p>
+              <h2>간편 가입</h2>
+            </div>
+          </div>
+          <div class="social-signup-grid">
+            <button class="social-signup-button google-signup" id="googleSignupBtn" type="button">
+              <strong>Google로 가입</strong>
+              <span>업무용 구글 계정으로 빠르게 시작</span>
+            </button>
+            <button class="social-signup-button kakao-signup" id="kakaoSignupBtn" type="button">
+              <strong>카카오톡으로 가입</strong>
+              <span>카카오 간편인증 연동 준비</span>
+            </button>
+          </div>
+          <section class="doc-section signup-summary-card">
+            <h3>가입 정보 안내</h3>
+            <div class="detail-spec-grid" id="signupSummary">
+              <div><span>전화번호 인증</span><strong>미완료</strong></div>
+              <div><span>사업자등록증</span><strong>첨부 전</strong></div>
+              <div><span>가입 방식</span><strong>일반 회원가입</strong></div>
+              <div><span>상태</span><strong>입력 대기</strong></div>
+            </div>
+          </section>
+          <section class="doc-section signup-summary-card">
+            <h3>등록증 추출 정보</h3>
+            <div class="detail-spec-grid" id="businessExtractSummary">
+              <div><span>상호</span><strong>미추출</strong></div>
+              <div><span>대표자명</span><strong>미추출</strong></div>
+              <div><span>개업일자</span><strong>미추출</strong></div>
+              <div><span>업태</span><strong>미추출</strong></div>
+              <div><span>종목</span><strong>미추출</strong></div>
+              <div><span>가입판정</span><strong>판정 전</strong></div>
+            </div>
+          </section>
+          <section class="doc-section signup-summary-card">
+            <h3>가입 승인 기준</h3>
+            <div class="form-grid">
+              <label>
+                허용 업태
+                <input id="allowedBusinessTypes" type="text" placeholder="예: 도소매업, 건설업" />
+              </label>
+              <label>
+                허용 업종
+                <input id="allowedBusinessItems" type="text" placeholder="예: 타일, 위생도기, 인테리어" />
+              </label>
+              <button class="secondary-action wide" id="saveApprovalRulesBtn" type="button">승인 기준 저장</button>
+            </div>
+            <small class="field-note" id="approvalRuleStatus">허용 업태/업종을 저장하면 등록증 스캔 결과와 비교해 가입승인 여부를 판정합니다.</small>
+          </section>
+          <div class="signup-status-bar" id="signupStatus">회원가입 정보를 입력해주세요.</div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel" id="productsPage">
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">Products</p>
+            <h2>상품 페이지</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
+          </div>
+        </section>
+        <section class="commerce-panel">
+          <div class="filter-grid">
+            <label>
+              대분류
+              <select id="mainCategoryFilter">
+                <option value="all">전체</option>
+                <option value="tile">타일</option>
+                <option value="sanitary">위생도기</option>
+                <option value="material">부자재</option>
+              </select>
+            </label>
+            <label>
+              종류
+              <select id="kindFilter"></select>
+            </label>
+            <label>
+              규격
+              <select id="sizeFilter"></select>
+            </label>
+            <label>
+              옵션
+              <select id="optionFilter"></select>
+            </label>
+            <label class="wide">
+              품명 검색
+              <input id="productSearch" type="search" placeholder="예: PH CK 612141M, 양변기, 세면대" />
+            </label>
+          </div>
+          <div class="product-list product-page-list" id="productList"></div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel" id="productDetailPage">
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">Product Detail</p>
+            <h2 id="detailProductTitle">상품 상세</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="secondary-action" id="backToProductsBtn" type="button">상품 목록</button>
+            <button class="primary-action" id="detailAddToCartBtn" type="button">장바구니 담기</button>
+          </div>
+        </section>
+        <section class="commerce-panel product-detail-layout">
+          <div class="detail-main-media" id="detailMainMedia"></div>
+          <div class="detail-spec-panel">
+            <p class="eyebrow">Specification</p>
+            <h3>제품 상세스펙</h3>
+            <div class="detail-spec-grid" id="detailSpecGrid"></div>
+          </div>
+        </section>
+        <section class="commerce-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Images</p>
+              <h2>제품 이미지 자료</h2>
+            </div>
+          </div>
+          <div class="detail-gallery-grid" id="detailGalleryGrid"></div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel" id="dbPage">
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">Database</p>
+            <h2>상품 DB 등록</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <span class="status-pill" id="dbStatus">대기 중</span>
+          </div>
+        </section>
+        <section class="commerce-panel">
+          <form id="productForm" class="form-grid">
+            <label>
+              대분류
+              <select id="dbProductType" name="productType" required>
+                <option value="tile">타일</option>
+                <option value="sanitary">위생도기</option>
+                <option value="material">부자재</option>
+              </select>
+            </label>
+            <label>
+              종류
+              <select id="dbKind" name="kind" required></select>
+            </label>
+            <label>
+              품명
+              <input name="name" type="text" required />
+            </label>
+            <label>
+              규격
+              <input id="dbSize" name="size" list="tileSizeList" placeholder="예: 600*600" />
+              <datalist id="tileSizeList">
+                <option value="600*600"></option>
+                <option value="300*600"></option>
+                <option value="600*1200"></option>
+                <option value="300*300"></option>
+                <option value="200*200"></option>
+                <option value="100*300"></option>
+                <option value="800*800"></option>
+                <option value="400*800"></option>
+                <option value="100*100"></option>
+                <option value="150*600"></option>
+              </datalist>
+            </label>
+            <label>
+              제조사
+              <input name="maker" type="text" required />
+            </label>
+            <label>
+              단위
+              <input name="unit" type="text" value="개" required />
+            </label>
+            <label>
+              옵션
+              <input id="dbOption" name="option" type="text" placeholder="위생도기 옵션 또는 기타 옵션" />
+            </label>
+            <label>
+              유광/무광
+              <select id="dbFinish" name="finish">
+                <option value="">해당 없음</option>
+                <option value="무광">무광</option>
+                <option value="유광">유광</option>
+              </select>
+            </label>
+            <label>
+              단가
+              <input name="costPrice" type="number" min="0" step="100" required />
+            </label>
+            <label>
+              소매가
+              <input name="retailPrice" type="number" min="0" step="100" required />
+            </label>
+            <label>
+              도매가
+              <input name="wholesalePrice" type="number" min="0" step="100" required />
+            </label>
+            <label>
+              재고량
+              <input name="stockQty" type="number" min="0" step="1" required />
+            </label>
+            <label class="wide">
+              이미지 경로
+              <input name="image" type="text" placeholder="images/product.jpg" />
+            </label>
+            <label>
+              원장 실사 이미지
+              <input name="originalImage" type="text" placeholder="images/product-original.jpg" />
+            </label>
+            <label>
+              클로즈 이미지
+              <input name="closeImage" type="text" placeholder="images/product-close.jpg" />
+            </label>
+            <label>
+              디테일 이미지
+              <input name="detailImage" type="text" placeholder="images/product-detail.jpg" />
+            </label>
+            <label>
+              자연광 이미지
+              <input name="daylightImage" type="text" placeholder="images/product-daylight.jpg" />
+            </label>
+            <label>
+              형광등 이미지
+              <input name="fluorescentImage" type="text" placeholder="images/product-fluorescent.jpg" />
+            </label>
+            <label>
+              연출 이미지
+              <input name="sceneImage" type="text" placeholder="images/product-scene.jpg" />
+            </label>
+            <button class="primary-action wide" type="submit">DB에 상품 등록</button>
+          </form>
+        </section>
+      </main>
+
+      <main class="app-page page-panel" id="cartPage">
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">Selected Items</p>
+            <h2>장바구니 페이지</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="primary-action" type="button" data-page-target="proposalPage">제안서·견적서 만들기</button>
+          </div>
+        </section>
+        <section class="commerce-panel">
+          <div class="cart-heading">
+            <strong>장바구니</strong>
+            <span id="cartSummary">0개 상품</span>
+          </div>
+          <div class="cart-list cart-page-list" id="cartList"></div>
+          <div class="cost-summary" id="costSummary"></div>
+        </section>
+      </main>
+
+      <main class="app-page workspace" id="proposalPage">
+        <section class="input-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Client</p>
+              <h2>현장 정보</h2>
+            </div>
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+          </div>
+          <form id="proposalForm" class="form-grid">
+            <label>
+              고객명
+              <input name="customerName" type="text" value="고객님" />
+            </label>
+            <label>
+              연락처
+              <input name="customerPhone" type="tel" />
+            </label>
+            <label class="wide">
+              현장 주소
+              <input name="siteAddress" type="text" />
+            </label>
+            <label>
+              공사 희망일
+              <input name="startDate" type="date" />
+            </label>
+            <label>
+              견적 유효기간
+              <select name="validDays">
+                <option value="7">7일</option>
+                <option value="14" selected>14일</option>
+                <option value="30">30일</option>
+              </select>
+            </label>
+            <label class="wide">
+              제안 메모
+              <textarea name="memo" rows="4" placeholder="현장 특이사항, 고객 요청사항"></textarea>
+            </label>
+          </form>
+        </section>
+        <section class="preview-panel">
+          <div class="document-actions">
+            <button class="primary-action" id="createProProposalBtn" type="button">프로 제안서 만들기</button>
+            <div class="document-action-status">
+              <span id="proposalPptStatus">장바구니 상품으로 전문 제안서 PPT를 만들 수 있습니다.</span>
+              <a class="hidden" id="proposalPptDownloadLink" href="#" download>프로 제안서 다운로드</a>
+            </div>
+          </div>
+          <div class="document-tabs">
+            <button class="tab active" data-doc-tab="proposalDoc" type="button">제안서</button>
+            <button class="tab" data-doc-tab="estimateDoc" type="button">견적서</button>
+          </div>
+          <article class="document-view" id="proposalDoc">
+            <div class="doc-brand">
+              <div>
+                <p class="eyebrow">Tile & Bath Plus</p>
+                <h2>현장 맞춤 제안서</h2>
+              </div>
+              <span id="proposalDate"></span>
+            </div>
+            <div class="doc-summary">
+              <div><span>고객</span><strong id="docCustomer"></strong></div>
+              <div><span>현장</span><strong id="docAddress"></strong></div>
+              <div><span>선정 품목</span><strong id="docItemCount"></strong></div>
+              <div><span>제안 금액</span><strong id="docTotal"></strong></div>
+            </div>
+            <section class="doc-section">
+              <h3>제안 개요</h3>
+              <p id="proposalIntro"></p>
+            </section>
+            <section class="doc-section">
+              <h3>선정 품목</h3>
+              <ul id="proposalItems" class="check-list"></ul>
+            </section>
+            <section class="doc-section">
+              <h3>안내 사항</h3>
+              <p id="proposalNote"></p>
+            </section>
+          </article>
+          <article class="document-view hidden" id="estimateDoc">
+            <div class="doc-brand">
+              <div>
+                <p class="eyebrow">Tile & Bath Plus</p>
+                <h2>견적서</h2>
+              </div>
+              <span id="estimateDate"></span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>품목명</th>
+                    <th>규격</th>
+                    <th>수량</th>
+                    <th>견적단가</th>
+                  </tr>
+                </thead>
+                <tbody id="estimateRows"></tbody>
+              </table>
+            </div>
+            <div class="total-box">
+              <div><span>공급가</span><strong id="estimateSubtotal"></strong></div>
+              <div><span>부가세</span><strong id="estimateVat"></strong></div>
+              <div class="grand-total"><span>총 견적</span><strong id="estimateTotal"></strong></div>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <main class="app-page page-panel" id="renderPage">
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">AI Rendering</p>
+            <h2>현장 실사 보정 서비스</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <a class="primary-action" href="https://chatgpt.com/share/69e8ed3b-4f5c-83e8-b341-d30091dd71de" target="_blank" rel="noopener noreferrer">타일이미지 적용해보기</a>
+          </div>
+        </section>
+        <section class="commerce-panel">
+          <p class="service-copy">추후 API 연결 시 현장사진과 선택한 타일·위생도기 이미지를 기반으로 바닥, 벽, 포인트 공간에 실사 보정 이미지를 제공하는 서비스로 연결합니다.</p>
+          <div class="render-selected" id="renderSelectedProduct">
+            제안서의 제품 이미지를 클릭하면 이곳에서 실사 보정 대상 상품을 확인할 수 있습니다.
+          </div>
+          <div class="render-grid">
+            <label>
+              현장사진
+              <input id="renderSiteImage" type="file" accept="image/*" />
+            </label>
+            <label>
+              적용 대상
+              <select id="renderTarget">
+                <option>바닥</option>
+                <option>벽</option>
+                <option>포인트</option>
+              </select>
+            </label>
+            <label>
+              포인트 공간
+              <input id="renderPointMemo" type="text" placeholder="예: 샤워부스 뒷벽, 세면대 벽면" />
+            </label>
+            <label>
+              보정 완료 이미지
+              <input id="renderResultUpload" type="file" accept="image/*" />
+            </label>
+          </div>
+          <div class="render-preview-grid">
+            <div>
+              <span>현장사진</span>
+              <div class="render-preview" id="renderSitePreview">이미지 없음</div>
+            </div>
+            <div>
+              <span>보정 완료 이미지</span>
+              <div class="render-preview" id="renderResultPreview">이미지 없음</div>
+            </div>
+          </div>
+          <div class="render-actions">
+            <button class="primary-action" id="saveRenderResultBtn" type="button">제안서에 반영</button>
+            <span id="renderStatus"></span>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="products-db.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
