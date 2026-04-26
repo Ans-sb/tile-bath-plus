@@ -97,10 +97,8 @@ let products = [];
 let cart = loadCart();
 let selectedProductId = "";
 let selectedRenderCartId = "";
-let selectedRenderTileId = "";
 let pendingRenderResultImage = "";
 let pendingSiteImage = "";
-let renderJobRunning = false;
 let pendingSignupAuthCode = "";
 let isPhoneVerified = false;
 let selectedSignupProvider = "일반 회원가입";
@@ -226,12 +224,11 @@ function bindEvents() {
     renderRenderWorkspace();
   });
 
-  document.querySelector("#renderTileSelect").addEventListener("change", (event) => {
-    selectedRenderTileId = event.target.value;
+  document.querySelector("#renderResultUpload").addEventListener("change", async (event) => {
+    pendingRenderResultImage = await readImageFile(event.target.files[0], 1600);
     renderRenderWorkspace();
   });
-  document.querySelector("#renderTarget").addEventListener("change", syncRenderPointPreset);
-  document.querySelector("#generateRenderBtn").addEventListener("click", generateRenderPreview);
+
   document.querySelector("#saveRenderResultBtn").addEventListener("click", saveRenderResultToProposal);
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
@@ -922,149 +919,60 @@ function openRenderForCartItem(id) {
   const item = cart.find((entry) => entry.id === id);
   pendingRenderResultImage = item?.renderedImage || "";
   pendingSiteImage = "";
-  selectedRenderTileId = item?.productType === "tile" ? item.id : selectedRenderTileId;
   document.querySelector("#renderSiteImage").value = "";
-  syncRenderPointPreset();
+  document.querySelector("#renderResultUpload").value = "";
   setText("#renderStatus", "");
   renderRenderWorkspace();
   switchPage("renderPage");
 }
 
-function getRenderableTiles() {
-  return products.filter((product) => product.productType === "tile");
-}
-
-function syncRenderPointPreset() {
-  const target = document.querySelector("#renderTarget").value;
-  const pointMemoInput = document.querySelector("#renderPointMemo");
-  if (target === "point") {
-    pointMemoInput.value = "샤워부스 뒷벽";
-    pointMemoInput.readOnly = true;
-    return;
-  }
-
-  if (pointMemoInput.value === "샤워부스 뒷벽") pointMemoInput.value = "";
-  pointMemoInput.readOnly = false;
-}
-
 function renderRenderWorkspace() {
   const selected = document.querySelector("#renderSelectedProduct");
   const sitePreview = document.querySelector("#renderSitePreview");
-  const tilePreview = document.querySelector("#renderTilePreview");
   const resultPreview = document.querySelector("#renderResultPreview");
-  const tileSelect = document.querySelector("#renderTileSelect");
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
-  const tileProducts = getRenderableTiles();
 
-  if (!selectedRenderTileId && item?.productType === "tile") {
-    selectedRenderTileId = item.id;
-  }
-
-  tileSelect.innerHTML = [
-    `<option value="">타일 선택</option>`,
-    ...tileProducts.map((tile) => `<option value="${escapeHtml(tile.id)}">${escapeHtml(tile.name)}${tile.size ? ` · ${escapeHtml(tile.size)}` : ""}</option>`)
-  ].join("");
-  tileSelect.value = selectedRenderTileId || "";
-  const currentTile = tileProducts.find((entry) => entry.id === selectedRenderTileId) || null;
-
-  if (!item && !currentTile) {
-    selected.innerHTML = "?쒖븞?쒖쓽 ?쒗뭹 ?대?吏瑜??대┃?섎굹 ??쇱쓣 癒쇱? ?좏깮?댁＜?몄슂.";
-    sitePreview.innerHTML = "?대?吏 ?놁쓬";
-    if (tilePreview) tilePreview.innerHTML = "??쇱쓣 癒쇱? ?좏깮?댁＜?몄슂.";
-    resultPreview.innerHTML = "?대?吏 ?놁쓬";
+  if (!item) {
+    selected.innerHTML = "제안서의 제품 이미지를 클릭하면 이곳에서 실사 보정 대상 상품을 확인할 수 있습니다.";
+    sitePreview.innerHTML = "이미지 없음";
+    resultPreview.innerHTML = "이미지 없음";
     return;
   }
 
-  const displayProduct = item || currentTile;
   selected.innerHTML = `
     <div class="render-product-card">
-      ${displayProduct?.image ? `<img src="${escapeHtml(displayProduct.image)}" alt="${escapeHtml(displayProduct.name)}" />` : `<div class="render-product-empty">?대?吏 ?놁쓬</div>`}
+      ${item.image ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" />` : `<div class="render-product-empty">이미지 없음</div>`}
       <div>
-        <strong>${escapeHtml(displayProduct?.name || "")}</strong>
-        <span>${escapeHtml(displayProduct?.kind || "-")} 쨌 洹쒓꺽 ${escapeHtml(displayProduct?.size || "-")}</span>
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${escapeHtml(item.kind)} · 규격 ${escapeHtml(item.size || "-")}</span>
       </div>
     </div>
   `;
 
   sitePreview.innerHTML = pendingSiteImage
-    ? `<img src="${escapeHtml(pendingSiteImage)}" alt="?꾩옣?ъ쭊 誘몃━蹂닿린" />`
-    : "?대?吏 ?놁쓬";
-  if (tilePreview) {
-    tilePreview.innerHTML = currentTile?.image
-      ? `<img src="${escapeHtml(currentTile.image)}" alt="${escapeHtml(currentTile.name)} ??쇱씠誘몄? 誘몃━蹂닿린" />`
-      : currentTile
-        ? `<div class="render-product-empty">${escapeHtml(currentTile.name)}<br />?대?吏 ?놁쓬</div>`
-        : "??쇱쓣 癒쇱? ?좏깮?댁＜?몄슂.";
-  }
+    ? `<img src="${escapeHtml(pendingSiteImage)}" alt="현장사진 미리보기" />`
+    : "이미지 없음";
   resultPreview.innerHTML = pendingRenderResultImage
-    ? `<img src="${escapeHtml(pendingRenderResultImage)}" alt="蹂댁젙 ?꾨즺 ?대?吏 誘몃━蹂닿린" />`
-    : "?대?吏 ?놁쓬";
-}
-
-async function generateRenderPreview() {
-  const selectedTile = products.find((entry) => entry.id === selectedRenderTileId && entry.productType === "tile");
-  if (!pendingSiteImage) {
-    setText("#renderStatus", "?꾩옣?ъ쭊??癒쇱? ?낅줈?쒗빐二쇱꽭??");
-    return;
-  }
-  if (!selectedTile?.image) {
-    setText("#renderStatus", "?대?吏媛 ?덉뒗 ??쇱쓣 ?좏깮?댁＜?몄슂.");
-    return;
-  }
-  if (renderJobRunning) {
-    setText("#renderStatus", "?ㅼ궗 蹂댁젙??吏꾪뻾 以묒엯?덈떎. ?좎떆留?湲곕떎?ㅼ＜?몄슂.");
-    return;
-  }
-
-  const target = document.querySelector("#renderTarget").value;
-  const pointMemo = document.querySelector("#renderPointMemo").value.trim();
-  renderJobRunning = true;
-  document.querySelector("#generateRenderBtn").disabled = true;
-  setText("#renderStatus", "OpenAI濡??ㅼ궗 蹂댁젙 ?대?吏瑜??앹꽦?섍퀬 ?덉뒿?덈떎...");
-
-  try {
-    const payload = await requestJson("/api/render", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        siteImageDataUrl: pendingSiteImage,
-        tileImageDataUrl: selectedTile.image,
-        tileName: selectedTile.name,
-        tileSize: selectedTile.size || "",
-        tileFinish: selectedTile.finish || "",
-        targetSurface: target,
-        pointMemo
-      })
-    }, { retries: 0, timeoutMs: 180000 });
-
-    pendingRenderResultImage = String(payload.imageDataUrl || "");
-    renderRenderWorkspace();
-    setText("#renderStatus", "蹂댁젙 ?대?吏 ?앹꽦??留덉쳤?듬땲??");
-  } catch (error) {
-    setText("#renderStatus", error.message || "OpenAI ?ㅼ궗 蹂댁젙 ?앹꽦??ㅽ뙣?덉뒿?덈떎.");
-  } finally {
-    renderJobRunning = false;
-    document.querySelector("#generateRenderBtn").disabled = false;
-  }
+    ? `<img src="${escapeHtml(pendingRenderResultImage)}" alt="보정 완료 이미지 미리보기" />`
+    : "이미지 없음";
 }
 
 function saveRenderResultToProposal() {
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   if (!item) {
-    setText("#renderStatus", "?쒖븞?쒖뿉??蹂댁젙???곹뭹 ?대?吏瑜?癒쇱? ?좏깮?댁＜?몄슂.");
+    setText("#renderStatus", "제안서에서 보정할 상품 이미지를 먼저 선택해주세요.");
     return;
   }
   if (!pendingRenderResultImage) {
-    setText("#renderStatus", "蹂댁젙 ?꾨즺 ?대?吏瑜??앹꽦????二쇱꽭??");
+    setText("#renderStatus", "보정 완료 이미지를 업로드해주세요.");
     return;
   }
 
   item.renderedImage = pendingRenderResultImage;
   item.renderTarget = document.querySelector("#renderTarget").value;
   item.renderPointMemo = document.querySelector("#renderPointMemo").value.trim();
-  item.renderTileId = selectedRenderTileId;
   if (!saveCart()) {
-    setText("#renderStatus", "?대?吏 ?⑸웾??而ㅼ꽌 ??ν븯吏 紐삵뻽?듬땲?? 議곌툑 ?묒? ?대?吏濡??ㅼ떆 ?낅줈?쒗빐二쇱꽭??");
+    setText("#renderStatus", "이미지 용량이 커서 저장하지 못했습니다. 조금 작은 이미지로 다시 업로드해주세요.");
     return;
   }
 
