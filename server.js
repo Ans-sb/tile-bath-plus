@@ -654,8 +654,12 @@ async function serveStatic(request, response) {
       return;
     }
 
+    const extension = path.extname(resolved).toLowerCase();
+    const isHtml = extension === ".html";
+
     response.writeHead(200, {
-      "Content-Type": mimeTypes[path.extname(resolved).toLowerCase()] || "application/octet-stream"
+      "Content-Type": mimeTypes[extension] || "application/octet-stream",
+      "Cache-Control": isHtml ? "no-store" : "public, max-age=300"
     });
     response.end(content);
   });
