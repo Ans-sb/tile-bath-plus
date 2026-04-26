@@ -1,4 +1,4 @@
-const http = require("http");
+﻿const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
@@ -16,6 +16,8 @@ const proposalBuilderPath = path.join(root, "scripts", "build-proposal-deck.mjs"
 const serverControlDir = path.join(root, "tmp", "server-control");
 const stopFlagPath = path.join(serverControlDir, "stop.flag");
 const startedAt = new Date();
+const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
+const openAiImageModel = String(process.env.OPENAI_IMAGE_MODEL || "gpt-image-1").trim();
 const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const supabaseSecretKey = String(
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -107,7 +109,8 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && request.url === "/api/render") {
-      sendJson(response, 501, { error: "AI 실사 보정 API는 추후 연결 예정입니다." });
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, await generateRenderPreview(payload));
       return;
     }
 
@@ -134,9 +137,9 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    sendJson(response, 405, { error: "지원하지 않는 요청입니다." });
+    sendJson(response, 405, { error: "吏?먰븯吏 ?딅뒗 ?붿껌?낅땲??" });
   } catch (error) {
-    sendJson(response, 500, { error: error.message || "서버 오류가 발생했습니다." });
+    sendJson(response, 500, { error: error.message || "?쒕쾭 ?ㅻ쪟媛 諛쒖깮?덉뒿?덈떎." });
   }
 });
 
@@ -172,7 +175,7 @@ function normalizeProduct(product) {
   const required = ["id", "productType", "kind", "name", "maker", "unit"];
   for (const field of required) {
     if (!String(product[field] || "").trim()) {
-      throw new Error(`${field} 값이 필요합니다.`);
+      throw new Error(`${field} 媛믪씠 ?꾩슂?⑸땲??`);
     }
   }
 
@@ -380,20 +383,20 @@ async function loginWithSignupRequest(payload) {
   const password = String(payload?.password || "");
 
   if (!businessNumber || !password) {
-    throw new Error("사업자등록번호와 비밀번호가 필요합니다.");
+    throw new Error("?ъ뾽?먮벑濡앸쾲?몄? 鍮꾨?踰덊샇媛 ?꾩슂?⑸땲??");
   }
 
   if (!hasSupabaseConfig()) {
-    throw new Error("Supabase 로그인 저장소가 설정되지 않았습니다.");
+    throw new Error("Supabase 濡쒓렇????μ냼媛 ?ㅼ젙?섏? ?딆븯?듬땲??");
   }
 
   const record = await readSignupRequestByBusinessNumber(businessNumber);
   if (!record || record.password !== password) {
-    throw new Error("사업자등록번호 또는 비밀번호가 일치하지 않습니다.");
+    throw new Error("?ъ뾽?먮벑濡앸쾲???먮뒗 鍮꾨?踰덊샇媛 ?쇱튂?섏? ?딆뒿?덈떎.");
   }
 
-  if (record.approvalStatus !== "승인") {
-    throw new Error(`${record.companyName} 계정은 현재 가입보류 상태입니다. 업태/업종 승인 후 로그인할 수 있습니다.`);
+  if (record.approvalStatus !== "?뱀씤") {
+    throw new Error(`${record.companyName} 怨꾩젙? ?꾩옱 媛?낅낫瑜??곹깭?낅땲?? ?낇깭/?낆쥌 ?뱀씤 ??濡쒓렇?명븷 ???덉뒿?덈떎.`);
   }
 
   return {
@@ -441,7 +444,7 @@ async function readCartRecord(businessNumber) {
 async function saveCartRecord(payload) {
   const businessNumber = String(payload?.businessNumber || "").trim();
   if (!businessNumber) {
-    throw new Error("장바구니 저장에는 사업자등록번호가 필요합니다.");
+    throw new Error("?λ컮援щ땲 ??μ뿉???ъ뾽?먮벑濡앸쾲?멸? ?꾩슂?⑸땲??");
   }
 
   const items = Array.isArray(payload?.items) ? payload.items.map(normalizeCartItem) : [];
@@ -470,7 +473,7 @@ async function saveCartRecord(payload) {
 
 async function requestSupabase(pathname, options = {}) {
   if (!hasSupabaseConfig()) {
-    throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
+    throw new Error("Supabase ?섍꼍蹂?섍? ?ㅼ젙?섏? ?딆븯?듬땲??");
   }
 
   const response = await fetch(`${supabaseUrl}${pathname}`, {
@@ -486,7 +489,7 @@ async function requestSupabase(pathname, options = {}) {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Supabase 요청 오류 (${response.status}): ${text}`);
+    throw new Error(`Supabase ?붿껌 ?ㅻ쪟 (${response.status}): ${text}`);
   }
 
   const contentType = response.headers.get("content-type") || "";
@@ -517,7 +520,7 @@ function normalizeSignupRequest(payload) {
     businessType: String(payload?.businessType || "").trim(),
     businessItem: String(payload?.businessItem || "").trim(),
     businessCategorySection: String(payload?.businessCategorySection || "").trim(),
-    approvalStatus: String(payload?.approvalStatus || "보류").trim(),
+    approvalStatus: String(payload?.approvalStatus || "蹂대쪟").trim(),
     businessFileName: String(payload?.businessFileName || "").trim(),
     submittedAt: String(payload?.submittedAt || new Date().toISOString()).trim()
   };
@@ -563,7 +566,7 @@ function mapSupabaseSignupRequest(row) {
     businessType: String(row.business_type || "").trim(),
     businessItem: String(row.business_item || "").trim(),
     businessCategorySection: String(row.business_category_section || "").trim(),
-    approvalStatus: String(row.approval_status || "보류").trim(),
+    approvalStatus: String(row.approval_status || "蹂대쪟").trim(),
     businessFileName: String(row.business_file_name || "").trim(),
     submittedAt: String(row.submitted_at || "").trim()
   };
@@ -596,12 +599,12 @@ function normalizeCartItem(item) {
 async function checkBusinessStatus(businessNumber) {
   const cleanNumber = String(businessNumber || "").replace(/\D/g, "");
   if (cleanNumber.length !== 10) {
-    throw new Error("사업자등록번호 10자리가 필요합니다.");
+    throw new Error("?ъ뾽?먮벑濡앸쾲??10?먮━媛 ?꾩슂?⑸땲??");
   }
 
   const serviceKey = process.env.DATA_GO_KR_API_KEY || process.env.NTS_STATUS_API_KEY || process.env.SERVICE_KEY;
   if (!serviceKey) {
-    throw new Error("국세청 사업자 상태조회 API 키가 설정되지 않았습니다. .env에 DATA_GO_KR_API_KEY를 추가해주세요.");
+    throw new Error("援?꽭泥??ъ뾽???곹깭議고쉶 API ?ㅺ? ?ㅼ젙?섏? ?딆븯?듬땲?? .env??DATA_GO_KR_API_KEY瑜?異붽??댁＜?몄슂.");
   }
 
   const url = new URL("https://api.odcloud.kr/api/nts-businessman/v1/status");
@@ -614,16 +617,16 @@ async function checkBusinessStatus(businessNumber) {
   });
 
   if (!response.ok) {
-    throw new Error(`사업자 상태조회 응답 오류 (${response.status})`);
+    throw new Error(`?ъ뾽???곹깭議고쉶 ?묐떟 ?ㅻ쪟 (${response.status})`);
   }
 
   const payload = await response.json();
   const item = Array.isArray(payload.data) ? payload.data[0] : null;
   if (!item) {
-    throw new Error("사업자 상태조회 결과를 확인할 수 없습니다.");
+    throw new Error("?ъ뾽???곹깭議고쉶 寃곌낵瑜??뺤씤?????놁뒿?덈떎.");
   }
 
-  const statusText = item.b_stt || item.tax_type || "상태 확인";
+  const statusText = item.b_stt || item.tax_type || "?곹깭 ?뺤씤";
   const valid = !/폐업|휴업/.test(statusText);
   return {
     valid,
@@ -631,8 +634,8 @@ async function checkBusinessStatus(businessNumber) {
     status: item.b_stt || "",
     taxType: item.tax_type || "",
     message: valid
-      ? `정상 사업자로 확인되었습니다. ${item.b_stt || item.tax_type || ""}`.trim()
-      : `사업자 상태를 확인해주세요. ${item.b_stt || item.tax_type || ""}`.trim()
+      ? `?뺤긽 ?ъ뾽?먮줈 ?뺤씤?섏뿀?듬땲?? ${item.b_stt || item.tax_type || ""}`.trim()
+      : `?ъ뾽???곹깭瑜??뺤씤?댁＜?몄슂. ${item.b_stt || item.tax_type || ""}`.trim()
   };
 }
 
@@ -663,6 +666,94 @@ async function serveStatic(request, response) {
     });
     response.end(content);
   });
+}
+
+async function generateRenderPreview(payload) {
+  if (!openAiApiKey) {
+    throw new Error("OPENAI_API_KEY 媛믪씠 ?ㅼ젙?섏? ?딆븘 OpenAI ?ㅼ궗 蹂댁젙???ъ슜???놁뒿?덈떎.");
+  }
+
+  const siteImageDataUrl = String(payload.siteImageDataUrl || "").trim();
+  const tileImageDataUrl = String(payload.tileImageDataUrl || "").trim();
+  const tileName = String(payload.tileName || "tile").trim();
+  const tileSize = String(payload.tileSize || "").trim();
+  const tileFinish = String(payload.tileFinish || "").trim();
+  const targetSurface = String(payload.targetSurface || "floor").trim().toLowerCase();
+  const pointMemo = String(payload.pointMemo || "").trim();
+
+  if (!siteImageDataUrl || !tileImageDataUrl) {
+    throw new Error("?꾩옣?ъ쭊怨???쇱씠誘몄?瑜?紐⑤몢 ?낅젰?댁＜?몄슂.");
+  }
+
+  const targetLabel = targetSurface === "wall"
+    ? "wall"
+    : targetSurface === "point"
+      ? "accent wall area"
+      : "floor";
+  const pointInstruction = targetSurface === "point"
+    ? `Apply the selected tile only to the ${pointMemo || "shower booth back wall"}.`
+    : `Apply the selected tile to the ${targetLabel} area only.`;
+
+  const prompt = [
+    "Create a photorealistic interior renovation mockup.",
+    "Use the first image as the real site photo and the second image as the exact tile reference.",
+    pointInstruction,
+    "Preserve the existing camera angle, room proportions, lighting, grout direction, perspective, fixtures, and all non-target surfaces.",
+    `Match the exact tile look from the reference image, including color, pattern, scale, and finish${tileFinish ? ` (${tileFinish})` : ""}${tileSize ? `, size reference ${tileSize}` : ""}.`,
+    "Keep the output realistic and suitable for a client proposal."
+  ].join(" ");
+
+  const form = new FormData();
+  form.append("model", openAiImageModel);
+  form.append("prompt", prompt);
+  form.append("size", "1536x1024");
+  form.append("quality", "high");
+  form.append("output_format", "png");
+  form.append("image[]", dataUrlToBlob(siteImageDataUrl), "site-photo.png");
+  form.append("image[]", dataUrlToBlob(tileImageDataUrl), `${sanitizeFileName(tileName || "tile")}.png`);
+
+  const response = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${openAiApiKey}`
+    },
+    body: form
+  });
+
+  const payloadText = await response.text();
+  let result = null;
+  try {
+    result = payloadText ? JSON.parse(payloadText) : null;
+  } catch {
+    result = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "OpenAI ?ㅼ궗 蹂댁젙 API ?붿껌??ㅽ뙣?덉뒿?덈떎.");
+  }
+
+  const imageBase64 = result?.data?.[0]?.b64_json;
+  if (!imageBase64) {
+    throw new Error("OpenAI媛 蹂댁젙 ?대?吏瑜?諛섑솚?섏? ?딆븯?듬땲??");
+  }
+
+  return {
+    ok: true,
+    imageDataUrl: `data:image/png;base64,${imageBase64}`
+  };
+}
+
+function dataUrlToBlob(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:(.+?);base64,(.+)$/);
+  if (!match) {
+    throw new Error("?대?吏 ?낅젰 ?뺤떇???щ컮瑜댁? ?딆뒿?덈떎.");
+  }
+  const [, mimeType, base64] = match;
+  return new Blob([Buffer.from(base64, "base64")], { type: mimeType });
+}
+
+function sanitizeFileName(value) {
+  return String(value || "tile").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "tile";
 }
 
 async function buildProfessionalProposalDeck(payload) {
@@ -700,22 +791,22 @@ async function buildProfessionalProposalDeck(payload) {
 async function handleServerControl(payload) {
   const action = String(payload?.action || "").trim().toLowerCase();
   if (!action) {
-    throw new Error("서버 제어 작업이 필요합니다.");
+    throw new Error("?쒕쾭 ?쒖뼱 ?묒뾽???꾩슂?⑸땲??");
   }
 
   if (action === "restart") {
     setTimeout(() => shutdownServer(false), 150);
-    return { ok: true, action, message: "서버를 재시작합니다." };
+    return { ok: true, action, message: "?쒕쾭瑜??ъ떆?묓빀?덈떎." };
   }
 
   if (action === "stop") {
     await fs.promises.mkdir(serverControlDir, { recursive: true });
     await fs.promises.writeFile(stopFlagPath, "stop\n", "utf8");
     setTimeout(() => shutdownServer(true), 150);
-    return { ok: true, action, message: "서버를 종료합니다." };
+    return { ok: true, action, message: "?쒕쾭瑜?醫낅즺?⑸땲??" };
   }
 
-  throw new Error("지원하지 않는 서버 제어 작업입니다.");
+  throw new Error("吏?먰븯吏 ?딅뒗 ?쒕쾭 ?쒖뼱 ?묒뾽?낅땲??");
 }
 
 function readRequestBody(request) {
@@ -726,7 +817,7 @@ function readRequestBody(request) {
     request.on("data", (chunk) => {
       size += chunk.length;
       if (size > bodyLimit) {
-        reject(new Error("업로드 용량이 너무 큽니다."));
+        reject(new Error("?낅줈???⑸웾???덈Т ?쎈땲??"));
         request.destroy();
         return;
       }
@@ -768,19 +859,19 @@ function loadEnvFile(filePath) {
 
 function normalizeProposalPayload(payload) {
   if (!payload || typeof payload !== "object") {
-    throw new Error("제안서 생성 요청 데이터가 필요합니다.");
+    throw new Error("?쒖븞???앹꽦 ?붿껌 ?곗씠?곌? ?꾩슂?⑸땲??");
   }
 
   const proposal = payload.proposal || {};
   const summary = payload.summary || {};
   const cart = Array.isArray(payload.cart) ? payload.cart : [];
   if (!cart.length) {
-    throw new Error("장바구니 상품이 있어야 프로 제안서를 만들 수 있습니다.");
+    throw new Error("?λ컮援щ땲 ?곹뭹???덉뼱???꾨줈 ?쒖븞?쒕? 留뚮뱾 ???덉뒿?덈떎.");
   }
 
   return {
     proposal: {
-      customerName: String(proposal.customerName || "고객님").trim(),
+      customerName: String(proposal.customerName || "고객").trim(),
       customerPhone: String(proposal.customerPhone || "").trim(),
       siteAddress: String(proposal.siteAddress || "현장 주소 미입력").trim(),
       startDate: String(proposal.startDate || "").trim(),
@@ -819,19 +910,19 @@ function normalizeProposalPayload(payload) {
 function buildNarrativePlan(payload) {
   const kinds = [...new Set(payload.cart.map((item) => item.kind).filter(Boolean))];
   return [
-    "# 프로 제안서 내러티브 플랜",
+    "# ?꾨줈 ?쒖븞???대윭?곕툕 ?뚮옖",
     "",
-    `- 대상 고객: ${payload.proposal.customerName || "고객"} / ${payload.proposal.siteAddress || "현장"}`,
-    "- 목적: 장바구니에 담긴 타일, 위생도기, 부자재를 전문 제안서 형태의 PPT로 정리",
-    "- 톤앤매너: 인테리어 실무 제안서, 깔끔한 소재 중심 비주얼, 실제 상품 이미지 강조",
-    "- 슬라이드 구성:",
-    "  1. 커버",
-    "  2. 프로젝트 개요 및 핵심 수치",
-    "  3. 선정 제품 소개",
-    "  4. 추가 선정 제품 또는 실사 보정 이미지",
-    "  5. 견적 요약",
-    `- 주요 분류: ${kinds.join(", ") || "선정 품목"}`,
-    `- 메모: ${payload.proposal.memo || "없음"}`,
+    `- ???怨좉컼: ${payload.proposal.customerName || "怨좉컼"} / ${payload.proposal.siteAddress || "?꾩옣"}`,
+    "- 紐⑹쟻: ?λ컮援щ땲???닿릿 ??? ?꾩깮?꾧린, 遺?먯옱瑜??꾨Ц ?쒖븞???뺥깭??PPT濡??뺣━",
+    "- ?ㅼ븻留ㅻ꼫: ?명뀒由ъ뼱 ?ㅻТ ?쒖븞?? 源붾걫???뚯옱 以묒떖 鍮꾩＜?? ?ㅼ젣 ?곹뭹 ?대?吏 媛뺤“",
+    "- ?щ씪?대뱶 援ъ꽦:",
+    "  1. 而ㅻ쾭",
+    "  2. ?꾨줈?앺듃 媛쒖슂 諛??듭떖 ?섏튂",
+    "  3. ?좎젙 ?쒗뭹 ?뚭컻",
+    "  4. 異붽? ?좎젙 ?쒗뭹 ?먮뒗 ?ㅼ궗 蹂댁젙 ?대?吏",
+    "  5. 寃ъ쟻 ?붿빟",
+    `- 二쇱슂 遺꾨쪟: ${kinds.join(", ") || "?좎젙 ?덈ぉ"}`,
+    `- 硫붾え: ${payload.proposal.memo || "?놁쓬"}`,
     ""
   ].join("\n");
 }
@@ -858,7 +949,7 @@ function execFileAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     execFile(command, args, options, (error, stdout, stderr) => {
       if (error) {
-        reject(new Error(stderr || error.message || "프로 제안서 생성 실행에 실패했습니다."));
+        reject(new Error(stderr || error.message || "?꾨줈 ?쒖븞???앹꽦 ?ㅽ뻾???ㅽ뙣?덉뒿?덈떎."));
         return;
       }
       resolve(stdout);
@@ -880,3 +971,4 @@ function shutdownServer(expectStopFlag) {
     process.exit(0);
   }, 1000).unref();
 }
+
