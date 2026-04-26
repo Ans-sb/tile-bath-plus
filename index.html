@@ -43,10 +43,41 @@
       </nav>
 
       <main class="app-page page-panel active" id="homePage">
-        <section class="hero-panel">
+        <section class="hero-panel hero-panel-shell">
+          <div class="hero-grid">
+            <div class="hero-copy">
           <p class="eyebrow">Platform Flow</p>
           <h2>상품을 고르고, 장바구니에서 견적 금액을 조정한 뒤, 제안서와 견적서를 만듭니다.</h2>
           <p>타일, 위생도기, 부자재 DB를 운영하면서 현장별 장바구니를 제안 문서로 전환하는 플랫폼입니다.</p>
+              <div class="hero-actions">
+                <button class="primary-action" type="button" data-page-target="productsPage">상품 바로 찾기</button>
+                <button class="secondary-action" type="button" data-page-target="proposalPage">제안서·견적서 보기</button>
+              </div>
+              <div class="hero-inline-meta">
+                <span>상품 DB 정리</span>
+                <span>장바구니 기반 제안서</span>
+                <span>견적 단가 직접 입력</span>
+                <span>모바일·웹 동시 사용</span>
+              </div>
+            </div>
+            <div class="hero-highlights">
+              <article class="highlight-card">
+                <span>Catalog</span>
+                <strong>상품 탐색과 비교</strong>
+                <p>품명 검색, 규격 필터, 상세페이지 흐름으로 필요한 자재를 빠르게 추립니다.</p>
+              </article>
+              <article class="highlight-card">
+                <span>Proposal</span>
+                <strong>장바구니에서 문서화</strong>
+                <p>선정 품목을 이미지와 함께 제안서와 견적서로 연결해 한 번에 정리합니다.</p>
+              </article>
+              <article class="highlight-card">
+                <span>Workflow</span>
+                <strong>현장 중심 업무 흐름</strong>
+                <p>회원가입, 사업자 확인, 실사 보정 준비까지 실제 영업 흐름에 맞춰 이어집니다.</p>
+              </article>
+            </div>
+          </div>
         </section>
         <section class="server-control-panel">
           <div class="server-control-header">
@@ -64,19 +95,53 @@
           </div>
           <div class="signup-status-bar" id="serverControlStatus">서버 연결 상태를 확인한 뒤 여기에서 다시 제어할 수 있습니다.</div>
         </section>
-        <section class="category-grid">
+        <section class="home-section">
+          <div class="section-header-inline">
+            <div>
+              <p class="eyebrow">Browse</p>
+              <h3>필요한 상품군부터 빠르게 시작하세요</h3>
+            </div>
+            <p>대분류별로 진입한 뒤 검색, 비교, 상세 확인, 장바구니 저장까지 자연스럽게 이어집니다.</p>
+          </div>
+          <div class="category-grid">
           <button class="category-card" type="button" data-main-category="tile">
+            <span class="category-kicker">Tile</span>
             <strong>타일</strong>
             <span>종류와 규격으로 상품을 찾습니다.</span>
           </button>
           <button class="category-card" type="button" data-main-category="sanitary">
+            <span class="category-kicker">Sanitary</span>
             <strong>위생도기</strong>
             <span>종류 선택 후 옵션을 고릅니다.</span>
           </button>
           <button class="category-card" type="button" data-main-category="material">
+            <span class="category-kicker">Material</span>
             <strong>부자재</strong>
             <span>접착제, 줄눈 등 시공 자재를 담습니다.</span>
           </button>
+          </div>
+        </section>
+        <section class="home-section home-flow-section">
+          <div class="section-header-inline">
+            <div>
+              <p class="eyebrow">Flow</p>
+              <h3>업무 흐름을 짧고 선명하게 이어붙였습니다</h3>
+            </div>
+          </div>
+          <div class="home-flow-grid">
+            <article class="flow-card">
+              <strong>1. 상품 선정</strong>
+              <span>카테고리와 품명 검색으로 필요한 제품만 빠르게 추립니다.</span>
+            </article>
+            <article class="flow-card">
+              <strong>2. 장바구니 정리</strong>
+              <span>수량, 원가, 견적단가, 마진을 보며 현장 기준으로 조정합니다.</span>
+            </article>
+            <article class="flow-card">
+              <strong>3. 제안서·견적서 생성</strong>
+              <span>선정 품목을 이미지와 함께 정리하고 프로 제안서까지 확장합니다.</span>
+            </article>
+          </div>
         </section>
       </main>
 
@@ -262,8 +327,19 @@
             <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
           </div>
         </section>
-        <section class="commerce-panel">
-          <div class="filter-grid">
+        <section class="commerce-panel catalog-panel">
+          <div class="catalog-toolbar">
+            <div class="catalog-toolbar-copy">
+              <p class="eyebrow">Browse Catalog</p>
+              <h3>카테고리와 품명 검색으로 빠르게 찾기</h3>
+              <p>대분류, 종류, 규격, 옵션을 조합해 필요한 상품만 추리고 바로 상세나 장바구니로 이어가세요.</p>
+            </div>
+            <div class="catalog-summary-card">
+              <strong>검색 중심 탐색</strong>
+              <span>필터 선택과 품명 검색을 함께 사용하면 웹과 모바일 모두 훨씬 빠르게 찾을 수 있습니다.</span>
+            </div>
+          </div>
+          <div class="filter-grid filter-grid-catalog">
             <label>
               대분류
               <select id="mainCategoryFilter">
