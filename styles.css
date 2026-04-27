@@ -1632,12 +1632,15 @@ th {
     margin-bottom: 8px;
   }
 
-  .product-page-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .product-list.product-page-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 10px;
+    align-items: start;
   }
 
   .product-page-list .product-card {
+    width: 100%;
+    min-width: 0;
     grid-template-columns: 1fr;
     gap: 8px;
     padding: 10px;
@@ -1797,12 +1800,15 @@ th {
     grid-template-columns: 1fr;
   }
 
-  .product-page-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .product-list.product-page-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 8px;
+    align-items: start;
   }
 
   .product-page-list .product-card {
+    width: 100%;
+    min-width: 0;
     padding: 8px;
     gap: 7px;
   }
