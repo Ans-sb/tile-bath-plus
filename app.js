@@ -97,8 +97,10 @@ let products = [];
 let cart = loadCart();
 let selectedProductId = "";
 let selectedRenderCartId = "";
+let selectedRenderTileId = "";
 let pendingRenderResultImage = "";
 let pendingSiteImage = "";
+let renderJobRunning = false;
 let pendingSignupAuthCode = "";
 let isPhoneVerified = false;
 let selectedSignupProvider = "일반 회원가입";
@@ -224,11 +226,15 @@ function bindEvents() {
     renderRenderWorkspace();
   });
 
-  document.querySelector("#renderResultUpload").addEventListener("change", async (event) => {
-    pendingRenderResultImage = await readImageFile(event.target.files[0], 1600);
+  document.querySelector("#renderTileSelect").addEventListener("change", (event) => {
+    selectedRenderTileId = event.target.value;
     renderRenderWorkspace();
   });
-
+  document.querySelector("#renderTarget").addEventListener("change", () => {
+    syncRenderPointPreset();
+    renderRenderWorkspace();
+  });
+  document.querySelector("#generateRenderBtn").addEventListener("click", generateRenderPreview);
   document.querySelector("#saveRenderResultBtn").addEventListener("click", saveRenderResultToProposal);
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
@@ -917,62 +923,179 @@ function delay(ms) {
 function openRenderForCartItem(id) {
   selectedRenderCartId = id;
   const item = cart.find((entry) => entry.id === id);
+  const cartTiles = getRenderableCartTiles();
+  const preferredTileId = item?.renderTileId || (item?.productType === "tile" ? item.id : "");
+  selectedRenderTileId = cartTiles.some((entry) => entry.id === preferredTileId)
+    ? preferredTileId
+    : (cartTiles[0]?.id || "");
   pendingRenderResultImage = item?.renderedImage || "";
   pendingSiteImage = "";
+  renderJobRunning = false;
   document.querySelector("#renderSiteImage").value = "";
-  document.querySelector("#renderResultUpload").value = "";
+  document.querySelector("#renderTarget").value = item?.renderTarget || "??";
+  document.querySelector("#renderPointMemo").value = item?.renderPointMemo || "";
   setText("#renderStatus", "");
+  syncRenderPointPreset();
   renderRenderWorkspace();
   switchPage("renderPage");
 }
 
-function renderRenderWorkspace() {
-  const selected = document.querySelector("#renderSelectedProduct");
-  const sitePreview = document.querySelector("#renderSitePreview");
-  const resultPreview = document.querySelector("#renderResultPreview");
-  const item = cart.find((entry) => entry.id === selectedRenderCartId);
+function getRenderableCartTiles() {
+  return cart.filter((entry) => entry.productType === "tile");
+}
 
-  if (!item) {
-    selected.innerHTML = "제안서의 제품 이미지를 클릭하면 이곳에서 실사 보정 대상 상품을 확인할 수 있습니다.";
-    sitePreview.innerHTML = "이미지 없음";
-    resultPreview.innerHTML = "이미지 없음";
+function syncRenderPointPreset() {
+  const pointInput = document.querySelector("#renderPointMemo");
+  const target = document.querySelector("#renderTarget").value;
+  if (target === "???") {
+    pointInput.value = "???? ??";
+    pointInput.readOnly = true;
     return;
   }
 
-  selected.innerHTML = `
-    <div class="render-product-card">
-      ${item.image ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" />` : `<div class="render-product-empty">이미지 없음</div>`}
-      <div>
-        <strong>${escapeHtml(item.name)}</strong>
-        <span>${escapeHtml(item.kind)} · 규격 ${escapeHtml(item.size || "-")}</span>
-      </div>
-    </div>
-  `;
+  if (pointInput.value === "???? ??") pointInput.value = "";
+  pointInput.readOnly = false;
+}
+
+function renderRenderWorkspace() {
+  const selected = document.querySelector("#renderSelectedProduct");
+  const tileSelect = document.querySelector("#renderTileSelect");
+  const sitePreview = document.querySelector("#renderSitePreview");
+  const tilePreview = document.querySelector("#renderTilePreview");
+  const resultPreview = document.querySelector("#renderResultPreview");
+  const generateButton = document.querySelector("#generateRenderBtn");
+  const item = cart.find((entry) => entry.id === selectedRenderCartId);
+  const cartTiles = getRenderableCartTiles();
+  const selectedTile = cartTiles.find((entry) => entry.id === selectedRenderTileId);
+
+  tileSelect.innerHTML = ['<option value="">???? ?? ??</option>']
+    .concat(cartTiles.map((entry) => '<option value="' + escapeHtml(entry.id) + '">' + escapeHtml(entry.name) + (entry.size ? ' ? ' + escapeHtml(entry.size) : '') + '</option>'))
+    .join('');
+  tileSelect.value = selectedTile?.id || "";
+  tileSelect.disabled = cartTiles.length === 0;
+  generateButton.disabled = renderJobRunning || !item || !selectedTile || !pendingSiteImage;
+  generateButton.textContent = renderJobRunning ? "?? ??? ?? ?..." : "?? ??? ?? ??";
+
+  if (!item) {
+    selected.innerHTML = "???? ?? ???? ???? ???? ?? ??? ??? ? ????.";
+    sitePreview.innerHTML = "??? ??";
+    tilePreview.innerHTML = "??? ??";
+    resultPreview.innerHTML = "??? ??";
+    return;
+  }
+
+  selected.innerHTML = [
+    '<div class="render-product-card">',
+    item.image ? '<img src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '" />' : '<div class="render-product-empty">??? ??</div>',
+    '<div>',
+    '<strong>' + escapeHtml(item.name) + '</strong>',
+    '<span>??? ?? ?? ? ' + escapeHtml(item.kind) + ' ? ?? ' + escapeHtml(item.size || '-') + '</span>',
+    '</div>',
+    '</div>'
+  ].join('');
 
   sitePreview.innerHTML = pendingSiteImage
-    ? `<img src="${escapeHtml(pendingSiteImage)}" alt="현장사진 미리보기" />`
-    : "이미지 없음";
+    ? '<img src="' + escapeHtml(pendingSiteImage) + '" alt="?? ?? ????" />'
+    : "??? ??";
+  tilePreview.innerHTML = selectedTile?.image
+    ? '<img src="' + escapeHtml(selectedTile.image) + '" alt="' + escapeHtml(selectedTile.name) + ' ?? ????" />'
+    : "??? ??";
   resultPreview.innerHTML = pendingRenderResultImage
-    ? `<img src="${escapeHtml(pendingRenderResultImage)}" alt="보정 완료 이미지 미리보기" />`
-    : "이미지 없음";
+    ? '<img src="' + escapeHtml(pendingRenderResultImage) + '" alt="?? ?? ??? ????" />'
+    : "??? ??";
+}
+
+async function imageUrlToDataUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("data:")) return url;
+
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("?? ???? ???? ?????.");
+  const blob = await response.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("?? ??? ??? ??????."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function generateRenderPreview() {
+  const item = cart.find((entry) => entry.id === selectedRenderCartId);
+  const tile = cart.find((entry) => entry.id === selectedRenderTileId && entry.productType === "tile");
+  const targetValue = document.querySelector("#renderTarget").value;
+  const pointMemo = document.querySelector("#renderPointMemo").value.trim();
+
+  if (!item) {
+    setText("#renderStatus", "?? ????? ??? ??? ??????.");
+    return;
+  }
+  if (!pendingSiteImage) {
+    setText("#renderStatus", "?? ??? ?? ???????.");
+    return;
+  }
+  if (!tile) {
+    setText("#renderStatus", "????? ?? ?? ? ??? ??????.");
+    return;
+  }
+  if (!tile.image) {
+    setText("#renderStatus", "??? ??? ?? ???? ?? ??? ??? ? ????.");
+    return;
+  }
+
+  renderJobRunning = true;
+  renderRenderWorkspace();
+  setText("#renderStatus", "OpenAI? ?? ?? ???? ???? ????...");
+
+  try {
+    const tileImageDataUrl = await imageUrlToDataUrl(tile.image);
+    const payload = await requestJson(
+      "/api/render",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          siteImageDataUrl: pendingSiteImage,
+          tileImageDataUrl,
+          tileName: tile.name,
+          tileSize: tile.size || "",
+          tileFinish: tile.finish || "",
+          targetSurface: targetValue === "?" ? "wall" : targetValue === "???" ? "point" : "floor",
+          pointMemo
+        })
+      },
+      { timeoutMs: 180000 }
+    );
+
+    pendingRenderResultImage = String(payload?.imageDataUrl || "");
+    if (!pendingRenderResultImage) throw new Error("?? ?? ???? ?? ?????.");
+    setText("#renderStatus", "?? ??? ???????. ??? ??? ? ???? ??????.");
+  } catch (error) {
+    console.warn(error);
+    setText("#renderStatus", error?.message || "?? ??? ?? ? ??? ??????.");
+  } finally {
+    renderJobRunning = false;
+    renderRenderWorkspace();
+  }
 }
 
 function saveRenderResultToProposal() {
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   if (!item) {
-    setText("#renderStatus", "제안서에서 보정할 상품 이미지를 먼저 선택해주세요.");
+    setText("#renderStatus", "????? ??? ?? ???? ?? ??????.");
     return;
   }
   if (!pendingRenderResultImage) {
-    setText("#renderStatus", "보정 완료 이미지를 업로드해주세요.");
+    setText("#renderStatus", "?? ?? ??? ??? ??????.");
     return;
   }
 
   item.renderedImage = pendingRenderResultImage;
+  item.renderTileId = selectedRenderTileId;
   item.renderTarget = document.querySelector("#renderTarget").value;
   item.renderPointMemo = document.querySelector("#renderPointMemo").value.trim();
   if (!saveCart()) {
-    setText("#renderStatus", "이미지 용량이 커서 저장하지 못했습니다. 조금 작은 이미지로 다시 업로드해주세요.");
+    setText("#renderStatus", "??? ?? ??? ???? ?????. ?? ? ?? ???? ?? ??????.");
     return;
   }
 
