@@ -742,21 +742,37 @@
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Overview</p>
-              <h3>상품, 가입, 장바구니 현황</h3>
+              <h3>운영 메뉴</h3>
             </div>
-            <p>원가와 재고, 가입 승인 상태, 저장된 장바구니를 내부 기준으로 한 번에 확인할 수 있습니다.</p>
+            <p>상품 현황과 주문 처리 현황을 나눠서 보고, 업체별 진행 상태를 흐름 기준으로 확인할 수 있습니다.</p>
           </div>
           <div class="signup-status-bar" id="adminStatus">내부관리자 정보를 불러올 준비가 되었습니다.</div>
-          <div class="admin-summary-grid" id="adminSummaryGrid"></div>
+          <div class="admin-toolbar">
+            <button class="tab active" id="adminProductsTab" type="button">상품현황</button>
+            <button class="tab" id="adminOrdersTab" type="button">주문처리현황</button>
+          </div>
         </section>
 
-        <section class="commerce-panel">
+        <section class="commerce-panel admin-view" id="adminProductsView">
           <div class="section-header-inline">
             <div>
-              <p class="eyebrow">Pricing</p>
-              <h3>상품 원가 관리</h3>
+              <p class="eyebrow">Products</p>
+              <h3>상품 현황</h3>
             </div>
-            <p>상품별 원가, 소매가, 도매가, 재고를 내부 운영 기준으로 점검합니다.</p>
+            <p>카테고리별 상품 현황과 상품별 단가, 재고를 내부 기준으로 점검합니다.</p>
+          </div>
+          <div class="admin-summary-grid" id="adminSummaryGrid"></div>
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>대분류</th>
+                  <th>종류</th>
+                  <th>상품 수</th>
+                </tr>
+              </thead>
+              <tbody id="adminCategoryRows"></tbody>
+            </table>
           </div>
           <div class="table-wrap">
             <table class="admin-table">
@@ -777,48 +793,47 @@
           </div>
         </section>
 
-        <section class="commerce-panel">
+        <section class="commerce-panel admin-view hidden" id="adminOrdersView">
           <div class="section-header-inline">
             <div>
-              <p class="eyebrow">Membership</p>
-              <h3>회원가입 신청 현황</h3>
+              <p class="eyebrow">Orders</p>
+              <h3>주문처리현황</h3>
             </div>
-            <p>사업자등록번호, 업체명, 업태/업종, 승인 상태를 내부에서 빠르게 검토합니다.</p>
+            <p>회원이 남긴 주문 내역과 현재 처리 단계를 업체별 흐름으로 확인합니다.</p>
+          </div>
+          <div class="admin-flow-board" id="adminOrderFlowBoard">
+            <article class="admin-flow-column">
+              <div class="admin-flow-header">
+                <strong>가입 검토중</strong>
+                <span id="adminFlowReviewCount">0</span>
+              </div>
+              <div class="admin-flow-list" id="adminFlowReview"></div>
+            </article>
+            <article class="admin-flow-column">
+              <div class="admin-flow-header">
+                <strong>상품 선택중</strong>
+                <span id="adminFlowSelectingCount">0</span>
+              </div>
+              <div class="admin-flow-list" id="adminFlowSelecting"></div>
+            </article>
+            <article class="admin-flow-column">
+              <div class="admin-flow-header">
+                <strong>주문 접수 대기</strong>
+                <span id="adminFlowWaitingCount">0</span>
+              </div>
+              <div class="admin-flow-list" id="adminFlowWaiting"></div>
+            </article>
           </div>
           <div class="table-wrap">
             <table class="admin-table">
               <thead>
                 <tr>
                   <th>업체명</th>
-                  <th>사업자등록번호</th>
                   <th>담당자</th>
-                  <th>업태</th>
-                  <th>업종</th>
-                  <th>상태</th>
-                  <th>신청일</th>
-                </tr>
-              </thead>
-              <tbody id="adminSignupRows"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="commerce-panel">
-          <div class="section-header-inline">
-            <div>
-              <p class="eyebrow">Cart</p>
-              <h3>저장된 장바구니 현황</h3>
-            </div>
-            <p>업체별 장바구니 저장 여부와 품목 수, 견적 합계를 내부 기준으로 확인합니다.</p>
-          </div>
-          <div class="table-wrap">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>업체명</th>
                   <th>사업자등록번호</th>
+                  <th>주문 내역</th>
                   <th>품목 수</th>
-                  <th>견적 합계</th>
+                  <th>처리 상태</th>
                   <th>최근 저장</th>
                 </tr>
               </thead>

@@ -577,6 +577,7 @@ async function readAllCartRecords() {
       businessNumber: String(row.business_number || "").trim(),
       companyName: String(row.company_name || "").trim(),
       itemCount: items.length,
+      itemNames: items.map((item) => String(item.name || "").trim()).filter(Boolean),
       totalQuote: items.reduce((sum, item) => sum + (Number(item.quotePrice || 0) * Number(item.qty || 0)), 0),
       updatedAt: String(row.updated_at || "").trim()
     };
