@@ -483,7 +483,7 @@ function renderProducts() {
         <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
         <span>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType])} · ${escapeHtml(product.kind)} · ${escapeHtml(product.size || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
         <span>제조사 ${escapeHtml(product.maker)} · 재고 ${number(product.stockQty)}${escapeHtml(product.unit)}</span>
-        <span class="cost-only">원가 ${money.format(product.costPrice)} · 소매가 ${money.format(product.retailPrice)} · 도매가 ${money.format(product.wholesalePrice)}</span>
+        <span class="cost-only">소매가 ${money.format(product.retailPrice)} · 도매가 ${money.format(product.wholesalePrice)}</span>
       </div>
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
@@ -522,7 +522,6 @@ function renderProductDetail(product) {
     ["단위", product.unit || "-"],
     ["유광/무광", product.finish || "-"],
     ["옵션", product.option || "-"],
-    ["원가", money.format(product.costPrice)],
     ["소매가", money.format(product.retailPrice)],
     ["도매가", money.format(product.wholesalePrice)],
     ["재고량", `${number(product.stockQty)}${product.unit || ""}`],
