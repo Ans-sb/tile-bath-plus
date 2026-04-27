@@ -24,6 +24,9 @@ const supabaseSecretKey = String(
   || process.env.SUPABASE_SECRET_KEY
   || ""
 ).trim();
+const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
+const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+const adminDisplayName = String(process.env.ADMIN_DISPLAY_NAME || "내부관리자").trim();
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -93,6 +96,12 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/login") {
       const payload = JSON.parse(await readRequestBody(request));
       sendJson(response, 200, await loginWithSignupRequest(payload));
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/admin/login") {
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, loginAsAdmin(payload));
       return;
     }
 
@@ -479,12 +488,13 @@ async function saveCartRecord(payload) {
 
 async function readAdminOverview(businessNumber) {
   const clean = String(businessNumber || "").trim();
-  if (!clean) throw new Error("내부관리자 조회에는 사업자등록번호가 필요합니다.");
+  if (!clean) throw new Error("내부관리자 조회에는 관리자 아이디가 필요합니다.");
   if (!hasSupabaseConfig()) throw new Error("Supabase 관리 데이터가 설정되지 않았습니다.");
-
-  const viewer = await readSignupRequestByBusinessNumber(clean);
-  if (!viewer || viewer.approvalStatus !== "승인") {
-    throw new Error("승인된 계정만 내부관리자 페이지를 사용할 수 있습니다.");
+  if (!adminPassword) {
+    throw new Error("관리자 계정이 아직 설정되지 않았습니다.");
+  }
+  if (clean !== adminUsername) {
+    throw new Error("관리자 계정이 일치하지 않습니다.");
   }
 
   const [approvalRules, signupRequests, carts] = await Promise.all([
@@ -496,9 +506,9 @@ async function readAdminOverview(businessNumber) {
   return {
     ok: true,
     viewer: {
-      businessNumber: viewer.businessNumber,
-      companyName: viewer.companyName,
-      name: viewer.name
+      adminUsername,
+      companyName: adminDisplayName,
+      name: adminDisplayName
     },
     approvalRules,
     signupRequests: signupRequests.map((entry) => ({
@@ -518,6 +528,31 @@ async function readAdminOverview(businessNumber) {
       submittedAt: entry.submittedAt
     })),
     carts
+  };
+}
+
+function loginAsAdmin(payload) {
+  const username = String(payload?.adminUsername || "").trim();
+  const password = String(payload?.adminPassword || "");
+
+  if (!username || !password) {
+    throw new Error("관리자 아이디와 비밀번호가 필요합니다.");
+  }
+  if (!adminPassword) {
+    throw new Error("관리자 계정이 아직 설정되지 않았습니다.");
+  }
+  if (username !== adminUsername || password !== adminPassword) {
+    throw new Error("관리자 아이디 또는 비밀번호가 일치하지 않습니다.");
+  }
+
+  return {
+    ok: true,
+    user: {
+      role: "admin",
+      adminUsername,
+      name: adminDisplayName,
+      companyName: adminDisplayName
+    }
   };
 }
 

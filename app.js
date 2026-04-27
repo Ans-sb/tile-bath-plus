@@ -132,6 +132,7 @@ const productForm = document.querySelector("#productForm");
 const proposalForm = document.querySelector("#proposalForm");
 const signupForm = document.querySelector("#signupForm");
 const loginForm = document.querySelector("#loginForm");
+const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 
 init();
@@ -277,6 +278,7 @@ function bindEvents() {
   signupForm.addEventListener("input", renderSignupSummary);
   signupForm.addEventListener("submit", submitSignupForm);
   loginForm.addEventListener("submit", submitLoginForm);
+  adminLoginForm?.addEventListener("submit", submitAdminLoginForm);
   document.querySelector("#dbProductType").addEventListener("change", setupDbForm);
   document.querySelector("#resetCartBtn").addEventListener("click", clearCart);
   document.querySelector("#printBtn").addEventListener("click", () => window.print());
@@ -2394,14 +2396,47 @@ async function submitLoginForm(event) {
     title: matchedUser.title,
     companyName: matchedUser.companyName,
     companyAddress: matchedUser.companyAddress,
-    provider: matchedUser.provider || "일반 회원가입"
+    provider: matchedUser.provider || "일반 회원가입",
+    role: matchedUser.role || "member"
   };
   saveAuthSession(authUser);
-  await hydrateCartFromServer({ mergeLocal: true });
+  if (authUser.role !== "admin") {
+    await hydrateCartFromServer({ mergeLocal: true });
+  }
   renderAuthControls();
   setText("#loginStatus", `${matchedUser.companyName} 계정으로 로그인되었습니다.`);
   loginForm.reset();
   switchPage("homePage");
+}
+
+async function submitAdminLoginForm(event) {
+  event.preventDefault();
+  const formData = new FormData(adminLoginForm);
+  const adminUsername = String(formData.get("adminUsername") || "").trim();
+  const adminPassword = String(formData.get("adminPassword") || "");
+
+  try {
+    const result = await requestJson("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminUsername, adminPassword })
+    }, { retries: 1, timeoutMs: 8000 });
+
+    authUser = {
+      role: "admin",
+      adminUsername: result.user.adminUsername,
+      name: result.user.name,
+      companyName: result.user.companyName,
+      provider: "관리자 로그인"
+    };
+    saveAuthSession(authUser);
+    renderAuthControls();
+    setText("#adminLoginStatus", `${result.user.name} 계정으로 관리자 로그인이 완료되었습니다.`);
+    adminLoginForm.reset();
+    switchPage("adminPage");
+  } catch (error) {
+    setText("#adminLoginStatus", error.message || "관리자 아이디 또는 비밀번호가 일치하지 않습니다.");
+  }
 }
 
 function loadSignupRequests() {
@@ -2440,12 +2475,15 @@ function renderAuthControls() {
   const adminNavBtn = document.querySelector("#adminNavBtn");
 
   const isLoggedIn = Boolean(authUser);
+  const isAdmin = authUser?.role === "admin";
   authActions.classList.toggle("hidden", isLoggedIn);
   authSession.classList.toggle("hidden", !isLoggedIn);
-  adminNavBtn?.classList.toggle("hidden", !isLoggedIn);
+  adminNavBtn?.classList.toggle("hidden", !isAdmin);
 
   if (isLoggedIn) {
-    authBadge.textContent = `${authUser.companyName} · ${authUser.name}`;
+    authBadge.textContent = isAdmin
+      ? `${authUser.name} · 관리자`
+      : `${authUser.companyName} · ${authUser.name}`;
   }
 }
 
@@ -2580,8 +2618,8 @@ function clearCart() {
 }
 
 function switchPage(pageId, options = {}) {
-  if (pageId === "adminPage" && !authUser) {
-    setText("#loginStatus", "내부관리자 페이지는 로그인 후 사용할 수 있습니다.");
+  if (pageId === "adminPage" && authUser?.role !== "admin") {
+    setText("#adminLoginStatus", "내부관리자 페이지는 관리자 아이디와 비밀번호로 로그인해야 사용할 수 있습니다.");
     pageId = "loginPage";
   }
 
@@ -2730,16 +2768,16 @@ function scheduleCartSync() {
 }
 
 async function loadAdminOverview() {
-  if (!authUser?.businessNumber) {
-    setText("#adminStatus", "로그인 후 내부관리자 페이지를 사용할 수 있습니다.");
+  if (authUser?.role !== "admin" || !authUser?.adminUsername) {
+    setText("#adminStatus", "관리자 로그인 후 내부관리자 페이지를 사용할 수 있습니다.");
     return;
   }
 
   setText("#adminStatus", "내부관리자 정보를 불러오는 중입니다...");
   try {
-    adminOverview = await requestJson(`/api/admin/overview?businessNumber=${encodeURIComponent(authUser.businessNumber)}`, {}, { retries: 1, timeoutMs: 8000 });
+    adminOverview = await requestJson(`/api/admin/overview?adminUsername=${encodeURIComponent(authUser.adminUsername)}`, {}, { retries: 1, timeoutMs: 8000 });
     renderAdminOverview();
-    setText("#adminStatus", `${authUser.companyName} 내부관리자 정보가 업데이트되었습니다.`);
+    setText("#adminStatus", `${authUser.name} 관리자 페이지 정보가 업데이트되었습니다.`);
   } catch (error) {
     setText("#adminStatus", error.message || "내부관리자 정보를 불러오지 못했습니다.");
   }
