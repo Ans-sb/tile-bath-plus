@@ -108,6 +108,12 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && request.url.startsWith("/api/admin/overview")) {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      sendJson(response, 200, await readAdminOverview(String(url.searchParams.get("businessNumber") || "")));
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/render") {
       const payload = JSON.parse(await readRequestBody(request));
       sendJson(response, 200, await generateRenderPreview(payload));
@@ -469,6 +475,77 @@ async function saveCartRecord(payload) {
     businessNumber,
     items
   };
+}
+
+async function readAdminOverview(businessNumber) {
+  const clean = String(businessNumber || "").trim();
+  if (!clean) throw new Error("내부관리자 조회에는 사업자등록번호가 필요합니다.");
+  if (!hasSupabaseConfig()) throw new Error("Supabase 관리 데이터가 설정되지 않았습니다.");
+
+  const viewer = await readSignupRequestByBusinessNumber(clean);
+  if (!viewer || viewer.approvalStatus !== "승인") {
+    throw new Error("승인된 계정만 내부관리자 페이지를 사용할 수 있습니다.");
+  }
+
+  const [approvalRules, signupRequests, carts] = await Promise.all([
+    readApprovalRules(),
+    readAllSignupRequests(),
+    readAllCartRecords()
+  ]);
+
+  return {
+    ok: true,
+    viewer: {
+      businessNumber: viewer.businessNumber,
+      companyName: viewer.companyName,
+      name: viewer.name
+    },
+    approvalRules,
+    signupRequests: signupRequests.map((entry) => ({
+      phone: entry.phone,
+      businessNumber: entry.businessNumber,
+      name: entry.name,
+      title: entry.title,
+      companyName: entry.companyName,
+      companyAddress: entry.companyAddress,
+      provider: entry.provider,
+      representative: entry.representative,
+      openingDate: entry.openingDate,
+      businessType: entry.businessType,
+      businessItem: entry.businessItem,
+      approvalStatus: entry.approvalStatus,
+      businessFileName: entry.businessFileName,
+      submittedAt: entry.submittedAt
+    })),
+    carts
+  };
+}
+
+async function readAllSignupRequests() {
+  const query = new URLSearchParams({
+    select: "*",
+    order: "submitted_at.desc"
+  });
+  const rows = await requestSupabase(`/rest/v1/signup_requests?${query.toString()}`);
+  return Array.isArray(rows) ? rows.map(mapSupabaseSignupRequest) : [];
+}
+
+async function readAllCartRecords() {
+  const query = new URLSearchParams({
+    select: "business_number,company_name,cart_data,updated_at",
+    order: "updated_at.desc"
+  });
+  const rows = await requestSupabase(`/rest/v1/carts?${query.toString()}`);
+  return Array.isArray(rows) ? rows.map((row) => {
+    const items = Array.isArray(row.cart_data) ? row.cart_data.map(normalizeCartItem) : [];
+    return {
+      businessNumber: String(row.business_number || "").trim(),
+      companyName: String(row.company_name || "").trim(),
+      itemCount: items.length,
+      totalQuote: items.reduce((sum, item) => sum + (Number(item.quotePrice || 0) * Number(item.qty || 0)), 0),
+      updatedAt: String(row.updated_at || "").trim()
+    };
+  }) : [];
 }
 
 async function requestSupabase(pathname, options = {}) {

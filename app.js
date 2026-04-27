@@ -132,6 +132,7 @@ const productForm = document.querySelector("#productForm");
 const proposalForm = document.querySelector("#proposalForm");
 const signupForm = document.querySelector("#signupForm");
 const loginForm = document.querySelector("#loginForm");
+let adminOverview = null;
 
 init();
 
@@ -260,6 +261,7 @@ function bindEvents() {
     const online = await refreshServerConnection();
     setText("#serverControlStatus", online ? "서버가 연결되어 있습니다." : getServerRequiredMessage());
   });
+  document.querySelector("#refreshAdminBtn")?.addEventListener("click", loadAdminOverview);
   document.querySelector("#startServerGuideBtn").addEventListener("click", showServerStartGuide);
   document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
   document.querySelector("#googleLoginBtn").addEventListener("click", () => setText("#loginStatus", "Google 로그인은 추후 OAuth 연결 시 활성화됩니다."));
@@ -447,6 +449,7 @@ function renderAll() {
   renderDocuments();
   renderRenderWorkspace();
   renderSignupSummary();
+  renderAdminOverview();
 }
 
 function openProductCategory(productType) {
@@ -577,6 +580,73 @@ function readImageValue(product, key) {
 function renderCart() {
   renderCartSummary();
   renderCartList();
+}
+
+function renderAdminOverview() {
+  const summaryGrid = document.querySelector("#adminSummaryGrid");
+  const priceRows = document.querySelector("#adminPriceRows");
+  const signupRows = document.querySelector("#adminSignupRows");
+  const cartRows = document.querySelector("#adminCartRows");
+  if (!summaryGrid || !priceRows || !signupRows || !cartRows) return;
+
+  const signupRequests = Array.isArray(adminOverview?.signupRequests) ? adminOverview.signupRequests : [];
+  const cartRecords = Array.isArray(adminOverview?.carts) ? adminOverview.carts : [];
+  const tileCount = products.filter((item) => item.productType === "tile").length;
+  const sanitaryCount = products.filter((item) => item.productType === "sanitary").length;
+  const materialCount = products.filter((item) => item.productType === "material").length;
+  const lowStockCount = products.filter((item) => Number(item.stockQty || 0) > 0 && Number(item.stockQty || 0) <= 20).length;
+
+  summaryGrid.innerHTML = [
+    ["전체 상품", `${number(products.length)}개`, "현재 등록된 전체 상품 수"],
+    ["타일 상품", `${number(tileCount)}개`, "타일 및 타일 관련 상품 수"],
+    ["위생도기", `${number(sanitaryCount)}개`, "위생도기/수전/액세서리 수"],
+    ["부자재", `${number(materialCount)}개`, "부자재 상품 수"],
+    ["재고 주의", `${number(lowStockCount)}개`, "재고 20 이하 상품 수"],
+    ["가입 신청", `${number(signupRequests.length)}건`, "저장된 회원가입 신청 수"],
+    ["저장 장바구니", `${number(cartRecords.length)}건`, "업체별 저장된 장바구니 수"],
+    ["승인 기준", `${number((adminOverview?.approvalRules?.businessTypes || []).length)}개 업태`, "현재 내부 승인 기준 업태 수"]
+  ].map(([label, value, note]) => `
+    <article class="admin-summary-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <p>${escapeHtml(note)}</p>
+    </article>
+  `).join("");
+
+  priceRows.innerHTML = products.map((product) => `
+    <tr>
+      <td>${escapeHtml(product.name)}</td>
+      <td>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-")}</td>
+      <td>${escapeHtml(product.kind || "-")}</td>
+      <td>${escapeHtml(product.size || "-")}</td>
+      <td>${money.format(product.costPrice || 0)}</td>
+      <td>${money.format(product.retailPrice || 0)}</td>
+      <td>${money.format(product.wholesalePrice || 0)}</td>
+      <td>${number(product.stockQty || 0)}${escapeHtml(product.unit || "")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="8">표시할 상품이 없습니다.</td></tr>`;
+
+  signupRows.innerHTML = signupRequests.map((entry) => `
+    <tr>
+      <td>${escapeHtml(entry.companyName || "-")}</td>
+      <td>${escapeHtml(entry.businessNumber || "-")}</td>
+      <td>${escapeHtml(entry.name || "-")}${entry.title ? ` · ${escapeHtml(entry.title)}` : ""}</td>
+      <td>${escapeHtml(entry.businessType || "-")}</td>
+      <td>${escapeHtml(entry.businessItem || "-")}</td>
+      <td>${escapeHtml(entry.approvalStatus || "-")}</td>
+      <td>${escapeHtml(formatDateTime(entry.submittedAt))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="7">저장된 회원가입 신청이 없습니다.</td></tr>`;
+
+  cartRows.innerHTML = cartRecords.map((entry) => `
+    <tr>
+      <td>${escapeHtml(entry.companyName || "-")}</td>
+      <td>${escapeHtml(entry.businessNumber || "-")}</td>
+      <td>${number(entry.itemCount || 0)}개</td>
+      <td>${money.format(entry.totalQuote || 0)}</td>
+      <td>${escapeHtml(formatDateTime(entry.updatedAt))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">저장된 장바구니가 없습니다.</td></tr>`;
 }
 
 function renderCartSummary() {
@@ -2356,6 +2426,7 @@ function saveAuthSession(user) {
 
 function logoutUser() {
   authUser = null;
+  adminOverview = null;
   localStorage.removeItem("tbpAuthSession");
   if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
   renderAuthControls();
@@ -2366,14 +2437,23 @@ function renderAuthControls() {
   const authActions = document.querySelector("#authActions");
   const authSession = document.querySelector("#authSession");
   const authBadge = document.querySelector("#authBadge");
+  const adminNavBtn = document.querySelector("#adminNavBtn");
 
   const isLoggedIn = Boolean(authUser);
   authActions.classList.toggle("hidden", isLoggedIn);
   authSession.classList.toggle("hidden", !isLoggedIn);
+  adminNavBtn?.classList.toggle("hidden", !isLoggedIn);
 
   if (isLoggedIn) {
     authBadge.textContent = `${authUser.companyName} · ${authUser.name}`;
   }
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function readImageFile(file, maxWidth, quality = 0.84) {
@@ -2500,6 +2580,11 @@ function clearCart() {
 }
 
 function switchPage(pageId, options = {}) {
+  if (pageId === "adminPage" && !authUser) {
+    setText("#loginStatus", "내부관리자 페이지는 로그인 후 사용할 수 있습니다.");
+    pageId = "loginPage";
+  }
+
   if (pageId === currentPageId) {
     restorePageScroll(pageId, options.scrollY ?? window.scrollY);
     return;
@@ -2528,6 +2613,8 @@ function switchPage(pageId, options = {}) {
   if (options.updateBrowserHistory !== false) {
     history.pushState({ pageId }, "", `#${pageId}`);
   }
+
+  if (pageId === "adminPage") loadAdminOverview();
 }
 
 function restorePageScroll(pageId, scrollY) {
@@ -2640,6 +2727,22 @@ function scheduleCartSync() {
   cartSyncTimer = window.setTimeout(() => {
     pushCartToServer().catch((error) => console.warn(error));
   }, 300);
+}
+
+async function loadAdminOverview() {
+  if (!authUser?.businessNumber) {
+    setText("#adminStatus", "로그인 후 내부관리자 페이지를 사용할 수 있습니다.");
+    return;
+  }
+
+  setText("#adminStatus", "내부관리자 정보를 불러오는 중입니다...");
+  try {
+    adminOverview = await requestJson(`/api/admin/overview?businessNumber=${encodeURIComponent(authUser.businessNumber)}`, {}, { retries: 1, timeoutMs: 8000 });
+    renderAdminOverview();
+    setText("#adminStatus", `${authUser.companyName} 내부관리자 정보가 업데이트되었습니다.`);
+  } catch (error) {
+    setText("#adminStatus", error.message || "내부관리자 정보를 불러오지 못했습니다.");
+  }
 }
 
 async function pushCartToServer() {
