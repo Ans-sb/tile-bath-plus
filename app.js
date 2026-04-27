@@ -581,17 +581,11 @@ function renderCart() {
 
 function renderCartSummary() {
   const itemCount = cart.length;
-  const totalCost = cart.reduce((sum, item) => sum + Number(item.costPrice || 0) * Number(item.qty || 0), 0);
   const totalQuote = cart.reduce((sum, item) => sum + Number(item.quotePrice || 0) * Number(item.qty || 0), 0);
-  const expectedMargin = totalQuote - totalCost;
-  const marginRate = totalQuote > 0 ? expectedMargin / totalQuote * 100 : 0;
   document.querySelector("#navCartCount").textContent = String(itemCount);
   document.querySelector("#cartSummary").textContent = `${itemCount}개 품목 · 견적 ${money.format(totalQuote)}`;
   document.querySelector("#costSummary").innerHTML = `
-    <div><span>원가 합계</span><strong>${money.format(totalCost)}</strong></div>
     <div><span>견적 합계</span><strong>${money.format(totalQuote)}</strong></div>
-    <div><span>예상 마진</span><strong>${money.format(expectedMargin)}</strong></div>
-    <div><span>마진율</span><strong>${number(marginRate)}%</strong></div>
   `;
 }
 
@@ -605,7 +599,6 @@ function renderCartList() {
       </div>
       <div class="cart-controls">
         <label>수량<input type="number" min="0.1" step="0.1" value="${item.qty}" data-cart-qty="${escapeHtml(item.id)}" /></label>
-        <div class="cart-price-readout"><span>원가</span><strong>${money.format(item.costPrice)}</strong></div>
         <label>견적단가<input type="number" min="0" step="100" value="${item.quotePrice}" data-cart-price="${escapeHtml(item.id)}" /></label>
         <button type="button" data-remove-product="${escapeHtml(item.id)}">삭제</button>
       </div>
