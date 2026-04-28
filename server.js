@@ -787,32 +787,44 @@ async function generateRenderPreview(payload) {
   }
 
   const siteImageDataUrl = String(payload.siteImageDataUrl || "").trim();
-  const tileImageDataUrl = String(payload.tileImageDataUrl || "").trim();
-  const tileName = String(payload.tileName || "tile").trim();
-  const tileSize = String(payload.tileSize || "").trim();
-  const tileFinish = String(payload.tileFinish || "").trim();
-  const targetSurface = String(payload.targetSurface || "floor").trim().toLowerCase();
   const pointMemo = String(payload.pointMemo || "").trim();
+  const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
 
-  if (!siteImageDataUrl || !tileImageDataUrl) {
-    throw new Error("?꾩옣?ъ쭊怨???쇱씠誘몄?瑜?紐⑤몢 ?낅젰?댁＜?몄슂.");
+  if (!siteImageDataUrl || !surfaces.length) {
+    throw new Error("?꾩옣 ?ъ쭊怨?踰?諛붾떏/?ъ씤?????李몄“ ?대?吏瑜?紐⑤몢 ?낅젰?댁＜?몄슂.");
   }
 
-  const targetLabel = targetSurface === "wall"
-    ? "wall"
-    : targetSurface === "point"
-      ? "accent wall area"
-      : "floor";
-  const pointInstruction = targetSurface === "point"
-    ? `Apply the selected tile only to the ${pointMemo || "shower booth back wall"}.`
-    : `Apply the selected tile to the ${targetLabel} area only.`;
+  const normalizedSurfaces = surfaces
+    .map((entry, index) => ({
+      surface: normalizeRenderSurfaceValue(entry?.surface),
+      tileName: String(entry?.tileName || `tile-${index + 1}`).trim(),
+      tileSize: String(entry?.tileSize || "").trim(),
+      tileFinish: String(entry?.tileFinish || "").trim(),
+      tileImageDataUrl: String(entry?.tileImageDataUrl || "").trim()
+    }))
+    .filter((entry) => entry.tileImageDataUrl);
+
+  if (!normalizedSurfaces.length) {
+    throw new Error("?좏깮??????대?吏瑜?李얠? 紐삵뻽?듬땲??");
+  }
+
+  const referenceInstructions = normalizedSurfaces.map((entry, index) => {
+    const referenceNumber = index + 2;
+    const surfaceInstruction = entry.surface === "wall"
+      ? "Apply this tile only to the wall surfaces."
+      : entry.surface === "point"
+        ? `Apply this tile only to the ${pointMemo || "shower booth back wall"}.`
+        : "Apply this tile only to the floor surfaces.";
+
+    return `Reference image ${referenceNumber} is the exact ${entry.surface} tile. ${surfaceInstruction} Match the color, pattern, scale, and finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}${entry.tileSize ? `, size reference ${entry.tileSize}` : ""}.`;
+  }).join(" ");
 
   const prompt = [
     "Create a photorealistic interior renovation mockup.",
-    "Use the first image as the real site photo and the second image as the exact tile reference.",
-    pointInstruction,
+    "Use the first image as the real site photo.",
+    referenceInstructions,
     "Preserve the existing camera angle, room proportions, lighting, grout direction, perspective, fixtures, and all non-target surfaces.",
-    `Match the exact tile look from the reference image, including color, pattern, scale, and finish${tileFinish ? ` (${tileFinish})` : ""}${tileSize ? `, size reference ${tileSize}` : ""}.`,
+    "If multiple surfaces are selected, keep each reference tile assigned only to its matching surface and do not mix wall, floor, and point materials.",
     "Keep the output realistic and suitable for a client proposal."
   ].join(" ");
 
@@ -823,7 +835,9 @@ async function generateRenderPreview(payload) {
   form.append("quality", "high");
   form.append("output_format", "png");
   form.append("image[]", dataUrlToBlob(siteImageDataUrl), "site-photo.png");
-  form.append("image[]", dataUrlToBlob(tileImageDataUrl), `${sanitizeFileName(tileName || "tile")}.png`);
+  normalizedSurfaces.forEach((entry) => {
+    form.append("image[]", dataUrlToBlob(entry.tileImageDataUrl), `${sanitizeFileName(entry.tileName || "tile")}.png`);
+  });
 
   const response = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
@@ -854,6 +868,12 @@ async function generateRenderPreview(payload) {
     ok: true,
     imageDataUrl: `data:image/png;base64,${imageBase64}`
   };
+}
+
+function normalizeRenderSurfaceValue(value) {
+  if (value === "wall") return "wall";
+  if (value === "point") return "point";
+  return "floor";
 }
 
 function dataUrlToBlob(dataUrl) {

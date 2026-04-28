@@ -98,6 +98,11 @@ let cart = loadCart();
 let selectedProductId = "";
 let selectedRenderCartId = "";
 let selectedRenderTileId = "";
+let renderSurfaceSelections = {
+  wall: { enabled: false, tileId: "" },
+  floor: { enabled: true, tileId: "" },
+  point: { enabled: false, tileId: "" }
+};
 let pendingRenderResultImage = "";
 let pendingSiteImage = "";
 let renderJobRunning = false;
@@ -229,12 +234,27 @@ function bindEvents() {
     renderRenderWorkspace();
   });
 
-  document.querySelector("#renderTileSelect").addEventListener("change", (event) => {
-    selectedRenderTileId = event.target.value;
-    renderRenderWorkspace();
+  getRenderSurfaceKeys().forEach((surface) => {
+    const enabledInput = document.querySelector(`#render${surface.charAt(0).toUpperCase() + surface.slice(1)}Enabled`);
+    const tileSelect = document.querySelector(`#render${surface.charAt(0).toUpperCase() + surface.slice(1)}TileSelect`);
+    enabledInput.addEventListener("change", () => {
+      renderSurfaceSelections[surface].enabled = enabledInput.checked;
+      if (enabledInput.checked && !renderSurfaceSelections[surface].tileId) {
+        const firstTile = getRenderableCartTiles()[0];
+        renderSurfaceSelections[surface].tileId = firstTile?.id || "";
+      }
+      if (surface === "point") syncRenderPointPreset();
+      renderRenderWorkspace();
+    });
+    tileSelect.addEventListener("change", (event) => {
+      renderSurfaceSelections[surface].tileId = event.target.value;
+      if (event.target.value) selectedRenderTileId = event.target.value;
+      renderRenderWorkspace();
+    });
   });
-  document.querySelector("#renderTarget").addEventListener("change", () => {
-    syncRenderPointPreset();
+
+  document.querySelector("#renderPointMemo").addEventListener("input", () => {
+    if (renderSurfaceSelections.point.enabled) return;
     renderRenderWorkspace();
   });
   document.querySelector("#generateRenderBtn").addEventListener("click", generateRenderPreview);
@@ -1075,10 +1095,39 @@ function getRenderTargetLabel(value) {
   return "\uBC14\uB2E5";
 }
 
+function getRenderSurfaceKeys() {
+  return ["wall", "floor", "point"];
+}
+
+function getRenderSurfaceLabel(surface) {
+  if (surface === "wall") return "\uBCBD";
+  if (surface === "point") return "\uD3EC\uC778\uD2B8";
+  return "\uBC14\uB2E5";
+}
+
+function getRenderSurfaceFixedPointLabel() {
+  return "\uC0E4\uC6CC\uBD80\uC2A4 \uB4B7\uBCBD";
+}
+
+function getSelectedRenderSurfaces() {
+  return getRenderSurfaceKeys()
+    .filter((surface) => renderSurfaceSelections[surface].enabled)
+    .map((surface) => {
+      const tile = cart.find((entry) => entry.id === renderSurfaceSelections[surface].tileId && entry.productType === "tile");
+      return tile ? { surface, tile } : null;
+    })
+    .filter(Boolean);
+}
+
 function ensureRenderSelection() {
   if (!cart.length) {
     selectedRenderCartId = "";
     selectedRenderTileId = "";
+    renderSurfaceSelections = {
+      wall: { enabled: false, tileId: "" },
+      floor: { enabled: false, tileId: "" },
+      point: { enabled: false, tileId: "" }
+    };
     return;
   }
 
@@ -1096,6 +1145,22 @@ function ensureRenderSelection() {
       ? preferredTileId
       : (cartTiles[0]?.id || "");
   }
+
+  getRenderSurfaceKeys().forEach((surface) => {
+    const selection = renderSurfaceSelections[surface] || { enabled: false, tileId: "" };
+    if (selection.tileId && !cartTiles.some((entry) => entry.id === selection.tileId)) {
+      selection.tileId = "";
+    }
+    if (selection.enabled && !selection.tileId) {
+      selection.tileId = selectedRenderTileId || cartTiles[0]?.id || "";
+    }
+    renderSurfaceSelections[surface] = selection;
+  });
+
+  if (!getRenderSurfaceKeys().some((surface) => renderSurfaceSelections[surface].enabled) && cartTiles.length) {
+    renderSurfaceSelections.floor.enabled = true;
+    renderSurfaceSelections.floor.tileId = renderSurfaceSelections.floor.tileId || selectedRenderTileId || cartTiles[0].id;
+  }
 }
 
 function openRenderForCartItem(id) {
@@ -1106,11 +1171,25 @@ function openRenderForCartItem(id) {
   selectedRenderTileId = cartTiles.some((entry) => entry.id === preferredTileId)
     ? preferredTileId
     : (cartTiles[0]?.id || "");
+  const storedSelections = item?.renderSurfaceSelections || {};
+  renderSurfaceSelections = {
+    wall: {
+      enabled: Boolean(storedSelections.wall?.enabled),
+      tileId: storedSelections.wall?.tileId || cartTiles[0]?.id || ""
+    },
+    floor: {
+      enabled: storedSelections.floor?.enabled ?? true,
+      tileId: storedSelections.floor?.tileId || selectedRenderTileId || cartTiles[0]?.id || ""
+    },
+    point: {
+      enabled: Boolean(storedSelections.point?.enabled),
+      tileId: storedSelections.point?.tileId || cartTiles[0]?.id || ""
+    }
+  };
   pendingRenderResultImage = item?.renderedImage || "";
   pendingSiteImage = "";
   renderJobRunning = false;
   document.querySelector("#renderSiteImage").value = "";
-  document.querySelector("#renderTarget").value = normalizeRenderTargetValue(item?.renderTarget);
   document.querySelector("#renderPointMemo").value = item?.renderPointMemo || "";
   setText("#renderStatus", "");
   syncRenderPointPreset();
@@ -1124,21 +1203,26 @@ function getRenderableCartTiles() {
 
 function syncRenderPointPreset() {
   const pointInput = document.querySelector("#renderPointMemo");
-  const target = document.querySelector("#renderTarget").value;
-  if (target === "point") {
-    pointInput.value = "\uC0E4\uC6CC\uBD80\uC2A4 \uB4B7\uBCBD";
+  const pointEnabled = document.querySelector("#renderPointEnabled").checked;
+  if (pointEnabled) {
+    pointInput.value = getRenderSurfaceFixedPointLabel();
     pointInput.readOnly = true;
     return;
   }
 
-  if (pointInput.value === "\uC0E4\uC6CC\uBD80\uC2A4 \uB4B7\uBCBD") pointInput.value = "";
+  if (pointInput.value === getRenderSurfaceFixedPointLabel()) pointInput.value = "";
   pointInput.readOnly = false;
 }
 
 function renderRenderWorkspace() {
   ensureRenderSelection();
   const selected = document.querySelector("#renderSelectedProduct");
-  const tileSelect = document.querySelector("#renderTileSelect");
+  const wallEnabled = document.querySelector("#renderWallEnabled");
+  const floorEnabled = document.querySelector("#renderFloorEnabled");
+  const pointEnabled = document.querySelector("#renderPointEnabled");
+  const wallTileSelect = document.querySelector("#renderWallTileSelect");
+  const floorTileSelect = document.querySelector("#renderFloorTileSelect");
+  const pointTileSelect = document.querySelector("#renderPointTileSelect");
   const sitePreview = document.querySelector("#renderSitePreview");
   const tilePreview = document.querySelector("#renderTilePreview");
   const resultPreview = document.querySelector("#renderResultPreview");
@@ -1150,17 +1234,31 @@ function renderRenderWorkspace() {
   const generateButton = document.querySelector("#generateRenderBtn");
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   const cartTiles = getRenderableCartTiles();
-  const selectedTile = cartTiles.find((entry) => entry.id === selectedRenderTileId);
-
-  tileSelect.innerHTML = ['<option value="">\uD0C0\uC77C\uC744 \uC120\uD0DD\uD558\uC138\uC694</option>']
+  const optionMarkup = ['<option value="">\uD0C0\uC77C\uC744 \uC120\uD0DD\uD558\uC138\uC694</option>']
     .concat(cartTiles.map((entry) => '<option value="' + escapeHtml(entry.id) + '">' + escapeHtml(entry.name) + (entry.size ? ' · ' + escapeHtml(entry.size) : '') + '</option>'))
     .join('');
-  tileSelect.value = selectedTile?.id || "";
-  tileSelect.disabled = cartTiles.length === 0;
+
+  wallTileSelect.innerHTML = optionMarkup;
+  floorTileSelect.innerHTML = optionMarkup;
+  pointTileSelect.innerHTML = optionMarkup;
+
+  wallEnabled.checked = renderSurfaceSelections.wall.enabled;
+  floorEnabled.checked = renderSurfaceSelections.floor.enabled;
+  pointEnabled.checked = renderSurfaceSelections.point.enabled;
+  wallTileSelect.value = renderSurfaceSelections.wall.tileId || "";
+  floorTileSelect.value = renderSurfaceSelections.floor.tileId || "";
+  pointTileSelect.value = renderSurfaceSelections.point.tileId || "";
+
+  wallTileSelect.disabled = cartTiles.length === 0 || !renderSurfaceSelections.wall.enabled;
+  floorTileSelect.disabled = cartTiles.length === 0 || !renderSurfaceSelections.floor.enabled;
+  pointTileSelect.disabled = cartTiles.length === 0 || !renderSurfaceSelections.point.enabled;
+
+  const selectedTiles = getSelectedRenderSurfaces();
+
   generateButton.disabled = renderJobRunning;
   saveButton.disabled = !item || !pendingRenderResultImage;
   sitePreviewTrigger.disabled = !pendingSiteImage;
-  tilePreviewTrigger.disabled = !selectedTile?.image;
+  tilePreviewTrigger.disabled = selectedTiles.length === 0;
   previewTrigger.disabled = !pendingRenderResultImage;
   generateButton.textContent = renderJobRunning ? "\uC2E4\uC0AC \uBCF4\uC815 \uC0DD\uC131 \uC911..." : "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC2E4\uD589";
 
@@ -1183,6 +1281,7 @@ function renderRenderWorkspace() {
     '<div>',
     '<strong>' + escapeHtml(item.name) + '</strong>',
     '<span>\uC120\uD0DD \uD488\uBAA9 \uC815\uBCF4 \u00B7 ' + escapeHtml(item.kind) + ' \u00B7 \uADDC\uACA9 ' + escapeHtml(item.size || '-') + '</span>',
+    '<span>\uC801\uC6A9 \uC704\uCE58 \uBCC4\uB85C \uD0C0\uC77C\uC744 \uAC01\uAC01 \uC120\uD0DD\uD558\uBA74 \uD55C \uC7A5\uC758 \uBCF4\uC815 \uACB0\uACFC\uB85C \uC0DD\uC131\uB429\uB2C8\uB2E4.</span>',
     '</div>',
     '</div>'
   ].join('');
@@ -1190,14 +1289,20 @@ function renderRenderWorkspace() {
   sitePreview.innerHTML = pendingSiteImage
     ? '<img src="' + escapeHtml(pendingSiteImage) + '" alt="\uD604\uC7A5 \uC0AC\uC9C4 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
-  tilePreview.innerHTML = selectedTile?.image
-    ? '<img src="' + escapeHtml(selectedTile.image) + '" alt="' + escapeHtml(selectedTile.name) + ' \uD0C0\uC77C \uBBF8\uB9AC\uBCF4\uAE30" />'
+  tilePreview.innerHTML = selectedTiles.length
+    ? '<div class="render-tile-preview-list">' + selectedTiles.map(({ surface, tile }) => (
+      '<div class="render-tile-preview-item">'
+      + '<img src="' + escapeHtml(tile.image) + '" alt="' + escapeHtml(tile.name) + ' ' + escapeHtml(getRenderSurfaceLabel(surface)) + '" />'
+      + '<strong>' + escapeHtml(getRenderSurfaceLabel(surface)) + '</strong>'
+      + '<span>' + escapeHtml(tile.name) + (tile.size ? ' · ' + escapeHtml(tile.size) : '') + '</span>'
+      + '</div>'
+    )).join('') + '</div>'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
   resultPreview.innerHTML = pendingRenderResultImage
     ? '<img src="' + escapeHtml(pendingRenderResultImage) + '" alt="\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
   sitePreview.classList.toggle("has-image", Boolean(pendingSiteImage));
-  tilePreview.classList.toggle("has-image", Boolean(selectedTile?.image));
+  tilePreview.classList.toggle("has-image", Boolean(selectedTiles.length));
   resultPreview.classList.toggle("has-image", Boolean(pendingRenderResultImage));
   if (pendingRenderResultImage) {
     downloadLink.href = pendingRenderResultImage;
@@ -1232,9 +1337,12 @@ function openImagePreview(type) {
     src = pendingSiteImage;
     title = "\uD604\uC7A5 \uC0AC\uC9C4 \uBBF8\uB9AC\uBCF4\uAE30";
   } else if (type === "tile") {
-    const tile = cart.find((entry) => entry.id === selectedRenderTileId && entry.productType === "tile");
-    src = tile?.image || "";
-    title = "\uC120\uD0DD \uD0C0\uC77C \uBBF8\uB9AC\uBCF4\uAE30";
+    const selectedTileEntry = getRenderSurfaceKeys()
+      .filter((surface) => renderSurfaceSelections[surface].enabled)
+      .map((surface) => cart.find((entry) => entry.id === renderSurfaceSelections[surface].tileId && entry.productType === "tile"))
+      .find(Boolean);
+    src = selectedTileEntry?.image || "";
+    title = "\uC704\uCE58\uBCC4 \uC120\uD0DD \uD0C0\uC77C \uB300\uD45C \uBBF8\uB9AC\uBCF4\uAE30";
   } else {
     src = pendingRenderResultImage;
     title = "\uBCF4\uC815 \uACB0\uACFC \uBBF8\uB9AC\uBCF4\uAE30";
@@ -1278,9 +1386,8 @@ async function imageUrlToDataUrl(url) {
 
 async function generateRenderPreview() {
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
-  const tile = cart.find((entry) => entry.id === selectedRenderTileId && entry.productType === "tile");
-  const targetValue = document.querySelector("#renderTarget").value;
   const pointMemo = document.querySelector("#renderPointMemo").value.trim();
+  const selectedSurfaces = getSelectedRenderSurfaces();
 
   if (!item) {
     setText("#renderStatus", "\uBCF4\uC815\uD560 \uB300\uC0C1 \uD488\uBAA9\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
@@ -1290,12 +1397,12 @@ async function generateRenderPreview() {
     setText("#renderStatus", "\uD604\uC7A5 \uC0AC\uC9C4\uC744 \uBA3C\uC800 \uC5C5\uB85C\uB4DC\uD574\uC8FC\uC138\uC694.");
     return;
   }
-  if (!tile) {
-    setText("#renderStatus", "\uC7A5\uBC14\uAD6C\uB2C8\uC5D0\uC11C \uD0C0\uC77C\uC744 \uC120\uD0DD\uD574\uC8FC\uC138\uC694.");
+  if (!selectedSurfaces.length) {
+    setText("#renderStatus", "\uBCBD, \uBC14\uB2E5, \uD3EC\uC778\uD2B8 \uC911 \uD558\uB098 \uC774\uC0C1\uC744 \uC120\uD0DD\uD574\uC8FC\uC138\uC694.");
     return;
   }
-  if (!tile.image) {
-    setText("#renderStatus", "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC5D0 \uC774\uBBF8\uC9C0\uAC00 \uC5C6\uC5B4 \uBCF4\uC815\uC744 \uC2E4\uD589\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
+  if (selectedSurfaces.some(({ tile }) => !tile.image)) {
+    setText("#renderStatus", "\uC120\uD0DD\uD55C \uD0C0\uC77C \uC911 \uC774\uBBF8\uC9C0\uAC00 \uC5C6\uB294 \uD488\uBAA9\uC774 \uC788\uC5B4 \uBCF4\uC815\uC744 \uC2E4\uD589\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
     return;
   }
 
@@ -1304,7 +1411,13 @@ async function generateRenderPreview() {
   setText("#renderStatus", "OpenAI\uB85C \uC2E4\uC0AC \uBCF4\uC815 \uC774\uBBF8\uC9C0\uB97C \uC0DD\uC131\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4...");
 
   try {
-    const tileImageDataUrl = await imageUrlToDataUrl(tile.image);
+    const surfacesPayload = await Promise.all(selectedSurfaces.map(async ({ surface, tile }) => ({
+      surface,
+      tileName: tile.name,
+      tileSize: tile.size || "",
+      tileFinish: tile.finish || "",
+      tileImageDataUrl: await imageUrlToDataUrl(tile.image)
+    })));
     const payload = await requestJson(
       "/api/render",
       {
@@ -1312,11 +1425,7 @@ async function generateRenderPreview() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           siteImageDataUrl: pendingSiteImage,
-          tileImageDataUrl,
-          tileName: tile.name,
-          tileSize: tile.size || "",
-          tileFinish: tile.finish || "",
-          targetSurface: normalizeRenderTargetValue(targetValue),
+          surfaces: surfacesPayload,
           pointMemo
         })
       },
@@ -1338,6 +1447,7 @@ async function generateRenderPreview() {
 
 function saveRenderResultToProposal() {
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
+  const selectedSurfaces = getSelectedRenderSurfaces();
   if (!item) {
     setText("#renderStatus", "\uBCF4\uC815 \uACB0\uACFC\uB97C \uC800\uC7A5\uD560 \uD488\uBAA9\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
     return;
@@ -1348,8 +1458,18 @@ function saveRenderResultToProposal() {
   }
 
   item.renderedImage = pendingRenderResultImage;
-  item.renderTileId = selectedRenderTileId;
-  item.renderTarget = getRenderTargetLabel(document.querySelector("#renderTarget").value);
+  item.renderTileId = selectedSurfaces[0]?.tile.id || "";
+  item.renderSurfaceSelections = getRenderSurfaceKeys().reduce((accumulator, surface) => {
+    accumulator[surface] = {
+      enabled: renderSurfaceSelections[surface].enabled,
+      tileId: renderSurfaceSelections[surface].tileId || ""
+    };
+    return accumulator;
+  }, {});
+  item.renderTarget = getRenderSurfaceKeys()
+    .filter((surface) => renderSurfaceSelections[surface].enabled)
+    .map(getRenderSurfaceLabel)
+    .join(", ");
   item.renderPointMemo = document.querySelector("#renderPointMemo").value.trim();
   if (!saveCart()) {
     setText("#renderStatus", "\uC7A5\uBC14\uAD6C\uB2C8 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uD55C \uBC88 \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.");
