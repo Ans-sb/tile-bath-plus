@@ -1276,6 +1276,39 @@ textarea:focus {
   object-fit: cover;
 }
 
+.proposal-render-gallery {
+  display: grid;
+  gap: 16px;
+}
+
+.proposal-render-result-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #ece6da;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.proposal-render-result-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.proposal-render-result-copy strong {
+  color: #18212f;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.proposal-render-result-copy span {
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.5;
+}
+
 .proposal-item-empty {
   grid-column: 1 / -1;
 }

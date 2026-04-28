@@ -778,7 +778,7 @@ function renderDocuments() {
   setText("#proposalNote", `본 제안은 ${shortDate.format(validDate)}까지 유효합니다. 현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다. ${memo}`);
 
   document.querySelector("#proposalItems").innerHTML = cart.map((item) => `
-    <li class="proposal-item-card ${item.renderedImage ? "has-rendered-image" : ""}">
+    <li class="proposal-item-card">
       <button class="proposal-image-button" type="button" data-render-product="${escapeHtml(item.id)}" title="실사 보정으로 이동">
         ${item.image ? `<img class="proposal-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-item-image proposal-item-image-empty">이미지 없음</div>`}
       </button>
@@ -787,12 +787,6 @@ function renderDocuments() {
         <span>${escapeHtml(item.kind)} · ${escapeHtml(item.option || item.finish || "-")}</span>
         <span class="proposal-item-size">규격 ${escapeHtml(item.size || "-")}</span>
       </div>
-      ${item.renderedImage ? `
-        <div class="proposal-rendered-preview">
-          <span>실사 보정 이미지${item.renderTarget ? ` · ${escapeHtml(item.renderTarget)}` : ""}${item.renderPointMemo ? ` · ${escapeHtml(item.renderPointMemo)}` : ""}</span>
-          <img src="${escapeHtml(item.renderedImage)}" alt="${escapeHtml(item.name)} 실사 보정 이미지" loading="lazy" />
-        </div>
-      ` : ""}
     </li>
   `).join("") || `<li class="proposal-item-card proposal-item-empty">선정된 품목이 없습니다.</li>`;
   document.querySelector("#estimateRows").innerHTML = cart.map((item) => {
@@ -801,36 +795,34 @@ function renderDocuments() {
   setText("#estimateSubtotal", money.format(subtotal));
   setText("#estimateVat", money.format(vat));
   setText("#estimateTotal", money.format(total));
-  renderProposalItemsWithSurfaceDetails();
+  renderProposalRenderedItems();
 }
 
-function renderProposalItemsWithSurfaceDetails() {
-  const list = document.querySelector("#proposalItems");
-  if (!list) return;
+function renderProposalRenderedItems() {
+  const section = document.querySelector("#proposalRenderedSection");
+  const list = document.querySelector("#proposalRenderedItems");
+  if (!section || !list) return;
 
-  list.innerHTML = cart.map((item) => {
-    const renderedSection = item.renderedImage ? `
-      <div class="proposal-rendered-preview">
-        ${buildProposalRenderSurfaceDetails(item)}
+  const renderedItems = cart.filter((item) => item.renderedImage);
+  section.classList.toggle("hidden", !renderedItems.length);
+
+  if (!renderedItems.length) {
+    list.innerHTML = "";
+    return;
+  }
+
+  list.innerHTML = renderedItems.map((item) => `
+    <article class="proposal-render-result-card">
+      <div class="proposal-render-result-copy">
+        <strong>${escapeHtml(item.name)}</strong>
         <span>실사 보정 이미지${item.renderTarget ? ` · ${escapeHtml(item.renderTarget)}` : ""}${item.renderPointMemo ? ` · ${escapeHtml(item.renderPointMemo)}` : ""}</span>
+      </div>
+      ${buildProposalRenderSurfaceDetails(item)}
+      <div class="proposal-rendered-preview">
         <img src="${escapeHtml(item.renderedImage)}" alt="${escapeHtml(item.name)} 실사 보정 이미지" loading="lazy" />
       </div>
-    ` : "";
-
-    return `
-      <li class="proposal-item-card ${item.renderedImage ? "has-rendered-image" : ""}">
-        <button class="proposal-image-button" type="button" data-render-product="${escapeHtml(item.id)}" title="실사 보정으로 이동">
-          ${item.image ? `<img class="proposal-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-item-image proposal-item-image-empty">이미지 없음</div>`}
-        </button>
-        <div>
-          <strong>${escapeHtml(item.name)}</strong>
-          <span>${escapeHtml(item.kind)} · ${escapeHtml(item.option || item.finish || "-")}</span>
-          <span class="proposal-item-size">규격 ${escapeHtml(item.size || "-")}</span>
-        </div>
-        ${renderedSection}
-      </li>
-    `;
-  }).join("") || `<li class="proposal-item-card proposal-item-empty">선정된 품목이 없습니다.</li>`;
+    </article>
+  `).join("");
 }
 
 function buildProposalRenderSurfaceDetails(item) {
