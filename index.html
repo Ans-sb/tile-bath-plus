@@ -669,58 +669,58 @@
         <section class="page-heading">
           <div>
             <p class="eyebrow">AI Rendering</p>
-            <h2>?? ?? ?? ???</h2>
+            <h2>실사 이미지 보정</h2>
           </div>
           <div class="detail-actions">
-            <button class="secondary-action" type="button" data-back-action>????</button>
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
           </div>
         </section>
         <section class="commerce-panel">
-          <p class="service-copy">?? ??? ??? ????? ?? ??? ??? ?, ??, ??? ??? ?? ?? ?? ???? ? ??? ?? ?????.</p>
+          <p class="service-copy">현장 사진과 장바구니 타일을 선택해 벽, 바닥, 포인트 영역에 실제 시공된 느낌으로 이미지를 보정합니다.</p>
           <div class="render-selected" id="renderSelectedProduct">
-            ???? ?? ???? ???? ???? ?? ??? ??? ? ????.
+            장바구니에서 선택한 품목 정보를 여기에 표시합니다.
           </div>
           <div class="render-grid">
             <label>
-              ?? ??
+              현장 사진
               <input id="renderSiteImage" type="file" accept="image/*" />
             </label>
             <label>
-              ???? ?? ??
+              장바구니 타일 선택
               <select id="renderTileSelect">
-                <option value="">???? ?? ??</option>
+                <option value="">타일을 선택하세요</option>
               </select>
             </label>
             <label>
-              ?? ??
+              적용 위치
               <select id="renderTarget">
-                <option value="??">??</option>
-                <option value="?">?</option>
-                <option value="???">???</option>
+                <option value="floor">바닥</option>
+                <option value="wall">벽</option>
+                <option value="point">포인트</option>
               </select>
             </label>
             <label>
-              ??? ??
-              <input id="renderPointMemo" type="text" placeholder="???? ??" />
+              포인트 영역
+              <input id="renderPointMemo" type="text" placeholder="샤워부스 뒷벽" />
             </label>
           </div>
           <div class="render-preview-grid">
             <div>
-              <span>?? ??</span>
-              <div class="render-preview" id="renderSitePreview">??? ??</div>
+              <span>현장 사진</span>
+              <div class="render-preview" id="renderSitePreview">미리보기 없음</div>
             </div>
             <div>
-              <span>?? ??</span>
-              <div class="render-preview" id="renderTilePreview">??? ??</div>
+              <span>선택 타일</span>
+              <div class="render-preview" id="renderTilePreview">미리보기 없음</div>
             </div>
             <div>
-              <span>?? ?? ???</span>
-              <div class="render-preview" id="renderResultPreview">??? ??</div>
+              <span>보정 결과 이미지</span>
+              <div class="render-preview" id="renderResultPreview">미리보기 없음</div>
             </div>
           </div>
           <div class="render-actions">
-            <button class="secondary-action" id="generateRenderBtn" type="button">?? ??? ?? ??</button>
-            <button class="primary-action" id="saveRenderResultBtn" type="button">???? ??</button>
+            <button class="secondary-action" id="generateRenderBtn" type="button">실사 이미지 보정 실행</button>
+            <button class="primary-action" id="saveRenderResultBtn" type="button">제안서에 반영</button>
             <span id="renderStatus"></span>
           </div>
         </section>
