@@ -239,6 +239,10 @@ function bindEvents() {
   });
   document.querySelector("#generateRenderBtn").addEventListener("click", generateRenderPreview);
   document.querySelector("#saveRenderResultBtn").addEventListener("click", saveRenderResultToProposal);
+  document.querySelector("#openRenderPreviewBtn").addEventListener("click", openRenderResultPreview);
+  document.querySelector("#renderResultPreview").addEventListener("click", openRenderResultPreview);
+  document.querySelector("#closeImagePreviewBtn").addEventListener("click", closeImagePreview);
+  document.querySelector("#imagePreviewBackdrop").addEventListener("click", closeImagePreview);
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
     if (selectedProductId) addToCart(selectedProductId);
@@ -1134,6 +1138,7 @@ function renderRenderWorkspace() {
   const sitePreview = document.querySelector("#renderSitePreview");
   const tilePreview = document.querySelector("#renderTilePreview");
   const resultPreview = document.querySelector("#renderResultPreview");
+  const previewTrigger = document.querySelector("#openRenderPreviewBtn");
   const saveButton = document.querySelector("#saveRenderResultBtn");
   const generateButton = document.querySelector("#generateRenderBtn");
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
@@ -1147,6 +1152,7 @@ function renderRenderWorkspace() {
   tileSelect.disabled = cartTiles.length === 0;
   generateButton.disabled = renderJobRunning;
   saveButton.disabled = !item || !pendingRenderResultImage;
+  previewTrigger.disabled = !pendingRenderResultImage;
   generateButton.textContent = renderJobRunning ? "\uC2E4\uC0AC \uBCF4\uC815 \uC0DD\uC131 \uC911..." : "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC2E4\uD589";
 
   if (!item) {
@@ -1154,6 +1160,7 @@ function renderRenderWorkspace() {
     sitePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     tilePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     resultPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+    resultPreview.classList.remove("has-image");
     return;
   }
 
@@ -1176,6 +1183,28 @@ function renderRenderWorkspace() {
   resultPreview.innerHTML = pendingRenderResultImage
     ? '<img src="' + escapeHtml(pendingRenderResultImage) + '" alt="\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+  resultPreview.classList.toggle("has-image", Boolean(pendingRenderResultImage));
+}
+
+function openRenderResultPreview() {
+  if (!pendingRenderResultImage) {
+    setText("#renderStatus", "\uBA3C\uC800 \uC2E4\uC0AC \uBCF4\uC815 \uACB0\uACFC\uB97C \uC0DD\uC131\uD574\uC8FC\uC138\uC694.");
+    return;
+  }
+
+  const modal = document.querySelector("#imagePreviewModal");
+  const modalImage = document.querySelector("#imagePreviewModalImage");
+  modalImage.src = pendingRenderResultImage;
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeImagePreview() {
+  const modal = document.querySelector("#imagePreviewModal");
+  const modalImage = document.querySelector("#imagePreviewModalImage");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+  modalImage.removeAttribute("src");
 }
 
 async function imageUrlToDataUrl(url) {
@@ -1243,6 +1272,7 @@ async function generateRenderPreview() {
     pendingRenderResultImage = String(payload?.imageDataUrl || "");
     if (!pendingRenderResultImage) throw new Error("\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0\uB97C \uBC1B\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
     setText("#renderStatus", "\uC2E4\uC0AC \uBCF4\uC815\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC81C\uC548\uC11C\uC5D0 \uBC18\uC601\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+    document.querySelector("#renderResultPreview")?.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (error) {
     console.warn(error);
     setText("#renderStatus", error?.message || "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.");
