@@ -708,15 +708,18 @@
             <div>
               <span>현장 사진</span>
               <div class="render-preview" id="renderSitePreview">미리보기 없음</div>
+              <button class="secondary-action render-preview-trigger" id="openSitePreviewBtn" type="button">현장 사진 크게 보기</button>
             </div>
             <div>
               <span>선택 타일</span>
               <div class="render-preview" id="renderTilePreview">미리보기 없음</div>
+              <button class="secondary-action render-preview-trigger" id="openTilePreviewBtn" type="button">선택 타일 크게 보기</button>
             </div>
             <div>
               <span>보정 결과 이미지</span>
               <div class="render-preview" id="renderResultPreview">미리보기 없음</div>
               <button class="secondary-action render-preview-trigger" id="openRenderPreviewBtn" type="button">결과 크게 보기</button>
+              <a class="primary-action render-download-link hidden" id="downloadRenderResultBtn" download="render-result.png">보정 결과 다운로드</a>
             </div>
           </div>
           <div class="render-actions">
@@ -731,7 +734,7 @@
         <button class="image-preview-backdrop" id="imagePreviewBackdrop" type="button" aria-label="미리보기 닫기"></button>
         <div class="image-preview-panel" role="dialog" aria-modal="true" aria-labelledby="imagePreviewTitle">
           <div class="image-preview-header">
-            <strong id="imagePreviewTitle">보정 결과 미리보기</strong>
+            <strong id="imagePreviewTitle">이미지 미리보기</strong>
             <button class="secondary-action" id="closeImagePreviewBtn" type="button">닫기</button>
           </div>
           <div class="image-preview-body">

@@ -239,7 +239,11 @@ function bindEvents() {
   });
   document.querySelector("#generateRenderBtn").addEventListener("click", generateRenderPreview);
   document.querySelector("#saveRenderResultBtn").addEventListener("click", saveRenderResultToProposal);
+  document.querySelector("#openSitePreviewBtn").addEventListener("click", () => openImagePreview("site"));
+  document.querySelector("#openTilePreviewBtn").addEventListener("click", () => openImagePreview("tile"));
   document.querySelector("#openRenderPreviewBtn").addEventListener("click", openRenderResultPreview);
+  document.querySelector("#renderSitePreview").addEventListener("click", () => openImagePreview("site"));
+  document.querySelector("#renderTilePreview").addEventListener("click", () => openImagePreview("tile"));
   document.querySelector("#renderResultPreview").addEventListener("click", openRenderResultPreview);
   document.querySelector("#closeImagePreviewBtn").addEventListener("click", closeImagePreview);
   document.querySelector("#imagePreviewBackdrop").addEventListener("click", closeImagePreview);
@@ -1138,7 +1142,10 @@ function renderRenderWorkspace() {
   const sitePreview = document.querySelector("#renderSitePreview");
   const tilePreview = document.querySelector("#renderTilePreview");
   const resultPreview = document.querySelector("#renderResultPreview");
+  const sitePreviewTrigger = document.querySelector("#openSitePreviewBtn");
+  const tilePreviewTrigger = document.querySelector("#openTilePreviewBtn");
   const previewTrigger = document.querySelector("#openRenderPreviewBtn");
+  const downloadLink = document.querySelector("#downloadRenderResultBtn");
   const saveButton = document.querySelector("#saveRenderResultBtn");
   const generateButton = document.querySelector("#generateRenderBtn");
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
@@ -1152,6 +1159,8 @@ function renderRenderWorkspace() {
   tileSelect.disabled = cartTiles.length === 0;
   generateButton.disabled = renderJobRunning;
   saveButton.disabled = !item || !pendingRenderResultImage;
+  sitePreviewTrigger.disabled = !pendingSiteImage;
+  tilePreviewTrigger.disabled = !selectedTile?.image;
   previewTrigger.disabled = !pendingRenderResultImage;
   generateButton.textContent = renderJobRunning ? "\uC2E4\uC0AC \uBCF4\uC815 \uC0DD\uC131 \uC911..." : "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC2E4\uD589";
 
@@ -1160,7 +1169,11 @@ function renderRenderWorkspace() {
     sitePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     tilePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     resultPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+    sitePreview.classList.remove("has-image");
+    tilePreview.classList.remove("has-image");
     resultPreview.classList.remove("has-image");
+    downloadLink.classList.add("hidden");
+    downloadLink.removeAttribute("href");
     return;
   }
 
@@ -1183,7 +1196,16 @@ function renderRenderWorkspace() {
   resultPreview.innerHTML = pendingRenderResultImage
     ? '<img src="' + escapeHtml(pendingRenderResultImage) + '" alt="\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+  sitePreview.classList.toggle("has-image", Boolean(pendingSiteImage));
+  tilePreview.classList.toggle("has-image", Boolean(selectedTile?.image));
   resultPreview.classList.toggle("has-image", Boolean(pendingRenderResultImage));
+  if (pendingRenderResultImage) {
+    downloadLink.href = pendingRenderResultImage;
+    downloadLink.classList.remove("hidden");
+  } else {
+    downloadLink.classList.add("hidden");
+    downloadLink.removeAttribute("href");
+  }
 }
 
 function openRenderResultPreview() {
@@ -1199,12 +1221,44 @@ function openRenderResultPreview() {
   modal.setAttribute("aria-hidden", "false");
 }
 
+function openImagePreview(type) {
+  const modal = document.querySelector("#imagePreviewModal");
+  const modalImage = document.querySelector("#imagePreviewModalImage");
+  const modalTitle = document.querySelector("#imagePreviewTitle");
+  let src = "";
+  let title = "";
+
+  if (type === "site") {
+    src = pendingSiteImage;
+    title = "\uD604\uC7A5 \uC0AC\uC9C4 \uBBF8\uB9AC\uBCF4\uAE30";
+  } else if (type === "tile") {
+    const tile = cart.find((entry) => entry.id === selectedRenderTileId && entry.productType === "tile");
+    src = tile?.image || "";
+    title = "\uC120\uD0DD \uD0C0\uC77C \uBBF8\uB9AC\uBCF4\uAE30";
+  } else {
+    src = pendingRenderResultImage;
+    title = "\uBCF4\uC815 \uACB0\uACFC \uBBF8\uB9AC\uBCF4\uAE30";
+  }
+
+  if (!src) {
+    setText("#renderStatus", "\uD574\uB2F9 \uC774\uBBF8\uC9C0\uB97C \uBA3C\uC800 \uC900\uBE44\uD574\uC8FC\uC138\uC694.");
+    return;
+  }
+
+  modalTitle.textContent = title;
+  modalImage.src = src;
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
 function closeImagePreview() {
   const modal = document.querySelector("#imagePreviewModal");
   const modalImage = document.querySelector("#imagePreviewModalImage");
+  const modalTitle = document.querySelector("#imagePreviewTitle");
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
   modalImage.removeAttribute("src");
+  modalTitle.textContent = "\uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30";
 }
 
 async function imageUrlToDataUrl(url) {

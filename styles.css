@@ -1305,6 +1305,11 @@ textarea:focus {
   margin-top: 10px;
 }
 
+.render-download-link {
+  display: inline-flex;
+  margin-top: 10px;
+}
+
 .render-actions {
   display: flex;
   align-items: center;
