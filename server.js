@@ -815,8 +815,9 @@ async function generateRenderPreview(payload) {
       : entry.surface === "point"
         ? `Apply this tile only to the ${pointMemo || "shower booth back wall"}.`
         : "Apply this tile only to the floor surfaces.";
+    const sizeInstruction = buildRenderSizeInstruction(entry.tileSize, entry.surface);
 
-    return `Reference image ${referenceNumber} is the exact ${entry.surface} tile. ${surfaceInstruction} Match the color, pattern, scale, and finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}${entry.tileSize ? `, size reference ${entry.tileSize}` : ""}.`;
+    return `Reference image ${referenceNumber} is the exact ${entry.surface} tile. ${surfaceInstruction} Match the color, pattern, scale, and finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}${entry.tileSize ? `, size reference ${entry.tileSize}` : ""}. ${sizeInstruction}`;
   }).join(" ");
 
   const prompt = [
@@ -824,6 +825,8 @@ async function generateRenderPreview(payload) {
     "Use the first image as the real site photo.",
     referenceInstructions,
     "Preserve the existing camera angle, room proportions, lighting, grout direction, perspective, fixtures, and all non-target surfaces.",
+    "Respect the real installation scale of each selected tile. The grout grid, tile count, repeat density, and module proportions must look physically correct for the stated tile size.",
+    "Do not enlarge or shrink the tile pattern arbitrarily. Keep the module size believable relative to the room, fixtures, and perspective lines.",
     "If multiple surfaces are selected, keep each reference tile assigned only to its matching surface and do not mix wall, floor, and point materials.",
     "Keep the output realistic and suitable for a client proposal."
   ].join(" ");
@@ -874,6 +877,46 @@ function normalizeRenderSurfaceValue(value) {
   if (value === "wall") return "wall";
   if (value === "point") return "point";
   return "floor";
+}
+
+function buildRenderSizeInstruction(tileSize, surface) {
+  const parsed = parseTileSizeSpec(tileSize);
+  if (!parsed) {
+    return "Keep the tile module size realistic and consistent with normal installed tile dimensions.";
+  }
+
+  const { widthMm, heightMm, ratioLabel, shapeLabel } = parsed;
+  const directionHint = widthMm === heightMm
+    ? "Use an even square module grid."
+    : surface === "wall"
+      ? "Keep the rectangular module orientation natural for wall installation unless the photo strongly suggests another orientation."
+      : "Keep the rectangular module orientation natural for floor installation and perspective."
+
+  return `The installed tile module size is ${widthMm}mm x ${heightMm}mm (${ratioLabel}, ${shapeLabel}). Show grout joints and repeat density at that real-world scale. ${directionHint}`;
+}
+
+function parseTileSizeSpec(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const normalized = raw
+    .replace(/[Xx×]/g, "*")
+    .replace(/\s+/g, "")
+    .replace(/mm/gi, "");
+
+  const match = normalized.match(/^(\d{2,4})\*(\d{2,4})$/);
+  if (!match) return null;
+
+  const widthMm = Number(match[1]);
+  const heightMm = Number(match[2]);
+  if (!Number.isFinite(widthMm) || !Number.isFinite(heightMm) || !widthMm || !heightMm) return null;
+
+  const shapeLabel = widthMm === heightMm ? "square" : "rectangular";
+  const bigger = Math.max(widthMm, heightMm);
+  const smaller = Math.min(widthMm, heightMm);
+  const ratioLabel = `${Math.round((bigger / smaller) * 100) / 100}:1`;
+
+  return { widthMm, heightMm, shapeLabel, ratioLabel };
 }
 
 function dataUrlToBlob(dataUrl) {
