@@ -801,6 +801,72 @@ function renderDocuments() {
   setText("#estimateSubtotal", money.format(subtotal));
   setText("#estimateVat", money.format(vat));
   setText("#estimateTotal", money.format(total));
+  renderProposalItemsWithSurfaceDetails();
+}
+
+function renderProposalItemsWithSurfaceDetails() {
+  const list = document.querySelector("#proposalItems");
+  if (!list) return;
+
+  list.innerHTML = cart.map((item) => {
+    const renderedSection = item.renderedImage ? `
+      <div class="proposal-rendered-preview">
+        ${buildProposalRenderSurfaceDetails(item)}
+        <span>실사 보정 이미지${item.renderTarget ? ` · ${escapeHtml(item.renderTarget)}` : ""}${item.renderPointMemo ? ` · ${escapeHtml(item.renderPointMemo)}` : ""}</span>
+        <img src="${escapeHtml(item.renderedImage)}" alt="${escapeHtml(item.name)} 실사 보정 이미지" loading="lazy" />
+      </div>
+    ` : "";
+
+    return `
+      <li class="proposal-item-card ${item.renderedImage ? "has-rendered-image" : ""}">
+        <button class="proposal-image-button" type="button" data-render-product="${escapeHtml(item.id)}" title="실사 보정으로 이동">
+          ${item.image ? `<img class="proposal-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-item-image proposal-item-image-empty">이미지 없음</div>`}
+        </button>
+        <div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(item.kind)} · ${escapeHtml(item.option || item.finish || "-")}</span>
+          <span class="proposal-item-size">규격 ${escapeHtml(item.size || "-")}</span>
+        </div>
+        ${renderedSection}
+      </li>
+    `;
+  }).join("") || `<li class="proposal-item-card proposal-item-empty">선정된 품목이 없습니다.</li>`;
+}
+
+function buildProposalRenderSurfaceDetails(item) {
+  const selections = item?.renderSurfaceSelections || {};
+  const surfaces = getRenderSurfaceKeys()
+    .map((surface) => {
+      const tileId = selections[surface]?.tileId || "";
+      if (!tileId) return null;
+      const tile = cart.find((entry) => entry.id === tileId && entry.productType === "tile");
+      if (!tile) return null;
+      return { surface, tile };
+    })
+    .filter(Boolean);
+
+  if (!surfaces.length) return "";
+
+  return `
+    <div class="proposal-render-surface-list">
+      ${surfaces.map(({ surface, tile }) => `
+        <section class="proposal-render-surface-card">
+          <div class="proposal-render-surface-header">
+            <strong>${escapeHtml(getRenderSurfaceLabel(surface))} 타일 적용</strong>
+            ${surface === "point" && item.renderPointMemo ? `<span>${escapeHtml(item.renderPointMemo)}</span>` : ""}
+          </div>
+          <div class="proposal-render-surface-body">
+            ${tile.image ? `<img class="proposal-render-surface-image" src="${escapeHtml(tile.image)}" alt="${escapeHtml(tile.name)}" loading="lazy" />` : `<div class="proposal-render-surface-image proposal-item-image-empty">이미지 없음</div>`}
+            <div class="proposal-render-surface-copy">
+              <strong>${escapeHtml(tile.name)}</strong>
+              <span>모델명 ${escapeHtml(tile.name)}</span>
+              <span>규격 ${escapeHtml(tile.size || "-")}</span>
+            </div>
+          </div>
+        </section>
+      `).join("")}
+    </div>
+  `;
 }
 
 function getProposalState() {
