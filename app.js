@@ -98,10 +98,11 @@ let cart = loadCart();
 let selectedProductId = "";
 let selectedRenderCartId = "";
 let selectedRenderTileId = "";
+let activeRenderSurfacePicker = "";
 let renderSurfaceSelections = {
-  wall: { enabled: false, tileId: "" },
-  floor: { enabled: true, tileId: "" },
-  point: { enabled: false, tileId: "" }
+  wall: { tileId: "" },
+  floor: { tileId: "" },
+  point: { tileId: "" }
 };
 let pendingRenderResultImage = "";
 let pendingSiteImage = "";
@@ -235,38 +236,25 @@ function bindEvents() {
   });
 
   getRenderSurfaceKeys().forEach((surface) => {
-    const enabledInput = document.querySelector(`#render${surface.charAt(0).toUpperCase() + surface.slice(1)}Enabled`);
-    const tileSelect = document.querySelector(`#render${surface.charAt(0).toUpperCase() + surface.slice(1)}TileSelect`);
-    enabledInput.addEventListener("change", () => {
-      renderSurfaceSelections[surface].enabled = enabledInput.checked;
-      if (enabledInput.checked && !renderSurfaceSelections[surface].tileId) {
-        const firstTile = getRenderableCartTiles()[0];
-        renderSurfaceSelections[surface].tileId = firstTile?.id || "";
-      }
-      if (surface === "point") syncRenderPointPreset();
-      renderRenderWorkspace();
-    });
-    tileSelect.addEventListener("change", (event) => {
-      renderSurfaceSelections[surface].tileId = event.target.value;
-      if (event.target.value) selectedRenderTileId = event.target.value;
-      renderRenderWorkspace();
-    });
+    const selectButton = document.querySelector(`#render${surface.charAt(0).toUpperCase() + surface.slice(1)}TileButton`);
+    const clearButton = document.querySelector(`#clearRender${surface.charAt(0).toUpperCase() + surface.slice(1)}TileBtn`);
+    selectButton.addEventListener("click", () => openRenderSurfacePicker(surface));
+    clearButton.addEventListener("click", () => clearRenderSurfaceTile(surface));
   });
 
-  document.querySelector("#renderPointMemo").addEventListener("input", () => {
-    if (renderSurfaceSelections.point.enabled) return;
-    renderRenderWorkspace();
-  });
   document.querySelector("#generateRenderBtn").addEventListener("click", generateRenderPreview);
   document.querySelector("#saveRenderResultBtn").addEventListener("click", saveRenderResultToProposal);
   document.querySelector("#openSitePreviewBtn").addEventListener("click", () => openImagePreview("site"));
-  document.querySelector("#openTilePreviewBtn").addEventListener("click", () => openImagePreview("tile"));
   document.querySelector("#openRenderPreviewBtn").addEventListener("click", openRenderResultPreview);
   document.querySelector("#renderSitePreview").addEventListener("click", () => openImagePreview("site"));
-  document.querySelector("#renderTilePreview").addEventListener("click", () => openImagePreview("tile"));
+  document.querySelector("#renderWallTilePreview").addEventListener("click", () => openImagePreview("surface", "wall"));
+  document.querySelector("#renderFloorTilePreview").addEventListener("click", () => openImagePreview("surface", "floor"));
+  document.querySelector("#renderPointTilePreview").addEventListener("click", () => openImagePreview("surface", "point"));
   document.querySelector("#renderResultPreview").addEventListener("click", openRenderResultPreview);
   document.querySelector("#closeImagePreviewBtn").addEventListener("click", closeImagePreview);
   document.querySelector("#imagePreviewBackdrop").addEventListener("click", closeImagePreview);
+  document.querySelector("#closeTilePickerBtn").addEventListener("click", closeRenderSurfacePicker);
+  document.querySelector("#tilePickerBackdrop").addEventListener("click", closeRenderSurfacePicker);
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
     if (selectedProductId) addToCart(selectedProductId);
@@ -1111,7 +1099,7 @@ function getRenderSurfaceFixedPointLabel() {
 
 function getSelectedRenderSurfaces() {
   return getRenderSurfaceKeys()
-    .filter((surface) => renderSurfaceSelections[surface].enabled)
+    .filter((surface) => renderSurfaceSelections[surface].tileId)
     .map((surface) => {
       const tile = cart.find((entry) => entry.id === renderSurfaceSelections[surface].tileId && entry.productType === "tile");
       return tile ? { surface, tile } : null;
@@ -1119,14 +1107,18 @@ function getSelectedRenderSurfaces() {
     .filter(Boolean);
 }
 
+function getRenderSurfaceSelection(surface) {
+  return renderSurfaceSelections[surface] || { tileId: "" };
+}
+
 function ensureRenderSelection() {
   if (!cart.length) {
     selectedRenderCartId = "";
     selectedRenderTileId = "";
     renderSurfaceSelections = {
-      wall: { enabled: false, tileId: "" },
-      floor: { enabled: false, tileId: "" },
-      point: { enabled: false, tileId: "" }
+      wall: { tileId: "" },
+      floor: { tileId: "" },
+      point: { tileId: "" }
     };
     return;
   }
@@ -1147,20 +1139,12 @@ function ensureRenderSelection() {
   }
 
   getRenderSurfaceKeys().forEach((surface) => {
-    const selection = renderSurfaceSelections[surface] || { enabled: false, tileId: "" };
+    const selection = renderSurfaceSelections[surface] || { tileId: "" };
     if (selection.tileId && !cartTiles.some((entry) => entry.id === selection.tileId)) {
       selection.tileId = "";
     }
-    if (selection.enabled && !selection.tileId) {
-      selection.tileId = selectedRenderTileId || cartTiles[0]?.id || "";
-    }
     renderSurfaceSelections[surface] = selection;
   });
-
-  if (!getRenderSurfaceKeys().some((surface) => renderSurfaceSelections[surface].enabled) && cartTiles.length) {
-    renderSurfaceSelections.floor.enabled = true;
-    renderSurfaceSelections.floor.tileId = renderSurfaceSelections.floor.tileId || selectedRenderTileId || cartTiles[0].id;
-  }
 }
 
 function openRenderForCartItem(id) {
@@ -1174,16 +1158,13 @@ function openRenderForCartItem(id) {
   const storedSelections = item?.renderSurfaceSelections || {};
   renderSurfaceSelections = {
     wall: {
-      enabled: Boolean(storedSelections.wall?.enabled),
-      tileId: storedSelections.wall?.tileId || cartTiles[0]?.id || ""
+      tileId: storedSelections.wall?.tileId || ""
     },
     floor: {
-      enabled: storedSelections.floor?.enabled ?? true,
-      tileId: storedSelections.floor?.tileId || selectedRenderTileId || cartTiles[0]?.id || ""
+      tileId: storedSelections.floor?.tileId || ""
     },
     point: {
-      enabled: Boolean(storedSelections.point?.enabled),
-      tileId: storedSelections.point?.tileId || cartTiles[0]?.id || ""
+      tileId: storedSelections.point?.tileId || ""
     }
   };
   pendingRenderResultImage = item?.renderedImage || "";
@@ -1203,73 +1184,114 @@ function getRenderableCartTiles() {
 
 function syncRenderPointPreset() {
   const pointInput = document.querySelector("#renderPointMemo");
-  const pointEnabled = document.querySelector("#renderPointEnabled").checked;
-  if (pointEnabled) {
-    pointInput.value = getRenderSurfaceFixedPointLabel();
-    pointInput.readOnly = true;
-    return;
+  pointInput.value = getRenderSurfaceFixedPointLabel();
+}
+
+function openRenderSurfacePicker(surface) {
+  ensureRenderSelection();
+  activeRenderSurfacePicker = surface;
+  const modal = document.querySelector("#tilePickerModal");
+  const title = document.querySelector("#tilePickerTitle");
+  const options = document.querySelector("#tilePickerOptions");
+  const tiles = getRenderableCartTiles();
+
+  title.textContent = `${getRenderSurfaceLabel(surface)} 타일 선택`;
+  if (!tiles.length) {
+    options.innerHTML = '<div class="tile-picker-empty">장바구니에 담긴 타일이 없습니다.</div>';
+  } else {
+    options.innerHTML = tiles.map((tile) => {
+      const isActive = getRenderSurfaceSelection(surface).tileId === tile.id;
+      return [
+        `<button class="tile-picker-option${isActive ? " active" : ""}" type="button" data-render-surface-choice="${escapeHtml(surface)}" data-render-tile-choice="${escapeHtml(tile.id)}">`,
+        tile.image
+          ? `<img src="${escapeHtml(tile.image)}" alt="${escapeHtml(tile.name)}" />`
+          : '<div class="tile-picker-option-empty">이미지 없음</div>',
+        '<div class="tile-picker-option-copy">',
+        `<strong>${escapeHtml(tile.name)}</strong>`,
+        `<span>${escapeHtml(tile.size || "-")} · ${escapeHtml(tile.finish || "-")}</span>`,
+        '</div>',
+        '</button>'
+      ].join("");
+    }).join("");
+
+    options.querySelectorAll("[data-render-surface-choice]").forEach((button) => {
+      button.addEventListener("click", () => {
+        selectRenderSurfaceTile(button.dataset.renderSurfaceChoice, button.dataset.renderTileChoice);
+      });
+    });
   }
 
-  if (pointInput.value === getRenderSurfaceFixedPointLabel()) pointInput.value = "";
-  pointInput.readOnly = false;
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeRenderSurfacePicker() {
+  activeRenderSurfacePicker = "";
+  const modal = document.querySelector("#tilePickerModal");
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function selectRenderSurfaceTile(surface, tileId) {
+  renderSurfaceSelections[surface].tileId = tileId;
+  if (tileId) selectedRenderTileId = tileId;
+  syncRenderPointPreset();
+  closeRenderSurfacePicker();
+  renderRenderWorkspace();
+}
+
+function clearRenderSurfaceTile(surface) {
+  renderSurfaceSelections[surface].tileId = "";
+  if (surface === "point") syncRenderPointPreset();
+  renderRenderWorkspace();
 }
 
 function renderRenderWorkspace() {
   ensureRenderSelection();
   const selected = document.querySelector("#renderSelectedProduct");
-  const wallEnabled = document.querySelector("#renderWallEnabled");
-  const floorEnabled = document.querySelector("#renderFloorEnabled");
-  const pointEnabled = document.querySelector("#renderPointEnabled");
-  const wallTileSelect = document.querySelector("#renderWallTileSelect");
-  const floorTileSelect = document.querySelector("#renderFloorTileSelect");
-  const pointTileSelect = document.querySelector("#renderPointTileSelect");
   const sitePreview = document.querySelector("#renderSitePreview");
-  const tilePreview = document.querySelector("#renderTilePreview");
+  const wallPreview = document.querySelector("#renderWallTilePreview");
+  const floorPreview = document.querySelector("#renderFloorTilePreview");
+  const pointPreview = document.querySelector("#renderPointTilePreview");
   const resultPreview = document.querySelector("#renderResultPreview");
   const sitePreviewTrigger = document.querySelector("#openSitePreviewBtn");
-  const tilePreviewTrigger = document.querySelector("#openTilePreviewBtn");
   const previewTrigger = document.querySelector("#openRenderPreviewBtn");
   const downloadLink = document.querySelector("#downloadRenderResultBtn");
   const saveButton = document.querySelector("#saveRenderResultBtn");
   const generateButton = document.querySelector("#generateRenderBtn");
+  const wallSummary = document.querySelector("#renderWallTileSummary");
+  const floorSummary = document.querySelector("#renderFloorTileSummary");
+  const pointSummary = document.querySelector("#renderPointTileSummary");
+  const clearWallButton = document.querySelector("#clearRenderWallTileBtn");
+  const clearFloorButton = document.querySelector("#clearRenderFloorTileBtn");
+  const clearPointButton = document.querySelector("#clearRenderPointTileBtn");
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   const cartTiles = getRenderableCartTiles();
-  const optionMarkup = ['<option value="">\uD0C0\uC77C\uC744 \uC120\uD0DD\uD558\uC138\uC694</option>']
-    .concat(cartTiles.map((entry) => '<option value="' + escapeHtml(entry.id) + '">' + escapeHtml(entry.name) + (entry.size ? ' · ' + escapeHtml(entry.size) : '') + '</option>'))
-    .join('');
-
-  wallTileSelect.innerHTML = optionMarkup;
-  floorTileSelect.innerHTML = optionMarkup;
-  pointTileSelect.innerHTML = optionMarkup;
-
-  wallEnabled.checked = renderSurfaceSelections.wall.enabled;
-  floorEnabled.checked = renderSurfaceSelections.floor.enabled;
-  pointEnabled.checked = renderSurfaceSelections.point.enabled;
-  wallTileSelect.value = renderSurfaceSelections.wall.tileId || "";
-  floorTileSelect.value = renderSurfaceSelections.floor.tileId || "";
-  pointTileSelect.value = renderSurfaceSelections.point.tileId || "";
-
-  wallTileSelect.disabled = cartTiles.length === 0 || !renderSurfaceSelections.wall.enabled;
-  floorTileSelect.disabled = cartTiles.length === 0 || !renderSurfaceSelections.floor.enabled;
-  pointTileSelect.disabled = cartTiles.length === 0 || !renderSurfaceSelections.point.enabled;
-
-  const selectedTiles = getSelectedRenderSurfaces();
 
   generateButton.disabled = renderJobRunning;
   saveButton.disabled = !item || !pendingRenderResultImage;
   sitePreviewTrigger.disabled = !pendingSiteImage;
-  tilePreviewTrigger.disabled = selectedTiles.length === 0;
   previewTrigger.disabled = !pendingRenderResultImage;
+  clearWallButton.disabled = !renderSurfaceSelections.wall.tileId;
+  clearFloorButton.disabled = !renderSurfaceSelections.floor.tileId;
+  clearPointButton.disabled = !renderSurfaceSelections.point.tileId;
   generateButton.textContent = renderJobRunning ? "\uC2E4\uC0AC \uBCF4\uC815 \uC0DD\uC131 \uC911..." : "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC2E4\uD589";
 
   if (!item) {
     selected.innerHTML = "\uC7A5\uBC14\uAD6C\uB2C8\uC5D0 \uB2F4\uAE34 \uD488\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uBA3C\uC800 \uD0C0\uC77C \uB610\uB294 \uC0C1\uD488\uC744 \uB2F4\uC544\uC8FC\uC138\uC694.";
     sitePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
-    tilePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+    wallPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+    floorPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+    pointPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     resultPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     sitePreview.classList.remove("has-image");
-    tilePreview.classList.remove("has-image");
+    wallPreview.classList.remove("has-image");
+    floorPreview.classList.remove("has-image");
+    pointPreview.classList.remove("has-image");
     resultPreview.classList.remove("has-image");
+    wallSummary.textContent = "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4";
+    floorSummary.textContent = "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4";
+    pointSummary.textContent = "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4";
     downloadLink.classList.add("hidden");
     downloadLink.removeAttribute("href");
     return;
@@ -1281,7 +1303,7 @@ function renderRenderWorkspace() {
     '<div>',
     '<strong>' + escapeHtml(item.name) + '</strong>',
     '<span>\uC120\uD0DD \uD488\uBAA9 \uC815\uBCF4 \u00B7 ' + escapeHtml(item.kind) + ' \u00B7 \uADDC\uACA9 ' + escapeHtml(item.size || '-') + '</span>',
-    '<span>\uC801\uC6A9 \uC704\uCE58 \uBCC4\uB85C \uD0C0\uC77C\uC744 \uAC01\uAC01 \uC120\uD0DD\uD558\uBA74 \uD55C \uC7A5\uC758 \uBCF4\uC815 \uACB0\uACFC\uB85C \uC0DD\uC131\uB429\uB2C8\uB2E4.</span>',
+    '<span>\uBCBD, \uBC14\uB2E5, \uD3EC\uC778\uD2B8 \uAC01 \uC601\uC5ED\uC5D0 \uD0C0\uC77C\uC744 \uC120\uD0DD\uD558\uBA74 \uC120\uD0DD\uB41C \uBD80\uC704\uB9CC \uBC18\uC601\uD574 \uD55C \uC7A5\uC758 \uBCF4\uC815 \uACB0\uACFC\uB97C \uC0DD\uC131\uD569\uB2C8\uB2E4.</span>',
     '</div>',
     '</div>'
   ].join('');
@@ -1289,20 +1311,24 @@ function renderRenderWorkspace() {
   sitePreview.innerHTML = pendingSiteImage
     ? '<img src="' + escapeHtml(pendingSiteImage) + '" alt="\uD604\uC7A5 \uC0AC\uC9C4 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
-  tilePreview.innerHTML = selectedTiles.length
-    ? '<div class="render-tile-preview-list">' + selectedTiles.map(({ surface, tile }) => (
-      '<div class="render-tile-preview-item">'
-      + '<img src="' + escapeHtml(tile.image) + '" alt="' + escapeHtml(tile.name) + ' ' + escapeHtml(getRenderSurfaceLabel(surface)) + '" />'
-      + '<strong>' + escapeHtml(getRenderSurfaceLabel(surface)) + '</strong>'
-      + '<span>' + escapeHtml(tile.name) + (tile.size ? ' · ' + escapeHtml(tile.size) : '') + '</span>'
-      + '</div>'
-    )).join('') + '</div>'
-    : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
   resultPreview.innerHTML = pendingRenderResultImage
     ? '<img src="' + escapeHtml(pendingRenderResultImage) + '" alt="\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+
+  getRenderSurfaceKeys().forEach((surface) => {
+    const tile = cartTiles.find((entry) => entry.id === getRenderSurfaceSelection(surface).tileId);
+    const summary = surface === "wall" ? wallSummary : surface === "floor" ? floorSummary : pointSummary;
+    const preview = surface === "wall" ? wallPreview : surface === "floor" ? floorPreview : pointPreview;
+    summary.textContent = tile
+      ? `${tile.name}${tile.size ? ` \u00B7 ${tile.size}` : ""}${tile.finish ? ` \u00B7 ${tile.finish}` : ""}`
+      : "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4";
+    preview.innerHTML = tile?.image
+      ? '<img src="' + escapeHtml(tile.image) + '" alt="' + escapeHtml(tile.name) + ' ' + escapeHtml(getRenderSurfaceLabel(surface)) + '" />'
+      : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
+    preview.classList.toggle("has-image", Boolean(tile?.image));
+  });
+
   sitePreview.classList.toggle("has-image", Boolean(pendingSiteImage));
-  tilePreview.classList.toggle("has-image", Boolean(selectedTiles.length));
   resultPreview.classList.toggle("has-image", Boolean(pendingRenderResultImage));
   if (pendingRenderResultImage) {
     downloadLink.href = pendingRenderResultImage;
@@ -1326,7 +1352,7 @@ function openRenderResultPreview() {
   modal.setAttribute("aria-hidden", "false");
 }
 
-function openImagePreview(type) {
+function openImagePreview(type, surfaceKey = "") {
   const modal = document.querySelector("#imagePreviewModal");
   const modalImage = document.querySelector("#imagePreviewModalImage");
   const modalTitle = document.querySelector("#imagePreviewTitle");
@@ -1336,13 +1362,10 @@ function openImagePreview(type) {
   if (type === "site") {
     src = pendingSiteImage;
     title = "\uD604\uC7A5 \uC0AC\uC9C4 \uBBF8\uB9AC\uBCF4\uAE30";
-  } else if (type === "tile") {
-    const selectedTileEntry = getRenderSurfaceKeys()
-      .filter((surface) => renderSurfaceSelections[surface].enabled)
-      .map((surface) => cart.find((entry) => entry.id === renderSurfaceSelections[surface].tileId && entry.productType === "tile"))
-      .find(Boolean);
-    src = selectedTileEntry?.image || "";
-    title = "\uC704\uCE58\uBCC4 \uC120\uD0DD \uD0C0\uC77C \uB300\uD45C \uBBF8\uB9AC\uBCF4\uAE30";
+  } else if (type === "surface") {
+    const tile = cart.find((entry) => entry.id === getRenderSurfaceSelection(surfaceKey).tileId && entry.productType === "tile");
+    src = tile?.image || "";
+    title = `${getRenderSurfaceLabel(surfaceKey)} \uD0C0\uC77C \uBBF8\uB9AC\uBCF4\uAE30`;
   } else {
     src = pendingRenderResultImage;
     title = "\uBCF4\uC815 \uACB0\uACFC \uBBF8\uB9AC\uBCF4\uAE30";
@@ -1461,13 +1484,12 @@ function saveRenderResultToProposal() {
   item.renderTileId = selectedSurfaces[0]?.tile.id || "";
   item.renderSurfaceSelections = getRenderSurfaceKeys().reduce((accumulator, surface) => {
     accumulator[surface] = {
-      enabled: renderSurfaceSelections[surface].enabled,
       tileId: renderSurfaceSelections[surface].tileId || ""
     };
     return accumulator;
   }, {});
   item.renderTarget = getRenderSurfaceKeys()
-    .filter((surface) => renderSurfaceSelections[surface].enabled)
+    .filter((surface) => renderSurfaceSelections[surface].tileId)
     .map(getRenderSurfaceLabel)
     .join(", ");
   item.renderPointMemo = document.querySelector("#renderPointMemo").value.trim();

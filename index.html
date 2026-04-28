@@ -689,60 +689,48 @@
 
           <div class="render-surface-config">
             <article class="render-surface-card">
-              <label class="render-surface-toggle">
-                <input id="renderWallEnabled" type="checkbox" />
-                <span>벽 적용</span>
-              </label>
-              <label>
-                벽 타일 선택
-                <select id="renderWallTileSelect">
-                  <option value="">타일을 선택하세요</option>
-                </select>
-              </label>
+              <div class="render-surface-header">
+                <strong>벽</strong>
+                <div class="render-surface-actions">
+                  <button class="secondary-action render-surface-select-btn" id="renderWallTileButton" type="button">타일 선택</button>
+                  <button class="secondary-action render-surface-clear-btn" id="clearRenderWallTileBtn" type="button">해제</button>
+                </div>
+              </div>
+              <div class="render-surface-summary" id="renderWallTileSummary">선택한 타일이 없습니다</div>
+              <div class="render-preview render-surface-preview" id="renderWallTilePreview">미리보기 없음</div>
             </article>
 
             <article class="render-surface-card">
-              <label class="render-surface-toggle">
-                <input id="renderFloorEnabled" type="checkbox" />
-                <span>바닥 적용</span>
-              </label>
-              <label>
-                바닥 타일 선택
-                <select id="renderFloorTileSelect">
-                  <option value="">타일을 선택하세요</option>
-                </select>
-              </label>
+              <div class="render-surface-header">
+                <strong>바닥</strong>
+                <div class="render-surface-actions">
+                  <button class="secondary-action render-surface-select-btn" id="renderFloorTileButton" type="button">타일 선택</button>
+                  <button class="secondary-action render-surface-clear-btn" id="clearRenderFloorTileBtn" type="button">해제</button>
+                </div>
+              </div>
+              <div class="render-surface-summary" id="renderFloorTileSummary">선택한 타일이 없습니다</div>
+              <div class="render-preview render-surface-preview" id="renderFloorTilePreview">미리보기 없음</div>
             </article>
 
             <article class="render-surface-card">
-              <label class="render-surface-toggle">
-                <input id="renderPointEnabled" type="checkbox" />
-                <span>포인트 적용</span>
-              </label>
-              <label>
-                포인트 타일 선택
-                <select id="renderPointTileSelect">
-                  <option value="">타일을 선택하세요</option>
-                </select>
-              </label>
-              <label>
-                포인트 영역
-                <input id="renderPointMemo" type="text" placeholder="샤워부스 뒷벽" />
-              </label>
+              <div class="render-surface-header">
+                <strong>포인트</strong>
+                <div class="render-surface-actions">
+                  <button class="secondary-action render-surface-select-btn" id="renderPointTileButton" type="button">타일 선택</button>
+                  <button class="secondary-action render-surface-clear-btn" id="clearRenderPointTileBtn" type="button">해제</button>
+                </div>
+              </div>
+              <div class="render-surface-summary" id="renderPointTileSummary">선택한 타일이 없습니다</div>
+              <div class="render-surface-note">포인트 영역: 샤워부스 뒷벽</div>
+              <input id="renderPointMemo" type="hidden" value="샤워부스 뒷벽" />
+              <div class="render-preview render-surface-preview" id="renderPointTilePreview">미리보기 없음</div>
             </article>
           </div>
           <div class="render-preview-grid render-preview-stack">
-            <div class="render-preview-top">
-              <div class="render-preview-card">
-                <span>현장 사진</span>
-                <div class="render-preview" id="renderSitePreview">미리보기 없음</div>
-                <button class="secondary-action render-preview-trigger" id="openSitePreviewBtn" type="button">현장 사진 크게 보기</button>
-              </div>
-              <div class="render-preview-card">
-                <span>위치별 선택 타일 이미지</span>
-                <div class="render-preview" id="renderTilePreview">미리보기 없음</div>
-                <button class="secondary-action render-preview-trigger" id="openTilePreviewBtn" type="button">선택 타일 크게 보기</button>
-              </div>
+            <div class="render-preview-block">
+              <span>현장 사진</span>
+              <div class="render-preview" id="renderSitePreview">미리보기 없음</div>
+              <button class="secondary-action render-preview-trigger" id="openSitePreviewBtn" type="button">현장 사진 크게 보기</button>
             </div>
             <div class="render-preview-result-block">
               <span>보정 결과 이미지</span>
@@ -771,6 +759,17 @@
           <div class="image-preview-body">
             <img id="imagePreviewModalImage" alt="보정 결과 확대 미리보기" />
           </div>
+        </div>
+      </div>
+
+      <div class="image-preview-modal hidden" id="tilePickerModal" aria-hidden="true">
+        <button class="image-preview-backdrop" id="tilePickerBackdrop" type="button" aria-label="타일 선택 닫기"></button>
+        <div class="image-preview-panel tile-picker-panel" role="dialog" aria-modal="true" aria-labelledby="tilePickerTitle">
+          <div class="image-preview-header">
+            <strong id="tilePickerTitle">타일 선택</strong>
+            <button class="secondary-action" id="closeTilePickerBtn" type="button">닫기</button>
+          </div>
+          <div class="tile-picker-body" id="tilePickerOptions"></div>
         </div>
       </div>
 
