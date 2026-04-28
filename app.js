@@ -1067,6 +1067,29 @@ function getRenderTargetLabel(value) {
   return "\uBC14\uB2E5";
 }
 
+function ensureRenderSelection() {
+  if (!cart.length) {
+    selectedRenderCartId = "";
+    selectedRenderTileId = "";
+    return;
+  }
+
+  const currentItem = cart.find((entry) => entry.id === selectedRenderCartId);
+  if (!currentItem) {
+    selectedRenderCartId = cart[0].id;
+  }
+
+  const cartTiles = getRenderableCartTiles();
+  const currentTile = cartTiles.find((entry) => entry.id === selectedRenderTileId);
+  if (!currentTile) {
+    const selectedItem = cart.find((entry) => entry.id === selectedRenderCartId);
+    const preferredTileId = selectedItem?.productType === "tile" ? selectedItem.id : "";
+    selectedRenderTileId = cartTiles.some((entry) => entry.id === preferredTileId)
+      ? preferredTileId
+      : (cartTiles[0]?.id || "");
+  }
+}
+
 function openRenderForCartItem(id) {
   selectedRenderCartId = id;
   const item = cart.find((entry) => entry.id === id);
@@ -1105,11 +1128,13 @@ function syncRenderPointPreset() {
 }
 
 function renderRenderWorkspace() {
+  ensureRenderSelection();
   const selected = document.querySelector("#renderSelectedProduct");
   const tileSelect = document.querySelector("#renderTileSelect");
   const sitePreview = document.querySelector("#renderSitePreview");
   const tilePreview = document.querySelector("#renderTilePreview");
   const resultPreview = document.querySelector("#renderResultPreview");
+  const saveButton = document.querySelector("#saveRenderResultBtn");
   const generateButton = document.querySelector("#generateRenderBtn");
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   const cartTiles = getRenderableCartTiles();
@@ -1120,11 +1145,12 @@ function renderRenderWorkspace() {
     .join('');
   tileSelect.value = selectedTile?.id || "";
   tileSelect.disabled = cartTiles.length === 0;
-  generateButton.disabled = renderJobRunning || !item || !selectedTile || !pendingSiteImage;
+  generateButton.disabled = renderJobRunning;
+  saveButton.disabled = !item || !pendingRenderResultImage;
   generateButton.textContent = renderJobRunning ? "\uC2E4\uC0AC \uBCF4\uC815 \uC0DD\uC131 \uC911..." : "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC2E4\uD589";
 
   if (!item) {
-    selected.innerHTML = "\uC7A5\uBC14\uAD6C\uB2C8\uC5D0\uC11C \uC120\uD0DD\uD55C \uD488\uBAA9 \uC815\uBCF4\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.";
+    selected.innerHTML = "\uC7A5\uBC14\uAD6C\uB2C8\uC5D0 \uB2F4\uAE34 \uD488\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uBA3C\uC800 \uD0C0\uC77C \uB610\uB294 \uC0C1\uD488\uC744 \uB2F4\uC544\uC8FC\uC138\uC694.";
     sitePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     tilePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     resultPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
@@ -2733,6 +2759,11 @@ function switchPage(pageId, options = {}) {
 
   if (options.updateBrowserHistory !== false) {
     history.pushState({ pageId }, "", `#${pageId}`);
+  }
+
+  if (pageId === "renderPage") {
+    ensureRenderSelection();
+    renderRenderWorkspace();
   }
 
   if (pageId === "adminPage") {
