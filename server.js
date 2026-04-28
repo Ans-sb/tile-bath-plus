@@ -817,18 +817,25 @@ async function generateRenderPreview(payload) {
         : "Apply this tile only to the floor surfaces.";
     const sizeInstruction = buildRenderSizeInstruction(entry.tileSize, entry.surface);
 
-    return `Reference image ${referenceNumber} is the exact ${entry.surface} tile. ${surfaceInstruction} Match the color, pattern, scale, and finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}${entry.tileSize ? `, size reference ${entry.tileSize}` : ""}. ${sizeInstruction}`;
+    return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Match the tile color, veining, pattern rhythm, print character, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, and module size${entry.tileSize ? ` (${entry.tileSize})` : ""} as closely as possible. Do not invent a different tile look, do not simplify the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction}`;
   }).join(" ");
 
   const prompt = [
-    "Create a photorealistic interior renovation mockup.",
-    "Use the first image as the real site photo.",
+    "Create a photorealistic real-world site photo edit, not a CGI render.",
+    "Use the first image as the original site photo.",
     referenceInstructions,
-    "Preserve the existing camera angle, room proportions, lighting, grout direction, perspective, fixtures, and all non-target surfaces.",
-    "Respect the real installation scale of each selected tile. The grout grid, tile count, repeat density, and module proportions must look physically correct for the stated tile size.",
+    "Replace only the existing finish material on the selected planes. Preserve the original site photo structure, camera angle, lens distortion, perspective, room proportions, horizontal and vertical lines, and all non-target surfaces.",
+    "Do not redesign the room. Do not move fixtures, doors, drains, moldings, furniture, sanitary ware, silicone lines, or architectural elements.",
+    "The selected tile reference images are higher priority than stylistic cleanup. When realism and reference detail conflict, preserve the exact tile material appearance first and then adapt lighting and perspective around it.",
+    "Project the selected tile onto the real plane as if it were actually installed on that surface. Do not simply overlay a flat texture.",
+    "Respect the real installation scale of each selected tile. The grout grid, tile count, repeat density, module proportions, and cut pieces must look physically correct for the stated tile size.",
     "Do not enlarge or shrink the tile pattern arbitrarily. Keep the module size believable relative to the room, fixtures, and perspective lines.",
-    "If multiple surfaces are selected, keep each reference tile assigned only to its matching surface and do not mix wall, floor, and point materials.",
-    "Keep the output realistic and suitable for a client proposal."
+    "Preserve original lighting, color temperature, exposure, contrast, shadows, reflected light, and ambient shading from the source photo.",
+    "Add natural contact shadows, ambient occlusion, edge darkening, slight dust, minor surface imperfections, and subtle camera noise so the result looks like a real site photograph.",
+    "Avoid CGI, avoid overly clean 3D rendering, avoid plastic texture, avoid exaggerated reflections, and avoid perfectly uniform repetition.",
+    "At corners, drains, thresholds, base trims, silicone edges, and cut lines, make grout joints and tile cuts look naturally installed.",
+    "If multiple surfaces are selected, keep each reference tile assigned only to its matching surface and never mix wall, floor, and point materials.",
+    "Final result style: a realistic after-installation site photo captured on a phone or site camera, suitable for a client proposal."
   ].join(" ");
 
   const form = new FormData();
