@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>타일앤바스플러스 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260428-renderfix1" />
+    <link rel="stylesheet" href="styles.css?v=20260428-renderlayout2" />
   </head>
   <body>
-    <!-- build: renderfix1 -->
+    <!-- build: renderlayout2 -->
     <div class="app-shell">
       <header class="topbar">
         <div>
@@ -704,22 +704,26 @@
               <input id="renderPointMemo" type="text" placeholder="샤워부스 뒷벽" />
             </label>
           </div>
-          <div class="render-preview-grid">
-            <div>
-              <span>현장 사진</span>
-              <div class="render-preview" id="renderSitePreview">미리보기 없음</div>
-              <button class="secondary-action render-preview-trigger" id="openSitePreviewBtn" type="button">현장 사진 크게 보기</button>
+          <div class="render-preview-grid render-preview-stack">
+            <div class="render-preview-top">
+              <div class="render-preview-card">
+                <span>현장 사진</span>
+                <div class="render-preview" id="renderSitePreview">미리보기 없음</div>
+                <button class="secondary-action render-preview-trigger" id="openSitePreviewBtn" type="button">현장 사진 크게 보기</button>
+              </div>
+              <div class="render-preview-card">
+                <span>선택 타일 이미지</span>
+                <div class="render-preview" id="renderTilePreview">미리보기 없음</div>
+                <button class="secondary-action render-preview-trigger" id="openTilePreviewBtn" type="button">선택 타일 크게 보기</button>
+              </div>
             </div>
-            <div>
-              <span>선택 타일</span>
-              <div class="render-preview" id="renderTilePreview">미리보기 없음</div>
-              <button class="secondary-action render-preview-trigger" id="openTilePreviewBtn" type="button">선택 타일 크게 보기</button>
-            </div>
-            <div>
+            <div class="render-preview-result-block">
               <span>보정 결과 이미지</span>
-              <div class="render-preview" id="renderResultPreview">미리보기 없음</div>
-              <button class="secondary-action render-preview-trigger" id="openRenderPreviewBtn" type="button">결과 크게 보기</button>
-              <a class="primary-action render-download-link hidden" id="downloadRenderResultBtn" download="render-result.png">보정 결과 다운로드</a>
+              <div class="render-preview render-preview-large" id="renderResultPreview">미리보기 없음</div>
+              <div class="render-result-actions">
+                <button class="secondary-action render-preview-trigger" id="openRenderPreviewBtn" type="button">결과 크게 보기</button>
+                <a class="primary-action render-download-link hidden" id="downloadRenderResultBtn" download="render-result.png">보정 결과 다운로드</a>
+              </div>
             </div>
           </div>
           <div class="render-actions">
@@ -861,7 +865,7 @@
       </main>
     </div>
 
-    <script src="products-db.js?v=20260428-renderfix1"></script>
-    <script src="app.js?v=20260428-renderfix1"></script>
+    <script src="products-db.js?v=20260428-renderlayout2"></script>
+    <script src="app.js?v=20260428-renderlayout2"></script>
   </body>
 </html>
