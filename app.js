@@ -95,6 +95,10 @@ const shortDate = new Intl.DateTimeFormat("ko-KR", {
 
 let products = [];
 let cart = loadCart();
+let proposalProductSelectionIds = new Set();
+let proposalRenderSelectionIds = new Set();
+let proposalSelectionsInitialized = false;
+let knownProposalCartIds = new Set();
 let selectedProductId = "";
 let selectedRenderCartId = "";
 let selectedRenderTileId = "";
@@ -141,10 +145,12 @@ const loginForm = document.querySelector("#loginForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 let currentAdminView = "products";
+const DEFAULT_PROPOSAL_PPT_STATUS = "Choose a template, select products and rendered images, then create the final proposal.";
 
 init();
 
 async function init() {
+  applyInitialPageFromHash();
   history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   bindEvents();
   setupDbForm();
@@ -156,12 +162,27 @@ async function init() {
   startServerConnectionWatcher();
   await hydrateCartFromServer();
   renderAll();
+  if (currentPageId === "proposalPage") {
+    resetProposalPptState();
+  }
   renderAuthControls();
 }
 
 function bindEvents() {
   document.querySelectorAll("[data-page-target]").forEach((button) => {
-    button.addEventListener("click", () => switchPage(button.dataset.pageTarget));
+    button.addEventListener("click", (event) => {
+      if (button.dataset.pageTarget === "proposalPage") {
+        event.preventDefault();
+        openProposalBuilderWindow();
+        return;
+      }
+      switchPage(button.dataset.pageTarget);
+    });
+  });
+
+  document.querySelectorAll("[data-open-proposal-builder]").forEach((button) => {
+    if (button.dataset.pageTarget === "proposalPage") return;
+    button.addEventListener("click", openProposalBuilderWindow);
   });
 
   document.querySelectorAll("[data-back-action]").forEach((button) => {
@@ -229,6 +250,23 @@ function bindEvents() {
     const trigger = event.target.closest("[data-render-product]");
     if (trigger) openRenderForCartItem(trigger.dataset.renderProduct);
   });
+
+  document.querySelector("#proposalProductSelectionList").addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-proposal-product-select]");
+    if (!checkbox) return;
+    toggleProposalProductSelection(checkbox.dataset.proposalProductSelect, checkbox.checked);
+  });
+
+  document.querySelector("#proposalRenderSelectionList").addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-proposal-render-select]");
+    if (!checkbox) return;
+    toggleProposalRenderSelection(checkbox.dataset.proposalRenderSelect, checkbox.checked);
+  });
+
+  document.querySelector("#selectAllProposalProductsBtn").addEventListener("click", selectAllProposalProducts);
+  document.querySelector("#clearProposalProductsBtn").addEventListener("click", clearProposalProducts);
+  document.querySelector("#selectAllProposalRendersBtn").addEventListener("click", selectAllProposalRenders);
+  document.querySelector("#clearProposalRendersBtn").addEventListener("click", clearProposalRenders);
 
   document.querySelector("#renderSiteImage").addEventListener("change", async (event) => {
     pendingSiteImage = await readImageFile(event.target.files[0], 1400);
@@ -479,6 +517,49 @@ function openProductCategory(productType) {
   syncProductFilters({ resetSubFilters: true });
   renderProducts();
   switchPage("productsPage");
+}
+
+function applyInitialPageFromHash() {
+  const requestedPageId = String(window.location.hash || "").replace(/^#/, "").trim();
+  if (!requestedPageId) return;
+  const targetPage = document.getElementById(requestedPageId);
+  if (!targetPage || !targetPage.classList.contains("app-page")) return;
+
+  document.querySelectorAll(".app-page").forEach((page) => {
+    page.classList.toggle("active", page.id === requestedPageId);
+  });
+
+  currentPageId = requestedPageId;
+  const activeNavPage = requestedPageId === "productDetailPage" ? "productsPage" : requestedPageId;
+  document.querySelectorAll("[data-page-target]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.pageTarget === activeNavPage);
+  });
+}
+
+function openProposalBuilderWindow() {
+  const builderUrl = new URL(window.location.href);
+  builderUrl.hash = "proposalPage";
+  const opener = document.createElement("a");
+  opener.href = builderUrl.toString();
+  opener.target = "_blank";
+  opener.rel = "noopener";
+  opener.style.display = "none";
+  document.body.appendChild(opener);
+  opener.click();
+  opener.remove();
+}
+
+function resetProposalPptState() {
+  const status = document.querySelector("#proposalPptStatus");
+  const downloadLink = document.querySelector("#proposalPptDownloadLink");
+  if (status) {
+    status.textContent = DEFAULT_PROPOSAL_PPT_STATUS;
+  }
+  if (downloadLink) {
+    downloadLink.classList.add("hidden");
+    downloadLink.removeAttribute("href");
+    downloadLink.removeAttribute("download");
+  }
 }
 
 function renderProducts() {
@@ -747,6 +828,114 @@ function renderCartSummary() {
   `;
 }
 
+function syncProposalSelections() {
+  const currentIds = new Set(cart.map((item) => item.id));
+  const renderedIds = new Set(cart.filter((item) => item.renderedImage).map((item) => item.id));
+
+  if (!proposalSelectionsInitialized) {
+    proposalProductSelectionIds = new Set(currentIds);
+    proposalRenderSelectionIds = new Set(renderedIds);
+    proposalSelectionsInitialized = true;
+    knownProposalCartIds = new Set(currentIds);
+  } else {
+    currentIds.forEach((id) => {
+      if (!knownProposalCartIds.has(id)) {
+        proposalProductSelectionIds.add(id);
+        if (renderedIds.has(id)) proposalRenderSelectionIds.add(id);
+      }
+    });
+    knownProposalCartIds = new Set(currentIds);
+    proposalProductSelectionIds = new Set([...proposalProductSelectionIds].filter((id) => currentIds.has(id)));
+    proposalRenderSelectionIds = new Set([...proposalRenderSelectionIds].filter((id) => renderedIds.has(id) && proposalProductSelectionIds.has(id)));
+  }
+}
+
+function getSelectedProposalProducts() {
+  syncProposalSelections();
+  return cart.filter((item) => proposalProductSelectionIds.has(item.id));
+}
+
+function getSelectedProposalRenderedItems() {
+  const selectedProducts = getSelectedProposalProducts();
+  return selectedProducts.filter((item) => item.renderedImage && proposalRenderSelectionIds.has(item.id));
+}
+
+function toggleProposalProductSelection(id, checked) {
+  if (checked) proposalProductSelectionIds.add(id);
+  else {
+    proposalProductSelectionIds.delete(id);
+    proposalRenderSelectionIds.delete(id);
+  }
+  renderDocuments();
+}
+
+function toggleProposalRenderSelection(id, checked) {
+  if (checked) proposalRenderSelectionIds.add(id);
+  else proposalRenderSelectionIds.delete(id);
+  renderDocuments();
+}
+
+function selectAllProposalProducts() {
+  proposalProductSelectionIds = new Set(cart.map((item) => item.id));
+  cart.filter((item) => item.renderedImage).forEach((item) => proposalRenderSelectionIds.add(item.id));
+  renderDocuments();
+}
+
+function clearProposalProducts() {
+  proposalProductSelectionIds = new Set();
+  proposalRenderSelectionIds = new Set();
+  renderDocuments();
+}
+
+function selectAllProposalRenders() {
+  getSelectedProposalProducts()
+    .filter((item) => item.renderedImage)
+    .forEach((item) => proposalRenderSelectionIds.add(item.id));
+  renderDocuments();
+}
+
+function clearProposalRenders() {
+  proposalRenderSelectionIds = new Set([...proposalRenderSelectionIds].filter((id) => !proposalProductSelectionIds.has(id)));
+  renderDocuments();
+}
+
+function renderProposalSelectionControls(selectedProducts, selectedRenderedItems) {
+  const productList = document.querySelector("#proposalProductSelectionList");
+  const renderSection = document.querySelector("#proposalRenderSelectionControl");
+  const renderList = document.querySelector("#proposalRenderSelectionList");
+  const summary = document.querySelector("#proposalSelectionSummary");
+  if (!productList || !renderSection || !renderList || !summary) return;
+
+  productList.innerHTML = cart.map((item) => `
+    <label class="proposal-select-card ${proposalProductSelectionIds.has(item.id) ? "is-selected" : ""}">
+      <input type="checkbox" data-proposal-product-select="${escapeHtml(item.id)}" ${proposalProductSelectionIds.has(item.id) ? "checked" : ""} />
+      ${item.image ? `<img class="proposal-select-thumb" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-select-thumb proposal-item-image-empty">No Image</div>`}
+      <div class="proposal-select-copy">
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${escapeHtml(item.kind || "-")} / ${escapeHtml(item.size || "-")}</span>
+        <span>${money.format(Number(item.quotePrice || 0))} / ${number(item.qty)}${escapeHtml(item.unit || "")}</span>
+      </div>
+      ${item.renderedImage ? `<span class="proposal-select-badge">Rendered</span>` : ""}
+    </label>
+  `).join("") || `<div class="empty-state">No cart items available for the proposal.</div>`;
+
+  const availableRenderedItems = selectedProducts.filter((item) => item.renderedImage);
+  renderSection.classList.toggle("hidden", !availableRenderedItems.length);
+  renderList.innerHTML = availableRenderedItems.map((item) => `
+    <label class="proposal-select-card proposal-render-select-card ${proposalRenderSelectionIds.has(item.id) ? "is-selected" : ""}">
+      <input type="checkbox" data-proposal-render-select="${escapeHtml(item.id)}" ${proposalRenderSelectionIds.has(item.id) ? "checked" : ""} />
+      <img class="proposal-select-thumb proposal-render-select-thumb" src="${escapeHtml(item.renderedImage)}" alt="${escapeHtml(item.name)} rendered preview" loading="lazy" />
+      <div class="proposal-select-copy">
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${escapeHtml(item.renderTarget || "Rendered Preview")}</span>
+        <span>${escapeHtml(item.renderPointMemo || "")}</span>
+      </div>
+    </label>
+  `).join("");
+
+  summary.textContent = `${selectedProducts.length} products selected / ${selectedRenderedItems.length} renders selected`;
+}
+
 function renderCartList() {
   document.querySelector("#cartList").innerHTML = cart.map((item) => `
     <article class="cart-item">
@@ -765,8 +954,11 @@ function renderCartList() {
 }
 
 function renderDocuments() {
+  syncProposalSelections();
   const proposalState = getProposalState();
-  const { customer, address, validDate, date, subtotal, vat, total, memo } = proposalState;
+  const { customer, address, validDate, date, subtotal, vat, total, memo, companyName, managerName, managerTitle, managerPhone } = proposalState;
+  const selectedProducts = getSelectedProposalProducts();
+  const selectedRenderedItems = getSelectedProposalRenderedItems();
 
   setText("#proposalDate", shortDate.format(date));
   setText("#estimateDate", shortDate.format(date));
@@ -776,6 +968,11 @@ function renderDocuments() {
   setText("#docTotal", money.format(total));
   setText("#proposalIntro", `${customer}의 ${address} 현장에 맞춰 장바구니에 선정한 타일, 위생도기, 부자재를 기준으로 제안드립니다.`);
   setText("#proposalNote", `본 제안은 ${shortDate.format(validDate)}까지 유효합니다. 현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다. ${memo}`);
+
+  setText("#proposalCompanyName", companyName || "Tile & Bath Plus");
+  setText("#proposalManagerName", [managerName, managerTitle].filter(Boolean).join(" / ") || "Add contact details above to include them in the proposal.");
+  setText("#proposalManagerPhone", managerPhone || "");
+  renderProposalSelectionControls(selectedProducts, selectedRenderedItems);
 
   document.querySelector("#proposalItems").innerHTML = cart.map((item) => `
     <li class="proposal-item-card">
@@ -796,14 +993,32 @@ function renderDocuments() {
   setText("#estimateVat", money.format(vat));
   setText("#estimateTotal", money.format(total));
   renderProposalRenderedItems();
+
+  setText("#docItemCount", `${selectedProducts.length} items`);
+  document.querySelector("#proposalItems").innerHTML = selectedProducts.map((item) => `
+    <li class="proposal-item-card">
+      <button class="proposal-image-button" type="button" data-render-product="${escapeHtml(item.id)}" title="Open render workspace">
+        ${item.image ? `<img class="proposal-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-item-image proposal-item-image-empty">No Image</div>`}
+      </button>
+      <div>
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${escapeHtml(item.kind)} / ${escapeHtml(item.option || item.finish || "-")}</span>
+        <span class="proposal-item-size">${escapeHtml(item.size || "-")}</span>
+      </div>
+    </li>
+  `).join("") || `<li class="proposal-item-card proposal-item-empty">No selected products.</li>`;
+  document.querySelector("#estimateRows").innerHTML = selectedProducts.map((item) => {
+    return `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.size || "-")}</td><td>${number(item.qty)}${escapeHtml(item.unit)}</td><td>${money.format(item.quotePrice)}</td></tr>`;
+  }).join("");
+  renderProposalRenderedItems(selectedRenderedItems);
 }
 
-function renderProposalRenderedItems() {
+function renderProposalRenderedItems(selectedRenderedItems = null) {
   const section = document.querySelector("#proposalRenderedSection");
   const list = document.querySelector("#proposalRenderedItems");
   if (!section || !list) return;
 
-  const renderedItems = cart.filter((item) => item.renderedImage);
+  const renderedItems = selectedRenderedItems || cart.filter((item) => item.renderedImage);
   section.classList.toggle("hidden", !renderedItems.length);
 
   if (!renderedItems.length) {
@@ -870,7 +1085,8 @@ function getProposalState() {
   const validDate = new Date(date);
   validDate.setDate(validDate.getDate() + validDays);
 
-  const subtotal = cart.reduce((sum, item) => sum + Number(item.quotePrice || 0) * Number(item.qty || 0), 0);
+  const selectedProducts = getSelectedProposalProducts();
+  const subtotal = selectedProducts.reduce((sum, item) => sum + Number(item.quotePrice || 0) * Number(item.qty || 0), 0);
   const vat = Math.round(subtotal * 0.1);
   const total = subtotal + vat;
   const memo = String(data.get("memo") || "").trim();
@@ -883,6 +1099,11 @@ function getProposalState() {
     validDays,
     validDate,
     date,
+    theme: String(data.get("proposalTheme") || "beige-black").trim(),
+    companyName: String(data.get("companyName") || "Tile & Bath Plus").trim(),
+    managerName: String(data.get("managerName") || "").trim(),
+    managerTitle: String(data.get("managerTitle") || "").trim(),
+    managerPhone: String(data.get("managerPhone") || "").trim(),
     memo,
     subtotal,
     vat,
@@ -894,9 +1115,12 @@ async function generateProfessionalProposalDeck() {
   const status = document.querySelector("#proposalPptStatus");
   const downloadLink = document.querySelector("#proposalPptDownloadLink");
   const button = document.querySelector("#createProProposalBtn");
+  const selectedProducts = getSelectedProposalProducts();
+  const selectedRenderedIds = new Set(getSelectedProposalRenderedItems().map((item) => item.id));
 
-  if (!cart.length) {
+  if (!selectedProducts.length) {
     status.textContent = "장바구니에 상품이 있어야 프로 제안서를 만들 수 있습니다.";
+    status.textContent = "Select at least one product for the proposal.";
     downloadLink.classList.add("hidden");
     downloadLink.removeAttribute("href");
     return;
@@ -920,15 +1144,22 @@ async function generateProfessionalProposalDeck() {
       validDays: proposalState.validDays,
       proposalDate: proposalState.date.toISOString(),
       validDate: proposalState.validDate.toISOString(),
-      memo: proposalState.memo
+      memo: proposalState.memo,
+      theme: proposalState.theme
+    },
+    company: {
+      name: proposalState.companyName,
+      managerName: proposalState.managerName,
+      managerTitle: proposalState.managerTitle,
+      managerPhone: proposalState.managerPhone
     },
     summary: {
-      itemCount: cart.length,
+      itemCount: selectedProducts.length,
       subtotal: proposalState.subtotal,
       vat: proposalState.vat,
       total: proposalState.total
     },
-    cart: cart.map((item) => ({
+    cart: selectedProducts.map((item) => ({
       id: item.id,
       productType: item.productType || "",
       kind: item.kind || "",
@@ -942,9 +1173,10 @@ async function generateProfessionalProposalDeck() {
       quotePrice: Number(item.quotePrice || 0),
       costPrice: Number(item.costPrice || 0),
       image: item.image || "",
-      renderedImage: item.renderedImage || "",
-      renderTarget: item.renderTarget || "",
-      renderPointMemo: item.renderPointMemo || ""
+      renderedImage: selectedRenderedIds.has(item.id) ? (item.renderedImage || "") : "",
+      renderTarget: selectedRenderedIds.has(item.id) ? (item.renderTarget || "") : "",
+      renderPointMemo: selectedRenderedIds.has(item.id) ? (item.renderPointMemo || "") : "",
+      renderSurfaceSelections: selectedRenderedIds.has(item.id) ? (item.renderSurfaceSelections || {}) : {}
     }))
   };
 
@@ -3043,6 +3275,10 @@ function switchPage(pageId, options = {}) {
 
   if (options.updateBrowserHistory !== false) {
     history.pushState({ pageId }, "", `#${pageId}`);
+  }
+
+  if (pageId === "proposalPage") {
+    resetProposalPptState();
   }
 
   if (pageId === "renderPage") {

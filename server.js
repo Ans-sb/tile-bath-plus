@@ -817,7 +817,7 @@ async function generateRenderPreview(payload) {
         : "Apply this tile only to the floor surfaces.";
     const sizeInstruction = buildRenderSizeInstruction(entry.tileSize, entry.surface);
 
-    return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Match the tile color, veining, pattern rhythm, print character, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, and module size${entry.tileSize ? ` (${entry.tileSize})` : ""} as closely as possible. Do not invent a different tile look, do not simplify the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction}`;
+    return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Prioritize the tile's visible design identity above all else: match the tone variation, veining flow, stone character, pattern rhythm, print character, surface texture depth, micro-contrast, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, and module size${entry.tileSize ? ` (${entry.tileSize})` : ""} as closely as possible. The tile pattern and texture are critical and must stay recognizable in the final image. Do not invent a different tile look, do not simplify or blur the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction}`;
   }).join(" ");
 
   const prompt = [
@@ -827,7 +827,9 @@ async function generateRenderPreview(payload) {
     "Replace only the existing finish material on the selected planes. Preserve the original site photo structure, camera angle, lens distortion, perspective, room proportions, horizontal and vertical lines, and all non-target surfaces.",
     "Do not redesign the room. Do not move fixtures, doors, drains, moldings, furniture, sanitary ware, silicone lines, or architectural elements.",
     "The selected tile reference images are higher priority than stylistic cleanup. When realism and reference detail conflict, preserve the exact tile material appearance first and then adapt lighting and perspective around it.",
+    "Tile tone, pattern, texture, and stone-like character are more important than making the room look cleaner or more minimal. Keep the material identity strong and recognizable from the reference images.",
     "Project the selected tile onto the real plane as if it were actually installed on that surface. Do not simply overlay a flat texture.",
+    "Do not flatten the tile surface into a smooth generic finish. Preserve the natural variation, grain, veining direction, texture breaks, and pattern contrast so the tile still reads as that exact product.",
     "Respect the real installation scale of each selected tile. The grout grid, tile count, repeat density, module proportions, and cut pieces must look physically correct for the stated tile size.",
     "Do not enlarge or shrink the tile pattern arbitrarily. Keep the module size believable relative to the room, fixtures, and perspective lines.",
     "Preserve original lighting, color temperature, exposure, contrast, shadows, reflected light, and ambient shading from the source photo.",
@@ -1046,6 +1048,7 @@ function normalizeProposalPayload(payload) {
   }
 
   const proposal = payload.proposal || {};
+  const company = payload.company || {};
   const summary = payload.summary || {};
   const cart = Array.isArray(payload.cart) ? payload.cart : [];
   if (!cart.length) {
@@ -1061,7 +1064,14 @@ function normalizeProposalPayload(payload) {
       validDays: Number(proposal.validDays) || 14,
       proposalDate: String(proposal.proposalDate || new Date().toISOString()),
       validDate: String(proposal.validDate || new Date().toISOString()),
-      memo: String(proposal.memo || "").trim()
+      memo: String(proposal.memo || "").trim(),
+      theme: String(proposal.theme || "beige-black").trim() || "beige-black"
+    },
+    company: {
+      name: String(company.name || "타일앤바스플러스").trim(),
+      managerName: String(company.managerName || "").trim(),
+      managerTitle: String(company.managerTitle || "").trim(),
+      managerPhone: String(company.managerPhone || "").trim()
     },
     summary: {
       itemCount: Number(summary.itemCount) || cart.length,
@@ -1085,9 +1095,21 @@ function normalizeProposalPayload(payload) {
       image: String(item.image || "").trim(),
       renderedImage: String(item.renderedImage || "").trim(),
       renderTarget: String(item.renderTarget || "").trim(),
-      renderPointMemo: String(item.renderPointMemo || "").trim()
+      renderPointMemo: String(item.renderPointMemo || "").trim(),
+      renderSurfaceSelections: normalizeRenderSurfaceSelections(item.renderSurfaceSelections)
     }))
   };
+}
+
+function normalizeRenderSurfaceSelections(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return ["wall", "floor", "point"].reduce((result, surface) => {
+    const entry = source[surface] && typeof source[surface] === "object" ? source[surface] : {};
+    result[surface] = {
+      tileId: String(entry.tileId || "").trim()
+    };
+    return result;
+  }, {});
 }
 
 function buildNarrativePlan(payload) {
@@ -1096,6 +1118,8 @@ function buildNarrativePlan(payload) {
     "# ?꾨줈 ?쒖븞???대윭?곕툕 ?뚮옖",
     "",
     `- ???怨좉컼: ${payload.proposal.customerName || "怨좉컼"} / ${payload.proposal.siteAddress || "?꾩옣"}`,
+    `- 템플릿 타입: ${payload.proposal.theme || "beige-black"}`,
+    `- 업체 정보: ${payload.company?.name || "타일앤바스플러스"} / ${payload.company?.managerName || "담당자 미입력"} ${payload.company?.managerTitle ? `(${payload.company.managerTitle})` : ""} / ${payload.company?.managerPhone || "연락처 미입력"}`,
     "- 紐⑹쟻: ?λ컮援щ땲???닿릿 ??? ?꾩깮?꾧린, 遺?먯옱瑜??꾨Ц ?쒖븞???뺥깭??PPT濡??뺣━",
     "- ?ㅼ븻留ㅻ꼫: ?명뀒由ъ뼱 ?ㅻТ ?쒖븞?? 源붾걫???뚯옱 以묒떖 鍮꾩＜?? ?ㅼ젣 ?곹뭹 ?대?吏 媛뺤“",
     "- ?щ씪?대뱶 援ъ꽦:",
