@@ -3,16 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>타일앤바스플러스 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260429-cartthumbs1" />
+    <title>타일·바스플러스 플랫폼</title>
+    <link rel="stylesheet" href="styles.css?v=20260429-customerbench1" />
   </head>
   <body>
-    <!-- build: cartthumbs1 -->
+    <!-- build: customerbench1 -->
     <div class="app-shell">
       <header class="topbar">
-        <div>
+        <div class="brand-cluster">
           <p class="eyebrow">Tile & Bath Plus</p>
-          <h1>타일·위생도기 제안 플랫폼</h1>
+          <h1>타일·바스플러스</h1>
+          <p class="brand-subcopy">고객용 자재 탐색부터 상담용 제안서까지 한 흐름으로 이어집니다.</p>
         </div>
         <div class="top-actions">
           <div class="server-status-pill" id="serverStatusPill">서버 확인 중</div>
@@ -35,116 +36,180 @@
       </header>
 
       <nav class="app-nav" aria-label="페이지 이동">
-        <button class="active" type="button" data-page-target="homePage">메인</button>
-        <button type="button" data-page-target="productsPage">상품</button>
-        <button type="button" data-page-target="dbPage">DB 등록</button>
-        <button type="button" data-page-target="cartPage">장바구니 <span id="navCartCount">0</span></button>
-        <button type="button" data-page-target="proposalPage" data-open-proposal-builder>제안서·견적서</button>
-        <button type="button" data-page-target="renderPage">실사 보정</button>
-        <button class="hidden" id="adminNavBtn" type="button" data-page-target="adminPage">내부관리자</button>
+        <button class="active customer-nav-button" type="button" data-page-target="homePage">
+          <span class="nav-glyph">01</span>
+          <span class="nav-copy">메인</span>
+        </button>
+        <button class="customer-nav-button" type="button" data-page-target="productsPage">
+          <span class="nav-glyph">02</span>
+          <span class="nav-copy">상품</span>
+        </button>
+        <button class="customer-nav-button" type="button" data-page-target="cartPage">
+          <span class="nav-glyph">03</span>
+          <span class="nav-copy">장바구니 <span id="navCartCount">0</span></span>
+        </button>
+        <button class="admin-nav-button" type="button" data-page-target="proposalPage" data-open-proposal-builder>
+          <span class="nav-glyph">04</span>
+          <span class="nav-copy">제안서·견적</span>
+        </button>
+        <button class="admin-nav-button" type="button" data-page-target="renderPage">
+          <span class="nav-glyph">05</span>
+          <span class="nav-copy">실사 보정</span>
+        </button>
+        <button class="admin-nav-button" type="button" data-page-target="dbPage">
+          <span class="nav-glyph">06</span>
+          <span class="nav-copy">DB 등록</span>
+        </button>
+        <button class="hidden admin-nav-button" id="adminNavBtn" type="button" data-page-target="adminPage">
+          <span class="nav-glyph">07</span>
+          <span class="nav-copy">내부관리</span>
+        </button>
       </nav>
 
-      <main class="app-page page-panel active" id="homePage">
-        <section class="hero-panel hero-panel-shell">
-          <div class="hero-grid">
-            <div class="hero-copy">
-          <p class="eyebrow">Platform Flow</p>
-          <h2>상품을 고르고, 장바구니에서 견적 금액을 조정한 뒤, 제안서와 견적서를 만듭니다.</h2>
-          <p>타일, 위생도기, 부자재 DB를 운영하면서 현장별 장바구니를 제안 문서로 전환하는 플랫폼입니다.</p>
+      <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
+        <section class="hero-panel hero-panel-shell customer-hero-panel">
+          <div class="customer-hero-layout">
+            <div class="hero-copy customer-hero-copy">
+              <p class="eyebrow">Customer Experience</p>
+              <h2>집에서 천천히 보고, 한 번에 담고, 상담용 제안서까지 이어지는 자재 선택 화면</h2>
+              <p>레퍼런스의 넓은 여백과 모바일 앱 흐름을 바탕으로, 현재 브랜드의 민트 톤은 유지하면서 고객이 편하게 보는 자재 탐색 화면으로 정리했습니다.</p>
               <div class="hero-actions">
-                <button class="primary-action" type="button" data-page-target="productsPage">상품 바로 찾기</button>
-                <button class="secondary-action" type="button" data-page-target="proposalPage" data-open-proposal-builder>제안서·견적서 보기</button>
+                <button class="primary-action" type="button" data-page-target="productsPage">자재 담으러 가기</button>
+                <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 바로 보기</button>
               </div>
               <div class="hero-inline-meta">
-                <span>상품 DB 정리</span>
-                <span>장바구니 기반 제안서</span>
-                <span>견적 단가 직접 입력</span>
-                <span>모바일·웹 동시 사용</span>
+                <span>고객용 모바일 흐름</span>
+                <span>장바구니 기반 견적 연결</span>
+                <span>실사 보정 결과 제안서 반영</span>
               </div>
             </div>
-            <div class="hero-highlights">
-              <article class="highlight-card">
-                <span>Catalog</span>
-                <strong>상품 탐색과 비교</strong>
-                <p>품명 검색, 규격 필터, 상세페이지 흐름으로 필요한 자재를 빠르게 추립니다.</p>
-              </article>
-              <article class="highlight-card">
-                <span>Proposal</span>
-                <strong>장바구니에서 문서화</strong>
-                <p>선정 품목을 이미지와 함께 제안서와 견적서로 연결해 한 번에 정리합니다.</p>
-              </article>
-              <article class="highlight-card">
-                <span>Workflow</span>
-                <strong>현장 중심 업무 흐름</strong>
-                <p>회원가입, 사업자 확인, 실사 보정 준비까지 실제 영업 흐름에 맞춰 이어집니다.</p>
-              </article>
+            <div class="customer-search-card">
+              <span class="customer-search-label">어떤 자재를 찾고 있나요?</span>
+              <button class="customer-search-button" type="button" data-page-target="productsPage">검색하러 가기</button>
+              <div class="customer-chip-row">
+                <button class="customer-chip" type="button" data-main-category="tile">타일</button>
+                <button class="customer-chip" type="button" data-main-category="sanitary">위생도기</button>
+                <button class="customer-chip" type="button" data-main-category="material">부자재</button>
+              </div>
+              <div class="customer-hero-swatches" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
             </div>
           </div>
         </section>
-        <section class="server-control-panel">
-          <div class="server-control-header">
+        <section class="home-section customer-story-section">
+          <div class="section-header-inline">
             <div>
-              <p class="eyebrow">Server Control</p>
-              <h3>로컬 서버 제어</h3>
+              <p class="eyebrow">Highlights</p>
+              <h3>고객이 이해하기 쉬운 정보만 먼저 보여줍니다.</h3>
             </div>
-            <div class="status-pill" id="homeServerStatus">상태 확인 중</div>
+            <p>상품이 많아도 복잡하지 않게, 카테고리와 검색 그리고 상담 연결 흐름이 한 화면 안에서 자연스럽게 이어지도록 구성했습니다.</p>
           </div>
-          <div class="server-control-actions">
-            <button class="primary-action" id="restartServerBtn" type="button">서버 재시작</button>
-            <button class="secondary-action" id="stopServerBtn" type="button">서버 종료</button>
-            <button class="secondary-action" id="refreshServerBtn" type="button">상태 확인</button>
-            <button class="secondary-action" id="startServerGuideBtn" type="button">서버 켜기 안내</button>
+          <div class="customer-stat-grid">
+            <article class="highlight-card customer-stat-card">
+              <span>1400+</span>
+              <strong>등록 상품 데이터</strong>
+              <p>타일, 위생도기, 부자재를 한 화면 안에서 비교하고 바로 담을 수 있습니다.</p>
+            </article>
+            <article class="highlight-card customer-stat-card">
+              <span>Proposal</span>
+              <strong>실사 보정과 제안서 연결</strong>
+              <p>선택한 상품과 보정 이미지를 상담용 제안서에 이어 붙일 수 있습니다.</p>
+            </article>
+            <article class="highlight-card customer-stat-card">
+              <span>Member</span>
+              <strong>회원 등급별 원가 기준</strong>
+              <p>장바구니에서는 회원 기준 원가와 견적 단가를 분리해서 확인할 수 있습니다.</p>
+            </article>
           </div>
-          <div class="signup-status-bar" id="serverControlStatus">서버 연결 상태를 확인한 뒤 여기에서 다시 제어할 수 있습니다.</div>
         </section>
-        <section class="home-section">
+        <section class="home-section customer-category-section">
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Browse</p>
-              <h3>필요한 상품군부터 빠르게 시작하세요</h3>
+              <h3>필요한 파트를 먼저 고르고 들어가세요.</h3>
             </div>
-            <p>대분류별로 진입한 뒤 검색, 비교, 상세 확인, 장바구니 저장까지 자연스럽게 이어집니다.</p>
           </div>
-          <div class="category-grid">
-          <button class="category-card" type="button" data-main-category="tile">
-            <span class="category-kicker">Tile</span>
-            <strong>타일</strong>
-            <span>종류와 규격으로 상품을 찾습니다.</span>
-          </button>
-          <button class="category-card" type="button" data-main-category="sanitary">
-            <span class="category-kicker">Sanitary</span>
-            <strong>위생도기</strong>
-            <span>종류 선택 후 옵션을 고릅니다.</span>
-          </button>
-          <button class="category-card" type="button" data-main-category="material">
-            <span class="category-kicker">Material</span>
-            <strong>부자재</strong>
-            <span>접착제, 줄눈 등 시공 자재를 담습니다.</span>
-          </button>
+          <div class="category-grid customer-category-grid">
+            <button class="category-card" type="button" data-main-category="tile">
+              <span class="category-kicker">Tile</span>
+              <strong>타일</strong>
+              <span>벽타일, 바닥타일, 포인트 타일까지 톤과 패턴 위주로 찾습니다.</span>
+            </button>
+            <button class="category-card" type="button" data-main-category="sanitary">
+              <span class="category-kicker">Sanitary</span>
+              <strong>위생도기</strong>
+              <span>양변기, 세면대, 수전, 악세사리를 카테고리별로 깔끔하게 정리합니다.</span>
+            </button>
+            <button class="category-card" type="button" data-main-category="material">
+              <span class="category-kicker">Material</span>
+              <strong>부자재</strong>
+              <span>실리콘, 접착제, 시공도구까지 현장에서 함께 쓰는 품목을 모아봅니다.</span>
+            </button>
           </div>
         </section>
-        <section class="home-section home-flow-section">
+        <section class="home-section home-flow-section customer-flow-section">
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Flow</p>
-              <h3>업무 흐름을 짧고 선명하게 이어붙였습니다</h3>
+              <h3>고객 화면은 간단하게, 상담용 흐름은 뒤에서 연결합니다.</h3>
             </div>
           </div>
           <div class="home-flow-grid">
             <article class="flow-card">
-              <strong>1. 상품 선정</strong>
-              <span>카테고리와 품명 검색으로 필요한 제품만 빠르게 추립니다.</span>
+              <strong>1. 상품 탐색</strong>
+              <span>검색과 카테고리 중심으로 필요한 자재만 빠르게 좁혀서 비교합니다.</span>
             </article>
             <article class="flow-card">
               <strong>2. 장바구니 정리</strong>
-              <span>수량과 견적단가를 보며 현장 기준으로 빠르게 조정합니다.</span>
+              <span>회원 기준 원가를 참고하면서 실제 상담용 견적단가를 별도로 조정합니다.</span>
             </article>
             <article class="flow-card">
-              <strong>3. 제안서·견적서 생성</strong>
-              <span>선정 품목을 이미지와 함께 정리하고 프로 제안서까지 확장합니다.</span>
+              <strong>3. 상담 자료 확장</strong>
+              <span>제안서, 견적서, 실사 보정 결과까지 관리자 흐름으로 자연스럽게 이어집니다.</span>
             </article>
           </div>
         </section>
+        <section class="home-section customer-review-section">
+          <div class="section-header-inline">
+            <div>
+              <p class="eyebrow">Comfort</p>
+              <h3>샘플 앱처럼 가볍고 편안한 리듬으로 읽히게 구성했습니다.</h3>
+            </div>
+          </div>
+          <div class="customer-review-strip">
+            <article class="customer-review-card">
+              <strong>중요한 결정을 충분한 시간으로</strong>
+              <p>자재 탐색부터 장바구니 정리까지 한 화면 안에서 차분히 이어지는 흐름을 만듭니다.</p>
+            </article>
+            <article class="customer-review-card">
+              <strong>현장 상담용 자료까지 연결</strong>
+              <p>고객 화면에서 담은 상품을 바로 제안서, 견적, 보정 이미지 선택으로 이어갈 수 있습니다.</p>
+            </article>
+          </div>
+        </section>
+        <section class="home-section customer-admin-entry">
+          <div class="section-header-inline">
+            <div>
+              <p class="eyebrow">Admin Tools</p>
+              <h3>상담·관리 기능은 따로 분리해 두었습니다.</h3>
+            </div>
+            <p>고객에게는 상품 탐색이 먼저 보이고, 상담 담당자는 아래 도구로 바로 이동할 수 있습니다.</p>
+          </div>
+          <div class="customer-admin-actions">
+            <button class="secondary-action" type="button" data-open-proposal-builder>프로 제안서 설정</button>
+            <button class="secondary-action" type="button" data-page-target="renderPage">실사 보정 작업실</button>
+            <button class="secondary-action" type="button" data-page-target="dbPage">상품 DB 관리</button>
+          </div>
+          <div class="signup-status-bar" id="serverControlStatus">서버와 데이터 상태는 관리자 도구 영역에서 계속 확인할 수 있습니다.</div>
+        </section>
+        <div class="customer-sticky-cta">
+          <button class="primary-action wide" type="button" data-page-target="productsPage">자재샘플 담으러 가기</button>
+          <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 <span id="stickyCartCount">0</span></button>
+        </div>
       </main>
 
       <main class="app-page workspace" id="loginPage">
@@ -336,28 +401,33 @@
         </section>
       </main>
 
-      <main class="app-page page-panel" id="productsPage">
-        <section class="page-heading">
+      <main class="app-page page-panel customer-page customer-products-page" id="productsPage">
+        <section class="page-heading customer-page-heading">
           <div>
             <p class="eyebrow">Products</p>
-            <h2>상품 페이지</h2>
+            <h2>자재 둘러보기</h2>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
             <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
           </div>
         </section>
-        <section class="commerce-panel catalog-panel">
-          <div class="catalog-toolbar">
+        <section class="commerce-panel catalog-panel customer-catalog-panel">
+          <div class="catalog-toolbar customer-catalog-hero">
             <div class="catalog-toolbar-copy">
               <p class="eyebrow">Browse Catalog</p>
-              <h3>카테고리와 품명 검색으로 빠르게 찾기</h3>
-              <p>대분류, 종류, 규격, 옵션을 조합해 필요한 상품만 추리고 바로 상세나 장바구니로 이어가세요.</p>
+              <h3>검색과 카테고리로 필요한 자재만 빠르게 좁혀보세요.</h3>
+              <p>레퍼런스처럼 넓은 검색창, 부드러운 카테고리 칩, 상품 중심 카드 레이아웃으로 고객이 읽기 편한 구조를 만들었습니다.</p>
             </div>
             <div class="catalog-summary-card">
-              <strong>검색 중심 탐색</strong>
-              <span>필터 선택과 품명 검색을 함께 사용하면 웹과 모바일 모두 훨씬 빠르게 찾을 수 있습니다.</span>
+              <strong>추천 탐색 흐름</strong>
+              <span>먼저 대분류를 고르고, 필요하면 키워드 검색으로 모델명을 좁히면 모바일에서도 훨씬 빠르게 찾을 수 있습니다.</span>
             </div>
+          </div>
+          <div class="customer-chip-row customer-filter-shortcuts">
+            <button class="customer-chip" type="button" data-main-category="tile">타일 먼저 보기</button>
+            <button class="customer-chip" type="button" data-main-category="sanitary">위생도기 보기</button>
+            <button class="customer-chip" type="button" data-main-category="material">부자재 보기</button>
           </div>
           <div class="filter-grid filter-grid-catalog">
             <label>
@@ -386,12 +456,16 @@
               <input id="productSearch" type="search" placeholder="예: PH CK 612141M, 양변기, 세면대" />
             </label>
           </div>
+          <div class="customer-list-header">
+            <strong>고객용 상품 리스트</strong>
+            <span>상세를 눌러 이미지와 규격을 보고, 바로 장바구니에 담을 수 있습니다.</span>
+          </div>
           <div class="product-list product-page-list" id="productList"></div>
         </section>
       </main>
 
-      <main class="app-page page-panel" id="productDetailPage">
-        <section class="page-heading">
+      <main class="app-page page-panel customer-page customer-detail-page" id="productDetailPage">
+        <section class="page-heading customer-page-heading">
           <div>
             <p class="eyebrow">Product Detail</p>
             <h2 id="detailProductTitle">상품 상세</h2>
@@ -535,24 +609,29 @@
         </section>
       </main>
 
-      <main class="app-page page-panel" id="cartPage">
-        <section class="page-heading">
+      <main class="app-page page-panel customer-page customer-cart-page" id="cartPage">
+        <section class="page-heading customer-page-heading">
           <div>
             <p class="eyebrow">Selected Items</p>
-            <h2>장바구니 페이지</h2>
+            <h2>장바구니</h2>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
             <button class="primary-action" type="button" data-open-proposal-builder>프로 제안서 설정 열기</button>
           </div>
         </section>
-        <section class="commerce-panel">
-          <div class="cart-heading">
-            <strong>장바구니</strong>
-            <span id="cartSummary">0개 상품</span>
+        <section class="commerce-panel customer-cart-panel">
+          <div class="cart-heading customer-cart-heading">
+            <strong>선택한 자재</strong>
+            <span id="cartSummary">0개 품목</span>
           </div>
+          <p class="customer-cart-note">원가는 회원 기준으로 먼저 보여주고, 실제 상담용 견적단가는 별도로 입력할 수 있습니다.</p>
           <div class="cart-list cart-page-list" id="cartList"></div>
           <div class="cost-summary" id="costSummary"></div>
+          <div class="customer-cart-actions">
+            <button class="secondary-action" type="button" data-page-target="productsPage">상품 더 담기</button>
+            <button class="primary-action" type="button" data-open-proposal-builder>프로 제안서 설정 열기</button>
+          </div>
         </section>
       </main>
 
@@ -1034,6 +1113,6 @@
     </div>
 
     <script src="products-db.js?v=20260429-proposaltemplate3"></script>
-    <script src="app.js?v=20260429-cartthumbs1"></script>
+    <script src="app.js?v=20260429-customerbench1"></script>
   </body>
 </html>

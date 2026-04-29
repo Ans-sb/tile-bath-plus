@@ -129,6 +129,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "productDetailPage", "cartPage"]);
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
 let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };
@@ -175,6 +176,7 @@ init();
 async function init() {
   applyInitialPageFromHash();
   history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
+  syncExperienceMode(currentPageId);
   bindEvents();
   setupDbForm();
   syncDefaultApprovalRules();
@@ -189,6 +191,13 @@ async function init() {
     resetProposalPptState();
   }
   renderAuthControls();
+}
+
+function syncExperienceMode(pageId = currentPageId) {
+  const isCustomerPage = CUSTOMER_PAGE_IDS.has(pageId);
+  document.body.classList.toggle("customer-experience-mode", isCustomerPage);
+  document.body.classList.toggle("admin-experience-mode", !isCustomerPage);
+  document.body.dataset.page = pageId;
 }
 
 function bindEvents() {
@@ -943,9 +952,14 @@ function renderCartSummary() {
   const itemCount = cart.length;
   const totalQuote = cart.reduce((sum, item) => sum + Number(item.quotePrice || 0) * Number(item.qty || 0), 0);
   document.querySelector("#navCartCount").textContent = String(itemCount);
+  const stickyCartCount = document.querySelector("#stickyCartCount");
+  if (stickyCartCount) stickyCartCount.textContent = String(itemCount);
   document.querySelector("#cartSummary").textContent = `${itemCount}개 품목 · 견적 ${money.format(totalQuote)}`;
   document.querySelector("#costSummary").innerHTML = `
     <div><span>견적 합계</span><strong>${money.format(totalQuote)}</strong></div>
+    <div><span>선택 상품 수</span><strong>${itemCount}개</strong></div>
+    <div><span>평균 견적단가</span><strong>${itemCount ? money.format(Math.round(totalQuote / itemCount)) : money.format(0)}</strong></div>
+    <div><span>다음 단계</span><strong>제안서 설정</strong></div>
   `;
 }
 
@@ -3399,6 +3413,7 @@ function switchPage(pageId, options = {}) {
   });
 
   currentPageId = pageId;
+  syncExperienceMode(pageId);
   const activeNavPage = pageId === "productDetailPage" ? "productsPage" : pageId;
   document.querySelectorAll("[data-page-target]").forEach((button) => {
     button.classList.toggle("active", button.dataset.pageTarget === activeNavPage);
