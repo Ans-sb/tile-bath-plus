@@ -144,9 +144,64 @@ def save_page_images(page, page_no):
 
 def flatten_image_on_white(image):
     rgba = image.convert("RGBA")
-    canvas = Image.new("RGB", rgba.size, "white")
-    canvas.paste(rgba, mask=rgba.getchannel("A"))
+    bg_rgb = detect_background_rgb(image)
+    alpha = rgba.getchannel("A")
+    bbox = alpha.getbbox() or detect_rgb_content_bbox(image, bg_rgb) or (0, 0, rgba.width, rgba.height)
+    bbox = expand_bbox(bbox, rgba.width, rgba.height, max(2, round(max(rgba.width, rgba.height) * 0.02)))
+
+    cropped = rgba.crop(bbox)
+    pad_x = max(12, round(cropped.width * 0.14))
+    pad_y = max(12, round(cropped.height * 0.14))
+    canvas = Image.new("RGB", (cropped.width + (pad_x * 2), cropped.height + (pad_y * 2)), bg_rgb)
+    canvas.paste(cropped, (pad_x, pad_y), mask=cropped.getchannel("A"))
     return canvas
+
+
+def detect_background_rgb(image):
+    rgba = image.convert("RGBA")
+    width, height = rgba.size
+    corners = [
+        rgba.getpixel((0, 0)),
+        rgba.getpixel((max(width - 1, 0), 0)),
+        rgba.getpixel((0, max(height - 1, 0))),
+        rgba.getpixel((max(width - 1, 0), max(height - 1, 0))),
+    ]
+    if sum(pixel[3] for pixel in corners) / len(corners) < 12:
+        return (255, 255, 255)
+    return tuple(round(sum(pixel[index] for pixel in corners) / len(corners)) for index in range(3))
+
+
+def detect_rgb_content_bbox(image, background_rgb, threshold=8):
+    rgb = image.convert("RGB")
+    width, height = rgb.size
+    min_x = width
+    min_y = height
+    max_x = -1
+    max_y = -1
+
+    for y in range(height):
+        for x in range(width):
+            pixel = rgb.getpixel((x, y))
+            if max(abs(pixel[index] - background_rgb[index]) for index in range(3)) <= threshold:
+                continue
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
+
+    if max_x < min_x or max_y < min_y:
+        return None
+    return (min_x, min_y, max_x + 1, max_y + 1)
+
+
+def expand_bbox(bbox, width, height, padding):
+    left, top, right, bottom = bbox
+    return (
+        max(0, left - padding),
+        max(0, top - padding),
+        min(width, right + padding),
+        min(height, bottom + padding),
+    )
 
 
 def pick_product_images(images):
