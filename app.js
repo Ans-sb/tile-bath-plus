@@ -138,6 +138,7 @@ let serverConnection = { online: false, checked: false, failures: 0 };
 let serverConnectionTimer = null;
 let businessScanRequestId = 0;
 let cartSyncTimer = null;
+let productsLoadedFromRemote = false;
 
 const productForm = document.querySelector("#productForm");
 const proposalForm = document.querySelector("#proposalForm");
@@ -377,12 +378,14 @@ async function loadProducts() {
   const localProducts = loadLocalProducts();
   const bundledProducts = Array.isArray(window.PRODUCTS_DB) ? window.PRODUCTS_DB : [];
   products = mergeProducts(bundledProducts, localProducts);
+  productsLoadedFromRemote = false;
   syncProductFilters();
 
   try {
     const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 5000 });
     products = mergeProducts(remoteProducts, localProducts);
     serverConnection = { online: true, checked: true, failures: 0 };
+    productsLoadedFromRemote = true;
   } catch (error) {
     console.warn(error);
     serverConnection = { ...serverConnection, online: false, checked: true, failures: (serverConnection.failures || 0) + 1 };
@@ -394,6 +397,16 @@ async function loadProducts() {
   }
 
   syncProductFilters();
+}
+
+async function ensureProductsReady() {
+  const currentMarkup = document.querySelector("#productList")?.innerHTML?.trim() || "";
+  const needsReload = !products.length || (!productsLoadedFromRemote && (!currentMarkup || currentMarkup.includes("상품 DB를 불러오지 못했습니다")));
+  if (!needsReload) return;
+
+  updateProductListStatus("상품 목록을 다시 불러오는 중입니다.");
+  await loadProducts();
+  renderProducts();
 }
 
 function loadLocalProducts() {
@@ -657,6 +670,7 @@ function renderProposalTemplatePreview() {
 }
 
 function renderProducts() {
+  updateProductListStatus("상품 목록을 정리하는 중입니다.");
   const type = document.querySelector("#mainCategoryFilter").value;
   const kind = document.querySelector("#kindFilter").value;
   const size = document.querySelector("#sizeFilter").value;
@@ -687,6 +701,27 @@ function renderProducts() {
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
   `).join("") || `<div class="empty-state">${keyword ? "품명 검색 결과가 없습니다." : "조건에 맞는 상품이 없습니다."}</div>`;
+
+  const activeFilters = [
+    type !== "all",
+    kind !== "all",
+    size !== "all",
+    option !== "all",
+    Boolean(keyword)
+  ].filter(Boolean).length;
+
+  if (filtered.length) {
+    updateProductListStatus(`총 ${number(filtered.length)}개 상품${activeFilters ? ` · 필터 ${activeFilters}개 적용` : ""}`);
+  } else if (products.length) {
+    updateProductListStatus(activeFilters ? "필터 조건에 맞는 상품이 없습니다. 조건을 넓혀보세요." : "등록된 상품은 있지만 현재 표시할 목록이 없습니다.");
+  } else {
+    updateProductListStatus("상품 데이터를 아직 불러오지 못했습니다.");
+  }
+}
+
+function updateProductListStatus(message) {
+  const status = document.querySelector("#productListStatus");
+  if (status) status.textContent = String(message || "");
 }
 
 function openProductDetail(id, sourceElement = null) {
@@ -3428,6 +3463,10 @@ function switchPage(pageId, options = {}) {
 
   if (pageId === "proposalPage") {
     resetProposalPptState();
+  }
+
+  if (pageId === "productsPage") {
+    void ensureProductsReady();
   }
 
   if (pageId === "renderPage") {
