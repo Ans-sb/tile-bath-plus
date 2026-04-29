@@ -4,11 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260429-mobileentry3up2" />
+    <link rel="stylesheet" href="styles.css?v=20260429-homeentrysplit1" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 18px;
         align-items: stretch;
       }
@@ -18,10 +18,27 @@
         min-width: 0;
       }
 
+      body.customer-experience-mode .customer-entry-button--sample {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 260px) 1fr;
+        align-items: center;
+        gap: 10px 18px;
+        padding: 14px 22px;
+      }
+
+      body.customer-experience-mode .customer-entry-button--sample img {
+        height: 72px;
+      }
+
+      body.customer-experience-mode .customer-entry-button--sample span {
+        text-align: left;
+      }
+
       @media (max-width: 720px) {
         body.customer-experience-mode .customer-entry-grid {
-          grid-template-columns: repeat(3, minmax(88px, 1fr));
-          gap: 8px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
         }
 
         body.customer-experience-mode .customer-entry-button {
@@ -37,11 +54,21 @@
           line-height: 1.35;
           word-break: keep-all;
         }
+
+        body.customer-experience-mode .customer-entry-button--sample {
+          grid-template-columns: minmax(0, 140px) 1fr;
+          gap: 8px 12px;
+          padding: 12px 14px;
+        }
+
+        body.customer-experience-mode .customer-entry-button--sample img {
+          height: 46px;
+        }
       }
     </style>
   </head>
   <body>
-    <!-- build: mobileentry3up2 -->
+    <!-- build: homeentrysplit1 -->
     <div class="app-shell">
       <section class="customer-top-banner global-home-banner" aria-label="메인 상단 배너">
         <img src="images/branding/hero-delivery-banner.png?v=20260429-mainhero2" alt="자재GO 메인 상단 배송 안내 비주얼" />
@@ -101,7 +128,7 @@
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
         <section class="hero-panel hero-panel-shell customer-hero-panel">
           <div class="customer-home-entry">
-            <div class="customer-entry-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch;">
+            <div class="customer-entry-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch;">
               <button class="customer-entry-button" type="button" data-main-category="tile">
                 <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" />
                 <span>타일상품 보러가기</span>
@@ -110,7 +137,7 @@
                 <img src="images/branding/btn-bath-go.png?v=20260429-goentry2" alt="바스GO" />
                 <span>위생도기 및 수전 보러가기</span>
               </button>
-              <button class="customer-entry-button" type="button" data-page-target="samplePage">
+              <button class="customer-entry-button customer-entry-button--sample" type="button" data-page-target="samplePage">
                 <img src="images/branding/btn-sample-go.png?v=20260429-goentry2" alt="샘플GO" />
                 <span>자재샘플 신청하러가기</span>
               </button>
