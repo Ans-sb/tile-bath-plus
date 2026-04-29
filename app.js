@@ -215,10 +215,6 @@ function bindEvents() {
     });
   });
 
-  document.querySelectorAll("[data-open-proposal-builder]").forEach((button) => {
-    button.addEventListener("click", () => switchPage("proposalPage"));
-  });
-
   document.querySelectorAll("[data-back-action]").forEach((button) => {
     button.addEventListener("click", goBackPage);
   });
@@ -614,19 +610,6 @@ function applyInitialPageFromHash() {
   document.querySelectorAll("[data-page-target]").forEach((button) => {
     button.classList.toggle("active", button.dataset.pageTarget === activeNavPage);
   });
-}
-
-function openProposalBuilderWindow() {
-  const builderUrl = new URL(window.location.href);
-  builderUrl.hash = "proposalPage";
-  const opener = document.createElement("a");
-  opener.href = builderUrl.toString();
-  opener.target = "_blank";
-  opener.rel = "noopener";
-  opener.style.display = "none";
-  document.body.appendChild(opener);
-  opener.click();
-  opener.remove();
 }
 
 function resetProposalPptState() {
