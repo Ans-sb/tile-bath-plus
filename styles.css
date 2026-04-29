@@ -2957,6 +2957,15 @@ body.customer-experience-mode .customer-page {
   max-width: 1120px;
 }
 
+body.customer-experience-mode .global-home-banner {
+  display: none;
+  max-width: 1120px;
+}
+
+body.customer-experience-mode[data-page="homePage"] .global-home-banner {
+  display: block;
+}
+
 body.customer-experience-mode .topbar {
   margin-bottom: 18px;
   padding: 22px 24px;
@@ -3466,6 +3475,10 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 @media (max-width: 720px) {
   body.customer-experience-mode .app-shell {
     padding: 16px 14px 150px;
+  }
+
+  body.customer-experience-mode .global-home-banner {
+    max-width: none;
   }
 
   body.customer-experience-mode .topbar {
