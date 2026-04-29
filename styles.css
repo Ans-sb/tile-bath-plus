@@ -3092,6 +3092,7 @@ body.customer-experience-mode .customer-entry-grid {
 
 body.customer-experience-mode .customer-entry-button {
   display: grid;
+  grid-template-rows: minmax(120px, auto) auto;
   gap: 16px;
   align-content: start;
   justify-items: center;
@@ -3106,9 +3107,10 @@ body.customer-experience-mode .customer-entry-button {
 body.customer-experience-mode .customer-entry-button img {
   width: 100%;
   max-width: 320px;
-  max-width: 100%;
-  height: auto;
+  height: 108px;
   object-fit: contain;
+  align-self: center;
+  justify-self: center;
 }
 
 body.customer-experience-mode .customer-entry-button span {
