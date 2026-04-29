@@ -2959,10 +2959,9 @@ body.customer-experience-mode .customer-page {
 
 body.customer-experience-mode .global-home-banner {
   display: none;
-  width: 100vw;
-  max-width: none;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  width: min(100%, 1320px);
+  max-width: 1320px;
+  margin-inline: auto;
 }
 
 body.customer-experience-mode[data-page="homePage"] .global-home-banner {
@@ -3056,9 +3055,9 @@ body.customer-experience-mode .customer-page {
 body.customer-experience-mode .customer-top-banner {
   overflow: hidden;
   border: 0;
-  border-radius: 0;
+  border-radius: 34px;
   background: #05070b;
-  box-shadow: none;
+  box-shadow: 0 22px 48px rgba(18, 24, 38, 0.1);
 }
 
 body.customer-experience-mode .customer-top-banner-slider {
@@ -3069,7 +3068,7 @@ body.customer-experience-mode .customer-top-banner img {
   display: block;
   width: 100%;
   height: auto;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 body.customer-experience-mode .hero-panel,
@@ -3460,7 +3459,10 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
   }
 
   body.customer-experience-mode .global-home-banner {
+    width: 100vw;
     max-width: none;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
   }
 
   body.customer-experience-mode .topbar {
