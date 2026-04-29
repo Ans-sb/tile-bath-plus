@@ -366,11 +366,9 @@ function bindEvents() {
 
 async function loadProducts() {
   const localProducts = loadLocalProducts();
-  if (Array.isArray(window.PRODUCTS_DB)) {
-    products = mergeProducts(window.PRODUCTS_DB, localProducts);
-    syncProductFilters();
-    return;
-  }
+  const bundledProducts = Array.isArray(window.PRODUCTS_DB) ? window.PRODUCTS_DB : [];
+  products = mergeProducts(bundledProducts, localProducts);
+  syncProductFilters();
 
   try {
     const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 5000 });
@@ -379,7 +377,7 @@ async function loadProducts() {
   } catch (error) {
     console.warn(error);
     serverConnection = { ...serverConnection, online: false, checked: true, failures: (serverConnection.failures || 0) + 1 };
-    products = localProducts;
+    products = mergeProducts(bundledProducts, localProducts);
     if (!products.length) {
       document.querySelector("#productList").innerHTML = `<div class="empty-state">상품 DB를 불러오지 못했습니다. 서버를 실행하거나 index.html을 다시 열어주세요.</div>`;
     }
@@ -466,6 +464,37 @@ function mergeProducts(baseProducts, localProducts) {
   for (const product of baseProducts) merged.set(product.id, product);
   for (const product of localProducts) merged.set(product.id, product);
   return [...merged.values()];
+}
+
+function compareProductsForDisplay(left, right) {
+  const leftHasImage = left?.image ? 1 : 0;
+  const rightHasImage = right?.image ? 1 : 0;
+  if (leftHasImage !== rightHasImage) return rightHasImage - leftHasImage;
+
+  const leftHasCatalog = left?.catalogSource ? 1 : 0;
+  const rightHasCatalog = right?.catalogSource ? 1 : 0;
+  if (leftHasCatalog !== rightHasCatalog) return rightHasCatalog - leftHasCatalog;
+
+  const leftKindRank = getKindDisplayRank(left);
+  const rightKindRank = getKindDisplayRank(right);
+  if (leftKindRank !== rightKindRank) return leftKindRank - rightKindRank;
+
+  const makerOrder = String(left?.maker || "").localeCompare(String(right?.maker || ""), "ko");
+  if (makerOrder !== 0) return makerOrder;
+
+  return String(left?.name || "").localeCompare(String(right?.name || ""), "ko", { numeric: true });
+}
+
+function getKindDisplayRank(product) {
+  const type = String(product?.productType || "");
+  const kind = String(product?.kind || "");
+  const kinds = type === "tile"
+    ? TILE_KINDS
+    : type === "sanitary"
+      ? SANITARY_KINDS
+      : MATERIAL_KINDS;
+  const index = kinds.indexOf(kind);
+  return index >= 0 ? index : kinds.length;
 }
 
 function setupDbForm() {
@@ -633,7 +662,7 @@ function renderProducts() {
       && (normalizedKeyword || size === "all" || product.size === size)
       && (normalizedKeyword || option === "all" || product.option === option)
       && (!normalizedKeyword || name.includes(normalizedKeyword));
-  });
+  }).sort(compareProductsForDisplay);
 
   document.querySelector("#productList").innerHTML = filtered.map((product) => `
     <article class="product-card">
