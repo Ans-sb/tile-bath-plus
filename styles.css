@@ -1125,6 +1125,36 @@ textarea:focus {
   align-items: center;
 }
 
+.cart-item-main {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+}
+
+.cart-item-image {
+  width: 72px;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f4f7f8;
+}
+
+.cart-item-image-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.cart-item-copy {
+  min-width: 0;
+}
+
 .cart-item strong {
   display: block;
   margin-bottom: 5px;
@@ -1293,6 +1323,15 @@ textarea:focus {
   color: var(--accent-strong);
   font-size: 14px;
   line-height: 1.2;
+}
+
+.cart-price-readout small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
 }
 
 .cost-summary {

@@ -764,6 +764,42 @@ function readImageValue(product, key) {
   return "";
 }
 
+function normalizeMemberPriceTier(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "retail";
+  if ([
+    "wholesale", "dealer", "partner", "contractor", "business", "member",
+    "도매", "도매가", "회원도매", "사업자", "파트너"
+  ].includes(normalized)) return "wholesale";
+  if ([
+    "retail", "consumer", "guest",
+    "소매", "소매가", "일반", "일반회원"
+  ].includes(normalized)) return "retail";
+  return "retail";
+}
+
+function getMemberPriceTier(user = authUser) {
+  return normalizeMemberPriceTier(
+    user?.priceTier
+    || user?.pricingTier
+    || user?.memberPriceTier
+    || user?.memberGrade
+    || user?.grade
+    || ""
+  );
+}
+
+function getMemberBaseUnitPrice(product, user = authUser) {
+  const tier = getMemberPriceTier(user);
+  return tier === "wholesale"
+    ? Number(product?.wholesalePrice || 0)
+    : Number(product?.retailPrice || 0);
+}
+
+function getMemberBasePriceCaption(user = authUser) {
+  return getMemberPriceTier(user) === "wholesale" ? "도매 기준" : "소매 기준";
+}
+
 function renderCart() {
   renderCartSummary();
   renderCartList();
@@ -1024,13 +1060,23 @@ function renderProposalSelectionControls(selectedProducts, selectedRenderedItems
 function renderCartList() {
   document.querySelector("#cartList").innerHTML = cart.map((item) => `
     <article class="cart-item">
-      <div>
-        <strong>${escapeHtml(item.name)}</strong>
-        <span>${escapeHtml(PRODUCT_TYPE_LABELS[item.productType])} · ${escapeHtml(item.kind)} · ${escapeHtml(item.size || "-")} · ${escapeHtml(item.option || item.finish || "-")}</span>
-        <span class="cost-only">재고 ${number(item.stockQty)}${escapeHtml(item.unit)}</span>
+      <div class="cart-item-main">
+        ${item.image
+          ? `<img class="cart-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />`
+          : `<div class="cart-item-image cart-item-image-empty">이미지 없음</div>`}
+        <div class="cart-item-copy">
+          <strong>${escapeHtml(item.name)}</strong>
+          <span>${escapeHtml(PRODUCT_TYPE_LABELS[item.productType])} · ${escapeHtml(item.kind)} · ${escapeHtml(item.size || "-")} · ${escapeHtml(item.option || item.finish || "-")}</span>
+          <span class="cost-only">재고 ${number(item.stockQty)}${escapeHtml(item.unit)}</span>
+        </div>
       </div>
       <div class="cart-controls">
         <label>수량<input type="number" min="0.1" step="0.1" value="${item.qty}" data-cart-qty="${escapeHtml(item.id)}" /></label>
+        <div class="cart-price-readout" aria-label="원가 정보">
+          <span>원가</span>
+          <strong>${money.format(getMemberBaseUnitPrice(item))}</strong>
+          <small>${escapeHtml(getMemberBasePriceCaption())}</small>
+        </div>
         <label>견적단가<input type="number" min="0" step="100" value="${item.quotePrice}" data-cart-price="${escapeHtml(item.id)}" /></label>
         <button type="button" data-remove-product="${escapeHtml(item.id)}">삭제</button>
       </div>
@@ -3108,7 +3154,9 @@ async function submitLoginForm(event) {
     companyName: matchedUser.companyName,
     companyAddress: matchedUser.companyAddress,
     provider: matchedUser.provider || "일반 회원가입",
-    role: matchedUser.role || "member"
+    role: matchedUser.role || "member",
+    memberGrade: matchedUser.memberGrade || matchedUser.grade || "",
+    priceTier: matchedUser.priceTier || matchedUser.pricingTier || matchedUser.memberPriceTier || ""
   };
   saveAuthSession(authUser);
   if (authUser.role !== "admin") {
