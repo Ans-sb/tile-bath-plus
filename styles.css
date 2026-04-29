@@ -3066,6 +3066,20 @@ body.customer-experience-mode .customer-page {
   gap: 22px;
 }
 
+body.customer-experience-mode .customer-top-banner {
+  overflow: hidden;
+  border: 1px solid rgba(18, 24, 38, 0.06);
+  border-radius: 34px;
+  background: #05070b;
+  box-shadow: 0 22px 48px rgba(18, 24, 38, 0.1);
+}
+
+body.customer-experience-mode .customer-top-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 body.customer-experience-mode .hero-panel,
 body.customer-experience-mode .page-heading,
 body.customer-experience-mode .commerce-panel {
@@ -3145,20 +3159,6 @@ body.customer-experience-mode .customer-chip-row {
 body.customer-experience-mode .customer-chip {
   padding: 0 16px;
   background: #f7faf9;
-}
-
-body.customer-experience-mode .customer-hero-banner {
-  overflow: hidden;
-  border: 1px solid rgba(18, 24, 38, 0.08);
-  border-radius: 24px;
-  background: #05070b;
-  box-shadow: 0 18px 40px rgba(18, 24, 38, 0.14);
-}
-
-body.customer-experience-mode .customer-hero-banner img {
-  display: block;
-  width: 100%;
-  height: auto;
 }
 
 body.customer-experience-mode .home-section {
@@ -3470,6 +3470,10 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 
   body.customer-experience-mode .topbar {
     padding: 18px 18px 16px;
+    border-radius: 28px;
+  }
+
+  body.customer-experience-mode .customer-top-banner {
     border-radius: 28px;
   }
 
