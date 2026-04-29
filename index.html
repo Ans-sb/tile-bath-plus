@@ -4,10 +4,44 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-  <link rel="stylesheet" href="styles.css?v=20260429-mobileentry3up1" />
+    <link rel="stylesheet" href="styles.css?v=20260429-mobileentry3up2" />
+    <style>
+      body.customer-experience-mode .customer-entry-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      body.customer-experience-mode .customer-entry-button {
+        width: 100%;
+        min-width: 0;
+      }
+
+      @media (max-width: 720px) {
+        body.customer-experience-mode .customer-entry-grid {
+          grid-template-columns: repeat(3, minmax(88px, 1fr));
+          gap: 8px;
+        }
+
+        body.customer-experience-mode .customer-entry-button {
+          padding: 12px 8px;
+        }
+
+        body.customer-experience-mode .customer-entry-button img {
+          height: 62px;
+        }
+
+        body.customer-experience-mode .customer-entry-button span {
+          font-size: 12px;
+          line-height: 1.35;
+          word-break: keep-all;
+        }
+      }
+    </style>
   </head>
   <body>
-  <!-- build: mobileentry3up1 -->
+    <!-- build: mobileentry3up2 -->
     <div class="app-shell">
       <section class="customer-top-banner global-home-banner" aria-label="메인 상단 배너">
         <img src="images/branding/hero-delivery-banner.png?v=20260429-mainhero2" alt="자재GO 메인 상단 배송 안내 비주얼" />
@@ -67,7 +101,7 @@
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
         <section class="hero-panel hero-panel-shell customer-hero-panel">
           <div class="customer-home-entry">
-            <div class="customer-entry-grid">
+            <div class="customer-entry-grid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch;">
               <button class="customer-entry-button" type="button" data-main-category="tile">
                 <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" />
                 <span>타일상품 보러가기</span>
