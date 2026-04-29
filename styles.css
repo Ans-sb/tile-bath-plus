@@ -2948,6 +2948,7 @@ body.customer-experience-mode {
 
 body.customer-experience-mode .app-shell {
   max-width: 1180px;
+  margin-inline: auto;
   padding-bottom: 132px;
 }
 
