@@ -3,6 +3,7 @@ import re
 from io import BytesIO
 from pathlib import Path
 
+from PIL import Image
 from pypdf import PdfReader
 
 
@@ -119,14 +120,15 @@ def save_page_images(page, page_no):
         filename = f"img{index:02d}.jpg"
         path = page_dir / filename
         try:
-            pil.convert("RGB").save(path, "JPEG", quality=90, optimize=True)
+            flatten_image_on_white(pil).save(path, "JPEG", quality=90, optimize=True)
         except Exception:
             raw = getattr(image, "data", b"")
             if raw:
-                path.write_bytes(raw)
+                flattened = flatten_image_on_white(Image.open(BytesIO(raw)))
+                flattened.save(path, "JPEG", quality=90, optimize=True)
             else:
                 with BytesIO() as buffer:
-                    pil.convert("RGB").save(buffer, "JPEG", quality=90)
+                    flatten_image_on_white(pil).save(buffer, "JPEG", quality=90)
                     path.write_bytes(buffer.getvalue())
 
         saved.append({
@@ -138,6 +140,13 @@ def save_page_images(page, page_no):
         })
 
     return saved
+
+
+def flatten_image_on_white(image):
+    rgba = image.convert("RGBA")
+    canvas = Image.new("RGB", rgba.size, "white")
+    canvas.paste(rgba, mask=rgba.getchannel("A"))
+    return canvas
 
 
 def pick_product_images(images):
