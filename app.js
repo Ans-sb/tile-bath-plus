@@ -147,26 +147,26 @@ const loginForm = document.querySelector("#loginForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 let currentAdminView = "products";
-const DEFAULT_PROPOSAL_PPT_STATUS = "Choose a template, select products and rendered images, then create the final proposal.";
+const DEFAULT_PROPOSAL_PPT_STATUS = "템플릿을 고르고 상품과 보정 이미지를 선택한 뒤 최종 제안서를 생성하세요.";
 const PROPOSAL_TEMPLATE_PREVIEWS = {
   "beige-black": {
-    label: "Template A",
+    label: "Style A",
     title: "Beige & Black Simple Clean",
-    headline: "Calm Stone Proposal",
+    headline: "Minimal Proposal",
     summary: "A restrained beige-and-black cover with clean product pages and a tidy rendering showcase.",
     meta: ["Minimal cover", "Calm stone tone", "Clean product grid", "Neat closing slide"]
   },
   "beige-red": {
-    label: "Template B",
+    label: "Style B",
     title: "Beige Red Modern Creative",
-    headline: "Creative Brief Mood",
+    headline: "Creative Brief",
     summary: "A more editorial deck with stronger typography, warmer contrast, and a bolder proposal rhythm.",
     meta: ["Bold title page", "Warm accent tone", "Editorial layout", "Stronger visual emphasis"]
   },
   "beige-brown": {
-    label: "Template C",
+    label: "Style C",
     title: "Beige Brown Neutral Modern",
-    headline: "Warm Neutral Layout",
+    headline: "Warm Neutral",
     summary: "A softer, space-led presentation with warm neutrals that suits premium interior proposals.",
     meta: ["Warm neutral cover", "Balanced layout", "Interior-focused flow", "Premium closing tone"]
   }
@@ -1150,7 +1150,7 @@ function renderDocuments() {
   setText("#proposalIntro", `${customer}의 ${address} 현장에 맞춰 장바구니에 선정한 타일, 위생도기, 부자재를 기준으로 제안드립니다.`);
   setText("#proposalNote", `본 제안은 ${shortDate.format(validDate)}까지 유효합니다. 현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다. ${memo}`);
 
-  setText("#proposalCompanyName", companyName || "Tile & Bath Plus");
+  setText("#proposalCompanyName", companyName || "자재GO 바스GO");
   setText("#proposalManagerName", [managerName, managerTitle].filter(Boolean).join(" / ") || "Add contact details above to include them in the proposal.");
   setText("#proposalManagerPhone", managerPhone || "");
   renderProposalSelectionControls(selectedProducts, selectedRenderedItems);
@@ -1281,7 +1281,7 @@ function getProposalState() {
     validDate,
     date,
     theme: String(data.get("proposalTheme") || "beige-black").trim(),
-    companyName: String(data.get("companyName") || "Tile & Bath Plus").trim(),
+    companyName: String(data.get("companyName") || "자재GO 바스GO").trim(),
     managerName: String(data.get("managerName") || "").trim(),
     managerTitle: String(data.get("managerTitle") || "").trim(),
     managerPhone: String(data.get("managerPhone") || "").trim(),

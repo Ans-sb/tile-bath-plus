@@ -2971,6 +2971,14 @@ body.customer-experience-mode .brand-cluster {
   gap: 6px;
 }
 
+body.customer-experience-mode .brand-logo-image {
+  width: min(280px, 58vw);
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  margin-bottom: 6px;
+}
+
 body.customer-experience-mode .brand-subcopy {
   margin: 0;
   color: #6b7280;
@@ -3097,6 +3105,13 @@ body.customer-experience-mode .customer-search-card {
   background: #fff;
 }
 
+body.customer-experience-mode .customer-search-logo {
+  width: min(220px, 60%);
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 body.customer-experience-mode .customer-search-label {
   color: #111827;
   font-size: 18px;
@@ -3132,29 +3147,18 @@ body.customer-experience-mode .customer-chip {
   background: #f7faf9;
 }
 
-body.customer-experience-mode .customer-hero-swatches {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+body.customer-experience-mode .customer-hero-banner {
+  overflow: hidden;
+  border: 1px solid rgba(18, 24, 38, 0.08);
+  border-radius: 24px;
+  background: #05070b;
+  box-shadow: 0 18px 40px rgba(18, 24, 38, 0.14);
 }
 
-body.customer-experience-mode .customer-hero-swatches span {
+body.customer-experience-mode .customer-hero-banner img {
   display: block;
-  min-height: 86px;
-  border-radius: 20px;
-  background: linear-gradient(180deg, #e7ecec 0%, #f8fafc 100%);
-}
-
-body.customer-experience-mode .customer-hero-swatches span:nth-child(2) {
-  background: linear-gradient(180deg, #dff5f0 0%, #f4fcfa 100%);
-}
-
-body.customer-experience-mode .customer-hero-swatches span:nth-child(3) {
-  background: linear-gradient(180deg, #eff4f4 0%, #ffffff 100%);
-}
-
-body.customer-experience-mode .customer-hero-swatches span:nth-child(4) {
-  background: linear-gradient(180deg, #e9f8f4 0%, #ffffff 100%);
+  width: 100%;
+  height: auto;
 }
 
 body.customer-experience-mode .home-section {
@@ -3469,6 +3473,10 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
     border-radius: 28px;
   }
 
+  body.customer-experience-mode .brand-logo-image {
+    width: min(240px, 72vw);
+  }
+
   body.customer-experience-mode .top-actions {
     justify-content: flex-start;
   }
@@ -3540,5 +3548,9 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 
   body.customer-experience-mode .cart-controls {
     grid-template-columns: 1fr;
+  }
+
+  body.customer-experience-mode .customer-search-logo {
+    width: min(200px, 72%);
   }
 }
