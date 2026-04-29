@@ -139,6 +139,15 @@ let serverConnectionTimer = null;
 let businessScanRequestId = 0;
 let cartSyncTimer = null;
 let productsLoadedFromRemote = false;
+let homeBannerSlideIndex = 0;
+let homeBannerSliderTimer = null;
+
+const HOME_BANNER_SLIDES = [
+  "images/branding/home-slides/slide-1.png?v=20260430-homehero1",
+  "images/branding/home-slides/slide-2.png?v=20260430-homehero1",
+  "images/branding/home-slides/slide-3.png?v=20260430-homehero1",
+  "images/branding/home-slides/slide-4.png?v=20260430-homehero1"
+];
 
 const productForm = document.querySelector("#productForm");
 const proposalForm = document.querySelector("#proposalForm");
@@ -179,6 +188,7 @@ async function init() {
   history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   syncExperienceMode(currentPageId);
   bindEvents();
+  setupHomeBannerSlider();
   setupDbForm();
   syncDefaultApprovalRules();
   renderApprovalRules();
@@ -394,6 +404,27 @@ async function loadProducts() {
   }
 
   syncProductFilters();
+}
+
+function setupHomeBannerSlider() {
+  const bannerImage = document.querySelector("[data-home-banner-image]");
+  if (!bannerImage) return;
+  HOME_BANNER_SLIDES.forEach((src) => {
+    const preloadImage = new Image();
+    preloadImage.src = src;
+  });
+  applyHomeBannerSlide(bannerImage);
+  if (homeBannerSliderTimer) window.clearInterval(homeBannerSliderTimer);
+  if (HOME_BANNER_SLIDES.length < 2) return;
+  homeBannerSliderTimer = window.setInterval(() => {
+    homeBannerSlideIndex = (homeBannerSlideIndex + 1) % HOME_BANNER_SLIDES.length;
+    applyHomeBannerSlide(bannerImage);
+  }, 1500);
+}
+
+function applyHomeBannerSlide(bannerImage = document.querySelector("[data-home-banner-image]")) {
+  if (!bannerImage) return;
+  bannerImage.src = HOME_BANNER_SLIDES[homeBannerSlideIndex];
 }
 
 async function ensureProductsReady() {
