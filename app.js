@@ -210,7 +210,7 @@ function syncTopbarControls(pageId = currentPageId) {
 
 function bindEvents() {
   document.querySelectorAll("[data-page-target]").forEach((button) => {
-    button.addEventListener(() => {
+    button.addEventListener("click", () => {
       switchPage(button.dataset.pageTarget);
     });
   });
