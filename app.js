@@ -146,6 +146,29 @@ const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 let currentAdminView = "products";
 const DEFAULT_PROPOSAL_PPT_STATUS = "Choose a template, select products and rendered images, then create the final proposal.";
+const PROPOSAL_TEMPLATE_PREVIEWS = {
+  "beige-black": {
+    label: "Template A",
+    title: "Beige & Black Simple Clean",
+    headline: "Calm Stone Proposal",
+    summary: "A restrained beige-and-black cover with clean product pages and a tidy rendering showcase.",
+    meta: ["Minimal cover", "Calm stone tone", "Clean product grid", "Neat closing slide"]
+  },
+  "beige-red": {
+    label: "Template B",
+    title: "Beige Red Modern Creative",
+    headline: "Creative Brief Mood",
+    summary: "A more editorial deck with stronger typography, warmer contrast, and a bolder proposal rhythm.",
+    meta: ["Bold title page", "Warm accent tone", "Editorial layout", "Stronger visual emphasis"]
+  },
+  "beige-brown": {
+    label: "Template C",
+    title: "Beige Brown Neutral Modern",
+    headline: "Warm Neutral Layout",
+    summary: "A softer, space-led presentation with warm neutrals that suits premium interior proposals.",
+    meta: ["Warm neutral cover", "Balanced layout", "Interior-focused flow", "Premium closing tone"]
+  }
+};
 
 init();
 
@@ -506,6 +529,7 @@ function renderAll() {
   renderProducts();
   renderCart();
   renderDocuments();
+  renderProposalTemplatePreview();
   renderRenderWorkspace();
   renderSignupSummary();
   renderAdminOverview();
@@ -560,6 +584,38 @@ function resetProposalPptState() {
     downloadLink.removeAttribute("href");
     downloadLink.removeAttribute("download");
   }
+}
+
+function getSelectedProposalTheme() {
+  return proposalForm?.querySelector('input[name="proposalTheme"]:checked')?.value || "beige-black";
+}
+
+function renderProposalTemplatePreview() {
+  const board = document.querySelector("#proposalTemplatePreviewBoard");
+  const stage = document.querySelector("#proposalTemplatePreviewStage");
+  const label = document.querySelector("#proposalTemplatePreviewLabel");
+  const title = document.querySelector("#proposalTemplatePreviewTitle");
+  const summary = document.querySelector("#proposalTemplatePreviewSummary");
+  const meta = document.querySelector("#proposalTemplatePreviewMeta");
+  if (!board || !stage || !label || !title || !summary || !meta) return;
+
+  const theme = getSelectedProposalTheme();
+  const preview = PROPOSAL_TEMPLATE_PREVIEWS[theme] || PROPOSAL_TEMPLATE_PREVIEWS["beige-black"];
+
+  board.dataset.theme = theme;
+  stage.className = `proposal-template-preview-stage template-preview-${theme}`;
+  const headline = stage.querySelector(".proposal-template-preview-headline");
+  if (headline) headline.textContent = preview.headline;
+
+  label.textContent = preview.label;
+  title.textContent = preview.title;
+  summary.textContent = preview.summary;
+  meta.innerHTML = preview.meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+
+  document.querySelectorAll(".proposal-template-card").forEach((card) => {
+    const input = card.querySelector('input[name="proposalTheme"]');
+    card.classList.toggle("is-selected", input?.checked);
+  });
 }
 
 function renderProducts() {
@@ -954,6 +1010,7 @@ function renderCartList() {
 }
 
 function renderDocuments() {
+  renderProposalTemplatePreview();
   syncProposalSelections();
   const proposalState = getProposalState();
   const { customer, address, validDate, date, subtotal, vat, total, memo, companyName, managerName, managerTitle, managerPhone } = proposalState;
