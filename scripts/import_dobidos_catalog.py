@@ -1,5 +1,6 @@
 import json
 import re
+from io import BytesIO
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DOWNLOADS_DIR = Path.home() / "Downloads"
 DB_PATH = ROOT / "data" / "products.json"
 PRODUCTS_JS_PATH = ROOT / "products-db.js"
+IMAGE_ROOT = ROOT / "images" / "catalog" / "dobidos"
 PDF_PATH = next(DOWNLOADS_DIR.glob("2025cata1*.pdf"))
 
 CATALOG_SOURCE = "2025 대림 도비도스 카다로그"
@@ -96,6 +98,73 @@ def preprocess_page_text(text):
     for source, target in PAGE_TEXT_REPLACEMENTS.items():
         text = text.replace(source, target)
     return text
+
+
+def save_page_images(page, page_no):
+    page_dir = IMAGE_ROOT / f"p{page_no:03d}"
+    page_dir.mkdir(parents=True, exist_ok=True)
+    saved = []
+
+    for index, image in enumerate(getattr(page, "images", [])):
+        pil = getattr(image, "image", None)
+        width = getattr(pil, "width", 0)
+        height = getattr(pil, "height", 0)
+        if width < 90 or height < 90:
+            continue
+
+        aspect_ratio = max(width / max(height, 1), height / max(width, 1))
+        if aspect_ratio > 4.2:
+            continue
+
+        filename = f"img{index:02d}.jpg"
+        path = page_dir / filename
+        try:
+            pil.convert("RGB").save(path, "JPEG", quality=90, optimize=True)
+        except Exception:
+            raw = getattr(image, "data", b"")
+            if raw:
+                path.write_bytes(raw)
+            else:
+                with BytesIO() as buffer:
+                    pil.convert("RGB").save(buffer, "JPEG", quality=90)
+                    path.write_bytes(buffer.getvalue())
+
+        saved.append({
+            "path": path.relative_to(ROOT).as_posix(),
+            "width": width,
+            "height": height,
+            "area": width * height,
+            "aspect_ratio": aspect_ratio,
+        })
+
+    return saved
+
+
+def pick_product_images(images):
+    filtered = []
+    for image in images:
+        width = image["width"]
+        height = image["height"]
+        area = image["area"]
+        if area < 14000:
+            continue
+        if width >= 700 and height <= 280:
+            continue
+        if width <= 120 and height <= 120:
+            continue
+        filtered.append(image)
+
+    return filtered or images
+
+
+def image_for_group(images, group_index):
+    if not images:
+        return ""
+    if group_index < len(images):
+        return images[group_index]["path"]
+    if len(images) == 1:
+        return images[0]["path"]
+    return images[-1]["path"]
 
 
 def insert_code_delimiters(line):
@@ -410,10 +479,12 @@ def parse_pdf_products():
             continue
 
         last_descriptor = ""
+        page_images = pick_product_images(save_page_images(page, page_no))
         page_text = preprocess_page_text(page.extract_text() or "")
         lines = [normalize_line(line) for line in page_text.splitlines()]
         lines = [line for line in lines if line]
         i = 0
+        group_index = 0
 
         while i < len(lines):
             if not line_starts_with_code(lines[i]):
@@ -437,12 +508,15 @@ def parse_pdf_products():
                 j += 1
 
             clean_block = [line for line in (normalize_line(item) for item in block_lines) if line]
+            group_image = image_for_group(page_images, group_index)
             for entry in entries:
                 for code in entry["codes"]:
                     product = build_product(page_no, code, clean_block, entry["inline_note"], last_descriptor)
+                    product["image"] = group_image
                     last_descriptor = product["_descriptor"]
                     parsed.append(product)
 
+            group_index += 1
             i = j
 
     by_id = {}
