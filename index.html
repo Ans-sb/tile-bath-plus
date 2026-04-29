@@ -4,27 +4,21 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260429-jg-bg-layout1" />
+    <link rel="stylesheet" href="styles.css?v=20260429-jg-bg-homebuttons1" />
   </head>
   <body>
-    <!-- build: jg-bg-layout1 -->
+    <!-- build: jg-bg-homebuttons1 -->
     <div class="app-shell">
       <section class="customer-top-banner global-home-banner" aria-label="메인 상단 배너">
         <img src="images/branding/hero-delivery-banner.png?v=20260429-mainhero2" alt="자재GO 메인 상단 배송 안내 비주얼" />
       </section>
       <header class="topbar">
-        <div class="brand-cluster">
-          <img class="brand-logo-image" src="images/branding/brand-logo-jg-bg.png" alt="자재GO 바스GO 로고" />
-          <p class="eyebrow">자재GO · 바스GO Platform</p>
-          <h1>자재GO 바스GO</h1>
-          <p class="brand-subcopy">타일과 부자재는 자재GO, 위생도기는 바스GO로 나눠 더 빠르게 찾고 상담용 제안서까지 한 흐름으로 이어집니다.</p>
-        </div>
         <div class="top-actions">
           <div class="server-status-pill" id="serverStatusPill">서버 확인 중</div>
           <button class="icon-button" id="resetCartBtn" type="button" title="장바구니 비우기" aria-label="장바구니 비우기">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 7.6A7 7 0 1 1 5 12H2.8a9.2 9.2 0 1 0 2.7-6.5L3.2 3.2V10h6.8L7.2 7.6Z"/></svg>
           </button>
-          <button class="primary-action" id="printBtn" type="button">
+          <button class="primary-action hidden" id="printBtn" type="button">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8V3h12v5h2a2 2 0 0 1 2 2v7h-4v4H6v-4H2v-7a2 2 0 0 1 2-2h2Zm2-3v3h8V5H8Zm0 11v3h8v-3H8Zm11-2v-4H5v4h1v-2h12v2h1Z"/></svg>
             인쇄
           </button>
@@ -72,30 +66,20 @@
 
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
         <section class="hero-panel hero-panel-shell customer-hero-panel">
-          <div class="customer-hero-layout">
-            <div class="hero-copy customer-hero-copy">
-              <p class="eyebrow">자재GO · 바스GO</p>
-              <h2>자재는 자재GO로, 위생도기는 바스GO로 더 빠르게 고르고 바로 상담 흐름까지 이어집니다.</h2>
-              <p>첨부해주신 로고와 메인 비주얼을 중심으로, 고객이 모바일에서 편하게 읽는 랜딩 구조와 실제 상품 탐색 흐름을 함께 살렸습니다.</p>
-              <div class="hero-actions">
-                <button class="primary-action" type="button" data-page-target="productsPage">자재GO 보러 가기</button>
-                <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 바로 보기</button>
-              </div>
-              <div class="hero-inline-meta">
-                <span>자재GO: 타일·부자재</span>
-                <span>바스GO: 위생도기</span>
-                <span>실사 보정·제안서 연결</span>
-              </div>
-            </div>
-            <div class="customer-search-card">
-              <img class="customer-search-logo" src="images/branding/brand-logo-jg-bg.png" alt="자재GO 바스GO 로고" />
-              <span class="customer-search-label">어떤 상품을 찾고 있나요?</span>
-              <button class="customer-search-button" type="button" data-page-target="productsPage">검색하러 가기</button>
-              <div class="customer-chip-row">
-                <button class="customer-chip" type="button" data-main-category="tile">자재GO 타일</button>
-                <button class="customer-chip" type="button" data-main-category="sanitary">바스GO 위생도기</button>
-                <button class="customer-chip" type="button" data-main-category="material">자재GO 부자재</button>
-              </div>
+          <div class="customer-home-entry">
+            <div class="customer-entry-grid">
+              <button class="customer-entry-button" type="button" data-main-category="tile">
+                <img src="images/branding/btn-material-go.png" alt="자재GO" />
+                <span>타일상품 보러가기</span>
+              </button>
+              <button class="customer-entry-button" type="button" data-main-category="sanitary">
+                <img src="images/branding/btn-bath-go.png" alt="바스GO" />
+                <span>위생도기 및 수전 보러가기</span>
+              </button>
+              <button class="customer-entry-button" type="button" data-page-target="samplePage">
+                <img src="images/branding/btn-sample-go.png" alt="샘플GO" />
+                <span>자재샘플 신청하러가기</span>
+              </button>
             </div>
           </div>
         </section>
@@ -209,6 +193,21 @@
           <button class="primary-action wide" type="button" data-page-target="productsPage">자재GO · 바스GO 보러 가기</button>
           <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 <span id="stickyCartCount">0</span></button>
         </div>
+      </main>
+
+      <main class="app-page page-panel customer-page" id="samplePage">
+        <section class="page-heading customer-page-heading">
+          <div>
+            <p class="eyebrow">Sample</p>
+            <h2>샘플페이지입니다</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+          </div>
+        </section>
+        <section class="commerce-panel customer-catalog-panel">
+          <p class="service-copy">샘플페이지입니다.</p>
+        </section>
       </main>
 
       <main class="app-page workspace" id="loginPage">
@@ -1112,6 +1111,6 @@
     </div>
 
     <script src="products-db.js?v=20260429-proposaltemplate3"></script>
-    <script src="app.js?v=20260429-jg-bg-layout1"></script>
+    <script src="app.js?v=20260429-jg-bg-homebuttons1"></script>
   </body>
 </html>

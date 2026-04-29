@@ -129,7 +129,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "productDetailPage", "cartPage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "productDetailPage", "cartPage", "samplePage"]);
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
 let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };
@@ -199,6 +199,13 @@ function syncExperienceMode(pageId = currentPageId) {
   document.body.classList.toggle("customer-experience-mode", isCustomerPage);
   document.body.classList.toggle("admin-experience-mode", !isCustomerPage);
   document.body.dataset.page = pageId;
+  syncTopbarControls(pageId);
+}
+
+function syncTopbarControls(pageId = currentPageId) {
+  const printButton = document.querySelector("#printBtn");
+  if (!printButton) return;
+  printButton.classList.toggle("hidden", pageId !== "proposalPage");
 }
 
 function bindEvents() {
@@ -605,7 +612,11 @@ function applyInitialPageFromHash() {
   });
 
   currentPageId = requestedPageId;
-  const activeNavPage = requestedPageId === "productDetailPage" ? "productsPage" : requestedPageId;
+  const activeNavPage = requestedPageId === "productDetailPage"
+    ? "productsPage"
+    : requestedPageId === "samplePage"
+      ? "homePage"
+      : requestedPageId;
   document.querySelectorAll("[data-page-target]").forEach((button) => {
     button.classList.toggle("active", button.dataset.pageTarget === activeNavPage);
   });
@@ -3449,7 +3460,11 @@ function switchPage(pageId, options = {}) {
 
   currentPageId = pageId;
   syncExperienceMode(pageId);
-  const activeNavPage = pageId === "productDetailPage" ? "productsPage" : pageId;
+  const activeNavPage = pageId === "productDetailPage"
+    ? "productsPage"
+    : pageId === "samplePage"
+      ? "homePage"
+      : pageId;
   document.querySelectorAll("[data-page-target]").forEach((button) => {
     button.classList.toggle("active", button.dataset.pageTarget === activeNavPage);
   });

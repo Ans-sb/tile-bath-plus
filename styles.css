@@ -2967,38 +2967,13 @@ body.customer-experience-mode[data-page="homePage"] .global-home-banner {
 }
 
 body.customer-experience-mode .topbar {
+  justify-content: flex-end;
   margin-bottom: 18px;
   padding: 22px 24px;
   border: 1px solid rgba(18, 24, 38, 0.06);
   border-radius: 30px;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 24px 60px rgba(18, 24, 38, 0.07);
-}
-
-body.customer-experience-mode .brand-cluster {
-  display: grid;
-  gap: 6px;
-}
-
-body.customer-experience-mode .brand-logo-image {
-  width: min(280px, 58vw);
-  max-width: 100%;
-  height: auto;
-  object-fit: contain;
-  margin-bottom: 6px;
-}
-
-body.customer-experience-mode .brand-subcopy {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-body.customer-experience-mode .topbar h1 {
-  font-size: clamp(2.2rem, 4vw, 3.7rem);
-  font-weight: 900;
-  letter-spacing: -0.04em;
 }
 
 body.customer-experience-mode .app-nav {
@@ -3104,70 +3079,43 @@ body.customer-experience-mode .customer-hero-panel {
     linear-gradient(180deg, rgba(241, 252, 249, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
 }
 
-body.customer-experience-mode .customer-hero-layout {
+body.customer-experience-mode .customer-home-entry {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
   gap: 22px;
-  align-items: stretch;
 }
 
-body.customer-experience-mode .customer-hero-copy h2 {
-  max-width: 700px;
-  font-size: clamp(2.4rem, 5vw, 4.5rem);
-  line-height: 1.03;
-  letter-spacing: -0.05em;
+body.customer-experience-mode .customer-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
 }
 
-body.customer-experience-mode .customer-search-card {
+body.customer-experience-mode .customer-entry-button {
   display: grid;
   gap: 16px;
   align-content: start;
+  justify-items: center;
   padding: 22px;
   border: 1px solid rgba(18, 24, 38, 0.06);
   border-radius: 30px;
   background: #fff;
+  text-align: center;
+  box-shadow: 0 16px 36px rgba(18, 24, 38, 0.06);
 }
 
-body.customer-experience-mode .customer-search-logo {
-  width: min(220px, 60%);
+body.customer-experience-mode .customer-entry-button img {
+  width: 100%;
+  max-width: 320px;
   max-width: 100%;
   height: auto;
   object-fit: contain;
 }
 
-body.customer-experience-mode .customer-search-label {
-  color: #111827;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-body.customer-experience-mode .customer-search-button,
-body.customer-experience-mode .customer-chip {
-  min-height: 54px;
-  border: 1px solid rgba(18, 24, 38, 0.08);
-  border-radius: 18px;
-  background: #fff;
-  color: #111827;
+body.customer-experience-mode .customer-entry-button span {
+  color: #6b7280;
+  font-size: 14px;
   font-weight: 800;
-}
-
-body.customer-experience-mode .customer-search-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 18px;
-  font-size: 15px;
-}
-
-body.customer-experience-mode .customer-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-body.customer-experience-mode .customer-chip {
-  padding: 0 16px;
-  background: #f7faf9;
+  line-height: 1.5;
 }
 
 body.customer-experience-mode .home-section {
@@ -3458,7 +3406,7 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 }
 
 @media (max-width: 1024px) {
-  body.customer-experience-mode .customer-hero-layout,
+  body.customer-experience-mode .customer-entry-grid,
   body.customer-experience-mode .customer-stat-grid,
   body.customer-experience-mode .customer-category-grid,
   body.customer-experience-mode .customer-review-strip,
@@ -3490,10 +3438,6 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
     border-radius: 28px;
   }
 
-  body.customer-experience-mode .brand-logo-image {
-    width: min(240px, 72vw);
-  }
-
   body.customer-experience-mode .top-actions {
     justify-content: flex-start;
   }
@@ -3512,7 +3456,7 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
     min-width: 110px;
   }
 
-  body.customer-experience-mode .customer-hero-layout,
+  body.customer-experience-mode .customer-entry-grid,
   body.customer-experience-mode .customer-stat-grid,
   body.customer-experience-mode .customer-category-grid,
   body.customer-experience-mode .customer-review-strip,
@@ -3565,9 +3509,5 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 
   body.customer-experience-mode .cart-controls {
     grid-template-columns: 1fr;
-  }
-
-  body.customer-experience-mode .customer-search-logo {
-    width: min(200px, 72%);
   }
 }
