@@ -210,19 +210,13 @@ function syncTopbarControls(pageId = currentPageId) {
 
 function bindEvents() {
   document.querySelectorAll("[data-page-target]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      if (button.dataset.pageTarget === "proposalPage") {
-        event.preventDefault();
-        openProposalBuilderWindow();
-        return;
-      }
+    button.addEventListener(() => {
       switchPage(button.dataset.pageTarget);
     });
   });
 
   document.querySelectorAll("[data-open-proposal-builder]").forEach((button) => {
-    if (button.dataset.pageTarget === "proposalPage") return;
-    button.addEventListener("click", openProposalBuilderWindow);
+    button.addEventListener("click", () => switchPage("proposalPage"));
   });
 
   document.querySelectorAll("[data-back-action]").forEach((button) => {
