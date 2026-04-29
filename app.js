@@ -143,10 +143,10 @@ let homeBannerSlideIndex = 0;
 let homeBannerSliderTimer = null;
 
 const HOME_BANNER_SLIDES = [
-  "images/branding/home-slides/slide-1.png?v=20260430-homehero1",
-  "images/branding/home-slides/slide-2.png?v=20260430-homehero1",
-  "images/branding/home-slides/slide-3.png?v=20260430-homehero1",
-  "images/branding/home-slides/slide-4.png?v=20260430-homehero1"
+  "images/branding/home-slides/slide-1.png?v=20260430-homehero2",
+  "images/branding/home-slides/slide-2.png?v=20260430-homehero2",
+  "images/branding/home-slides/slide-3.png?v=20260430-homehero2",
+  "images/branding/home-slides/slide-4.png?v=20260430-homehero2"
 ];
 
 const productForm = document.querySelector("#productForm");
