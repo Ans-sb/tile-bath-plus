@@ -3078,7 +3078,7 @@ body.customer-experience-mode .customer-top-banner-slider {
 body.customer-experience-mode .customer-top-banner-track {
   display: flex;
   width: 400%;
-  animation: customer-home-banner-slide 6s infinite;
+  animation: customer-home-banner-slide 8s infinite;
 }
 
 body.customer-experience-mode .customer-top-banner-slide {
