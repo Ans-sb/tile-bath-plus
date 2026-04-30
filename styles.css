@@ -2973,8 +2973,7 @@ body.customer-experience-mode[data-page="homePage"] .global-home-banner {
   display: block;
 }
 
-body[data-page="proposalPage"] .global-home-banner,
-body[data-page="proposalPage"] .customer-sticky-cta {
+body[data-page="proposalPage"] .global-home-banner {
   display: none !important;
 }
 
@@ -3261,30 +3260,6 @@ body.customer-experience-mode .customer-cart-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-}
-
-body.customer-experience-mode .customer-sticky-cta {
-  position: sticky;
-  bottom: 16px;
-  z-index: 18;
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  padding-top: 6px;
-}
-
-body.customer-experience-mode .customer-sticky-cta .primary-action {
-  min-width: 320px;
-  min-height: 62px;
-  border-radius: 999px;
-  font-size: 18px;
-}
-
-body.customer-experience-mode .customer-sticky-cta .secondary-action {
-  min-height: 62px;
-  padding: 0 18px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
 }
 
 body.customer-experience-mode .customer-page-heading {
@@ -3586,19 +3561,8 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 
   body.customer-experience-mode .detail-actions,
   body.customer-experience-mode .customer-admin-actions,
-  body.customer-experience-mode .customer-cart-actions,
-  body.customer-experience-mode .customer-sticky-cta {
+  body.customer-experience-mode .customer-cart-actions {
     flex-direction: column;
-  }
-
-  body.customer-experience-mode .customer-sticky-cta {
-    bottom: 84px;
-  }
-
-  body.customer-experience-mode .customer-sticky-cta .primary-action,
-  body.customer-experience-mode .customer-sticky-cta .secondary-action {
-    width: 100%;
-    min-width: 0;
   }
 
   body.customer-experience-mode .cart-item-main {
