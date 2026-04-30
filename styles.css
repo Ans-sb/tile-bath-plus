@@ -2958,6 +2958,10 @@ body.customer-experience-mode .customer-page {
   max-width: 1120px;
 }
 
+.global-home-banner {
+  display: none;
+}
+
 body.customer-experience-mode .global-home-banner {
   display: none;
   width: min(100%, 1320px);
@@ -2967,6 +2971,11 @@ body.customer-experience-mode .global-home-banner {
 
 body.customer-experience-mode[data-page="homePage"] .global-home-banner {
   display: block;
+}
+
+body[data-page="proposalPage"] .global-home-banner,
+body[data-page="proposalPage"] .customer-sticky-cta {
+  display: none !important;
 }
 
 body.customer-experience-mode .topbar {
