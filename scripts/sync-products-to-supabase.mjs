@@ -47,6 +47,7 @@ console.log(JSON.stringify({
 function mapAppProductToSupabase(product) {
   return {
     id: String(product.id || "").trim(),
+    management_code: String(product.managementCode || "").trim(),
     product_type: String(product.productType || "").trim(),
     kind: String(product.kind || "").trim(),
     name: String(product.name || "").trim(),

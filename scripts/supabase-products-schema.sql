@@ -1,5 +1,6 @@
 create table if not exists public.products (
   id text primary key,
+  management_code text not null default '',
   product_type text not null,
   kind text not null,
   name text not null,
@@ -25,7 +26,11 @@ create table if not exists public.products (
   updated_at timestamptz not null default now()
 );
 
+alter table public.products
+add column if not exists management_code text not null default '';
+
 create index if not exists products_product_type_idx on public.products (product_type);
+create index if not exists products_management_code_idx on public.products (management_code);
 create index if not exists products_kind_idx on public.products (kind);
 create index if not exists products_name_idx on public.products (name);
 

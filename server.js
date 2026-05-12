@@ -55,7 +55,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && request.url === "/api/products") {
-      sendJson(response, 200, await readProducts());
+      sendJson(response, 200, (await readProducts()).map(mapPublicProduct));
       return;
     }
 
@@ -178,8 +178,12 @@ process.on("uncaughtException", (error) => {
 
 async function readProducts() {
   if (hasSupabaseConfig()) {
-    const remoteProducts = await readProductsFromSupabase();
-    if (remoteProducts.length) return remoteProducts;
+    try {
+      const remoteProducts = await readProductsFromSupabase();
+      if (remoteProducts.length) return remoteProducts;
+    } catch (error) {
+      console.warn("[products] Supabase read failed; using local products.json.", error.message);
+    }
   }
 
   const content = await fs.promises.readFile(productsPath, "utf8");
@@ -196,6 +200,7 @@ function normalizeProduct(product) {
 
   return {
     id: String(product.id).trim(),
+    managementCode: String(product.managementCode || "").trim(),
     productType: String(product.productType).trim(),
     kind: String(product.kind).trim(),
     name: String(product.name).trim(),
@@ -229,9 +234,11 @@ function getStorageMode() {
 }
 
 async function readProductsFromSupabase() {
+  const pageSize = 1000;
   const query = new URLSearchParams({
     select: [
       "id",
+      "management_code",
       "product_type",
       "kind",
       "name",
@@ -259,8 +266,19 @@ async function readProductsFromSupabase() {
     order: "name.asc"
   });
 
-  const rows = await requestSupabase(`/rest/v1/products?${query.toString()}`);
-  return Array.isArray(rows) ? rows.map(mapSupabaseProductToApp) : [];
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await requestSupabase(`/rest/v1/products?${query.toString()}`, {
+      headers: {
+        Range: `${offset}-${offset + pageSize - 1}`
+      }
+    });
+    if (!Array.isArray(page) || !page.length) break;
+    rows.push(...page);
+    if (page.length < pageSize) break;
+  }
+
+  return rows.map(mapSupabaseProductToApp);
 }
 
 async function upsertProductToSupabase(product) {
@@ -277,6 +295,7 @@ async function upsertProductToSupabase(product) {
 function mapAppProductToSupabase(product) {
   return {
     id: product.id,
+    management_code: product.managementCode || "",
     product_type: product.productType,
     kind: product.kind,
     name: product.name,
@@ -304,6 +323,7 @@ function mapAppProductToSupabase(product) {
 function mapSupabaseProductToApp(row) {
   return {
     id: String(row.id || "").trim(),
+    managementCode: String(row.management_code || "").trim(),
     productType: String(row.product_type || "").trim(),
     kind: String(row.kind || "").trim(),
     name: String(row.name || "").trim(),
@@ -326,6 +346,45 @@ function mapSupabaseProductToApp(row) {
     catalogSource: String(row.catalog_source || "").trim(),
     catalogPage: Number(row.catalog_page) || 0
   };
+}
+
+function mapPublicProduct(product) {
+  return {
+    id: String(product.id || "").trim(),
+    productType: String(product.productType || "").trim(),
+    kind: String(product.kind || "").trim(),
+    name: String(product.name || "").trim(),
+    size: String(product.size || "").trim(),
+    finish: String(product.finish || "").trim(),
+    maker: String(product.maker || "").trim(),
+    unit: String(product.unit || "").trim(),
+    option: String(product.option || "").trim(),
+    retailPrice: Number(product.retailPrice) || 0,
+    image: String(product.image || "").trim(),
+    originalImage: String(product.originalImage || "").trim(),
+    closeImage: String(product.closeImage || "").trim(),
+    detailImage: String(product.detailImage || "").trim(),
+    daylightImage: String(product.daylightImage || "").trim(),
+    fluorescentImage: String(product.fluorescentImage || "").trim(),
+    sceneImage: String(product.sceneImage || "").trim()
+  };
+}
+
+function shouldBlockStaticPath(pathname) {
+  const normalized = pathname.replace(/\\/g, "/").replace(/^\/+/, "").toLowerCase();
+  if (!normalized || normalized === "index.html") return false;
+  if (normalized.startsWith(".")) return true;
+  if (normalized === "products-db.js") return true;
+  if (normalized === "catalog-data.js") return true;
+  return [
+    "data/",
+    "docs/",
+    "outputs/",
+    "scripts/",
+    "tmp/",
+    "vendor/",
+    "정보서류/"
+  ].some((prefix) => normalized.startsWith(prefix.toLowerCase()));
 }
 
 async function readApprovalRules() {
@@ -688,6 +747,7 @@ function mapSupabaseSignupRequest(row) {
 function normalizeCartItem(item) {
   return {
     id: String(item?.id || "").trim(),
+    managementCode: String(item?.managementCode || "").trim(),
     productType: String(item?.productType || "").trim(),
     kind: String(item?.kind || "").trim(),
     name: String(item?.name || "").trim(),
@@ -755,6 +815,12 @@ async function checkBusinessStatus(businessNumber) {
 async function serveStatic(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   const pathname = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
+  if (shouldBlockStaticPath(pathname)) {
+    response.writeHead(404);
+    response.end("Not found");
+    return;
+  }
+
   const resolved = path.resolve(root, `.${pathname}`);
 
   if (!resolved.startsWith(root)) {

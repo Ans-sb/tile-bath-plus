@@ -666,12 +666,20 @@ function renderProducts() {
   const normalizedKeyword = normalizeSearchText(keyword);
 
   const filtered = products.filter((product) => {
-    const name = normalizeSearchText(product.name);
+    const searchable = normalizeSearchText([
+      product.managementCode,
+      product.name,
+      product.kind,
+      product.size,
+      product.finish,
+      product.option,
+      product.maker
+    ].filter(Boolean).join(" "));
     return (type === "all" || product.productType === type)
       && (normalizedKeyword || kind === "all" || product.kind === kind)
       && (normalizedKeyword || size === "all" || product.size === size)
       && (normalizedKeyword || option === "all" || product.option === option)
-      && (!normalizedKeyword || name.includes(normalizedKeyword));
+      && (!normalizedKeyword || searchable.includes(normalizedKeyword));
   }).sort(compareProductsForDisplay);
 
   document.querySelector("#productList").innerHTML = filtered.map((product) => `
@@ -680,10 +688,11 @@ function renderProducts() {
         ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
       </button>
       <div>
+        ${product.managementCode ? `<span class="product-code-badge">${escapeHtml(product.managementCode)}</span>` : ""}
         <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
         <span>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType])} · ${escapeHtml(product.kind)} · ${escapeHtml(product.size || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
-        <span>제조사 ${escapeHtml(product.maker)} · 재고 ${number(product.stockQty)}${escapeHtml(product.unit)}</span>
-        <span class="cost-only">소매가 ${money.format(product.retailPrice)} · 도매가 ${money.format(product.wholesalePrice)}</span>
+        <span>제조사 ${escapeHtml(product.maker)}${product.stockQty !== undefined ? ` · 재고 ${number(product.stockQty)}${escapeHtml(product.unit)}` : ""}</span>
+        <span class="cost-only">소매가 ${money.format(product.retailPrice)}${product.wholesalePrice !== undefined ? ` · 도매가 ${money.format(product.wholesalePrice)}` : ""}</span>
       </div>
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
@@ -735,6 +744,7 @@ function renderProductDetail(product) {
     : `<div class="detail-main-placeholder">이미지 준비중</div>`;
 
   const specs = [
+    ...(product.managementCode ? [["내부관리 상품코드", product.managementCode]] : []),
     ["대분류", PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"],
     ["종류", product.kind || "-"],
     ["품명", product.name || "-"],
@@ -744,8 +754,8 @@ function renderProductDetail(product) {
     ["유광/무광", product.finish || "-"],
     ["옵션", product.option || "-"],
     ["소매가", money.format(product.retailPrice)],
-    ["도매가", money.format(product.wholesalePrice)],
-    ["재고량", `${number(product.stockQty)}${product.unit || ""}`],
+    ...(product.wholesalePrice !== undefined ? [["도매가", money.format(product.wholesalePrice)]] : []),
+    ...(product.stockQty !== undefined ? [["재고량", `${number(product.stockQty)}${product.unit || ""}`]] : []),
     ["카탈로그", product.catalogSource || "-"],
     ["카탈로그 페이지", product.catalogPage ? `${product.catalogPage}P` : "-"]
   ];
@@ -912,6 +922,7 @@ function renderAdminOverview() {
 
   priceRows.innerHTML = products.map((product) => `
     <tr>
+      <td>${escapeHtml(product.managementCode || "-")}</td>
       <td>${escapeHtml(product.name)}</td>
       <td>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-")}</td>
       <td>${escapeHtml(product.kind || "-")}</td>
@@ -921,7 +932,7 @@ function renderAdminOverview() {
       <td>${money.format(product.wholesalePrice || 0)}</td>
       <td>${number(product.stockQty || 0)}${escapeHtml(product.unit || "")}</td>
     </tr>
-  `).join("") || `<tr><td colspan="8">표시할 상품이 없습니다.</td></tr>`;
+  `).join("") || `<tr><td colspan="9">표시할 상품이 없습니다.</td></tr>`;
 
   renderAdminOrderFlow(orderRecords);
 
@@ -3347,6 +3358,7 @@ async function addProductFromForm(event) {
     fluorescentImage: formData.get("fluorescentImage").trim(),
     sceneImage: formData.get("sceneImage").trim()
   };
+  product.managementCode = createManagementCode(product, products);
 
   try {
     products = await requestJson("/api/products", {
@@ -3370,6 +3382,183 @@ async function addProductFromForm(event) {
 function createProductId(formData) {
   const source = `${formData.get("productType")}-${formData.get("kind")}-${formData.get("name")}-${Date.now()}`;
   return source.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function createManagementCode(product, existingProducts = products) {
+  const base = buildManagementCodeBase(product);
+  const sequence = existingProducts
+    .map((item) => String(item.managementCode || ""))
+    .filter((code) => code.startsWith(`${base}-`))
+    .map((code) => Number(code.slice(base.length + 1)))
+    .filter(Number.isFinite)
+    .reduce((max, value) => Math.max(max, value), 0) + 1;
+  return `${base}-${String(sequence).padStart(3, "0")}`;
+}
+
+function buildManagementCodeBase(product) {
+  const kind = String(product.kind || "").trim();
+  const source = [
+    product.name,
+    product.kind,
+    product.size,
+    product.finish,
+    product.option,
+    product.maker,
+    product.catalogType,
+    product.catalogCode
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (product.productType === "tile") {
+    return ["TIL", tileMaterialCode(source, kind), tileFinishCode(source, product.finish), tileSizeCode(product.size, source), tileColorCode(source)].join("-");
+  }
+  if (product.productType === "material" || kind === "부자재") {
+    return ["MAT", materialItemCode(source), brandCode(product.maker, source), materialPackCode(product.size, source)].filter(Boolean).join("-");
+  }
+  if (kind === "양변기") return ["TOI", toiletTypeCode(source), brandCode(product.maker, source)].join("-");
+  if (kind === "세면대") return ["BAS", basinTypeCode(source), brandCode(product.maker, source)].join("-");
+  if (kind === "비데") return [source.includes("일체형") ? "IBD" : "SBD", brandCode(product.maker, source)].join("-");
+  if (kind === "악세사리") return ["BAC", accessoryItemCode(source), finishOrColorCode(source)].join("-");
+  if (kind === "욕실장") return ["CAB", cabinetSizeCode(product.size, source), finishOrColorCode(source)].join("-");
+  if (kind === "수전 금구") return faucetCode(product, source);
+  return ["MAT", materialItemCode(source), brandCode(product.maker, source)].join("-");
+}
+
+function tileMaterialCode(source, kind) {
+  if (/모자이크|mosaic/.test(source)) return "MOS";
+  if (/외장|exterior/.test(source)) return "EXT";
+  if (/수영장|pool/.test(source)) return "POO";
+  if (/폴리싱|polished|polishing/.test(source)) return "POL";
+  if (/포세린|pos/.test(source)) return "POS";
+  if (/자기질|porcelain|por/.test(source)) return "POR";
+  if (/도기질|ceramic|cer/.test(source) || kind.includes("벽")) return "CER";
+  return "POR";
+}
+
+function tileFinishCode(source, finish) {
+  const value = `${finish || ""} ${source}`;
+  if (/논슬립|non.?slip|nsp/.test(value)) return "NSP";
+  if (/반무광|satin|sat/.test(value)) return "SAT";
+  if (/러프|rough|ruf/.test(value)) return "RUF";
+  if (/혼드|honed|hon/.test(value)) return "HON";
+  if (/래핑|lappato|lap/.test(value)) return "LAP";
+  if (/폴리싱광|polished|polishing/.test(value)) return "POL";
+  if (/유광|gloss|glossy|gls/.test(value)) return "GLS";
+  return "MAT";
+}
+
+function tileSizeCode(size, source) {
+  const text = `${size || ""} ${source}`.replace(/[×x]/gi, "*");
+  const pair = text.match(/(1200|800|600|400|300|250|200|150|100)\s*\*\s*(3600|2400|1200|800|600|400|300|250|200|150|100)/);
+  if (pair) return `${pair[1]}${pair[2]}`;
+  if (/대형|빅슬랩|slab/.test(text)) return "12003600";
+  return "600600";
+}
+
+function tileColorCode(source) {
+  if (/다크\s*그레이|dark\s*gray|dark\s*grey|charcoal|차콜/.test(source)) return "DGY";
+  if (/화이트|white|snow|ivory white/.test(source)) return "WHT";
+  if (/아이보리|ivory/.test(source)) return "IVR";
+  if (/베이지|beige|cream|크림/.test(source)) return "BEG";
+  if (/그레이|gray|grey|silver|실버|ash|애쉬/.test(source)) return "GRY";
+  if (/블랙|black/.test(source)) return "BLK";
+  if (/브라운|brown|coffee|월넛|walnut/.test(source)) return "BRN";
+  if (/우드|wood|oak|오크/.test(source)) return "WOD";
+  if (/마블|marble|carrara|카라라/.test(source)) return "MAR";
+  if (/테라조|terrazzo/.test(source)) return "TRZ";
+  if (/콘크리트|concrete/.test(source)) return "CON";
+  if (/시멘트|cement/.test(source)) return "CEM";
+  if (/스톤|stone|rock|석재/.test(source)) return "STN";
+  return "PTN";
+}
+
+function faucetCode(product, source) {
+  const brand = brandCode(product.maker, source);
+  const model = faucetModelCode(source);
+  if (/해바라기|레인|rain/.test(source)) return ["RSH", brand, model].join("-");
+  if (/주방|싱크|sink|kitchen/.test(source)) return ["KFA", brand, model].join("-");
+  if (/샤워|욕조|bath|shower/.test(source)) return ["SFA", brand, model].join("-");
+  return ["BFA", brand, model].join("-");
+}
+
+function faucetModelCode(source) {
+  if (/블랙|black/.test(source)) return "BLK";
+  if (/인출|pull|pul/.test(source)) return "PUL";
+  if (/매립|wall|벽/.test(source)) return "WAL";
+  if (/센서|sensor/.test(source)) return "SNS";
+  return "STD";
+}
+
+function toiletTypeCode(source) {
+  if (/투피스|two/.test(source)) return "TWO";
+  if (/벽걸이|wall|wal/.test(source)) return "WAL";
+  return "ONE";
+}
+
+function basinTypeCode(source) {
+  if (/반다리|half|hlf/.test(source)) return "HLF";
+  if (/긴다리|pedestal|ped/.test(source)) return "PED";
+  if (/벽걸이|wall|wal/.test(source)) return "WAL";
+  return "CNT";
+}
+
+function accessoryItemCode(source) {
+  if (/휴지|paper|toilet roll/.test(source)) return "THD";
+  if (/수건|타월|towel/.test(source)) return "TOW";
+  if (/컵/.test(source)) return "CUP";
+  if (/비누|soap/.test(source)) return "SOP";
+  if (/코너/.test(source)) return "CSF";
+  if (/선반|shelf/.test(source)) return "SHF";
+  return "ACC";
+}
+
+function materialItemCode(source) {
+  if (/본드|접착|adhesive/.test(source)) return "ADH";
+  if (/압착|pcm/.test(source)) return "PCM";
+  if (/홈멘트|cmt/.test(source)) return "CMT";
+  if (/줄눈|grout|epoxy/.test(source)) return "GRT";
+  if (/메지|joint/.test(source)) return "JOI";
+  if (/실리콘|silicone/.test(source)) return "SIL";
+  if (/방수|waterproof/.test(source)) return "WPR";
+  return "ETC";
+}
+
+function cabinetSizeCode(size, source) {
+  const text = `${size || ""} ${source}`;
+  if (/1200/.test(text)) return "1200";
+  if (/800/.test(text)) return "800";
+  return "600";
+}
+
+function materialPackCode(size, source) {
+  const text = `${size || ""} ${source}`.toUpperCase();
+  const kg = text.match(/([0-9]{1,3})\s*KG/);
+  if (kg) return `${kg[1]}KG`;
+  return finishOrColorCode(source);
+}
+
+function finishOrColorCode(source) {
+  if (/스테인리스|스텐|stainless|steel|stl/.test(source)) return "STL";
+  return tileColorCode(source);
+}
+
+function brandCode(maker, source) {
+  const text = `${maker || ""} ${source || ""}`.toLowerCase();
+  if (/대림도비도스|도비도스|dobidos/.test(text)) return "DBD";
+  if (/대림/.test(text)) return "DL";
+  if (/로얄|royal/.test(text)) return "RC";
+  if (/엘림/.test(text)) return "ELM";
+  if (/american|아메리칸/.test(text)) return "AST";
+  if (/계림/.test(text)) return "KLM";
+  if (/쌍곰/.test(text)) return "SGB";
+  if (/노루/.test(text)) return "NRP";
+  if (/kcc/.test(text)) return "KCC";
+  if (/삼화/.test(text)) return "SHP";
+  if (/오공/.test(text)) return "OGC";
+  if (/헨켈/.test(text)) return "HNK";
+  if (/마페이/.test(text)) return "MPY";
+  if (/테라코/.test(text)) return "TRC";
+  if (/다우/.test(text)) return "DOW";
+  return "TBP";
 }
 
 function addToCart(id) {

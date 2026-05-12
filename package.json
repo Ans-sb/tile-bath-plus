@@ -7,6 +7,7 @@
   },
   "scripts": {
     "start": "node scripts/prepare-runtime.cjs && node server.js",
-    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""
+    "code:products": "node scripts/apply-management-codes.mjs",
+    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node --check scripts/apply-management-codes.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""
   }
 }

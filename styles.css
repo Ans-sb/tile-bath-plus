@@ -1102,6 +1102,24 @@ textarea:focus {
   gap: 4px;
 }
 
+.product-code-badge {
+  display: inline-flex !important;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid rgba(15, 124, 120, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 124, 120, 0.08);
+  color: var(--accent-strong) !important;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  overflow-wrap: anywhere;
+}
+
 .product-card [data-add-product] {
   position: absolute;
   top: 16px;
