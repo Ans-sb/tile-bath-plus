@@ -100,6 +100,7 @@ let proposalRenderSelectionIds = new Set();
 let proposalSelectionsInitialized = false;
 let knownProposalCartIds = new Set();
 let selectedProductId = "";
+let selectedDetailProduct = null;
 let selectedRenderCartId = "";
 let selectedRenderTileId = "";
 let activeRenderSurfacePicker = "";
@@ -325,6 +326,10 @@ function bindEvents() {
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
     if (selectedProductId) addToCart(selectedProductId);
+  });
+  document.querySelector("#detailEditForm")?.addEventListener("submit", saveDetailProductSpecs);
+  document.querySelector("#detailEditResetBtn")?.addEventListener("click", () => {
+    if (selectedDetailProduct) fillDetailEditForm(selectedDetailProduct);
   });
   document.querySelector("#sendAuthBtn").addEventListener("click", requestSignupAuth);
   document.querySelector("#verifyAuthBtn").addEventListener("click", verifySignupAuth);
@@ -720,8 +725,8 @@ function updateProductListStatus(message) {
   if (status) status.textContent = String(message || "");
 }
 
-function openProductDetail(id, sourceElement = null) {
-  const product = products.find((item) => item.id === id);
+async function openProductDetail(id, sourceElement = null) {
+  let product = products.find((item) => item.id === id);
   if (!product) return;
   const card = sourceElement?.closest(".product-card") || document.querySelector(`[data-view-product="${cssEscape(id)}"]`)?.closest(".product-card");
   productListReturnState = {
@@ -731,11 +736,29 @@ function openProductDetail(id, sourceElement = null) {
   };
   pageScrollPositions.set("productsPage", window.scrollY);
   selectedProductId = id;
+  selectedDetailProduct = product;
   renderProductDetail(product);
   switchPage("productDetailPage");
+
+  if (authUser?.role === "admin" && authUser.adminUsername && authUser.adminToken) {
+    setText("#detailEditStatus", "관리자 상세정보 불러오는 중");
+    try {
+      const result = await requestJson(`/api/admin/product?id=${encodeURIComponent(id)}&adminUsername=${encodeURIComponent(authUser.adminUsername)}&adminToken=${encodeURIComponent(authUser.adminToken)}`, {}, { retries: 1, timeoutMs: 8000 });
+      if (result?.product) {
+        product = result.product;
+        selectedDetailProduct = product;
+        products = mergeProducts(products, [mapPublicProductForClient(product)]);
+        renderProductDetail(product);
+        setText("#detailEditStatus", "수정 가능");
+      }
+    } catch (error) {
+      setText("#detailEditStatus", error.message || "관리자 상세정보를 불러오지 못했습니다.");
+    }
+  }
 }
 
 function renderProductDetail(product) {
+  selectedDetailProduct = product;
   setText("#detailProductTitle", product.name || "상품 상세");
   const primaryImage = getProductImage(product, ["image", "originalImage", "liveImage", "closeImage"], true);
 
@@ -764,6 +787,8 @@ function renderProductDetail(product) {
     <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
   `).join("");
 
+  renderDetailAdminEditor(product);
+
   const gallerySlots = [
     ["제품 원장 실사 이미지", ["originalImage", "liveImage", "rawImage", "fieldImage", "image"], true],
     ["클로즈 이미지", ["closeImage", "closeupImage", "zoomImage"], false],
@@ -782,6 +807,116 @@ function renderProductDetail(product) {
       </article>
     `;
   }).join("");
+}
+
+function renderDetailAdminEditor(product) {
+  const editor = document.querySelector("#detailAdminEditor");
+  if (!editor) return;
+  const canEdit = authUser?.role === "admin" && authUser.adminUsername && authUser.adminToken;
+  editor.classList.toggle("hidden", !canEdit);
+  if (!canEdit) return;
+  fillDetailEditForm(product);
+  setText("#detailEditStatus", product.managementCode ? "수정 가능" : "관리자 상세정보 확인 필요");
+}
+
+function fillDetailEditForm(product) {
+  const form = document.querySelector("#detailEditForm");
+  if (!form || !product) return;
+  setFormValue(form, "managementCode", product.managementCode || "");
+  setFormValue(form, "name", product.name || "");
+  setFormValue(form, "productType", product.productType || "tile");
+  setFormValue(form, "kind", product.kind || "");
+  setFormValue(form, "size", product.size || "");
+  setFormValue(form, "maker", product.maker || "");
+  setFormValue(form, "unit", product.unit || "");
+  setFormValue(form, "finish", product.finish || "");
+  setFormValue(form, "option", product.option || "");
+  setFormValue(form, "retailPrice", product.retailPrice ?? 0);
+  setFormValue(form, "wholesalePrice", product.wholesalePrice ?? 0);
+  setFormValue(form, "costPrice", product.costPrice ?? 0);
+  setFormValue(form, "stockQty", product.stockQty ?? 0);
+  setFormValue(form, "catalogSource", product.catalogSource || "");
+  setFormValue(form, "catalogPage", product.catalogPage ?? 0);
+}
+
+function setFormValue(form, name, value) {
+  const field = form.elements[name];
+  if (field) field.value = value;
+}
+
+async function saveDetailProductSpecs(event) {
+  event.preventDefault();
+  if (authUser?.role !== "admin" || !authUser.adminUsername || !authUser.adminToken) {
+    setText("#detailEditStatus", "관리자 로그인 후 수정할 수 있습니다.");
+    return;
+  }
+  if (!selectedDetailProduct?.id) {
+    setText("#detailEditStatus", "수정할 상품을 찾을 수 없습니다.");
+    return;
+  }
+
+  const formData = new FormData(event.currentTarget);
+  const product = {
+    ...selectedDetailProduct,
+    managementCode: String(formData.get("managementCode") || "").trim(),
+    productType: String(formData.get("productType") || "").trim(),
+    kind: String(formData.get("kind") || "").trim(),
+    name: String(formData.get("name") || "").trim(),
+    size: String(formData.get("size") || "").trim(),
+    maker: String(formData.get("maker") || "").trim(),
+    unit: String(formData.get("unit") || "").trim(),
+    finish: String(formData.get("finish") || "").trim(),
+    option: String(formData.get("option") || "").trim(),
+    retailPrice: Number(formData.get("retailPrice")) || 0,
+    wholesalePrice: Number(formData.get("wholesalePrice")) || 0,
+    costPrice: Number(formData.get("costPrice")) || 0,
+    stockQty: Number(formData.get("stockQty")) || 0,
+    catalogSource: String(formData.get("catalogSource") || "").trim(),
+    catalogPage: Number(formData.get("catalogPage")) || 0
+  };
+
+  setText("#detailEditStatus", "저장 중...");
+  try {
+    const result = await requestJson("/api/admin/product", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        adminUsername: authUser.adminUsername,
+        adminToken: authUser.adminToken,
+        product
+      })
+    }, { retries: 1, timeoutMs: 10000 });
+    selectedDetailProduct = result.product || product;
+    products = mergeProducts(products, [mapPublicProductForClient(selectedDetailProduct)]);
+    syncProductFilters();
+    renderProducts();
+    renderProductDetail(selectedDetailProduct);
+    setText("#detailEditStatus", "저장 완료");
+  } catch (error) {
+    setText("#detailEditStatus", error.message || "저장하지 못했습니다.");
+  }
+}
+
+function mapPublicProductForClient(product) {
+  return {
+    id: product.id,
+    productType: product.productType,
+    kind: product.kind,
+    name: product.name,
+    size: product.size,
+    finish: product.finish,
+    maker: product.maker,
+    unit: product.unit,
+    option: product.option,
+    retailPrice: product.retailPrice,
+    image: product.image,
+    originalImage: product.originalImage,
+    closeImage: product.closeImage,
+    detailImage: product.detailImage,
+    daylightImage: product.daylightImage,
+    fluorescentImage: product.fluorescentImage,
+    sceneImage: product.sceneImage
+  };
 }
 
 function getProductImage(product, keys, allowPrimary = false) {
@@ -3231,6 +3366,7 @@ async function submitAdminLoginForm(event) {
     authUser = {
       role: "admin",
       adminUsername: result.user.adminUsername,
+      adminToken: result.user.adminToken,
       name: result.user.name,
       companyName: result.user.companyName,
       provider: "관리자 로그인"
@@ -3361,11 +3497,16 @@ async function addProductFromForm(event) {
   product.managementCode = createManagementCode(product, products);
 
   try {
-    products = await requestJson("/api/products", {
+    const endpoint = authUser?.role === "admin" && authUser.adminUsername && authUser.adminToken ? "/api/admin/product" : "/api/products";
+    const body = endpoint === "/api/admin/product"
+      ? { adminUsername: authUser.adminUsername, adminToken: authUser.adminToken, product }
+      : product;
+    const result = await requestJson(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(product)
+      body: JSON.stringify(body)
     }, { retries: 1, timeoutMs: 8000 });
+    products = Array.isArray(result) ? result : mergeProducts(products, [mapPublicProductForClient(result.product || product)]);
     serverConnection = { online: true, checked: true, failures: 0 };
   } catch {
     saveLocalProduct(product);
@@ -3773,14 +3914,14 @@ function scheduleCartSync() {
 }
 
 async function loadAdminOverview() {
-  if (authUser?.role !== "admin" || !authUser?.adminUsername) {
+  if (authUser?.role !== "admin" || !authUser?.adminUsername || !authUser?.adminToken) {
     setText("#adminStatus", "관리자 로그인 후 내부관리자 페이지를 사용할 수 있습니다.");
     return;
   }
 
   setText("#adminStatus", "내부관리자 정보를 불러오는 중입니다...");
   try {
-    adminOverview = await requestJson(`/api/admin/overview?adminUsername=${encodeURIComponent(authUser.adminUsername)}`, {}, { retries: 1, timeoutMs: 8000 });
+    adminOverview = await requestJson(`/api/admin/overview?adminUsername=${encodeURIComponent(authUser.adminUsername)}&adminToken=${encodeURIComponent(authUser.adminToken)}`, {}, { retries: 1, timeoutMs: 8000 });
     renderAdminOverview();
     setText("#adminStatus", `${authUser.name} 관리자 페이지 정보가 업데이트되었습니다.`);
   } catch (error) {

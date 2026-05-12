@@ -1,4 +1,5 @@
 ﻿const http = require("http");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
@@ -60,19 +61,23 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && request.url === "/api/products") {
-      const product = normalizeProduct(JSON.parse(await readRequestBody(request)));
-      let products = await readProducts();
-      const index = products.findIndex((item) => item.id === product.id);
-      if (index >= 0) products[index] = product;
-      else products.push(product);
+      sendJson(response, 403, { error: "상품 DB 수정은 관리자 전용 API를 사용해야 합니다." });
+      return;
+    }
 
-      if (hasSupabaseConfig()) {
-        await upsertProductToSupabase(product);
-        products = await readProducts();
-      }
+    if (request.method === "GET" && request.url.startsWith("/api/admin/product")) {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      sendJson(response, 200, await readAdminProduct(
+        String(url.searchParams.get("adminUsername") || ""),
+        String(url.searchParams.get("adminToken") || ""),
+        String(url.searchParams.get("id") || "")
+      ));
+      return;
+    }
 
-      await fs.promises.writeFile(productsPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
-      sendJson(response, 200, products);
+    if (request.method === "POST" && request.url === "/api/admin/product") {
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, await saveAdminProduct(payload));
       return;
     }
 
@@ -119,7 +124,10 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && request.url.startsWith("/api/admin/overview")) {
       const url = new URL(request.url, `http://${request.headers.host}`);
-      sendJson(response, 200, await readAdminOverview(String(url.searchParams.get("businessNumber") || "")));
+      sendJson(response, 200, await readAdminOverview(
+        String(url.searchParams.get("adminUsername") || url.searchParams.get("businessNumber") || ""),
+        String(url.searchParams.get("adminToken") || "")
+      ));
       return;
     }
 
@@ -292,6 +300,21 @@ async function upsertProductToSupabase(product) {
   });
 }
 
+async function saveProduct(product) {
+  let products = await readProducts();
+  const index = products.findIndex((item) => item.id === product.id);
+  if (index >= 0) products[index] = product;
+  else products.push(product);
+
+  if (hasSupabaseConfig()) {
+    await upsertProductToSupabase(product);
+    products = await readProducts();
+  }
+
+  await fs.promises.writeFile(productsPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
+  return products;
+}
+
 function mapAppProductToSupabase(product) {
   return {
     id: product.id,
@@ -367,6 +390,49 @@ function mapPublicProduct(product) {
     daylightImage: String(product.daylightImage || "").trim(),
     fluorescentImage: String(product.fluorescentImage || "").trim(),
     sceneImage: String(product.sceneImage || "").trim()
+  };
+}
+
+function createAdminToken() {
+  return crypto
+    .createHash("sha256")
+    .update(`${adminUsername}\n${adminPassword}\n${adminDisplayName}`)
+    .digest("hex");
+}
+
+function safeEqualText(left, right) {
+  const leftBuffer = Buffer.from(String(left || ""));
+  const rightBuffer = Buffer.from(String(right || ""));
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function assertAdminCredentials(value, token) {
+  const clean = String(value || "").trim();
+  if (!clean) throw new Error("관리자 아이디가 필요합니다.");
+  if (!adminPassword) throw new Error("관리자 계정이 아직 설정되지 않았습니다.");
+  if (clean !== adminUsername) throw new Error("관리자 계정이 일치하지 않습니다.");
+  if (!safeEqualText(token, createAdminToken())) throw new Error("관리자 로그인이 다시 필요합니다.");
+  return clean;
+}
+
+async function readAdminProduct(adminUsernameValue, adminTokenValue, id) {
+  assertAdminCredentials(adminUsernameValue, adminTokenValue);
+  const cleanId = String(id || "").trim();
+  if (!cleanId) throw new Error("상품 ID가 필요합니다.");
+  const products = await readProducts();
+  const product = products.find((item) => item.id === cleanId);
+  if (!product) throw new Error("상품을 찾을 수 없습니다.");
+  return { ok: true, product };
+}
+
+async function saveAdminProduct(payload) {
+  assertAdminCredentials(payload?.adminUsername, payload?.adminToken);
+  const product = normalizeProduct(payload?.product || {});
+  const products = await saveProduct(product);
+  return {
+    ok: true,
+    product,
+    products: products.map(mapPublicProduct)
   };
 }
 
@@ -545,16 +611,10 @@ async function saveCartRecord(payload) {
   };
 }
 
-async function readAdminOverview(businessNumber) {
-  const clean = String(businessNumber || "").trim();
-  if (!clean) throw new Error("내부관리자 조회에는 관리자 아이디가 필요합니다.");
+async function readAdminOverview(adminUsernameValue, adminTokenValue) {
+  const clean = String(adminUsernameValue || "").trim();
   if (!hasSupabaseConfig()) throw new Error("Supabase 관리 데이터가 설정되지 않았습니다.");
-  if (!adminPassword) {
-    throw new Error("관리자 계정이 아직 설정되지 않았습니다.");
-  }
-  if (clean !== adminUsername) {
-    throw new Error("관리자 계정이 일치하지 않습니다.");
-  }
+  assertAdminCredentials(clean, adminTokenValue);
 
   const [approvalRules, signupRequests, carts] = await Promise.all([
     readApprovalRules(),
@@ -610,7 +670,8 @@ function loginAsAdmin(payload) {
       role: "admin",
       adminUsername,
       name: adminDisplayName,
-      companyName: adminDisplayName
+      companyName: adminDisplayName,
+      adminToken: createAdminToken()
     }
   };
 }

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260509-productcodes" />
+    <link rel="stylesheet" href="styles.css?v=20260512-admin-detail-edit" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -552,6 +552,85 @@
             <p class="eyebrow">Specification</p>
             <h3>제품 상세스펙</h3>
             <div class="detail-spec-grid" id="detailSpecGrid"></div>
+            <div class="detail-admin-editor hidden" id="detailAdminEditor">
+              <div class="panel-heading compact-panel-heading">
+                <div>
+                  <p class="eyebrow">Admin Edit</p>
+                  <h3>상세스펙 수정</h3>
+                </div>
+                <span class="status-pill" id="detailEditStatus">관리자 편집</span>
+              </div>
+              <form id="detailEditForm" class="form-grid detail-edit-form">
+                <label>
+                  내부관리 상품코드
+                  <input name="managementCode" type="text" />
+                </label>
+                <label>
+                  품명
+                  <input name="name" type="text" required />
+                </label>
+                <label>
+                  대분류
+                  <select name="productType" required>
+                    <option value="tile">타일</option>
+                    <option value="sanitary">위생도기</option>
+                    <option value="material">부자재</option>
+                  </select>
+                </label>
+                <label>
+                  종류
+                  <input name="kind" type="text" required />
+                </label>
+                <label>
+                  규격
+                  <input name="size" type="text" />
+                </label>
+                <label>
+                  제조사
+                  <input name="maker" type="text" required />
+                </label>
+                <label>
+                  단위
+                  <input name="unit" type="text" required />
+                </label>
+                <label>
+                  유광/무광
+                  <input name="finish" type="text" />
+                </label>
+                <label>
+                  옵션
+                  <input name="option" type="text" />
+                </label>
+                <label>
+                  소매가
+                  <input name="retailPrice" type="number" min="0" step="100" />
+                </label>
+                <label>
+                  도매가
+                  <input name="wholesalePrice" type="number" min="0" step="100" />
+                </label>
+                <label>
+                  원가
+                  <input name="costPrice" type="number" min="0" step="100" />
+                </label>
+                <label>
+                  재고량
+                  <input name="stockQty" type="number" min="0" step="1" />
+                </label>
+                <label>
+                  카탈로그
+                  <input name="catalogSource" type="text" />
+                </label>
+                <label>
+                  카탈로그 페이지
+                  <input name="catalogPage" type="number" min="0" step="1" />
+                </label>
+                <div class="detail-edit-actions wide">
+                  <button class="primary-action" type="submit">상세스펙 저장</button>
+                  <button class="secondary-action" id="detailEditResetBtn" type="button">되돌리기</button>
+                </div>
+              </form>
+            </div>
           </div>
         </section>
         <section class="commerce-panel">
@@ -1183,6 +1262,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260509-productcodes"></script>
+    <script src="app.js?v=20260512-admin-detail-edit"></script>
   </body>
 </html>
