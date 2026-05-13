@@ -115,6 +115,8 @@ let pendingRenderResultImage = "";
 let pendingSiteImage = "";
 let renderJobRunning = false;
 let pendingPlannerSiteImage = "";
+let pendingPlannerRealRenderImage = "";
+let plannerRealRenderRunning = false;
 let pendingPlannerPlanImage = "";
 let plannerPlanPoints = [];
 let plannerRenderTimer = null;
@@ -380,6 +382,8 @@ function bindEvents() {
     plannerThreeState.zoom = 0.88;
     schedulePlannerRender();
   });
+  document.querySelector("#plannerRealRenderBtn")?.addEventListener("click", generatePlannerRealRender);
+  document.querySelector("#plannerRealRenderPreview")?.addEventListener("click", openPlannerRealRenderPreview);
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
     if (selectedProductId) addToCart(selectedProductId);
@@ -3812,6 +3816,9 @@ function renderPlannerWorkspace() {
   const summary = document.querySelector("#plannerSummary");
   const cartProducts = document.querySelector("#plannerCartProducts");
   const meta = document.querySelector("#plannerSceneMeta");
+  const realRenderButton = document.querySelector("#plannerRealRenderBtn");
+  const realRenderPreview = document.querySelector("#plannerRealRenderPreview");
+  const realRenderDownload = document.querySelector("#plannerRealRenderDownload");
   if (!form || !floorSelect || !wallSelect || !summary || !cartProducts) return;
   document.body.classList.toggle("planner-plan-disabled", !isPlannerPlanAvailable());
 
@@ -3835,6 +3842,26 @@ function renderPlannerWorkspace() {
   ].join("");
 
   cartProducts.innerHTML = '<div class="planner-empty-note">3D 미리보기는 아무것도 배치하지 않은 빈 공간으로 표시합니다. 바닥과 벽 타일만 확인할 수 있습니다.</div>';
+
+  if (realRenderButton) {
+    realRenderButton.disabled = plannerRealRenderRunning;
+    realRenderButton.textContent = plannerRealRenderRunning ? "실사 렌더 생성 중..." : "실사 렌더 만들기";
+  }
+  if (realRenderPreview) {
+    realRenderPreview.innerHTML = pendingPlannerRealRenderImage
+      ? `<img src="${escapeHtml(pendingPlannerRealRenderImage)}" alt="실사 렌더 결과 이미지" />`
+      : "실사 렌더 결과 없음";
+    realRenderPreview.classList.toggle("has-image", Boolean(pendingPlannerRealRenderImage));
+  }
+  if (realRenderDownload) {
+    if (pendingPlannerRealRenderImage) {
+      realRenderDownload.href = pendingPlannerRealRenderImage;
+      realRenderDownload.classList.remove("hidden");
+    } else {
+      realRenderDownload.classList.add("hidden");
+      realRenderDownload.removeAttribute("href");
+    }
+  }
 
   if (meta) {
     const floorTile = getPlannerSelectedTile("floor");
@@ -4067,6 +4094,85 @@ function applyCartToPlanner() {
   renderPlannerWorkspace();
 }
 
+async function generatePlannerRealRender() {
+  const floorTile = getPlannerSelectedTile("floor");
+  const wallTile = getPlannerSelectedTile("wall");
+  const selectedTiles = [
+    floorTile ? { surface: "floor", tile: floorTile } : null,
+    wallTile ? { surface: "wall", tile: wallTile } : null
+  ].filter(Boolean);
+
+  if (!pendingPlannerSiteImage) {
+    setText("#plannerStatus", "실사 렌더를 만들 현장 이미지를 먼저 올려주세요.");
+    return;
+  }
+  if (!selectedTiles.length) {
+    setText("#plannerStatus", "실사 렌더에 적용할 바닥 또는 벽 타일을 선택해주세요.");
+    return;
+  }
+  if (selectedTiles.some(({ tile }) => !tile.image)) {
+    setText("#plannerStatus", "선택한 타일 중 이미지가 없는 상품이 있어 실사 렌더를 만들 수 없습니다.");
+    return;
+  }
+
+  plannerRealRenderRunning = true;
+  pendingPlannerRealRenderImage = "";
+  renderPlannerWorkspace();
+  setText("#plannerStatus", "공간 사진과 선택 타일로 실사 렌더를 생성하고 있습니다...");
+
+  try {
+    const config = readPlannerConfig();
+    const surfaces = await Promise.all(selectedTiles.map(async ({ surface, tile }) => ({
+      surface,
+      tileName: tile.name,
+      tileSize: tile.size || "",
+      tileFinish: tile.finish || "",
+      tileImageDataUrl: await imageUrlToDataUrl(tile.image)
+    })));
+    const payload = await requestJson("/api/render", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        siteImageDataUrl: pendingPlannerSiteImage,
+        surfaces,
+        pointMemo: "",
+        roomContext: {
+          mode: "planner",
+          widthMeters: config.width,
+          depthMeters: config.depth,
+          heightMeters: config.height,
+          groutMillimeters: config.grout,
+          footprintType: config.footprint?.usesPlan ? "uploaded floor plan outline" : "rectangular dimensions"
+        }
+      })
+    }, { timeoutMs: 180000 });
+    pendingPlannerRealRenderImage = String(payload?.imageDataUrl || "");
+    if (!pendingPlannerRealRenderImage) throw new Error("실사 렌더 결과 이미지를 받지 못했습니다.");
+    setText("#plannerStatus", "실사 렌더가 생성되었습니다.");
+    renderPlannerWorkspace();
+    document.querySelector("#plannerRealRenderPreview")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  } catch (error) {
+    setText("#plannerStatus", error?.message || "실사 렌더 생성 중 오류가 발생했습니다.");
+  } finally {
+    plannerRealRenderRunning = false;
+    renderPlannerWorkspace();
+  }
+}
+
+function openPlannerRealRenderPreview() {
+  if (!pendingPlannerRealRenderImage) {
+    setText("#plannerStatus", "먼저 실사 렌더를 생성해주세요.");
+    return;
+  }
+  const modal = document.querySelector("#imagePreviewModal");
+  const modalImage = document.querySelector("#imagePreviewModalImage");
+  const modalTitle = document.querySelector("#imagePreviewTitle");
+  modalTitle.textContent = "실사 렌더 결과";
+  modalImage.src = pendingPlannerRealRenderImage;
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
 function schedulePlannerRender() {
   if (currentPageId !== "plannerPage") return;
   if (plannerRenderTimer) window.clearTimeout(plannerRenderTimer);
@@ -4143,7 +4249,10 @@ async function renderPlannerScene() {
     renderer.render(scene, camera);
   };
   animate();
-  setText("#plannerStatus", "3D 공간 미리보기가 준비되었습니다.");
+  const plannerStatusText = document.querySelector("#plannerStatus")?.textContent || "";
+  if (!plannerStatusText.includes("실사 렌더")) {
+    setText("#plannerStatus", "3D 공간 미리보기가 준비되었습니다.");
+  }
 }
 
 function disposePlannerScene() {

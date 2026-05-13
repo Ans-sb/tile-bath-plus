@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-empty-3d-room" />
+    <link rel="stylesheet" href="styles.css?v=20260513-photo-real-render" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -858,6 +858,7 @@
             <div class="planner-actions">
               <button class="secondary-action" id="plannerApplyCartBtn" type="button">타일 자동 적용</button>
               <button class="secondary-action" id="plannerResetCameraBtn" type="button">시점 초기화</button>
+              <button class="primary-action" id="plannerRealRenderBtn" type="button">실사 렌더 만들기</button>
             </div>
             <div class="planner-summary" id="plannerSummary"></div>
             <div class="planner-cart-products" id="plannerCartProducts"></div>
@@ -873,6 +874,16 @@
             </div>
             <div class="planner-canvas-mount" id="plannerCanvasMount">
               <div class="planner-canvas-empty">3D 장면을 준비하고 있습니다.</div>
+            </div>
+            <div class="planner-real-render">
+              <div class="planner-stage-toolbar">
+                <div>
+                  <strong>실사 렌더 결과</strong>
+                  <span>현장 이미지와 선택 타일을 기준으로 제안용 이미지를 생성합니다.</span>
+                </div>
+                <a class="hidden" id="plannerRealRenderDownload" download="tile-bath-real-render.png">다운로드</a>
+              </div>
+              <div class="render-preview render-preview-large" id="plannerRealRenderPreview">실사 렌더 결과 없음</div>
             </div>
           </section>
         </section>
@@ -1356,6 +1367,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260513-empty-3d-room"></script>
+    <script src="app.js?v=20260513-photo-real-render"></script>
   </body>
 </html>

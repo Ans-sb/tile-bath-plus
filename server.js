@@ -916,6 +916,7 @@ async function generateRenderPreview(payload) {
   const siteImageDataUrl = String(payload.siteImageDataUrl || "").trim();
   const pointMemo = String(payload.pointMemo || "").trim();
   const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+  const roomContext = payload.roomContext && typeof payload.roomContext === "object" ? payload.roomContext : null;
 
   if (!siteImageDataUrl || !surfaces.length) {
     throw new Error("?꾩옣 ?ъ쭊怨?踰?諛붾떏/?ъ씤?????李몄“ ?대?吏瑜?紐⑤몢 ?낅젰?댁＜?몄슂.");
@@ -946,10 +947,12 @@ async function generateRenderPreview(payload) {
 
     return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Prioritize the tile's visible design identity above all else: match the tone variation, veining flow, stone character, pattern rhythm, print character, surface texture depth, micro-contrast, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, and module size${entry.tileSize ? ` (${entry.tileSize})` : ""} as closely as possible. The tile pattern and texture are critical and must stay recognizable in the final image. Do not invent a different tile look, do not simplify or blur the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction}`;
   }).join(" ");
+  const roomContextInstruction = buildRenderRoomContextInstruction(roomContext);
 
   const prompt = [
     "Create a photorealistic real-world site photo edit, not a CGI render.",
     "Use the first image as the original site photo.",
+    roomContextInstruction,
     referenceInstructions,
     "Replace only the existing finish material on the selected planes. Preserve the original site photo structure, camera angle, lens distortion, perspective, room proportions, horizontal and vertical lines, and all non-target surfaces.",
     "Do not redesign the room. Do not move fixtures, doors, drains, moldings, furniture, sanitary ware, silicone lines, or architectural elements.",
@@ -1007,6 +1010,22 @@ async function generateRenderPreview(payload) {
     ok: true,
     imageDataUrl: `data:image/png;base64,${imageBase64}`
   };
+}
+
+function buildRenderRoomContextInstruction(roomContext) {
+  if (!roomContext) return "";
+  const width = Number(roomContext.widthMeters) || 0;
+  const depth = Number(roomContext.depthMeters) || 0;
+  const height = Number(roomContext.heightMeters) || 0;
+  const grout = Number(roomContext.groutMillimeters) || 0;
+  const footprintType = String(roomContext.footprintType || "").trim();
+  const parts = [];
+  if (width && depth) parts.push(`floor size about ${width}m by ${depth}m`);
+  if (height) parts.push(`wall height about ${height}m`);
+  if (grout) parts.push(`grout joint about ${grout}mm`);
+  if (footprintType) parts.push(`space layout source: ${footprintType}`);
+  if (!parts.length) return "";
+  return `Use these room measurements as scale guidance for perspective and tile module density: ${parts.join(", ")}.`;
 }
 
 function normalizeRenderSurfaceValue(value) {
