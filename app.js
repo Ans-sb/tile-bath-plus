@@ -3826,23 +3826,15 @@ function renderPlannerWorkspace() {
   const footprint = getPlannerFootprint(config);
   const floorArea = footprint.area;
   const wallArea = footprint.perimeter * config.height;
-  const sanitaryItems = getPlannerSanitaryItems();
   renderPlannerPlanEditor();
   summary.innerHTML = [
     `<div><span>바닥 면적</span><strong>${number(floorArea)}㎡</strong></div>`,
     `<div><span>벽 면적</span><strong>${number(wallArea)}㎡</strong></div>`,
     `<div><span>줄눈</span><strong>${number(config.grout)}mm</strong></div>`,
-    `<div><span>${footprint.usesPlan ? "도면점" : "자동 배치"}</span><strong>${footprint.usesPlan ? `${plannerPlanPoints.length}개` : `${sanitaryItems.length}개`}</strong></div>`
+    `<div><span>${footprint.usesPlan ? "도면점" : "표현 방식"}</span><strong>${footprint.usesPlan ? `${plannerPlanPoints.length}개` : "빈 공간"}</strong></div>`
   ].join("");
 
-  cartProducts.innerHTML = sanitaryItems.length
-    ? sanitaryItems.map((item) => `
-      <div class="planner-product-chip">
-        ${item.image ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" />` : `<span class="planner-product-empty"></span>`}
-        <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.kind || PRODUCT_TYPE_LABELS[item.productType] || "욕실용품")}</span></div>
-      </div>
-    `).join("")
-    : '<div class="planner-empty-note">장바구니에 양변기, 세면기, 수전, 욕실장 등을 담으면 3D 공간에 자동 배치됩니다.</div>';
+  cartProducts.innerHTML = '<div class="planner-empty-note">3D 미리보기는 아무것도 배치하지 않은 빈 공간으로 표시합니다. 바닥과 벽 타일만 확인할 수 있습니다.</div>';
 
   if (meta) {
     const floorTile = getPlannerSelectedTile("floor");
@@ -4071,7 +4063,7 @@ function applyCartToPlanner() {
   const wallSelect = document.querySelector("#plannerWallTile");
   if (floorSelect && floorTile) floorSelect.value = floorTile.id;
   if (wallSelect && wallTile) wallSelect.value = wallTile.id;
-  setText("#plannerStatus", tiles.length ? "장바구니 타일과 욕실용품을 3D 공간에 적용했습니다." : "먼저 장바구니에 타일을 담아주세요.");
+  setText("#plannerStatus", tiles.length ? "장바구니 타일을 빈 3D 공간에 적용했습니다." : "먼저 장바구니에 타일을 담아주세요.");
   renderPlannerWorkspace();
 }
 
@@ -4143,7 +4135,6 @@ async function renderPlannerScene() {
   const wallTexture = await createPlannerTileTexture(THREE, wallTile, config.grout, "wall", config);
   addPlannerRoom(THREE, scene, config, floorTexture, wallTexture);
   await addPlannerSiteImage(THREE, scene, config);
-  addPlannerProducts(THREE, scene, config, getPlannerSanitaryItems());
   attachPlannerPointerControls(renderer.domElement);
 
   const animate = () => {
