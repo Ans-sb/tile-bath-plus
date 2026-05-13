@@ -123,7 +123,10 @@ let plannerThreeState = {
   animationId: 0,
   angle: -0.75,
   elevation: 0.55,
-  drag: null
+  zoom: 1,
+  drag: null,
+  pointers: new Map(),
+  pinch: null
 };
 let pendingSignupAuthCode = "";
 let isPhoneVerified = false;
@@ -346,6 +349,7 @@ function bindEvents() {
   document.querySelector("#plannerResetCameraBtn")?.addEventListener("click", () => {
     plannerThreeState.angle = -0.75;
     plannerThreeState.elevation = 0.55;
+    plannerThreeState.zoom = 1;
     schedulePlannerRender();
   });
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
@@ -3942,6 +3946,9 @@ function disposePlannerScene() {
   plannerThreeState.renderer = null;
   plannerThreeState.scene = null;
   plannerThreeState.camera = null;
+  plannerThreeState.drag = null;
+  plannerThreeState.pinch = null;
+  plannerThreeState.pointers.clear();
 }
 
 async function createPlannerTileTexture(THREE, tile, grout, surface) {
@@ -4098,27 +4105,86 @@ function addCylinder(THREE, group, position, radius, height, color, horizontal =
 }
 
 function attachPlannerPointerControls(canvas) {
+  canvas.onwheel = (event) => {
+    event.preventDefault();
+    zoomPlannerCamera(Math.exp(event.deltaY * 0.001));
+  };
+
   canvas.onpointerdown = (event) => {
-    canvas.setPointerCapture(event.pointerId);
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {}
+    plannerThreeState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (plannerThreeState.pointers.size === 2) {
+      plannerThreeState.drag = null;
+      plannerThreeState.pinch = {
+        distance: getPlannerPointerDistance(),
+        zoom: plannerThreeState.zoom
+      };
+      return;
+    }
     plannerThreeState.drag = { x: event.clientX, y: event.clientY, angle: plannerThreeState.angle, elevation: plannerThreeState.elevation };
   };
+
   canvas.onpointermove = (event) => {
+    if (plannerThreeState.pointers.has(event.pointerId)) {
+      plannerThreeState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+    if (plannerThreeState.pointers.size >= 2 && plannerThreeState.pinch) {
+      const distance = getPlannerPointerDistance();
+      if (distance > 0) {
+        const scale = plannerThreeState.pinch.distance / distance;
+        plannerThreeState.zoom = clampPlannerZoom(plannerThreeState.pinch.zoom * scale);
+      }
+      return;
+    }
     if (!plannerThreeState.drag) return;
     const dx = event.clientX - plannerThreeState.drag.x;
     const dy = event.clientY - plannerThreeState.drag.y;
     plannerThreeState.angle = plannerThreeState.drag.angle + dx * 0.006;
     plannerThreeState.elevation = Math.min(Math.max(plannerThreeState.drag.elevation + dy * 0.003, 0.22), 1.05);
   };
-  canvas.onpointerup = () => {
-    plannerThreeState.drag = null;
+
+  canvas.onpointerup = (event) => {
+    releasePlannerPointer(event.pointerId);
   };
-  canvas.onpointercancel = () => {
-    plannerThreeState.drag = null;
+  canvas.onpointercancel = (event) => {
+    releasePlannerPointer(event.pointerId);
+  };
+  canvas.onlostpointercapture = (event) => {
+    releasePlannerPointer(event.pointerId);
   };
 }
 
+function releasePlannerPointer(pointerId) {
+  plannerThreeState.pointers.delete(pointerId);
+  plannerThreeState.pinch = null;
+  if (plannerThreeState.pointers.size === 1) {
+    const pointer = [...plannerThreeState.pointers.values()][0];
+    plannerThreeState.drag = { x: pointer.x, y: pointer.y, angle: plannerThreeState.angle, elevation: plannerThreeState.elevation };
+  } else {
+    plannerThreeState.drag = null;
+  }
+}
+
+function zoomPlannerCamera(multiplier) {
+  plannerThreeState.zoom = clampPlannerZoom(plannerThreeState.zoom * multiplier);
+}
+
+function clampPlannerZoom(value) {
+  return Math.min(Math.max(Number(value) || 1, 0.42), 2.35);
+}
+
+function getPlannerPointerDistance() {
+  const points = [...plannerThreeState.pointers.values()];
+  if (points.length < 2) return 0;
+  const dx = points[0].x - points[1].x;
+  const dy = points[0].y - points[1].y;
+  return Math.hypot(dx, dy);
+}
+
 function updatePlannerCamera(camera, config) {
-  const radius = Math.max(config.width, config.depth) * 1.35 + 1.5;
+  const radius = (Math.max(config.width, config.depth) * 1.35 + 1.5) * plannerThreeState.zoom;
   camera.position.set(
     Math.sin(plannerThreeState.angle) * radius,
     config.height * plannerThreeState.elevation + 1.1,
