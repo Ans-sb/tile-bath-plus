@@ -584,6 +584,14 @@ svg {
   margin-top: 16px;
 }
 
+.planner-plan-mobile-note {
+  display: none;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .planner-plan-heading {
   display: grid;
   gap: 3px;
@@ -3794,6 +3802,15 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 @media (max-width: 980px) {
   .planner-layout {
     grid-template-columns: 1fr;
+  }
+
+  .planner-plan-upload-field,
+  .planner-plan-tool {
+    display: none;
+  }
+
+  .planner-plan-mobile-note {
+    display: block;
   }
 
   .planner-canvas-mount {

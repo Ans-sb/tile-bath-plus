@@ -8,6 +8,7 @@ const PRODUCT_TYPE_LABELS = {
   material: "부자재"
 };
 const PLANNER_THREE_URL = "https://unpkg.com/three@0.164.1/build/three.module.js";
+const PLANNER_PLAN_DESKTOP_WIDTH = 960;
 
 const DEFAULT_APPROVAL_RULES = {
   businessTypes: [
@@ -348,6 +349,11 @@ function bindEvents() {
     renderPlannerWorkspace();
   });
   document.querySelector("#plannerPlanImage")?.addEventListener("change", async (event) => {
+    if (!isPlannerPlanAvailable()) {
+      event.target.value = "";
+      setText("#plannerStatus", "도면 적용은 PC 화면에서만 사용할 수 있습니다.");
+      return;
+    }
     pendingPlannerPlanImage = await readImageFile(event.target.files[0], 1600);
     plannerPlanPoints = [];
     renderPlannerPlanEditor();
@@ -360,6 +366,10 @@ function bindEvents() {
     renderPlannerWorkspace();
   });
   document.querySelector("#plannerApplyPlanBtn")?.addEventListener("click", () => {
+    if (!isPlannerPlanAvailable()) {
+      setText("#plannerStatus", "도면 적용은 PC 화면에서만 사용할 수 있습니다.");
+      return;
+    }
     setText("#plannerStatus", plannerPlanPoints.length >= 3 ? "도면 외곽선을 3D 공간에 적용했습니다." : "도면 외곽 모서리를 3개 이상 찍어주세요.");
     renderPlannerWorkspace();
   });
@@ -407,6 +417,7 @@ function bindEvents() {
   document.querySelector("#kakaoLoginBtn").addEventListener("click", () => setText("#loginStatus", "카카오톡 로그인은 추후 OAuth 연결 시 활성화됩니다."));
   window.addEventListener("popstate", handleBrowserBack);
   window.addEventListener("focus", handleServerReconnectCheck);
+  window.addEventListener("resize", handlePlannerViewportChange);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") handleServerReconnectCheck();
   });
@@ -3802,6 +3813,7 @@ function renderPlannerWorkspace() {
   const cartProducts = document.querySelector("#plannerCartProducts");
   const meta = document.querySelector("#plannerSceneMeta");
   if (!form || !floorSelect || !wallSelect || !summary || !cartProducts) return;
+  document.body.classList.toggle("planner-plan-disabled", !isPlannerPlanAvailable());
 
   const tiles = getPlannerCartTiles();
   syncPlannerTileSelect(floorSelect, tiles, "바닥 타일 선택");
@@ -3882,6 +3894,18 @@ function getPlannerSelectedTile(surface) {
   return cart.find((entry) => entry.id === id) || null;
 }
 
+function isPlannerPlanAvailable() {
+  return window.matchMedia(`(min-width: ${PLANNER_PLAN_DESKTOP_WIDTH}px)`).matches;
+}
+
+function handlePlannerViewportChange() {
+  if (currentPageId !== "plannerPage") return;
+  if (!isPlannerPlanAvailable() && plannerPlanPoints.length) {
+    setText("#plannerStatus", "모바일에서는 도면 적용이 비활성화되어 치수 입력 기준으로 표시됩니다.");
+  }
+  renderPlannerWorkspace();
+}
+
 function renderPlannerPlanEditor() {
   const canvas = document.querySelector("#plannerPlanCanvas");
   if (!canvas) return;
@@ -3889,6 +3913,16 @@ function renderPlannerPlanEditor() {
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#f5f1ea";
   context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!isPlannerPlanAvailable()) {
+    context.fillStyle = "#7b7469";
+    context.font = "700 18px sans-serif";
+    context.textAlign = "center";
+    context.fillText("도면 적용은 PC 화면에서만 사용할 수 있습니다.", canvas.width / 2, canvas.height / 2 - 8);
+    context.font = "500 13px sans-serif";
+    context.fillText("모바일에서는 공간 치수 입력으로 3D를 생성합니다.", canvas.width / 2, canvas.height / 2 + 20);
+    return;
+  }
 
   if (!pendingPlannerPlanImage) {
     context.fillStyle = "#7b7469";
@@ -3952,6 +3986,10 @@ function drawPlannerPlanPoints(context, canvas) {
 }
 
 function handlePlannerPlanCanvasClick(event) {
+  if (!isPlannerPlanAvailable()) {
+    setText("#plannerStatus", "도면 적용은 PC 화면에서만 사용할 수 있습니다.");
+    return;
+  }
   if (!pendingPlannerPlanImage) {
     setText("#plannerStatus", "먼저 도면 이미지를 올려주세요.");
     return;
@@ -3986,12 +4024,12 @@ function getPlannerFootprint(config) {
     points,
     area: Math.abs(polygonArea(points)),
     perimeter: polygonPerimeter(points),
-    usesPlan: plannerPlanPoints.length >= 3
+    usesPlan: isPlannerPlanAvailable() && plannerPlanPoints.length >= 3
   };
 }
 
 function getPlannerShapePoints(config) {
-  if (plannerPlanPoints.length < 3) {
+  if (!isPlannerPlanAvailable() || plannerPlanPoints.length < 3) {
     return [
       { x: -config.width / 2, z: -config.depth / 2 },
       { x: config.width / 2, z: -config.depth / 2 },

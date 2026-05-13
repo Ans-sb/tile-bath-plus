@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-plan-shape" />
+    <link rel="stylesheet" href="styles.css?v=20260513-plan-pc-only" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -836,7 +836,7 @@
                 현장 이미지
                 <input id="plannerSiteImage" type="file" accept="image/*" />
               </label>
-              <label class="wide">
+              <label class="wide planner-plan-upload-field">
                 도면 이미지
                 <input id="plannerPlanImage" type="file" accept="image/*" />
               </label>
@@ -854,6 +854,7 @@
                 <button class="secondary-action" id="plannerApplyPlanBtn" type="button">도면 적용</button>
               </div>
             </div>
+            <p class="planner-plan-mobile-note">도면 적용은 PC 화면에서만 사용할 수 있습니다. 모바일에서는 공간 치수 입력으로 3D를 생성해주세요.</p>
             <div class="planner-actions">
               <button class="secondary-action" id="plannerApplyCartBtn" type="button">장바구니 자동 적용</button>
               <button class="secondary-action" id="plannerResetCameraBtn" type="button">시점 초기화</button>
@@ -1355,6 +1356,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260513-plan-shape"></script>
+    <script src="app.js?v=20260513-plan-pc-only"></script>
   </body>
 </html>
