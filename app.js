@@ -114,6 +114,8 @@ let pendingRenderResultImage = "";
 let pendingSiteImage = "";
 let renderJobRunning = false;
 let pendingPlannerSiteImage = "";
+let pendingPlannerPlanImage = "";
+let plannerPlanPoints = [];
 let plannerRenderTimer = null;
 let plannerThreeModulePromise = null;
 let plannerThreeState = {
@@ -343,6 +345,22 @@ function bindEvents() {
   document.querySelector("#plannerForm")?.addEventListener("change", renderPlannerWorkspace);
   document.querySelector("#plannerSiteImage")?.addEventListener("change", async (event) => {
     pendingPlannerSiteImage = await readImageFile(event.target.files[0], 1400);
+    renderPlannerWorkspace();
+  });
+  document.querySelector("#plannerPlanImage")?.addEventListener("change", async (event) => {
+    pendingPlannerPlanImage = await readImageFile(event.target.files[0], 1600);
+    plannerPlanPoints = [];
+    renderPlannerPlanEditor();
+    renderPlannerWorkspace();
+  });
+  document.querySelector("#plannerPlanCanvas")?.addEventListener("click", handlePlannerPlanCanvasClick);
+  document.querySelector("#plannerClearPlanBtn")?.addEventListener("click", () => {
+    plannerPlanPoints = [];
+    renderPlannerPlanEditor();
+    renderPlannerWorkspace();
+  });
+  document.querySelector("#plannerApplyPlanBtn")?.addEventListener("click", () => {
+    setText("#plannerStatus", plannerPlanPoints.length >= 3 ? "도면 외곽선을 3D 공간에 적용했습니다." : "도면 외곽 모서리를 3개 이상 찍어주세요.");
     renderPlannerWorkspace();
   });
   document.querySelector("#plannerApplyCartBtn")?.addEventListener("click", applyCartToPlanner);
@@ -3793,14 +3811,16 @@ function renderPlannerWorkspace() {
   if (!wallSelect.value && tiles[0]) wallSelect.value = tiles[0].id;
 
   const config = readPlannerConfig();
-  const floorArea = config.width * config.depth;
-  const wallArea = (config.width + config.depth) * 2 * config.height;
+  const footprint = getPlannerFootprint(config);
+  const floorArea = footprint.area;
+  const wallArea = footprint.perimeter * config.height;
   const sanitaryItems = getPlannerSanitaryItems();
+  renderPlannerPlanEditor();
   summary.innerHTML = [
     `<div><span>바닥 면적</span><strong>${number(floorArea)}㎡</strong></div>`,
     `<div><span>벽 면적</span><strong>${number(wallArea)}㎡</strong></div>`,
     `<div><span>줄눈</span><strong>${number(config.grout)}mm</strong></div>`,
-    `<div><span>자동 배치</span><strong>${sanitaryItems.length}개</strong></div>`
+    `<div><span>${footprint.usesPlan ? "도면점" : "자동 배치"}</span><strong>${footprint.usesPlan ? `${plannerPlanPoints.length}개` : `${sanitaryItems.length}개`}</strong></div>`
   ].join("");
 
   cartProducts.innerHTML = sanitaryItems.length
@@ -3841,12 +3861,14 @@ function getPlannerSanitaryItems() {
 }
 
 function readPlannerConfig() {
-  return {
+  const config = {
     width: clampNumber(document.querySelector("#plannerWidth")?.value, 2.4, 1, 12),
     depth: clampNumber(document.querySelector("#plannerDepth")?.value, 1.8, 1, 12),
     height: clampNumber(document.querySelector("#plannerHeight")?.value, 2.3, 1.8, 4),
     grout: clampNumber(document.querySelector("#plannerGrout")?.value, 3, 1, 12)
   };
+  config.footprint = getPlannerFootprint(config);
+  return config;
 }
 
 function clampNumber(value, fallback, min, max) {
@@ -3858,6 +3880,149 @@ function clampNumber(value, fallback, min, max) {
 function getPlannerSelectedTile(surface) {
   const id = document.querySelector(surface === "floor" ? "#plannerFloorTile" : "#plannerWallTile")?.value || "";
   return cart.find((entry) => entry.id === id) || null;
+}
+
+function renderPlannerPlanEditor() {
+  const canvas = document.querySelector("#plannerPlanCanvas");
+  if (!canvas) return;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#f5f1ea";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!pendingPlannerPlanImage) {
+    context.fillStyle = "#7b7469";
+    context.font = "700 18px sans-serif";
+    context.textAlign = "center";
+    context.fillText("도면 이미지를 올리면 외곽 모서리를 찍을 수 있습니다.", canvas.width / 2, canvas.height / 2 - 10);
+    context.font = "500 13px sans-serif";
+    context.fillText("도면이 없으면 위 공간 치수로 3D가 생성됩니다.", canvas.width / 2, canvas.height / 2 + 18);
+    return;
+  }
+
+  loadImageFromUrl(pendingPlannerPlanImage).then((image) => {
+    if (!image) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / image.width, canvas.height / image.height);
+    const width = image.width * scale;
+    const height = image.height * scale;
+    const left = (canvas.width - width) / 2;
+    const top = (canvas.height - height) / 2;
+    canvas.dataset.planLeft = String(left);
+    canvas.dataset.planTop = String(top);
+    canvas.dataset.planWidth = String(width);
+    canvas.dataset.planHeight = String(height);
+    context.fillStyle = "#f5f1ea";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, left, top, width, height);
+    drawPlannerPlanPoints(context, canvas);
+  });
+}
+
+function drawPlannerPlanPoints(context, canvas) {
+  const frame = getPlannerPlanFrame(canvas);
+  const points = plannerPlanPoints.map((point) => ({
+    x: frame.left + point.x * frame.width,
+    y: frame.top + point.y * frame.height
+  }));
+  if (points.length) {
+    context.fillStyle = "rgba(0, 183, 166, 0.14)";
+    context.strokeStyle = "#00a896";
+    context.lineWidth = 3;
+    context.beginPath();
+    points.forEach((point, index) => {
+      if (index === 0) context.moveTo(point.x, point.y);
+      else context.lineTo(point.x, point.y);
+    });
+    if (points.length >= 3) context.closePath();
+    context.fill();
+    context.stroke();
+  }
+  points.forEach((point, index) => {
+    context.fillStyle = "#00a896";
+    context.beginPath();
+    context.arc(point.x, point.y, 9, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#ffffff";
+    context.font = "700 12px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(index + 1), point.x, point.y + 0.5);
+  });
+}
+
+function handlePlannerPlanCanvasClick(event) {
+  if (!pendingPlannerPlanImage) {
+    setText("#plannerStatus", "먼저 도면 이미지를 올려주세요.");
+    return;
+  }
+  const canvas = event.currentTarget;
+  const rect = canvas.getBoundingClientRect();
+  const frame = getPlannerPlanFrame(canvas);
+  const canvasX = (event.clientX - rect.left) * (canvas.width / rect.width);
+  const canvasY = (event.clientY - rect.top) * (canvas.height / rect.height);
+  const x = (canvasX - frame.left) / frame.width;
+  const y = (canvasY - frame.top) / frame.height;
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  if (plannerPlanPoints.length >= 12) plannerPlanPoints = [];
+  plannerPlanPoints.push({ x, y });
+  renderPlannerPlanEditor();
+  setText("#plannerStatus", plannerPlanPoints.length >= 3 ? "도면 적용 준비가 되었습니다." : "도면 외곽 모서리를 3개 이상 순서대로 찍어주세요.");
+  renderPlannerWorkspace();
+}
+
+function getPlannerPlanFrame(canvas) {
+  return {
+    left: Number(canvas.dataset.planLeft) || 0,
+    top: Number(canvas.dataset.planTop) || 0,
+    width: Number(canvas.dataset.planWidth) || canvas.width,
+    height: Number(canvas.dataset.planHeight) || canvas.height
+  };
+}
+
+function getPlannerFootprint(config) {
+  const points = getPlannerShapePoints(config);
+  return {
+    points,
+    area: Math.abs(polygonArea(points)),
+    perimeter: polygonPerimeter(points),
+    usesPlan: plannerPlanPoints.length >= 3
+  };
+}
+
+function getPlannerShapePoints(config) {
+  if (plannerPlanPoints.length < 3) {
+    return [
+      { x: -config.width / 2, z: -config.depth / 2 },
+      { x: config.width / 2, z: -config.depth / 2 },
+      { x: config.width / 2, z: config.depth / 2 },
+      { x: -config.width / 2, z: config.depth / 2 }
+    ];
+  }
+  const minX = Math.min(...plannerPlanPoints.map((point) => point.x));
+  const maxX = Math.max(...plannerPlanPoints.map((point) => point.x));
+  const minY = Math.min(...plannerPlanPoints.map((point) => point.y));
+  const maxY = Math.max(...plannerPlanPoints.map((point) => point.y));
+  const widthRange = Math.max(maxX - minX, 0.001);
+  const heightRange = Math.max(maxY - minY, 0.001);
+  return plannerPlanPoints.map((point) => ({
+    x: ((point.x - minX) / widthRange - 0.5) * config.width,
+    z: ((point.y - minY) / heightRange - 0.5) * config.depth
+  }));
+}
+
+function polygonArea(points) {
+  return points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return sum + point.x * next.z - next.x * point.z;
+  }, 0) / 2;
+}
+
+function polygonPerimeter(points) {
+  return points.reduce((sum, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return sum + Math.hypot(next.x - point.x, next.z - point.z);
+  }, 0);
 }
 
 function applyCartToPlanner() {
@@ -4004,29 +4169,34 @@ function addPlannerRoom(THREE, scene, config, floorTexture, wallTexture) {
   const floorMaterial = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.62 });
   const wallMaterial = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.72 });
   const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x3d3831, transparent: true, opacity: 0.45 });
+  const points = config.footprint?.points?.length ? config.footprint.points : getPlannerShapePoints(config);
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(config.width, config.depth), floorMaterial);
+  const shape = new THREE.Shape(points.map((point) => new THREE.Vector2(point.x, point.z)));
+  const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMaterial);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0;
   scene.add(floor);
 
-  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(config.width, config.height), wallMaterial);
-  backWall.position.set(0, config.height / 2, -config.depth / 2);
-  scene.add(backWall);
+  points.forEach((point, index) => {
+    const next = points[(index + 1) % points.length];
+    const dx = next.x - point.x;
+    const dz = next.z - point.z;
+    const length = Math.hypot(dx, dz);
+    if (length <= 0.01) return;
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(length, config.height), wallMaterial.clone());
+    wall.position.set((point.x + next.x) / 2, config.height / 2, (point.z + next.z) / 2);
+    wall.rotation.y = -Math.atan2(dz, dx);
+    scene.add(wall);
+  });
 
-  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(config.depth, config.height), wallMaterial.clone());
-  leftWall.rotation.y = Math.PI / 2;
-  leftWall.position.set(-config.width / 2, config.height / 2, 0);
-  scene.add(leftWall);
-
-  const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(config.depth, config.height), wallMaterial.clone());
-  rightWall.rotation.y = -Math.PI / 2;
-  rightWall.position.set(config.width / 2, config.height / 2, 0);
-  scene.add(rightWall);
-
-  const roomBox = new THREE.BoxGeometry(config.width, config.height, config.depth);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(roomBox), edgeMaterial);
-  edges.position.y = config.height / 2;
+  const linePoints = [];
+  points.forEach((point, index) => {
+    const next = points[(index + 1) % points.length];
+    linePoints.push(new THREE.Vector3(point.x, 0.01, point.z), new THREE.Vector3(next.x, 0.01, next.z));
+    linePoints.push(new THREE.Vector3(point.x, 0, point.z), new THREE.Vector3(point.x, config.height, point.z));
+    linePoints.push(new THREE.Vector3(point.x, config.height, point.z), new THREE.Vector3(next.x, config.height, next.z));
+  });
+  const edges = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(linePoints), edgeMaterial);
   scene.add(edges);
 }
 

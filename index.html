@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-3d-planner" />
+    <link rel="stylesheet" href="styles.css?v=20260513-plan-shape" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -836,6 +836,23 @@
                 현장 이미지
                 <input id="plannerSiteImage" type="file" accept="image/*" />
               </label>
+              <label class="wide">
+                도면 이미지
+                <input id="plannerPlanImage" type="file" accept="image/*" />
+              </label>
+            </div>
+            <div class="planner-plan-tool">
+              <div class="planner-plan-heading">
+                <strong>도면 적용</strong>
+                <span>도면이 있으면 외곽 모서리를 순서대로 찍어 3D 바닥 형태에 적용합니다.</span>
+              </div>
+              <div class="planner-plan-canvas-wrap">
+                <canvas id="plannerPlanCanvas" width="640" height="420" aria-label="도면 외곽선 선택"></canvas>
+              </div>
+              <div class="planner-actions">
+                <button class="secondary-action" id="plannerClearPlanBtn" type="button">도면점 초기화</button>
+                <button class="secondary-action" id="plannerApplyPlanBtn" type="button">도면 적용</button>
+              </div>
             </div>
             <div class="planner-actions">
               <button class="secondary-action" id="plannerApplyCartBtn" type="button">장바구니 자동 적용</button>
@@ -1338,6 +1355,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260513-3d-planner"></script>
+    <script src="app.js?v=20260513-plan-shape"></script>
   </body>
 </html>
