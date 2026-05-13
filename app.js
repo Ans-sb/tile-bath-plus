@@ -124,9 +124,9 @@ let plannerThreeState = {
   scene: null,
   camera: null,
   animationId: 0,
-  angle: -0.75,
+  angle: 0,
   elevation: 0.55,
-  zoom: 1,
+  zoom: 0.88,
   drag: null,
   pointers: new Map(),
   pinch: null
@@ -375,9 +375,9 @@ function bindEvents() {
   });
   document.querySelector("#plannerApplyCartBtn")?.addEventListener("click", applyCartToPlanner);
   document.querySelector("#plannerResetCameraBtn")?.addEventListener("click", () => {
-    plannerThreeState.angle = -0.75;
+    plannerThreeState.angle = 0;
     plannerThreeState.elevation = 0.55;
-    plannerThreeState.zoom = 1;
+    plannerThreeState.zoom = 0.88;
     schedulePlannerRender();
   });
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
@@ -4107,24 +4107,40 @@ async function renderPlannerScene() {
   mount.innerHTML = "";
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf5f1ea);
+  scene.background = new THREE.Color(0xeee6da);
   const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMappingExposure = 1;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   mount.appendChild(renderer.domElement);
 
   plannerThreeState.renderer = renderer;
   plannerThreeState.scene = scene;
   plannerThreeState.camera = camera;
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xd6c7b2, 1.9));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
-  keyLight.position.set(-2, 5, 3);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb8aa97, 1.25));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 2.15);
+  keyLight.position.set(-3.6, 5.2, 3.4);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.near = 0.5;
+  keyLight.shadow.camera.far = 12;
+  keyLight.shadow.camera.left = -5;
+  keyLight.shadow.camera.right = 5;
+  keyLight.shadow.camera.top = 5;
+  keyLight.shadow.camera.bottom = -5;
   scene.add(keyLight);
+  const softLight = new THREE.DirectionalLight(0xfff4df, 0.65);
+  softLight.position.set(3.4, 3.2, -2.2);
+  scene.add(softLight);
 
-  const floorTexture = await createPlannerTileTexture(THREE, floorTile, config.grout, "floor");
-  const wallTexture = await createPlannerTileTexture(THREE, wallTile, config.grout, "wall");
+  const floorTexture = await createPlannerTileTexture(THREE, floorTile, config.grout, "floor", config);
+  const wallTexture = await createPlannerTileTexture(THREE, wallTile, config.grout, "wall", config);
   addPlannerRoom(THREE, scene, config, floorTexture, wallTexture);
   await addPlannerSiteImage(THREE, scene, config);
   addPlannerProducts(THREE, scene, config, getPlannerSanitaryItems());
@@ -4154,10 +4170,10 @@ function disposePlannerScene() {
   plannerThreeState.pointers.clear();
 }
 
-async function createPlannerTileTexture(THREE, tile, grout, surface) {
+async function createPlannerTileTexture(THREE, tile, grout, surface, config) {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 512;
+  canvas.width = 1024;
+  canvas.height = 1024;
   const context = canvas.getContext("2d");
   const baseColor = surface === "floor" ? "#c9c5bc" : "#e1ddd3";
   context.fillStyle = baseColor;
@@ -4167,64 +4183,113 @@ async function createPlannerTileTexture(THREE, tile, grout, surface) {
     const image = await loadImageFromUrl(tile.image);
     if (image) {
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      context.fillStyle = "rgba(255,255,255,0.22)";
+      context.fillStyle = surface === "floor" ? "rgba(30,26,20,0.08)" : "rgba(255,255,255,0.12)";
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
   }
 
-  const tileSize = parseTileSizeMeters(tile?.size) || (surface === "floor" ? 0.6 : 0.3);
-  const cells = Math.max(2, Math.round(3 / tileSize));
-  const step = canvas.width / cells;
-  const lineWidth = Math.max(1, Math.min(10, Number(grout) || 3));
-  context.strokeStyle = "rgba(70, 66, 58, 0.42)";
+  const tileSize = parseTileDimensionsMeters(tile?.size, surface);
+  const cellsX = Math.max(2, Math.round(3 / tileSize.width));
+  const cellsY = Math.max(2, Math.round(3 / tileSize.height));
+  const stepX = canvas.width / cellsX;
+  const stepY = canvas.height / cellsY;
+  const lineWidth = Math.max(2, Math.min(14, Number(grout) || 3));
+  context.strokeStyle = "rgba(245, 241, 232, 0.74)";
   context.lineWidth = lineWidth;
-  for (let position = 0; position <= canvas.width; position += step) {
+  context.shadowColor = "rgba(26, 24, 20, 0.24)";
+  context.shadowBlur = 2;
+  for (let position = 0; position <= canvas.width; position += stepX) {
     context.beginPath();
     context.moveTo(position, 0);
     context.lineTo(position, canvas.height);
     context.stroke();
+  }
+  for (let position = 0; position <= canvas.height; position += stepY) {
     context.beginPath();
     context.moveTo(0, position);
     context.lineTo(canvas.width, position);
     context.stroke();
   }
+  context.shadowBlur = 0;
+  context.fillStyle = "rgba(255, 255, 255, 0.08)";
+  for (let y = 0; y < canvas.height; y += stepY) {
+    for (let x = 0; x < canvas.width; x += stepX) {
+      context.fillRect(x + lineWidth, y + lineWidth, Math.max(stepX - lineWidth * 2, 1), 1.2);
+    }
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(surface === "floor" ? 3 : 4, surface === "floor" ? 2 : 3);
+  texture.repeat.set(
+    surface === "floor" ? Math.max(config.width / tileSize.width, 1) : Math.max(config.width / tileSize.width, 1),
+    surface === "floor" ? Math.max(config.depth / tileSize.height, 1) : Math.max(config.height / tileSize.height, 1)
+  );
+  texture.anisotropy = 8;
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
-function parseTileSizeMeters(size) {
+function parseTileDimensionsMeters(size, surface = "floor") {
   const matches = String(size || "").match(/(\d{2,4})\D+(\d{2,4})/);
-  if (!matches) return 0;
-  return Math.max(Number(matches[1]), Number(matches[2])) / 1000;
+  if (!matches) {
+    return surface === "floor"
+      ? { width: 0.6, height: 0.6 }
+      : { width: 0.3, height: 0.6 };
+  }
+  return {
+    width: Math.max(Number(matches[1]) / 1000, 0.05),
+    height: Math.max(Number(matches[2]) / 1000, 0.05)
+  };
 }
 
 function addPlannerRoom(THREE, scene, config, floorTexture, wallTexture) {
-  const floorMaterial = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.62 });
-  const wallMaterial = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.72 });
+  const floorMaterial = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.48, metalness: 0.02, side: THREE.DoubleSide });
+  const wallMaterial = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.58, metalness: 0.01, side: THREE.DoubleSide });
   const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x3d3831, transparent: true, opacity: 0.45 });
   const points = config.footprint?.points?.length ? config.footprint.points : getPlannerShapePoints(config);
 
-  const shape = new THREE.Shape(points.map((point) => new THREE.Vector2(point.x, point.z)));
-  const floor = new THREE.Mesh(new THREE.ShapeGeometry(shape), floorMaterial);
+  const floorGeometry = config.footprint?.usesPlan
+    ? new THREE.ShapeGeometry(new THREE.Shape(points.map((point) => new THREE.Vector2(point.x, point.z))))
+    : new THREE.PlaneGeometry(config.width, config.depth);
+  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0;
+  floor.receiveShadow = true;
   scene.add(floor);
 
+  const slabGeometry = config.footprint?.usesPlan
+    ? new THREE.ShapeGeometry(new THREE.Shape(points.map((point) => new THREE.Vector2(point.x, point.z))))
+    : new THREE.PlaneGeometry(config.width, config.depth);
+  const slab = new THREE.Mesh(slabGeometry, new THREE.MeshStandardMaterial({ color: 0xb7ada0, roughness: 0.72, side: THREE.DoubleSide }));
+  slab.rotation.x = -Math.PI / 2;
+  slab.position.y = -0.035;
+  slab.receiveShadow = true;
+  scene.add(slab);
+
+  const openWallIndex = getPlannerOpenWallIndex(points);
   points.forEach((point, index) => {
     const next = points[(index + 1) % points.length];
     const dx = next.x - point.x;
     const dz = next.z - point.z;
     const length = Math.hypot(dx, dz);
     if (length <= 0.01) return;
+    if (index === openWallIndex) return;
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(length, config.height), wallMaterial.clone());
     wall.position.set((point.x + next.x) / 2, config.height / 2, (point.z + next.z) / 2);
     wall.rotation.y = -Math.atan2(dz, dx);
+    wall.receiveShadow = true;
     scene.add(wall);
+
+    const trim = new THREE.Mesh(
+      new THREE.BoxGeometry(length, 0.06, 0.025),
+      new THREE.MeshStandardMaterial({ color: 0xd8d0c3, roughness: 0.52 })
+    );
+    trim.position.set((point.x + next.x) / 2, 0.035, (point.z + next.z) / 2);
+    trim.rotation.y = -Math.atan2(dz, dx);
+    trim.castShadow = true;
+    trim.receiveShadow = true;
+    scene.add(trim);
   });
 
   const linePoints = [];
@@ -4238,6 +4303,20 @@ function addPlannerRoom(THREE, scene, config, floorTexture, wallTexture) {
   scene.add(edges);
 }
 
+function getPlannerOpenWallIndex(points) {
+  let openIndex = 0;
+  let frontScore = -Infinity;
+  points.forEach((point, index) => {
+    const next = points[(index + 1) % points.length];
+    const score = (point.z + next.z) / 2;
+    if (score > frontScore) {
+      frontScore = score;
+      openIndex = index;
+    }
+  });
+  return openIndex;
+}
+
 async function addPlannerSiteImage(THREE, scene, config) {
   if (!pendingPlannerSiteImage) return;
   const texture = await loadPlannerTexture(THREE, pendingPlannerSiteImage);
@@ -4247,6 +4326,7 @@ async function addPlannerSiteImage(THREE, scene, config) {
   const planeHeight = planeWidth * 0.7;
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
   plane.position.set(config.width / 2 - planeWidth / 2 - 0.08, config.height - planeHeight / 2 - 0.14, -config.depth / 2 + 0.012);
+  plane.castShadow = true;
   scene.add(plane);
 }
 
@@ -4262,10 +4342,17 @@ function loadPlannerTexture(THREE, src) {
 function addPlannerProducts(THREE, scene, config, items) {
   items.forEach((item, index) => {
     const group = new THREE.Group();
-    const slot = index % 6;
-    const x = -config.width / 2 + 0.42 + (slot % 3) * Math.min(0.72, config.width / 3);
-    const z = slot < 3 ? -config.depth / 2 + 0.28 : config.depth / 2 - 0.36;
-    group.position.set(Math.min(Math.max(x, -config.width / 2 + 0.3), config.width / 2 - 0.3), 0, z);
+    const columnCount = Math.min(Math.max(items.length, 1), 4);
+    const row = Math.floor(index / columnCount);
+    const column = index % columnCount;
+    const spacing = config.width / (columnCount + 1);
+    const x = -config.width / 2 + spacing * (column + 1);
+    const z = -config.depth / 2 + 0.34 + row * 0.58;
+    group.position.set(
+      Math.min(Math.max(x, -config.width / 2 + 0.34), config.width / 2 - 0.34),
+      0,
+      Math.min(Math.max(z, -config.depth / 2 + 0.28), config.depth / 2 - 0.36)
+    );
     buildPlannerProductModel(THREE, group, item);
     scene.add(group);
   });
@@ -4274,41 +4361,67 @@ function addPlannerProducts(THREE, scene, config, items) {
 function buildPlannerProductModel(THREE, group, item) {
   const source = `${item.kind || ""} ${item.name || ""} ${item.option || ""}`;
   if (/양변기|toilet/i.test(source)) {
-    addBox(THREE, group, [0, 0.18, 0], [0.34, 0.24, 0.44], 0xf4f1ea);
-    addBox(THREE, group, [0, 0.47, -0.18], [0.46, 0.46, 0.16], 0xf8f6ef);
-    addCylinder(THREE, group, [0, 0.32, 0.04], 0.2, 0.16, 0xfaf9f4);
+    addBox(THREE, group, [0, 0.18, 0.02], [0.34, 0.26, 0.42], 0xf2eee4);
+    addBox(THREE, group, [0, 0.5, -0.18], [0.46, 0.44, 0.16], 0xf9f7f0);
+    addCylinder(THREE, group, [0, 0.33, 0.06], 0.22, 0.16, 0xf9f8f3);
+    addCylinder(THREE, group, [0, 0.355, 0.065], 0.15, 0.172, 0xd7d4cc);
+    addTorus(THREE, group, [0, 0.43, 0.07], [0.19, 0.13, 0.028], 0xfdfbf7);
+    addBox(THREE, group, [0, 0.72, -0.18], [0.52, 0.04, 0.18], 0xfdfbf7);
   } else if (/세면|basin|lavatory/i.test(source)) {
-    addBox(THREE, group, [0, 0.42, -0.18], [0.58, 0.16, 0.32], 0xf7f4ec);
-    addBox(THREE, group, [0, 0.2, -0.18], [0.16, 0.4, 0.14], 0xe6e0d4);
-    addCylinder(THREE, group, [0.18, 0.58, -0.18], 0.025, 0.18, 0x7c8790, true);
+    addBox(THREE, group, [0, 0.28, -0.18], [0.18, 0.54, 0.16], 0xdfd7c9);
+    addBox(THREE, group, [0, 0.52, -0.18], [0.64, 0.1, 0.36], 0xf8f5ed);
+    addCylinder(THREE, group, [0, 0.6, -0.18], 0.22, 0.08, 0xfdfbf7);
+    addCylinder(THREE, group, [0, 0.62, -0.18], 0.14, 0.084, 0xd9d4ca);
+    addCylinder(THREE, group, [0.2, 0.72, -0.18], 0.025, 0.2, 0x8f9aa2, true);
+    addCylinder(THREE, group, [0.3, 0.72, -0.18], 0.035, 0.07, 0xa9b2b6);
   } else if (/욕실장|cabinet|장/i.test(source)) {
-    addBox(THREE, group, [0, 0.85, -0.22], [0.78, 0.88, 0.18], 0x6f7470);
-    addBox(THREE, group, [0, 1.42, -0.235], [0.72, 0.42, 0.04], 0xb8c8cc);
+    addBox(THREE, group, [0, 0.74, -0.22], [0.82, 0.92, 0.2], 0x6b6f6b);
+    addBox(THREE, group, [0, 1.44, -0.235], [0.76, 0.48, 0.04], 0xb8c9cc, { metalness: 0.12, roughness: 0.18 });
+    addBox(THREE, group, [-0.22, 0.74, -0.095], [0.025, 0.62, 0.03], 0xd9d0bf);
+    addBox(THREE, group, [0.22, 0.74, -0.095], [0.025, 0.62, 0.03], 0xd9d0bf);
   } else if (/수전|샤워|faucet|shower/i.test(source)) {
-    addCylinder(THREE, group, [0, 0.92, -0.25], 0.026, 1.2, 0x7f8a92, true);
-    addBox(THREE, group, [0.18, 1.42, -0.25], [0.36, 0.04, 0.04], 0x7f8a92);
-    addCylinder(THREE, group, [0.37, 1.42, -0.25], 0.08, 0.035, 0x9aa3a9);
+    addCylinder(THREE, group, [0, 0.92, -0.25], 0.024, 1.22, 0x8f9aa2, true);
+    addBox(THREE, group, [0.18, 1.42, -0.25], [0.36, 0.035, 0.035], 0x8f9aa2, { metalness: 0.38, roughness: 0.24 });
+    addCylinder(THREE, group, [0.39, 1.42, -0.25], 0.09, 0.035, 0xaab3b7);
+    addCylinder(THREE, group, [0, 0.38, -0.25], 0.07, 0.04, 0xaab3b7);
   } else {
     addBox(THREE, group, [0, 0.35, 0], [0.42, 0.7, 0.28], 0xd4c8b5);
   }
 }
 
-function addBox(THREE, group, position, size, color) {
+function addBox(THREE, group, position, size, color, materialOptions = {}) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(size[0], size[1], size[2]),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.55 })
+    new THREE.MeshStandardMaterial({ color, roughness: materialOptions.roughness ?? 0.48, metalness: materialOptions.metalness ?? 0.02 })
   );
   mesh.position.set(position[0], position[1], position[2]);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   group.add(mesh);
 }
 
 function addCylinder(THREE, group, position, radius, height, color, horizontal = false) {
   const mesh = new THREE.Mesh(
     new THREE.CylinderGeometry(radius, radius, height, 32),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: color > 0x700000 ? 0.3 : 0 })
+    new THREE.MeshStandardMaterial({ color, roughness: 0.34, metalness: color > 0x700000 ? 0.38 : 0.02 })
   );
   if (horizontal) mesh.rotation.z = Math.PI / 2;
   mesh.position.set(position[0], position[1], position[2]);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+}
+
+function addTorus(THREE, group, position, scale, color) {
+  const mesh = new THREE.Mesh(
+    new THREE.TorusGeometry(1, 0.22, 20, 48),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.02 })
+  );
+  mesh.scale.set(scale[0], scale[2], scale[1]);
+  mesh.rotation.x = Math.PI / 2;
+  mesh.position.set(position[0], position[1], position[2]);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   group.add(mesh);
 }
 
