@@ -117,6 +117,8 @@ let renderJobRunning = false;
 let pendingPlannerSiteImage = "";
 let pendingPlannerRealRenderImage = "";
 let plannerRealRenderRunning = false;
+let plannerSurfaceGuideMode = "floor";
+let plannerSurfaceRegions = { floor: [], wall: [] };
 let pendingPlannerPlanImage = "";
 let plannerPlanPoints = [];
 let plannerRenderTimer = null;
@@ -348,6 +350,8 @@ function bindEvents() {
   document.querySelector("#plannerForm")?.addEventListener("change", renderPlannerWorkspace);
   document.querySelector("#plannerSiteImage")?.addEventListener("change", async (event) => {
     pendingPlannerSiteImage = await readImageFile(event.target.files[0], 1400);
+    plannerSurfaceRegions = { floor: [], wall: [] };
+    pendingPlannerRealRenderImage = "";
     renderPlannerWorkspace();
   });
   document.querySelector("#plannerPlanImage")?.addEventListener("change", async (event) => {
@@ -362,6 +366,15 @@ function bindEvents() {
     renderPlannerWorkspace();
   });
   document.querySelector("#plannerPlanCanvas")?.addEventListener("click", handlePlannerPlanCanvasClick);
+  document.querySelector("#plannerSurfaceGuideCanvas")?.addEventListener("click", handlePlannerSurfaceGuideCanvasClick);
+  document.querySelector("#plannerGuideFloorBtn")?.addEventListener("click", () => setPlannerSurfaceGuideMode("floor"));
+  document.querySelector("#plannerGuideWallBtn")?.addEventListener("click", () => setPlannerSurfaceGuideMode("wall"));
+  document.querySelector("#plannerGuideClearBtn")?.addEventListener("click", () => {
+    plannerSurfaceRegions = { floor: [], wall: [] };
+    pendingPlannerRealRenderImage = "";
+    setText("#plannerStatus", "실사 시공 영역을 초기화했습니다.");
+    renderPlannerWorkspace();
+  });
   document.querySelector("#plannerClearPlanBtn")?.addEventListener("click", () => {
     plannerPlanPoints = [];
     renderPlannerPlanEditor();
@@ -3833,6 +3846,7 @@ function renderPlannerWorkspace() {
   const footprint = getPlannerFootprint(config);
   const floorArea = footprint.area;
   const wallArea = footprint.perimeter * config.height;
+  renderPlannerSurfaceGuide();
   renderPlannerPlanEditor();
   summary.innerHTML = [
     `<div><span>바닥 면적</span><strong>${number(floorArea)}㎡</strong></div>`,
@@ -3915,6 +3929,135 @@ function getPlannerSelectedTile(surface) {
 
 function isPlannerPlanAvailable() {
   return window.matchMedia(`(min-width: ${PLANNER_PLAN_DESKTOP_WIDTH}px)`).matches;
+}
+
+function setPlannerSurfaceGuideMode(mode) {
+  plannerSurfaceGuideMode = mode === "wall" ? "wall" : "floor";
+  renderPlannerSurfaceGuide();
+}
+
+function renderPlannerSurfaceGuide() {
+  const canvas = document.querySelector("#plannerSurfaceGuideCanvas");
+  if (!canvas) return;
+  document.querySelector("#plannerGuideFloorBtn")?.classList.toggle("active", plannerSurfaceGuideMode === "floor");
+  document.querySelector("#plannerGuideWallBtn")?.classList.toggle("active", plannerSurfaceGuideMode === "wall");
+
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#f5f1ea";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!pendingPlannerSiteImage) {
+    canvas.dataset.guideLeft = "0";
+    canvas.dataset.guideTop = "0";
+    canvas.dataset.guideWidth = String(canvas.width);
+    canvas.dataset.guideHeight = String(canvas.height);
+    context.fillStyle = "#7b7469";
+    context.font = "700 18px sans-serif";
+    context.textAlign = "center";
+    context.fillText("현장 이미지를 올리면 시공 영역을 찍을 수 있습니다.", canvas.width / 2, canvas.height / 2 - 10);
+    context.font = "500 13px sans-serif";
+    context.fillText("바닥 영역과 벽 영역을 각각 3점 이상 선택해주세요.", canvas.width / 2, canvas.height / 2 + 18);
+    return;
+  }
+
+  loadImageFromUrl(pendingPlannerSiteImage).then((image) => {
+    if (!image || pendingPlannerSiteImage !== image.src) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const scale = Math.min(canvas.width / image.width, canvas.height / image.height);
+    const width = image.width * scale;
+    const height = image.height * scale;
+    const left = (canvas.width - width) / 2;
+    const top = (canvas.height - height) / 2;
+    canvas.dataset.guideLeft = String(left);
+    canvas.dataset.guideTop = String(top);
+    canvas.dataset.guideWidth = String(width);
+    canvas.dataset.guideHeight = String(height);
+    context.fillStyle = "#f5f1ea";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, left, top, width, height);
+    drawPlannerSurfaceRegions(context, canvas);
+  });
+}
+
+function drawPlannerSurfaceRegions(context, canvas) {
+  drawPlannerSurfaceRegion(context, canvas, "floor", "#00a896", "바닥");
+  drawPlannerSurfaceRegion(context, canvas, "wall", "#2f6fed", "벽");
+}
+
+function drawPlannerSurfaceRegion(context, canvas, surface, color, label) {
+  const frame = getPlannerSurfaceGuideFrame(canvas);
+  const points = (plannerSurfaceRegions[surface] || []).map((point) => ({
+    x: frame.left + point.x * frame.width,
+    y: frame.top + point.y * frame.height
+  }));
+  if (!points.length) return;
+
+  context.fillStyle = surface === "floor" ? "rgba(0, 168, 150, 0.22)" : "rgba(47, 111, 237, 0.2)";
+  context.strokeStyle = color;
+  context.lineWidth = 3;
+  context.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) context.moveTo(point.x, point.y);
+    else context.lineTo(point.x, point.y);
+  });
+  if (points.length >= 3) context.closePath();
+  context.fill();
+  context.stroke();
+
+  points.forEach((point, index) => {
+    context.fillStyle = color;
+    context.beginPath();
+    context.arc(point.x, point.y, 8, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = "#ffffff";
+    context.font = "700 11px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(index + 1), point.x, point.y + 0.5);
+  });
+
+  if (points.length >= 3) {
+    const center = points.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
+    center.x /= points.length;
+    center.y /= points.length;
+    context.fillStyle = color;
+    context.font = "800 14px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(label, center.x, center.y);
+  }
+}
+
+function handlePlannerSurfaceGuideCanvasClick(event) {
+  if (!pendingPlannerSiteImage) {
+    setText("#plannerStatus", "먼저 현장 이미지를 올려주세요.");
+    return;
+  }
+  const canvas = event.currentTarget;
+  const rect = canvas.getBoundingClientRect();
+  const frame = getPlannerSurfaceGuideFrame(canvas);
+  const canvasX = (event.clientX - rect.left) * (canvas.width / rect.width);
+  const canvasY = (event.clientY - rect.top) * (canvas.height / rect.height);
+  const x = (canvasX - frame.left) / frame.width;
+  const y = (canvasY - frame.top) / frame.height;
+  if (x < 0 || x > 1 || y < 0 || y > 1) return;
+  const points = plannerSurfaceRegions[plannerSurfaceGuideMode] || [];
+  plannerSurfaceRegions[plannerSurfaceGuideMode] = points.length >= 12 ? [{ x, y }] : [...points, { x, y }];
+  pendingPlannerRealRenderImage = "";
+  renderPlannerSurfaceGuide();
+  const label = plannerSurfaceGuideMode === "wall" ? "벽" : "바닥";
+  setText("#plannerStatus", `${label} 영역 ${plannerSurfaceRegions[plannerSurfaceGuideMode].length}점을 선택했습니다.`);
+  renderPlannerWorkspace();
+}
+
+function getPlannerSurfaceGuideFrame(canvas) {
+  return {
+    left: Number(canvas.dataset.guideLeft) || 0,
+    top: Number(canvas.dataset.guideTop) || 0,
+    width: Number(canvas.dataset.guideWidth) || canvas.width,
+    height: Number(canvas.dataset.guideHeight) || canvas.height
+  };
 }
 
 function handlePlannerViewportChange() {
@@ -4122,6 +4265,7 @@ async function generatePlannerRealRender() {
 
   try {
     const config = readPlannerConfig();
+    const guideImageDataUrl = await createPlannerSurfaceGuideImageDataUrl();
     const surfaces = await Promise.all(selectedTiles.map(async ({ surface, tile }) => ({
       surface,
       tileName: tile.name,
@@ -4134,6 +4278,7 @@ async function generatePlannerRealRender() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         siteImageDataUrl: pendingPlannerSiteImage,
+        guideImageDataUrl,
         surfaces,
         pointMemo: "",
         roomContext: {
@@ -4157,6 +4302,54 @@ async function generatePlannerRealRender() {
     plannerRealRenderRunning = false;
     renderPlannerWorkspace();
   }
+}
+
+async function createPlannerSurfaceGuideImageDataUrl() {
+  const hasGuide = Object.values(plannerSurfaceRegions).some((points) => points.length >= 3);
+  if (!pendingPlannerSiteImage || !hasGuide) return "";
+
+  const image = await loadImageFromUrl(pendingPlannerSiteImage);
+  if (!image) return "";
+  const canvas = document.createElement("canvas");
+  canvas.width = 1400;
+  canvas.height = Math.max(780, Math.round((image.height / image.width) * canvas.width));
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#f5f1ea";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  [
+    { surface: "floor", color: "#00a896", fill: "rgba(0, 168, 150, 0.24)", label: "FLOOR TILE AREA" },
+    { surface: "wall", color: "#2f6fed", fill: "rgba(47, 111, 237, 0.22)", label: "WALL TILE AREA" }
+  ].forEach(({ surface, color, fill, label }) => {
+    const points = plannerSurfaceRegions[surface] || [];
+    if (points.length < 3) return;
+    const scaledPoints = points.map((point) => ({
+      x: point.x * canvas.width,
+      y: point.y * canvas.height
+    }));
+    context.fillStyle = fill;
+    context.strokeStyle = color;
+    context.lineWidth = 8;
+    context.beginPath();
+    scaledPoints.forEach((point, index) => {
+      if (index === 0) context.moveTo(point.x, point.y);
+      else context.lineTo(point.x, point.y);
+    });
+    context.closePath();
+    context.fill();
+    context.stroke();
+    const center = scaledPoints.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
+    center.x /= scaledPoints.length;
+    center.y /= scaledPoints.length;
+    context.fillStyle = color;
+    context.font = "800 34px sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(label, center.x, center.y);
+  });
+
+  return canvas.toDataURL("image/png");
 }
 
 function openPlannerRealRenderPreview() {

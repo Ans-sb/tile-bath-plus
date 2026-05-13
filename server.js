@@ -914,6 +914,7 @@ async function generateRenderPreview(payload) {
   }
 
   const siteImageDataUrl = String(payload.siteImageDataUrl || "").trim();
+  const guideImageDataUrl = String(payload.guideImageDataUrl || "").trim();
   const pointMemo = String(payload.pointMemo || "").trim();
   const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
   const roomContext = payload.roomContext && typeof payload.roomContext === "object" ? payload.roomContext : null;
@@ -936,8 +937,13 @@ async function generateRenderPreview(payload) {
     throw new Error("?좏깮??????대?吏瑜?李얠? 紐삵뻽?듬땲??");
   }
 
+  const hasGuideImage = guideImageDataUrl.startsWith("data:");
+  const referenceStartNumber = hasGuideImage ? 3 : 2;
+  const guideInstruction = hasGuideImage
+    ? "Use the second image as a user-marked surface guide. Green marked area means floor tile target. Blue marked area means wall tile target. The marks are only guidance and must not appear in the final result."
+    : "";
   const referenceInstructions = normalizedSurfaces.map((entry, index) => {
-    const referenceNumber = index + 2;
+    const referenceNumber = referenceStartNumber + index;
     const surfaceInstruction = entry.surface === "wall"
       ? "Apply this tile only to the wall surfaces."
       : entry.surface === "point"
@@ -952,6 +958,7 @@ async function generateRenderPreview(payload) {
   const prompt = [
     "Create a photorealistic real-world site photo edit, not a CGI render.",
     "Use the first image as the original site photo.",
+    guideInstruction,
     roomContextInstruction,
     referenceInstructions,
     "Replace only the existing finish material on the selected planes. Preserve the original site photo structure, camera angle, lens distortion, perspective, room proportions, horizontal and vertical lines, and all non-target surfaces.",
@@ -977,6 +984,9 @@ async function generateRenderPreview(payload) {
   form.append("quality", "high");
   form.append("output_format", "png");
   form.append("image[]", dataUrlToBlob(siteImageDataUrl), "site-photo.png");
+  if (hasGuideImage) {
+    form.append("image[]", dataUrlToBlob(guideImageDataUrl), "surface-guide.png");
+  }
   normalizedSurfaces.forEach((entry) => {
     form.append("image[]", dataUrlToBlob(entry.tileImageDataUrl), `${sanitizeFileName(entry.tileName || "tile")}.png`);
   });

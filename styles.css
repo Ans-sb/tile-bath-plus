@@ -578,10 +578,25 @@ svg {
   margin-top: 14px;
 }
 
+.planner-actions.compact-actions {
+  margin-top: 0;
+}
+
+.planner-actions .active {
+  border-color: rgba(0, 168, 150, 0.55);
+  background: rgba(0, 168, 150, 0.12);
+  color: var(--text);
+}
+
 .planner-plan-tool {
   display: grid;
   gap: 10px;
   margin-top: 16px;
+}
+
+.planner-surface-guide {
+  display: grid;
+  gap: 10px;
 }
 
 .planner-plan-mobile-note {
@@ -614,7 +629,8 @@ svg {
   background: #f5f1ea;
 }
 
-#plannerPlanCanvas {
+#plannerPlanCanvas,
+#plannerSurfaceGuideCanvas {
   display: block;
   width: 100%;
   height: auto;

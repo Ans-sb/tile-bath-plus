@@ -836,6 +836,20 @@
                 현장 이미지
                 <input id="plannerSiteImage" type="file" accept="image/*" />
               </label>
+              <div class="wide planner-surface-guide">
+                <div class="planner-plan-heading">
+                  <strong>실사 시공 영역</strong>
+                  <span>사진 위에 바닥과 벽 영역을 순서대로 찍으면 실사 렌더 품질이 더 좋아집니다.</span>
+                </div>
+                <div class="planner-plan-canvas-wrap">
+                  <canvas id="plannerSurfaceGuideCanvas" width="640" height="420" aria-label="실사 시공 영역 선택"></canvas>
+                </div>
+                <div class="planner-actions compact-actions">
+                  <button class="secondary-action active" id="plannerGuideFloorBtn" type="button">바닥 영역</button>
+                  <button class="secondary-action" id="plannerGuideWallBtn" type="button">벽 영역</button>
+                  <button class="secondary-action" id="plannerGuideClearBtn" type="button">영역 초기화</button>
+                </div>
+              </div>
               <label class="wide planner-plan-upload-field">
                 도면 이미지
                 <input id="plannerPlanImage" type="file" accept="image/*" />
