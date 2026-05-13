@@ -7,6 +7,7 @@ const PRODUCT_TYPE_LABELS = {
   sanitary: "위생도기",
   material: "부자재"
 };
+const PLANNER_THREE_URL = "https://unpkg.com/three@0.164.1/build/three.module.js";
 
 const DEFAULT_APPROVAL_RULES = {
   businessTypes: [
@@ -112,6 +113,18 @@ let renderSurfaceSelections = {
 let pendingRenderResultImage = "";
 let pendingSiteImage = "";
 let renderJobRunning = false;
+let pendingPlannerSiteImage = "";
+let plannerRenderTimer = null;
+let plannerThreeModulePromise = null;
+let plannerThreeState = {
+  renderer: null,
+  scene: null,
+  camera: null,
+  animationId: 0,
+  angle: -0.75,
+  elevation: 0.55,
+  drag: null
+};
 let pendingSignupAuthCode = "";
 let isPhoneVerified = false;
 let selectedSignupProvider = "일반 회원가입";
@@ -130,7 +143,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "productDetailPage", "cartPage", "samplePage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "productDetailPage", "cartPage", "plannerPage", "samplePage"]);
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
 let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };
@@ -323,6 +336,18 @@ function bindEvents() {
   document.querySelector("#imagePreviewBackdrop").addEventListener("click", closeImagePreview);
   document.querySelector("#closeTilePickerBtn").addEventListener("click", closeRenderSurfacePicker);
   document.querySelector("#tilePickerBackdrop").addEventListener("click", closeRenderSurfacePicker);
+  document.querySelector("#plannerForm")?.addEventListener("input", renderPlannerWorkspace);
+  document.querySelector("#plannerForm")?.addEventListener("change", renderPlannerWorkspace);
+  document.querySelector("#plannerSiteImage")?.addEventListener("change", async (event) => {
+    pendingPlannerSiteImage = await readImageFile(event.target.files[0], 1400);
+    renderPlannerWorkspace();
+  });
+  document.querySelector("#plannerApplyCartBtn")?.addEventListener("click", applyCartToPlanner);
+  document.querySelector("#plannerResetCameraBtn")?.addEventListener("click", () => {
+    plannerThreeState.angle = -0.75;
+    plannerThreeState.elevation = 0.55;
+    schedulePlannerRender();
+  });
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
     if (selectedProductId) addToCart(selectedProductId);
@@ -344,9 +369,9 @@ function bindEvents() {
   document.querySelector("#openLoginBtn").addEventListener("click", () => switchPage("loginPage"));
   document.querySelector("#openSignupBtn").addEventListener("click", () => switchPage("signupPage"));
   document.querySelector("#createProProposalBtn").addEventListener("click", generateProfessionalProposalDeck);
-  document.querySelector("#restartServerBtn").addEventListener("click", () => controlServer("restart"));
-  document.querySelector("#stopServerBtn").addEventListener("click", () => controlServer("stop"));
-  document.querySelector("#refreshServerBtn").addEventListener("click", async () => {
+  document.querySelector("#restartServerBtn")?.addEventListener("click", () => controlServer("restart"));
+  document.querySelector("#stopServerBtn")?.addEventListener("click", () => controlServer("stop"));
+  document.querySelector("#refreshServerBtn")?.addEventListener("click", async () => {
     setText("#serverControlStatus", "서버 상태를 다시 확인하고 있습니다...");
     const online = await refreshServerConnection();
     setText("#serverControlStatus", online ? "서버가 연결되어 있습니다." : getServerRequiredMessage());
@@ -354,7 +379,7 @@ function bindEvents() {
   document.querySelector("#refreshAdminBtn")?.addEventListener("click", loadAdminOverview);
   document.querySelector("#adminProductsTab")?.addEventListener("click", () => switchAdminView("products"));
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
-  document.querySelector("#startServerGuideBtn").addEventListener("click", showServerStartGuide);
+  document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
   document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
   document.querySelector("#googleLoginBtn").addEventListener("click", () => setText("#loginStatus", "Google 로그인은 추후 OAuth 연결 시 활성화됩니다."));
   document.querySelector("#kakaoLoginBtn").addEventListener("click", () => setText("#loginStatus", "카카오톡 로그인은 추후 OAuth 연결 시 활성화됩니다."));
@@ -583,6 +608,7 @@ function renderAll() {
   renderDocuments();
   renderProposalTemplatePreview();
   renderRenderWorkspace();
+  renderPlannerWorkspace();
   renderSignupSummary();
   renderAdminOverview();
 }
@@ -3713,6 +3739,7 @@ function addToCart(id) {
   saveCart();
   renderCart();
   renderDocuments();
+  renderPlannerWorkspace();
 }
 
 function updateCartLine(id, changes, options = {}) {
@@ -3726,6 +3753,7 @@ function updateCartLine(id, changes, options = {}) {
   if (options.rerenderList === false) renderCartSummary();
   else renderCart();
   renderDocuments();
+  renderPlannerWorkspace();
 }
 
 function removeFromCart(id) {
@@ -3733,6 +3761,7 @@ function removeFromCart(id) {
   saveCart();
   renderCart();
   renderDocuments();
+  renderPlannerWorkspace();
 }
 
 function clearCart() {
@@ -3740,6 +3769,362 @@ function clearCart() {
   saveCart();
   renderCart();
   renderDocuments();
+  renderPlannerWorkspace();
+}
+
+function renderPlannerWorkspace() {
+  const form = document.querySelector("#plannerForm");
+  const floorSelect = document.querySelector("#plannerFloorTile");
+  const wallSelect = document.querySelector("#plannerWallTile");
+  const summary = document.querySelector("#plannerSummary");
+  const cartProducts = document.querySelector("#plannerCartProducts");
+  const meta = document.querySelector("#plannerSceneMeta");
+  if (!form || !floorSelect || !wallSelect || !summary || !cartProducts) return;
+
+  const tiles = getPlannerCartTiles();
+  syncPlannerTileSelect(floorSelect, tiles, "바닥 타일 선택");
+  syncPlannerTileSelect(wallSelect, tiles, "벽 타일 선택");
+  if (!floorSelect.value && tiles[0]) floorSelect.value = tiles[0].id;
+  if (!wallSelect.value && tiles[1]) wallSelect.value = tiles[1].id;
+  if (!wallSelect.value && tiles[0]) wallSelect.value = tiles[0].id;
+
+  const config = readPlannerConfig();
+  const floorArea = config.width * config.depth;
+  const wallArea = (config.width + config.depth) * 2 * config.height;
+  const sanitaryItems = getPlannerSanitaryItems();
+  summary.innerHTML = [
+    `<div><span>바닥 면적</span><strong>${number(floorArea)}㎡</strong></div>`,
+    `<div><span>벽 면적</span><strong>${number(wallArea)}㎡</strong></div>`,
+    `<div><span>줄눈</span><strong>${number(config.grout)}mm</strong></div>`,
+    `<div><span>자동 배치</span><strong>${sanitaryItems.length}개</strong></div>`
+  ].join("");
+
+  cartProducts.innerHTML = sanitaryItems.length
+    ? sanitaryItems.map((item) => `
+      <div class="planner-product-chip">
+        ${item.image ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" />` : `<span class="planner-product-empty"></span>`}
+        <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.kind || PRODUCT_TYPE_LABELS[item.productType] || "욕실용품")}</span></div>
+      </div>
+    `).join("")
+    : '<div class="planner-empty-note">장바구니에 양변기, 세면기, 수전, 욕실장 등을 담으면 3D 공간에 자동 배치됩니다.</div>';
+
+  if (meta) {
+    const floorTile = getPlannerSelectedTile("floor");
+    const wallTile = getPlannerSelectedTile("wall");
+    meta.textContent = `${floorTile?.name || "바닥 타일 없음"} / ${wallTile?.name || "벽 타일 없음"}`;
+  }
+
+  schedulePlannerRender();
+}
+
+function syncPlannerTileSelect(select, tiles, placeholder) {
+  const previousValue = select.value;
+  select.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>${tiles.map((tile) => (
+    `<option value="${escapeHtml(tile.id)}">${escapeHtml(tile.name)}${tile.size ? ` · ${escapeHtml(tile.size)}` : ""}</option>`
+  )).join("")}`;
+  select.value = tiles.some((tile) => tile.id === previousValue) ? previousValue : "";
+}
+
+function getPlannerCartTiles() {
+  return cart.filter((entry) => entry.productType === "tile");
+}
+
+function getPlannerSanitaryItems() {
+  return cart.filter((entry) => {
+    if (entry.productType === "tile" || entry.productType === "material") return false;
+    return /양변기|세면|수전|욕실장|비데|샤워|악세사리|거울|선반|휴지|수건|컵대|비누/.test(`${entry.kind || ""} ${entry.name || ""} ${entry.option || ""}`);
+  });
+}
+
+function readPlannerConfig() {
+  return {
+    width: clampNumber(document.querySelector("#plannerWidth")?.value, 2.4, 1, 12),
+    depth: clampNumber(document.querySelector("#plannerDepth")?.value, 1.8, 1, 12),
+    height: clampNumber(document.querySelector("#plannerHeight")?.value, 2.3, 1.8, 4),
+    grout: clampNumber(document.querySelector("#plannerGrout")?.value, 3, 1, 12)
+  };
+}
+
+function clampNumber(value, fallback, min, max) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return fallback;
+  return Math.min(Math.max(numberValue, min), max);
+}
+
+function getPlannerSelectedTile(surface) {
+  const id = document.querySelector(surface === "floor" ? "#plannerFloorTile" : "#plannerWallTile")?.value || "";
+  return cart.find((entry) => entry.id === id) || null;
+}
+
+function applyCartToPlanner() {
+  const tiles = getPlannerCartTiles();
+  const floorTile = tiles.find((tile) => /바닥|floor/i.test(`${tile.kind || ""} ${tile.name || ""}`)) || tiles[0] || null;
+  const wallTile = tiles.find((tile) => /벽|wall/i.test(`${tile.kind || ""} ${tile.name || ""}`)) || tiles.find((tile) => tile.id !== floorTile?.id) || floorTile;
+  const floorSelect = document.querySelector("#plannerFloorTile");
+  const wallSelect = document.querySelector("#plannerWallTile");
+  if (floorSelect && floorTile) floorSelect.value = floorTile.id;
+  if (wallSelect && wallTile) wallSelect.value = wallTile.id;
+  setText("#plannerStatus", tiles.length ? "장바구니 타일과 욕실용품을 3D 공간에 적용했습니다." : "먼저 장바구니에 타일을 담아주세요.");
+  renderPlannerWorkspace();
+}
+
+function schedulePlannerRender() {
+  if (currentPageId !== "plannerPage") return;
+  if (plannerRenderTimer) window.clearTimeout(plannerRenderTimer);
+  plannerRenderTimer = window.setTimeout(() => {
+    renderPlannerScene().catch((error) => {
+      console.warn(error);
+      const mount = document.querySelector("#plannerCanvasMount");
+      if (mount) mount.innerHTML = '<div class="planner-canvas-empty">3D 미리보기를 불러오지 못했습니다.</div>';
+      setText("#plannerStatus", "3D 엔진을 불러오지 못했습니다. 네트워크 연결을 확인해주세요.");
+    });
+  }, 80);
+}
+
+async function loadPlannerThree() {
+  if (!plannerThreeModulePromise) plannerThreeModulePromise = import(PLANNER_THREE_URL);
+  return plannerThreeModulePromise;
+}
+
+async function renderPlannerScene() {
+  const mount = document.querySelector("#plannerCanvasMount");
+  if (!mount || currentPageId !== "plannerPage") return;
+  const THREE = await loadPlannerThree();
+  const config = readPlannerConfig();
+  const floorTile = getPlannerSelectedTile("floor");
+  const wallTile = getPlannerSelectedTile("wall");
+  disposePlannerScene();
+
+  const width = Math.max(mount.clientWidth || 900, 320);
+  const height = Math.max(mount.clientHeight || 560, 320);
+  mount.innerHTML = "";
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf5f1ea);
+  const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(width, height);
+  mount.appendChild(renderer.domElement);
+
+  plannerThreeState.renderer = renderer;
+  plannerThreeState.scene = scene;
+  plannerThreeState.camera = camera;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xd6c7b2, 1.9));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+  keyLight.position.set(-2, 5, 3);
+  scene.add(keyLight);
+
+  const floorTexture = await createPlannerTileTexture(THREE, floorTile, config.grout, "floor");
+  const wallTexture = await createPlannerTileTexture(THREE, wallTile, config.grout, "wall");
+  addPlannerRoom(THREE, scene, config, floorTexture, wallTexture);
+  await addPlannerSiteImage(THREE, scene, config);
+  addPlannerProducts(THREE, scene, config, getPlannerSanitaryItems());
+  attachPlannerPointerControls(renderer.domElement);
+
+  const animate = () => {
+    plannerThreeState.animationId = requestAnimationFrame(animate);
+    updatePlannerCamera(camera, config);
+    renderer.render(scene, camera);
+  };
+  animate();
+  setText("#plannerStatus", "3D 공간 미리보기가 준비되었습니다.");
+}
+
+function disposePlannerScene() {
+  if (plannerThreeState.animationId) cancelAnimationFrame(plannerThreeState.animationId);
+  plannerThreeState.animationId = 0;
+  if (plannerThreeState.renderer) {
+    plannerThreeState.renderer.dispose();
+    plannerThreeState.renderer.domElement?.remove();
+  }
+  plannerThreeState.renderer = null;
+  plannerThreeState.scene = null;
+  plannerThreeState.camera = null;
+}
+
+async function createPlannerTileTexture(THREE, tile, grout, surface) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const context = canvas.getContext("2d");
+  const baseColor = surface === "floor" ? "#c9c5bc" : "#e1ddd3";
+  context.fillStyle = baseColor;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (tile?.image) {
+    const image = await loadImageFromUrl(tile.image);
+    if (image) {
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      context.fillStyle = "rgba(255,255,255,0.22)";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  const tileSize = parseTileSizeMeters(tile?.size) || (surface === "floor" ? 0.6 : 0.3);
+  const cells = Math.max(2, Math.round(3 / tileSize));
+  const step = canvas.width / cells;
+  const lineWidth = Math.max(1, Math.min(10, Number(grout) || 3));
+  context.strokeStyle = "rgba(70, 66, 58, 0.42)";
+  context.lineWidth = lineWidth;
+  for (let position = 0; position <= canvas.width; position += step) {
+    context.beginPath();
+    context.moveTo(position, 0);
+    context.lineTo(position, canvas.height);
+    context.stroke();
+    context.beginPath();
+    context.moveTo(0, position);
+    context.lineTo(canvas.width, position);
+    context.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(surface === "floor" ? 3 : 4, surface === "floor" ? 2 : 3);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function parseTileSizeMeters(size) {
+  const matches = String(size || "").match(/(\d{2,4})\D+(\d{2,4})/);
+  if (!matches) return 0;
+  return Math.max(Number(matches[1]), Number(matches[2])) / 1000;
+}
+
+function addPlannerRoom(THREE, scene, config, floorTexture, wallTexture) {
+  const floorMaterial = new THREE.MeshStandardMaterial({ map: floorTexture, roughness: 0.62 });
+  const wallMaterial = new THREE.MeshStandardMaterial({ map: wallTexture, roughness: 0.72 });
+  const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x3d3831, transparent: true, opacity: 0.45 });
+
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(config.width, config.depth), floorMaterial);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0;
+  scene.add(floor);
+
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(config.width, config.height), wallMaterial);
+  backWall.position.set(0, config.height / 2, -config.depth / 2);
+  scene.add(backWall);
+
+  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(config.depth, config.height), wallMaterial.clone());
+  leftWall.rotation.y = Math.PI / 2;
+  leftWall.position.set(-config.width / 2, config.height / 2, 0);
+  scene.add(leftWall);
+
+  const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(config.depth, config.height), wallMaterial.clone());
+  rightWall.rotation.y = -Math.PI / 2;
+  rightWall.position.set(config.width / 2, config.height / 2, 0);
+  scene.add(rightWall);
+
+  const roomBox = new THREE.BoxGeometry(config.width, config.height, config.depth);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(roomBox), edgeMaterial);
+  edges.position.y = config.height / 2;
+  scene.add(edges);
+}
+
+async function addPlannerSiteImage(THREE, scene, config) {
+  if (!pendingPlannerSiteImage) return;
+  const texture = await loadPlannerTexture(THREE, pendingPlannerSiteImage);
+  if (!texture) return;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, opacity: 0.92 });
+  const planeWidth = Math.min(config.width * 0.42, 1.25);
+  const planeHeight = planeWidth * 0.7;
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
+  plane.position.set(config.width / 2 - planeWidth / 2 - 0.08, config.height - planeHeight / 2 - 0.14, -config.depth / 2 + 0.012);
+  scene.add(plane);
+}
+
+function loadPlannerTexture(THREE, src) {
+  return new Promise((resolve) => {
+    new THREE.TextureLoader().load(src, (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      resolve(texture);
+    }, undefined, () => resolve(null));
+  });
+}
+
+function addPlannerProducts(THREE, scene, config, items) {
+  items.forEach((item, index) => {
+    const group = new THREE.Group();
+    const slot = index % 6;
+    const x = -config.width / 2 + 0.42 + (slot % 3) * Math.min(0.72, config.width / 3);
+    const z = slot < 3 ? -config.depth / 2 + 0.28 : config.depth / 2 - 0.36;
+    group.position.set(Math.min(Math.max(x, -config.width / 2 + 0.3), config.width / 2 - 0.3), 0, z);
+    buildPlannerProductModel(THREE, group, item);
+    scene.add(group);
+  });
+}
+
+function buildPlannerProductModel(THREE, group, item) {
+  const source = `${item.kind || ""} ${item.name || ""} ${item.option || ""}`;
+  if (/양변기|toilet/i.test(source)) {
+    addBox(THREE, group, [0, 0.18, 0], [0.34, 0.24, 0.44], 0xf4f1ea);
+    addBox(THREE, group, [0, 0.47, -0.18], [0.46, 0.46, 0.16], 0xf8f6ef);
+    addCylinder(THREE, group, [0, 0.32, 0.04], 0.2, 0.16, 0xfaf9f4);
+  } else if (/세면|basin|lavatory/i.test(source)) {
+    addBox(THREE, group, [0, 0.42, -0.18], [0.58, 0.16, 0.32], 0xf7f4ec);
+    addBox(THREE, group, [0, 0.2, -0.18], [0.16, 0.4, 0.14], 0xe6e0d4);
+    addCylinder(THREE, group, [0.18, 0.58, -0.18], 0.025, 0.18, 0x7c8790, true);
+  } else if (/욕실장|cabinet|장/i.test(source)) {
+    addBox(THREE, group, [0, 0.85, -0.22], [0.78, 0.88, 0.18], 0x6f7470);
+    addBox(THREE, group, [0, 1.42, -0.235], [0.72, 0.42, 0.04], 0xb8c8cc);
+  } else if (/수전|샤워|faucet|shower/i.test(source)) {
+    addCylinder(THREE, group, [0, 0.92, -0.25], 0.026, 1.2, 0x7f8a92, true);
+    addBox(THREE, group, [0.18, 1.42, -0.25], [0.36, 0.04, 0.04], 0x7f8a92);
+    addCylinder(THREE, group, [0.37, 1.42, -0.25], 0.08, 0.035, 0x9aa3a9);
+  } else {
+    addBox(THREE, group, [0, 0.35, 0], [0.42, 0.7, 0.28], 0xd4c8b5);
+  }
+}
+
+function addBox(THREE, group, position, size, color) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(size[0], size[1], size[2]),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.55 })
+  );
+  mesh.position.set(position[0], position[1], position[2]);
+  group.add(mesh);
+}
+
+function addCylinder(THREE, group, position, radius, height, color, horizontal = false) {
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, height, 32),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: color > 0x700000 ? 0.3 : 0 })
+  );
+  if (horizontal) mesh.rotation.z = Math.PI / 2;
+  mesh.position.set(position[0], position[1], position[2]);
+  group.add(mesh);
+}
+
+function attachPlannerPointerControls(canvas) {
+  canvas.onpointerdown = (event) => {
+    canvas.setPointerCapture(event.pointerId);
+    plannerThreeState.drag = { x: event.clientX, y: event.clientY, angle: plannerThreeState.angle, elevation: plannerThreeState.elevation };
+  };
+  canvas.onpointermove = (event) => {
+    if (!plannerThreeState.drag) return;
+    const dx = event.clientX - plannerThreeState.drag.x;
+    const dy = event.clientY - plannerThreeState.drag.y;
+    plannerThreeState.angle = plannerThreeState.drag.angle + dx * 0.006;
+    plannerThreeState.elevation = Math.min(Math.max(plannerThreeState.drag.elevation + dy * 0.003, 0.22), 1.05);
+  };
+  canvas.onpointerup = () => {
+    plannerThreeState.drag = null;
+  };
+  canvas.onpointercancel = () => {
+    plannerThreeState.drag = null;
+  };
+}
+
+function updatePlannerCamera(camera, config) {
+  const radius = Math.max(config.width, config.depth) * 1.35 + 1.5;
+  camera.position.set(
+    Math.sin(plannerThreeState.angle) * radius,
+    config.height * plannerThreeState.elevation + 1.1,
+    Math.cos(plannerThreeState.angle) * radius
+  );
+  camera.lookAt(0, config.height * 0.42, 0);
 }
 
 function switchPage(pageId, options = {}) {
@@ -3793,6 +4178,10 @@ function switchPage(pageId, options = {}) {
   if (pageId === "renderPage") {
     ensureRenderSelection();
     renderRenderWorkspace();
+  }
+
+  if (pageId === "plannerPage") {
+    renderPlannerWorkspace();
   }
 
   if (pageId === "adminPage") {
