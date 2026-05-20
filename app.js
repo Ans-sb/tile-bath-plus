@@ -428,6 +428,7 @@ function bindEvents() {
   document.querySelector("#refreshAdminBtn")?.addEventListener("click", loadAdminOverview);
   document.querySelector("#adminProductsTab")?.addEventListener("click", () => switchAdminView("products"));
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
+  document.querySelector("#tile114FetchBtn")?.addEventListener("click", fetchTile114SampleProducts);
   document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
   document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
   document.querySelector("#googleLoginBtn").addEventListener("click", () => setText("#loginStatus", "Google 로그인은 추후 OAuth 연결 시 활성화됩니다."));
@@ -672,10 +673,13 @@ function openProductCategory(productType) {
 }
 
 function applyInitialPageFromHash() {
-  const requestedPageId = String(window.location.hash || "").replace(/^#/, "").trim();
+  let requestedPageId = String(window.location.hash || "").replace(/^#/, "").trim();
   if (!requestedPageId) return;
   const targetPage = document.getElementById(requestedPageId);
   if (!targetPage || !targetPage.classList.contains("app-page")) return;
+  if (["adminPage", "tile114TestPage"].includes(requestedPageId) && authUser?.role !== "admin") {
+    requestedPageId = "loginPage";
+  }
 
   document.querySelectorAll(".app-page").forEach((page) => {
     page.classList.toggle("active", page.id === requestedPageId);
@@ -3491,12 +3495,14 @@ function renderAuthControls() {
   const authSession = document.querySelector("#authSession");
   const authBadge = document.querySelector("#authBadge");
   const adminNavBtn = document.querySelector("#adminNavBtn");
+  const tile114NavBtn = document.querySelector("#tile114NavBtn");
 
   const isLoggedIn = Boolean(authUser);
   const isAdmin = authUser?.role === "admin";
   authActions.classList.toggle("hidden", isLoggedIn);
   authSession.classList.toggle("hidden", !isLoggedIn);
   adminNavBtn?.classList.toggle("hidden", !isAdmin);
+  tile114NavBtn?.classList.toggle("hidden", !isAdmin);
 
   if (isLoggedIn) {
     authBadge.textContent = isAdmin
@@ -4808,7 +4814,7 @@ function updatePlannerCamera(camera, config) {
 }
 
 function switchPage(pageId, options = {}) {
-  if (pageId === "adminPage" && authUser?.role !== "admin") {
+  if (["adminPage", "tile114TestPage"].includes(pageId) && authUser?.role !== "admin") {
     setText("#adminLoginStatus", "내부관리자 페이지는 관리자 아이디와 비밀번호로 로그인해야 사용할 수 있습니다.");
     pageId = "loginPage";
   }
@@ -4867,6 +4873,11 @@ function switchPage(pageId, options = {}) {
   if (pageId === "adminPage") {
     switchAdminView(currentAdminView);
     loadAdminOverview();
+  }
+
+  if (pageId === "tile114TestPage") {
+    renderTile114SampleGrid([]);
+    setText("#tile114Status", authUser?.role === "admin" ? "카테고리와 개수를 선택한 뒤 샘플 가져오기를 눌러주세요." : "관리자 로그인 후 사용할 수 있습니다.");
   }
 }
 
@@ -4996,6 +5007,72 @@ async function loadAdminOverview() {
   } catch (error) {
     setText("#adminStatus", error.message || "내부관리자 정보를 불러오지 못했습니다.");
   }
+}
+
+async function fetchTile114SampleProducts() {
+  if (authUser?.role !== "admin" || !authUser?.adminUsername || !authUser?.adminToken) {
+    setText("#tile114Status", "관리자 로그인 후 거래사이트 샘플을 가져올 수 있습니다.");
+    switchPage("loginPage");
+    return;
+  }
+
+  const category = document.querySelector("#tile114Category")?.value || "5";
+  const limit = Math.min(Math.max(Number(document.querySelector("#tile114Limit")?.value) || 5, 1), 10);
+  const button = document.querySelector("#tile114FetchBtn");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "가져오는 중...";
+  }
+  setText("#tile114Status", "거래사이트에 로그인해서 상품 샘플을 가져오는 중입니다...");
+
+  try {
+    const query = new URLSearchParams({
+      adminUsername: authUser.adminUsername,
+      adminToken: authUser.adminToken,
+      category,
+      limit: String(limit)
+    });
+    const result = await requestJson(`/api/admin/tile114-sample?${query}`, {}, { retries: 1, timeoutMs: 60000 });
+    renderTile114SampleGrid(result.products || []);
+    setText("#tile114Status", `${result.categoryName || category} 카테고리에서 ${number(result.count || 0)}개 샘플을 가져왔습니다.`);
+  } catch (error) {
+    renderTile114SampleGrid([]);
+    setText("#tile114Status", error.message || "거래사이트 샘플을 가져오지 못했습니다.");
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "샘플 가져오기";
+    }
+  }
+}
+
+function renderTile114SampleGrid(products) {
+  const grid = document.querySelector("#tile114SampleGrid");
+  if (!grid) return;
+  if (!products.length) {
+    grid.innerHTML = '<div class="empty-state">아직 가져온 샘플 상품이 없습니다.</div>';
+    return;
+  }
+
+  grid.innerHTML = products.map((product) => `
+    <article class="tile114-sample-card">
+      ${product.imageUrl || product.thumbnailUrl
+        ? `<img src="${escapeHtml(product.imageUrl || product.thumbnailUrl)}" alt="${escapeHtml(product.name || "거래사이트 상품")}" loading="lazy" />`
+        : '<div class="tile114-sample-image-empty">이미지 없음</div>'}
+      <div class="tile114-sample-copy">
+        <span>${escapeHtml(product.categoryName || "-")}</span>
+        <strong>${escapeHtml(product.name || "-")}</strong>
+        <dl>
+          <div><dt>거래처 ID</dt><dd>${escapeHtml(product.sourceId || "-")}</dd></div>
+          <div><dt>규격</dt><dd>${escapeHtml(product.size || "-")}</dd></div>
+          <div><dt>제조사</dt><dd>${escapeHtml(product.maker || "-")}</dd></div>
+          <div><dt>단위</dt><dd>${escapeHtml(product.unit || "-")}</dd></div>
+          <div><dt>도매가</dt><dd>${escapeHtml(product.wholesalePriceText || "-")}</dd></div>
+          <div><dt>재고</dt><dd>${escapeHtml(product.stockText || "-")}</dd></div>
+        </dl>
+      </div>
+    </article>
+  `).join("");
 }
 
 async function pushCartToServer() {

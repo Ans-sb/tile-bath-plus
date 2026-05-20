@@ -1225,6 +1225,98 @@ label {
   line-height: 1.5;
 }
 
+.tile114-test-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(140px, 180px) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.tile114-sample-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.tile114-sample-card {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.tile114-sample-card img,
+.tile114-sample-image-empty {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f4f7f8;
+}
+
+.tile114-sample-image-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tile114-sample-copy {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+
+.tile114-sample-copy > span {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tile114-sample-copy strong {
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.tile114-sample-copy dl {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.tile114-sample-copy dl div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.tile114-sample-copy dt,
+.tile114-sample-copy dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tile114-sample-copy dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.tile114-sample-copy dd {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-weight: 800;
+}
+
 input,
 select,
 textarea {
@@ -2743,6 +2835,17 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     gap: 10px;
     align-items: start;
+  }
+
+  .tile114-test-controls,
+  .tile114-sample-grid,
+  .tile114-sample-card {
+    grid-template-columns: 1fr;
+  }
+
+  .tile114-sample-card img,
+  .tile114-sample-image-empty {
+    max-width: 220px;
   }
 
   .product-page-list .product-card {

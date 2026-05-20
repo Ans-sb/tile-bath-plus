@@ -142,6 +142,10 @@
           <span class="nav-glyph">08</span>
           <span class="nav-copy">내부관리</span>
         </button>
+        <button class="hidden admin-nav-button" id="tile114NavBtn" type="button" data-page-target="tile114TestPage">
+          <span class="nav-glyph">09</span>
+          <span class="nav-copy">거래사이트 테스트</span>
+        </button>
       </nav>
 
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
@@ -1261,6 +1265,42 @@
           <div class="tile-picker-body" id="tilePickerOptions"></div>
         </div>
       </div>
+
+      <main class="app-page page-panel" id="tile114TestPage">
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">Trade Site Import Test</p>
+            <h2>거래사이트 상품 샘플</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+          </div>
+        </section>
+        <section class="commerce-panel">
+          <p class="service-copy">거래사이트 로그인 세션으로 카테고리 하나의 상품 몇 개만 가져와 우리 DB 적용 전 샘플 구조를 확인합니다.</p>
+          <div class="tile114-test-controls">
+            <label>
+              카테고리
+              <select id="tile114Category">
+                <option value="5">T-유럽바닥</option>
+                <option value="6">T-유럽벽</option>
+                <option value="3">T-중국바닥</option>
+                <option value="4">T-중국벽</option>
+                <option value="7">T-아시아</option>
+                <option value="H">부자재</option>
+                <option value="G">기타</option>
+              </select>
+            </label>
+            <label>
+              가져올 개수
+              <input id="tile114Limit" type="number" min="1" max="10" value="5" />
+            </label>
+            <button class="primary-action" id="tile114FetchBtn" type="button">샘플 가져오기</button>
+          </div>
+          <div class="signup-status-bar" id="tile114Status">관리자 로그인 후 샘플 상품을 가져올 수 있습니다.</div>
+          <div class="tile114-sample-grid" id="tile114SampleGrid"></div>
+        </section>
+      </main>
 
       <main class="app-page page-panel" id="adminPage">
         <section class="page-heading">

@@ -28,6 +28,9 @@ const supabaseSecretKey = String(
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminDisplayName = String(process.env.ADMIN_DISPLAY_NAME || "내부관리자").trim();
+const tile114UserId = String(process.env.TILE114_USER_ID || "").trim();
+const tile114Password = String(process.env.TILE114_PASSWORD || "").trim();
+const tile114LoginUrl = String(process.env.TILE114_LOGIN_URL || "https://vgtns.tile114.co.kr/Web/ExInDex.asp?PopTF=2").trim();
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -127,6 +130,17 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 200, await readAdminOverview(
         String(url.searchParams.get("adminUsername") || url.searchParams.get("businessNumber") || ""),
         String(url.searchParams.get("adminToken") || "")
+      ));
+      return;
+    }
+
+    if (request.method === "GET" && request.url.startsWith("/api/admin/tile114-sample")) {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      sendJson(response, 200, await readTile114SampleProducts(
+        String(url.searchParams.get("adminUsername") || ""),
+        String(url.searchParams.get("adminToken") || ""),
+        String(url.searchParams.get("category") || "5"),
+        Number(url.searchParams.get("limit") || 5)
       ));
       return;
     }
@@ -648,6 +662,208 @@ async function readAdminOverview(adminUsernameValue, adminTokenValue) {
     })),
     carts
   };
+}
+
+async function readTile114SampleProducts(adminUsernameValue, adminTokenValue, category, limit) {
+  assertAdminCredentials(adminUsernameValue, adminTokenValue);
+  if (!tile114UserId || !tile114Password) {
+    throw new Error("TILE114_USER_ID 또는 TILE114_PASSWORD가 .env에 설정되어 있지 않습니다.");
+  }
+
+  const safeCategory = normalizeTile114Category(category);
+  const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 10);
+  const session = createTile114Session();
+
+  await session.fetch("/Inc/LogInOut.asp", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+    body: new URLSearchParams({
+      LogOut: "0",
+      mb_id: tile114UserId,
+      mb_password: tile114Password
+    }).toString()
+  });
+
+  const listResponse = await session.fetch(`/Web/product.Asp?prd_Item=${encodeURIComponent(safeCategory)}&Page=0`);
+  const listHtml = await listResponse.text();
+  if (!/로그아웃|LogOutPut/i.test(listHtml)) {
+    throw new Error("거래사이트 로그인 세션을 확인하지 못했습니다.");
+  }
+
+  const listItems = parseTile114ListProducts(listHtml).slice(0, safeLimit);
+  const products = [];
+  for (const item of listItems) {
+    const detailResponse = await session.fetch(`/Web/productView.asp?ItemId=${encodeURIComponent(item.sourceId)}`);
+    const detailHtml = await detailResponse.text();
+    products.push({
+      ...item,
+      ...parseTile114ProductDetail(detailHtml),
+      sourceUrl: session.absoluteUrl(`/Web/productView.asp?ItemId=${encodeURIComponent(item.sourceId)}`)
+    });
+  }
+
+  return {
+    ok: true,
+    source: "tile114",
+    category: safeCategory,
+    categoryName: TILE114_CATEGORIES[safeCategory] || safeCategory,
+    count: products.length,
+    products
+  };
+}
+
+const TILE114_CATEGORIES = {
+  "1": "할인(타일)",
+  "2": "할인(스톤)",
+  "3": "T-중국바닥",
+  "4": "T-중국벽",
+  "5": "T-유럽바닥",
+  "6": "T-유럽벽",
+  "7": "T-아시아",
+  "8": "S-트라버틴",
+  "9": "S-복합대리",
+  A: "S-고벽현무",
+  B: "S-산호지메",
+  C: "S-오로슬레",
+  D: "S-기능성",
+  E: "S-에코판재",
+  F: "S-몰딩부조",
+  G: "기타",
+  H: "부자재",
+  I: "REGNO"
+};
+
+function normalizeTile114Category(value) {
+  const clean = String(value || "5").trim().toUpperCase();
+  return TILE114_CATEGORIES[clean] ? clean : "5";
+}
+
+function createTile114Session() {
+  const login = new URL(tile114LoginUrl || "https://vgtns.tile114.co.kr/Web/ExInDex.asp?PopTF=2");
+  const origin = login.origin;
+  const cookieJar = new Map();
+
+  return {
+    absoluteUrl(pathValue) {
+      return new URL(pathValue, origin).toString();
+    },
+    async fetch(pathValue, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const cookie = Array.from(cookieJar.entries()).map(([key, value]) => `${key}=${value}`).join("; ");
+      if (cookie) headers.set("Cookie", cookie);
+      headers.set("User-Agent", "Mozilla/5.0 TileBathPlusImporter/1.0");
+      const response = await fetch(new URL(pathValue, origin), { ...options, headers, redirect: "manual" });
+      storeTile114Cookies(response.headers, cookieJar);
+      if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
+        return await this.fetch(response.headers.get("location"), options);
+      }
+      if (!response.ok) throw new Error(`거래사이트 요청 실패: ${response.status}`);
+      return response;
+    }
+  };
+}
+
+function storeTile114Cookies(headers, cookieJar) {
+  const setCookies = typeof headers.getSetCookie === "function"
+    ? headers.getSetCookie()
+    : splitSetCookieHeader(headers.get("set-cookie") || "");
+  for (const cookieText of setCookies) {
+    const firstPart = String(cookieText || "").split(";")[0];
+    const separatorIndex = firstPart.indexOf("=");
+    if (separatorIndex <= 0) continue;
+    cookieJar.set(firstPart.slice(0, separatorIndex).trim(), firstPart.slice(separatorIndex + 1).trim());
+  }
+}
+
+function splitSetCookieHeader(value) {
+  if (!value) return [];
+  return String(value).split(/,(?=\s*[^;,=]+=[^;,]+)/g);
+}
+
+function parseTile114ListProducts(html) {
+  const products = [];
+  const regex = /<li\b[^>]*class=["'][^"']*prd_thumb[^"']*["'][^>]*>([\s\S]*?)<\/li>/gi;
+  let match;
+  while ((match = regex.exec(html))) {
+    const block = match[1];
+    const id = findFirst(block, /DetailListView\((\d+)\)/i) || findFirst(block, /<span class=["']blind["']>(\d+)<\/span>/i);
+    if (!id) continue;
+    const name = cleanHtml(findFirst(block, /<span class=["']prd_name["']>([\s\S]*?)<\/span>/i) || findFirst(block, /alt=["']([^"']+)["']/i));
+    const size = cleanHtml(findFirst(block, /<span class=["']prd_size["']>([\s\S]*?)<\/span>/i));
+    const imagePath = findFirst(block, /<img\b[^>]*src=["']([^"']+)["']/i);
+    products.push({
+      sourceId: id,
+      name,
+      size,
+      thumbnailUrl: absolutizeTile114Url(imagePath)
+    });
+  }
+  return products;
+}
+
+function parseTile114ProductDetail(html) {
+  const detail = {};
+  const rowRegex = /<tr>\s*<th[^>]*>([\s\S]*?)<\/th>\s*<td[^>]*>([\s\S]*?)(?:<\/td>|<\/tr>)/gi;
+  let match;
+  while ((match = rowRegex.exec(html))) {
+    const key = cleanHtml(match[1]).replace(/\s+/g, "");
+    const value = cleanHtml(match[2]);
+    if (!key) continue;
+    if (key.includes("종류")) detail.categoryName = value;
+    else if (key.includes("품명")) detail.name = value;
+    else if (key.includes("규격")) detail.size = value;
+    else if (key.includes("제조사")) detail.maker = value;
+    else if (key.includes("단위")) detail.unit = value;
+    else if (key.includes("메모")) detail.memo = value;
+    else if (key.includes("도매가")) {
+      detail.wholesalePriceText = value;
+      detail.wholesalePrice = Number(value.replace(/[^\d]/g, "")) || 0;
+    } else if (key.includes("재고량")) {
+      detail.stockText = value;
+    }
+  }
+  const imagePath = findFirst(html, /<figure[^>]*>[\s\S]*?<img\b[^>]*src=["']([^"']+)["']/i)
+    || findFirst(html, /<div class=["']prd_view_img["'][^>]*>[\s\S]*?<img\b[^>]*src=["']([^"']+)["']/i);
+  detail.imageUrl = absolutizeTile114Url(imagePath);
+  return detail;
+}
+
+function findFirst(text, regex) {
+  const match = regex.exec(String(text || ""));
+  return match ? match[1] : "";
+}
+
+function cleanHtml(value) {
+  return decodeHtmlEntities(String(value || "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim());
+}
+
+function decodeHtmlEntities(value) {
+  const entities = {
+    amp: "&",
+    lt: "<",
+    gt: ">",
+    quot: "\"",
+    apos: "'",
+    nbsp: " "
+  };
+  return String(value || "").replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (_, entity) => {
+    const lower = entity.toLowerCase();
+    if (lower[0] === "#") {
+      const code = lower[1] === "x" ? parseInt(lower.slice(2), 16) : parseInt(lower.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+    }
+    return entities[lower] || "";
+  });
+}
+
+function absolutizeTile114Url(value) {
+  if (!value) return "";
+  const login = new URL(tile114LoginUrl || "https://vgtns.tile114.co.kr/Web/ExInDex.asp?PopTF=2");
+  return new URL(value, `${login.origin}/Web/`).toString();
 }
 
 function loginAsAdmin(payload) {
