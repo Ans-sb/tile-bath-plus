@@ -5056,8 +5056,8 @@ function renderTile114SampleGrid(products) {
 
   grid.innerHTML = products.map((product) => `
     <article class="tile114-sample-card">
-      ${product.imageUrl || product.thumbnailUrl
-        ? `<img src="${escapeHtml(product.imageUrl || product.thumbnailUrl)}" alt="${escapeHtml(product.name || "거래사이트 상품")}" loading="lazy" />`
+      ${product.imageDataUrl || product.imageUrl || product.thumbnailUrl
+        ? `<img src="${escapeHtml(product.imageDataUrl || product.imageUrl || product.thumbnailUrl)}" alt="${escapeHtml(product.name || "거래사이트 상품")}" loading="lazy" />`
         : '<div class="tile114-sample-image-empty">이미지 없음</div>'}
       <div class="tile114-sample-copy">
         <span>${escapeHtml(product.categoryName || "-")}</span>

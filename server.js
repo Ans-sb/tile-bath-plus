@@ -695,11 +695,13 @@ async function readTile114SampleProducts(adminUsernameValue, adminTokenValue, ca
   for (const item of listItems) {
     const detailResponse = await session.fetch(`/Web/productView.asp?ItemId=${encodeURIComponent(item.sourceId)}`);
     const detailHtml = await detailResponse.text();
-    products.push({
+    const product = {
       ...item,
       ...parseTile114ProductDetail(detailHtml),
       sourceUrl: session.absoluteUrl(`/Web/productView.asp?ItemId=${encodeURIComponent(item.sourceId)}`)
-    });
+    };
+    product.imageDataUrl = await readTile114ImageDataUrl(session, product.imageUrl || product.thumbnailUrl);
+    products.push(product);
   }
 
   return {
@@ -710,6 +712,20 @@ async function readTile114SampleProducts(adminUsernameValue, adminTokenValue, ca
     count: products.length,
     products
   };
+}
+
+async function readTile114ImageDataUrl(session, imageUrl) {
+  if (!imageUrl) return "";
+  try {
+    const response = await session.fetch(imageUrl);
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length) return "";
+    return `data:${contentType.split(";")[0]};base64,${buffer.toString("base64")}`;
+  } catch (error) {
+    console.warn("[tile114] image fetch failed", error.message);
+    return "";
+  }
 }
 
 const TILE114_CATEGORIES = {
