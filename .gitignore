@@ -10,5 +10,6 @@ server.err.log
 server.out.log
 outputs/
 tmp/
+backups/
 scripts/__pycache__/
 ~$*
