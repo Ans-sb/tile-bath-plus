@@ -10,6 +10,7 @@ loadEnvFile(path.join(root, ".env"));
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 const productsPath = path.join(root, "data", "products.json");
+const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
 const bodyLimit = 80 * 1024 * 1024;
 const proposalOutputDir = path.join(root, "outputs", "proposals");
 const proposalTmpDir = path.join(root, "tmp", "proposal-ppt");
@@ -59,6 +60,10 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && request.url === "/api/products") {
+      if (areProductsHiddenFromStorefront()) {
+        sendJson(response, 200, []);
+        return;
+      }
       sendJson(response, 200, (await readProducts()).map(mapPublicProduct));
       return;
     }
@@ -253,6 +258,10 @@ function hasSupabaseConfig() {
 
 function getStorageMode() {
   return hasSupabaseConfig() ? "supabase" : "file";
+}
+
+function areProductsHiddenFromStorefront() {
+  return fs.existsSync(productsHiddenFlagPath);
 }
 
 async function readProductsFromSupabase() {

@@ -781,7 +781,7 @@ function renderProducts() {
       </div>
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
-  `).join("") || `<div class="empty-state">${keyword ? "품명 검색 결과가 없습니다." : "조건에 맞는 상품이 없습니다."}</div>`;
+  `).join("") || `<div class="empty-state">${keyword ? "품명 검색 결과가 없습니다." : "새 상품 리스트 업데이트 준비 중입니다."}</div>`;
 
   const activeFilters = [
     type !== "all",
