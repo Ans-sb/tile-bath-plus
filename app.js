@@ -2707,7 +2707,7 @@ async function handleTileFinderSearch() {
     ].map((item) => `<span>${escapeHtml(item)}</span>`).join("");
   }
 
-  if (status) status.textContent = `${size} · ${finish} 조건의 타일 중 이미지 색상과 패턴이 유사한 상품을 찾는 중입니다.`;
+  if (status) status.textContent = `전체 타일 DB에서 이미지가 가장 비슷한 상품을 찾는 중입니다. ${size} · ${finish} 일치 상품은 우선 반영됩니다.`;
   try {
     const payload = await requestJson("/api/tile-match", {
       method: "POST",
@@ -2716,6 +2716,7 @@ async function handleTileFinderSearch() {
         imageDataUrl: tileFinderImageDataUrl,
         size,
         finish,
+        searchMode: "global",
         allSimilar: true
       })
     }, { retries: 0, timeoutMs: 60000 });
@@ -2724,8 +2725,8 @@ async function handleTileFinderSearch() {
     renderTileFinderAnalysis(payload.analysis || {});
     renderTileFinderResults(payload.matches || []);
     if (status) status.textContent = (payload.matches || []).length
-      ? `${size} · ${finish} 조건에서 이미지와 유사한 타일 ${(payload.matches || []).length}개를 찾았습니다.`
-      : `${size} · ${finish} 조건에 맞는 유사 타일을 찾지 못했습니다. 다른 사이즈/표면 조건이나 더 선명한 사진으로 다시 시도해보세요.`;
+      ? `전체 DB에서 이미지가 가장 비슷한 타일 ${(payload.matches || []).length}개를 찾았습니다. 같은 사이즈/표면 상품은 우선 표시됩니다.`
+      : "전체 DB에서 유사 타일을 찾지 못했습니다. 더 선명한 사진으로 다시 시도해보세요.";
   } catch (error) {
     if (status) status.textContent = error.message || "타일찾기 분석에 실패했습니다.";
   }

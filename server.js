@@ -1635,8 +1635,11 @@ async function findSimilarTilesByImage(payload) {
   const imageDataUrl = String(payload?.imageDataUrl || "").trim();
   const requestedSize = normalizeTileSize(String(payload?.size || "").trim());
   const requestedFinish = String(payload?.finish || "").trim();
+  const searchMode = String(payload?.searchMode || "").trim() === "global" ? "global" : "strict";
   const allSimilar = payload?.allSimilar !== false;
-  const limit = allSimilar ? Number.POSITIVE_INFINITY : Math.min(Math.max(Number(payload?.limit) || 12, 4), 60);
+  const limit = allSimilar
+    ? (searchMode === "global" ? 80 : 240)
+    : Math.min(Math.max(Number(payload?.limit) || 12, 4), 60);
   if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(imageDataUrl)) {
     throw new Error("타일 사진을 다시 업로드해주세요.");
   }
@@ -1644,13 +1647,14 @@ async function findSimilarTilesByImage(payload) {
   const analysis = {
     ...(await analyzeTileImage(imageDataUrl)),
     requestedSize,
-    requestedFinish
+    requestedFinish,
+    searchMode
   };
   const products = (await readProducts()).filter((product) => (
     isTileFinderTileCandidate(product)
     && product.image
     && Number(product.stockQty || 0) > 0
-    && productMatchesTileFinderBase(product, analysis)
+    && (searchMode === "global" || productMatchesTileFinderBase(product, analysis))
   ));
   const scoredMatches = products
     .map((product) => scoreTileProduct(product, analysis))
@@ -1658,9 +1662,11 @@ async function findSimilarTilesByImage(payload) {
   let rankedMatches = scoredMatches.length ? scoredMatches : products.map((product) => ({
     product,
     score: 1,
-    reasons: ["사이즈/표면 조건 후보"]
+    reasons: [searchMode === "global" ? "전체 DB 후보" : "사이즈/표면 조건 후보"]
   }));
-  rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
+  if (searchMode !== "global") {
+    rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
+  }
   const matches = rankedMatches
     .sort((left, right) => right.score - left.score || String(left.product.name || "").localeCompare(String(right.product.name || ""), "ko"))
     .slice(0, limit)
@@ -1835,8 +1841,26 @@ function scoreTileProduct(product, analysis) {
   ].filter(Boolean).join(" "));
   const reasons = [];
   let score = 0;
-  if (analysis.requestedSize) reasons.push(`사이즈: ${analysis.requestedSize}`);
-  if (analysis.requestedFinish) reasons.push(`표면: ${analysis.requestedFinish}`);
+  if (analysis.requestedSize) {
+    const sizeMatched = collectTileFinderProductSizes(product).includes(analysis.requestedSize);
+    if (sizeMatched) {
+      score += analysis.searchMode === "global" ? 18 : 8;
+      reasons.push(`사이즈일치: ${analysis.requestedSize}`);
+    } else if (analysis.searchMode === "global") {
+      reasons.push(`선택사이즈와 다름`);
+    }
+  }
+  if (analysis.requestedFinish) {
+    const requestedFinishes = getRequestedTileFinderFinishGroups(analysis.requestedFinish);
+    const productFinishes = getProductTileFinderFinishGroups(product);
+    const finishMatched = requestedFinishes.some((finish) => productFinishes.includes(finish));
+    if (finishMatched) {
+      score += analysis.searchMode === "global" ? 18 : 8;
+      reasons.push(`표면일치: ${analysis.requestedFinish}`);
+    } else if (analysis.searchMode === "global") {
+      reasons.push(`선택표면과 다름`);
+    }
+  }
 
   for (const color of analysis.colors || []) {
     const weight = keywordMatchScore(text, color, "색상", reasons, 30);
