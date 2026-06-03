@@ -795,11 +795,17 @@ async function readApprovalRules() {
     return { businessTypes: [], businessItems: [], source: "local" };
   }
 
-  const query = new URLSearchParams({
-    select: "id,business_types,business_items,updated_at",
-    id: "eq.default"
-  });
-  const rows = await requestSupabase(`/rest/v1/approval_settings?${query.toString()}`);
+  let rows = [];
+  try {
+    const query = new URLSearchParams({
+      select: "id,business_types,business_items,updated_at",
+      id: "eq.default"
+    });
+    rows = await requestSupabase(`/rest/v1/approval_settings?${query.toString()}`);
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "approval_settings")) throw error;
+    return { businessTypes: [], businessItems: [], source: "missing" };
+  }
   const row = Array.isArray(rows) ? rows[0] : null;
   return {
     businessTypes: Array.isArray(row?.business_types) ? row.business_types : [],
@@ -814,17 +820,22 @@ async function saveApprovalRules(payload) {
   const businessItems = normalizeStringArray(payload?.businessItems);
 
   if (hasSupabaseConfig()) {
-    await requestSupabase("/rest/v1/approval_settings", {
-      method: "POST",
-      headers: {
-        Prefer: "resolution=merge-duplicates,return=representation"
-      },
-      body: JSON.stringify([{
-        id: "default",
-        business_types: businessTypes,
-        business_items: businessItems
-      }])
-    });
+    try {
+      await requestSupabase("/rest/v1/approval_settings", {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=representation"
+        },
+        body: JSON.stringify([{
+          id: "default",
+          business_types: businessTypes,
+          business_items: businessItems
+        }])
+      });
+    } catch (error) {
+      if (!isMissingSupabaseTableError(error, "approval_settings")) throw error;
+      return { businessTypes, businessItems, source: "missing" };
+    }
   }
 
   return {
@@ -838,13 +849,17 @@ async function saveSignupRequestRecord(payload) {
   const record = normalizeSignupRequest(payload);
 
   if (hasSupabaseConfig()) {
-    await requestSupabase("/rest/v1/signup_requests", {
-      method: "POST",
-      headers: {
-        Prefer: "resolution=merge-duplicates,return=representation"
-      },
-      body: JSON.stringify([mapSignupRequestToSupabase(record)])
-    });
+    try {
+      await requestSupabase("/rest/v1/signup_requests", {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=representation"
+        },
+        body: JSON.stringify([mapSignupRequestToSupabase(record)])
+      });
+    } catch (error) {
+      if (!isMissingSupabaseTableError(error, "signup_requests")) throw error;
+    }
   }
 
   return {
@@ -895,7 +910,13 @@ async function readSignupRequestByBusinessNumber(businessNumber) {
     select: "*",
     business_number: `eq.${businessNumber}`
   });
-  const rows = await requestSupabase(`/rest/v1/signup_requests?${query.toString()}`);
+  let rows = [];
+  try {
+    rows = await requestSupabase(`/rest/v1/signup_requests?${query.toString()}`);
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "signup_requests")) throw error;
+    return null;
+  }
   return Array.isArray(rows) && rows.length ? mapSupabaseSignupRequest(rows[0]) : null;
 }
 
@@ -908,7 +929,13 @@ async function readCartRecord(businessNumber) {
     select: "business_number,company_name,cart_data,updated_at",
     business_number: `eq.${clean}`
   });
-  const rows = await requestSupabase(`/rest/v1/carts?${query.toString()}`);
+  let rows = [];
+  try {
+    rows = await requestSupabase(`/rest/v1/carts?${query.toString()}`);
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "carts")) throw error;
+    return { businessNumber: clean, items: [] };
+  }
   const row = Array.isArray(rows) ? rows[0] : null;
   return {
     businessNumber: clean,
@@ -928,17 +955,21 @@ async function saveCartRecord(payload) {
   const companyName = String(payload?.companyName || "").trim();
 
   if (hasSupabaseConfig()) {
-    await requestSupabase("/rest/v1/carts", {
-      method: "POST",
-      headers: {
-        Prefer: "resolution=merge-duplicates,return=representation"
-      },
-      body: JSON.stringify([{
-        business_number: businessNumber,
-        company_name: companyName,
-        cart_data: items
-      }])
-    });
+    try {
+      await requestSupabase("/rest/v1/carts", {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=representation"
+        },
+        body: JSON.stringify([{
+          business_number: businessNumber,
+          company_name: companyName,
+          cart_data: items
+        }])
+      });
+    } catch (error) {
+      if (!isMissingSupabaseTableError(error, "carts")) throw error;
+    }
   }
 
   return {
@@ -1236,7 +1267,13 @@ async function readAllSignupRequests() {
     select: "*",
     order: "submitted_at.desc"
   });
-  const rows = await requestSupabase(`/rest/v1/signup_requests?${query.toString()}`);
+  let rows = [];
+  try {
+    rows = await requestSupabase(`/rest/v1/signup_requests?${query.toString()}`);
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "signup_requests")) throw error;
+    return [];
+  }
   return Array.isArray(rows) ? rows.map(mapSupabaseSignupRequest) : [];
 }
 
@@ -1245,7 +1282,13 @@ async function readAllCartRecords() {
     select: "business_number,company_name,cart_data,updated_at",
     order: "updated_at.desc"
   });
-  const rows = await requestSupabase(`/rest/v1/carts?${query.toString()}`);
+  let rows = [];
+  try {
+    rows = await requestSupabase(`/rest/v1/carts?${query.toString()}`);
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "carts")) throw error;
+    return [];
+  }
   return Array.isArray(rows) ? rows.map((row) => {
     const items = Array.isArray(row.cart_data) ? row.cart_data.map(normalizeCartItem) : [];
     return {
@@ -1283,6 +1326,13 @@ async function requestSupabase(pathname, options = {}) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) return null;
   return response.json();
+}
+
+function isMissingSupabaseTableError(error, tableName) {
+  const message = String(error?.message || "");
+  return message.includes("PGRST205")
+    && message.includes("Could not find the table")
+    && message.includes(`'public.${tableName}'`);
 }
 
 function normalizeStringArray(values) {
