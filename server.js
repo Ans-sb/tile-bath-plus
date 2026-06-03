@@ -570,14 +570,20 @@ function mapPublicProduct(product) {
 }
 
 function getPublicProductGroup(product) {
+  const productType = String(product.productType || "").trim();
+  const internalCodes = new Set(["AJ", "VG", "US", "SG", "GT", "HS"]);
+  const semanticKind = String(product.kind || "").trim();
+  if ((productType === "sanitary" || productType === "material") && semanticKind && !internalCodes.has(semanticKind.toUpperCase())) {
+    return semanticKind;
+  }
+
   const candidates = [
     product.option,
     product.sourceCategoryName,
     product.source_category_name,
     product.material,
-    product.productType === "tile" ? "타일" : product.productType
+    productType === "tile" ? "타일" : productType
   ];
-  const internalCodes = new Set(["AJ", "VG", "US", "SG", "GT", "HS"]);
   for (const candidate of candidates) {
     const value = String(candidate || "").trim();
     if (!value) continue;
