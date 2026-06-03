@@ -1647,7 +1647,7 @@ async function findSimilarTilesByImage(payload) {
     requestedFinish
   };
   const products = (await readProducts()).filter((product) => (
-    product.productType === "tile"
+    isTileFinderTileCandidate(product)
     && product.image
     && Number(product.stockQty || 0) > 0
     && productMatchesTileFinderBase(product, analysis)
@@ -1655,11 +1655,12 @@ async function findSimilarTilesByImage(payload) {
   const scoredMatches = products
     .map((product) => scoreTileProduct(product, analysis))
     .filter((entry) => entry.score > 0);
-  const rankedMatches = scoredMatches.length ? scoredMatches : products.map((product) => ({
+  let rankedMatches = scoredMatches.length ? scoredMatches : products.map((product) => ({
     product,
     score: 1,
     reasons: ["사이즈/표면 조건 후보"]
   }));
+  rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
   const matches = rankedMatches
     .sort((left, right) => right.score - left.score || String(left.product.name || "").localeCompare(String(right.product.name || ""), "ko"))
     .slice(0, limit)
@@ -1870,27 +1871,111 @@ function scoreTileProduct(product, analysis) {
 
 function productMatchesTileFinderBase(product, analysis) {
   if (analysis.requestedSize) {
-    const productSize = normalizeTileSize(product.size);
-    if (!productSize || productSize !== analysis.requestedSize) return false;
+    const productSizes = collectTileFinderProductSizes(product);
+    if (!productSizes.includes(analysis.requestedSize)) return false;
   }
 
   if (analysis.requestedFinish) {
-    const text = normalizeMatchText([
-      product.finish,
-      product.surface,
-      product.name,
-      product.option,
-      product.features
-    ].filter(Boolean).join(" "));
-    const finishMatched = [analysis.requestedFinish, ...getFinishAliases(analysis.requestedFinish), ...expandTileMatchKeywords([analysis.requestedFinish])]
-      .some((keyword) => {
-        const normalized = normalizeMatchText(keyword);
-        return normalized.length >= 2 && text.includes(normalized);
-      });
-    if (!finishMatched) return false;
+    const requestedFinishes = getRequestedTileFinderFinishGroups(analysis.requestedFinish);
+    const productFinishes = getProductTileFinderFinishGroups(product);
+    if (!requestedFinishes.some((finish) => productFinishes.includes(finish))) return false;
   }
 
   return true;
+}
+
+function isTileFinderTileCandidate(product) {
+  if (String(product?.productType || "").trim() !== "tile") return false;
+  const text = normalizeMatchText([
+    product.name,
+    product.kind,
+    product.option,
+    product.material,
+    product.surface,
+    product.features,
+    product.sourceCategoryName
+  ].filter(Boolean).join(" "));
+  const materialTerms = [
+    "부자재",
+    "유가",
+    "배수구",
+    "트렌치",
+    "재료분리대",
+    "코너비드",
+    "본드",
+    "시멘트",
+    "압착",
+    "몰탈",
+    "홈멘트",
+    "줄눈",
+    "메지",
+    "실리콘",
+    "방수",
+    "접착",
+    "레벨링",
+    "스페이서",
+    "클립"
+  ].map(normalizeMatchText);
+  return !materialTerms.some((term) => term && text.includes(term));
+}
+
+function collectTileFinderProductSizes(product) {
+  return [...new Set([
+    product?.size,
+    product?.modelName,
+    product?.name,
+    product?.option,
+    product?.features
+  ].map(normalizeTileSize).filter(Boolean))];
+}
+
+function getRequestedTileFinderFinishGroups(value) {
+  const text = normalizeMatchText(value);
+  if (!text) return [];
+  if (/논슬립|nsp|nonslip|nonsilp|antislip/.test(text)) return ["논슬립"];
+  if (/폴리싱|polishing|pol/.test(text)) return ["폴리싱", "유광"];
+  if (/반무광|새틴|sat/.test(text)) return ["반무광"];
+  if (/유광|gloss|gls/.test(text)) return ["유광", "폴리싱"];
+  if (/러프|rough|ruf/.test(text)) return ["러프"];
+  if (/무광|matte|matt|mat/.test(text)) return ["무광"];
+  return [value];
+}
+
+function getProductTileFinderFinishGroups(product) {
+  const explicitRawText = [
+    product?.finish,
+    product?.surface
+  ].filter(Boolean).join(" ");
+  const explicitText = normalizeMatchText(explicitRawText);
+  const hasExplicitFinish = Boolean(explicitText);
+  const explicitGlossy = /유광|gloss|gls|glossy|폴리싱|polishing|pol/.test(explicitText);
+  const explicitMatte = /무광|matte|matt|논슬립|nsp|nonslip|nonsilp|antislip|러프|rough|ruf/.test(explicitText);
+  const rawText = [
+    product?.finish,
+    product?.surface,
+    product?.name,
+    product?.option,
+    product?.features,
+    product?.material
+  ].filter(Boolean).join(" ");
+  const text = normalizeMatchText(rawText);
+  const groups = [];
+  if (/논슬립|nsp|nonslip|nonsilp|antislip/.test(text)) groups.push("논슬립", "무광");
+  if (/폴리싱|polishing|pol/.test(text) || hasStandaloneFinishCode(rawText, "P")) groups.push("폴리싱", "유광");
+  if (/반무광|새틴|satin|sat/.test(text)) groups.push("반무광");
+  if (/유광|gloss|gls|glossy/.test(text)) groups.push("유광");
+  if (/러프|rough|ruf/.test(text)) groups.push("러프", "무광");
+  if (/무광|matte|matt/.test(text)
+    || (hasStandaloneFinishCode(rawText, "M") && (!hasExplicitFinish || explicitMatte) && !explicitGlossy)) {
+    groups.push("무광");
+  }
+  if (/포쉐린/.test(text) && !groups.includes("유광") && !groups.includes("폴리싱")) groups.push("무광");
+  return [...new Set(groups)];
+}
+
+function hasStandaloneFinishCode(value, code) {
+  const pattern = new RegExp(`(^|[^a-z0-9가-힣])${code}($|[^a-z0-9가-힣])`, "i");
+  return pattern.test(String(value || ""));
 }
 
 async function rerankTileMatchesByVision(imageDataUrl, scoredMatches, analysis) {
