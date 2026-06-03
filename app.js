@@ -283,6 +283,23 @@ function bindEvents() {
     event.preventDefault();
     runTaxonomySearch();
   });
+  document.querySelector("#taxonomyAssistSizeBtn")?.addEventListener("click", () => {
+    toggleTaxonomyAssistSizePanel();
+  });
+  document.querySelector("#taxonomyAssistSizePanel")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-taxonomy-assist-size]");
+    if (!button) return;
+    setTaxonomyAssistSize(button.dataset.taxonomyAssistSize || "");
+  });
+  document.querySelector("#taxonomyAssistFinishGroup")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-taxonomy-assist-finish]");
+    if (!button) return;
+    setTaxonomyAssistFinish(button.dataset.taxonomyAssistFinish || "all");
+  });
+  document.querySelector("#taxonomyAssistClearBtn")?.addEventListener("click", () => {
+    setTaxonomyAssistSize("");
+    setTaxonomyAssistFinish("all");
+  });
   document.querySelector("#taxonomyIntentChips")?.addEventListener("click", (event) => {
     const resetButton = event.target.closest("[data-taxonomy-reset-facets]");
     if (resetButton) {
@@ -1196,6 +1213,8 @@ function syncTaxonomyFilters() {
   fillTaxonomySelect("#taxonomyFinishFilter", unique(normalizedTaxonomyProducts.map((item) => item.finishGroup || "마감 미확인")), "전체");
   fillTaxonomySelect("#taxonomySizeFilter", unique(normalizedTaxonomyProducts.map((item) => item.thicknessBucket).filter(Boolean)), "전체");
   fillTaxonomySelect("#taxonomyPriceFilter", unique(normalizedTaxonomyProducts.map((item) => item.priceRange).filter(Boolean)), "전체");
+  renderTaxonomyAssistSizePanel();
+  syncTaxonomyAssistFinishButtons();
 }
 
 function getTaxonomyAudienceMode() {
@@ -1226,10 +1245,106 @@ function collectTaxonomyValues(key) {
   return unique(normalizedTaxonomyProducts.flatMap((item) => Array.isArray(item[key]) ? item[key] : [item[key]]).filter(Boolean));
 }
 
+function getTaxonomyAssistSize() {
+  return document.querySelector("#taxonomyAssistSizeBtn")?.dataset.selectedSize || "";
+}
+
+function getTaxonomyAssistFinish() {
+  return document.querySelector("#taxonomyAssistFinishGroup button.active")?.dataset.taxonomyAssistFinish || "all";
+}
+
+function toggleTaxonomyAssistSizePanel() {
+  const panel = document.querySelector("#taxonomyAssistSizePanel");
+  const button = document.querySelector("#taxonomyAssistSizeBtn");
+  if (!panel || !button) return;
+  const willOpen = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden", !willOpen);
+  button.setAttribute("aria-expanded", String(willOpen));
+}
+
+function setTaxonomyAssistSize(value) {
+  const button = document.querySelector("#taxonomyAssistSizeBtn");
+  const panel = document.querySelector("#taxonomyAssistSizePanel");
+  if (!button) return;
+  button.dataset.selectedSize = value;
+  button.textContent = value || "전체 규격";
+  if (panel) panel.classList.add("hidden");
+  button.setAttribute("aria-expanded", "false");
+  taxonomyResultFacetFilters = {};
+  taxonomyCurrentPage = 1;
+  renderTaxonomyAssistSizePanel();
+}
+
+function setTaxonomyAssistFinish(value) {
+  const nextValue = value && value !== "all" ? value : "all";
+  document.querySelectorAll("#taxonomyAssistFinishGroup [data-taxonomy-assist-finish]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.taxonomyAssistFinish === nextValue);
+  });
+  taxonomyResultFacetFilters = {};
+  taxonomyCurrentPage = 1;
+}
+
+function syncTaxonomyAssistFinishButtons() {
+  const currentValue = getTaxonomyAssistFinish();
+  document.querySelectorAll("#taxonomyAssistFinishGroup [data-taxonomy-assist-finish]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.taxonomyAssistFinish === currentValue);
+  });
+}
+
+function renderTaxonomyAssistSizePanel() {
+  const panel = document.querySelector("#taxonomyAssistSizePanel");
+  if (!panel) return;
+  const selectedSize = getTaxonomyAssistSize();
+  const sizeCounts = new Map();
+  products
+    .filter((product) => product.productType === "tile")
+    .forEach((product) => {
+      const size = normalizeTaxonomyProductSizeLabel(product.size);
+      if (!size) return;
+      sizeCounts.set(size, (sizeCounts.get(size) || 0) + 1);
+    });
+  const sizes = sortTileSizeLabels([...sizeCounts.keys()]);
+  const buttons = [
+    `<button type="button" class="${selectedSize ? "" : "active"}" data-taxonomy-assist-size="">전체</button>`,
+    ...sizes.map((size) => {
+      const count = sizeCounts.get(size) || 0;
+      return `<button type="button" class="${selectedSize === size ? "active" : ""}" data-taxonomy-assist-size="${escapeHtml(size)}">${escapeHtml(size)} <span>${number(count)}</span></button>`;
+    })
+  ];
+  panel.innerHTML = buttons.join("");
+}
+
+function sortTileSizeLabels(values) {
+  return unique(values).sort((a, b) => {
+    const [aw, ah] = parseTaxonomySizeLabel(a);
+    const [bw, bh] = parseTaxonomySizeLabel(b);
+    const areaA = aw * ah;
+    const areaB = bw * bh;
+    if (areaA !== areaB) return areaA - areaB;
+    if (aw !== bw) return aw - bw;
+    return String(a).localeCompare(String(b), "ko", { numeric: true });
+  });
+}
+
+function parseTaxonomySizeLabel(value) {
+  const match = String(value || "").match(/(\d{2,4})\s*x\s*(\d{2,4})/i);
+  if (!match) return [999999, 999999];
+  return [Number(match[1]) || 0, Number(match[2]) || 0];
+}
+
+function normalizeTaxonomyProductSizeLabel(value) {
+  const source = String(value || "").replace(/[×＊]/g, "x");
+  const match = source.match(/(\d{2,4})\s*[xX*]\s*(\d{2,4})/);
+  if (!match) return "";
+  return `${Number(match[1])}x${Number(match[2])}`;
+}
+
 function renderTaxonomyTestPage() {
   const list = document.querySelector("#taxonomyCollectionList");
   if (!list) return;
   prepareTaxonomyProducts();
+  renderTaxonomyAssistSizePanel();
+  syncTaxonomyAssistFinishButtons();
 
   const searchIntent = getCurrentTaxonomySearchIntent();
   const baseFiltered = filterTaxonomyProducts(searchIntent, { skipResultFacets: true });
@@ -1328,7 +1443,55 @@ function getCurrentTaxonomySearchIntent() {
     taxonomyResultFacetFilters = {};
     taxonomyCurrentPage = 1;
   }
-  return parseTaxonomyNaturalSearch(raw, getTaxonomyAudienceMode());
+  return augmentTaxonomyIntentWithAssistOptions(parseTaxonomyNaturalSearch(raw, getTaxonomyAudienceMode()));
+}
+
+function augmentTaxonomyIntentWithAssistOptions(intent) {
+  const selectedSize = getTaxonomyAssistSize();
+  const selectedFinish = getTaxonomyAssistFinish();
+  if (!selectedSize && selectedFinish === "all") return intent;
+  const next = {
+    tokenGroups: [],
+    origins: [],
+    spaces: [],
+    applications: [],
+    colors: [],
+    styles: [],
+    patternDetails: [],
+    finishes: [],
+    textures: [],
+    materials: [],
+    moods: [],
+    specialTypes: [],
+    sizes: [],
+    priceRanges: [],
+    internalBrands: [],
+    freeTokens: [],
+    antiSlipRequired: false,
+    stockRequired: false,
+    stockEmpty: false,
+    ...intent,
+    active: true
+  };
+  if (selectedSize) next.sizes = unique([...(next.sizes || []), selectedSize]);
+  if (selectedFinish !== "all") next.finishes = unique([...(next.finishes || []), selectedFinish]);
+  next.tokenGroups = unique([
+    ...(next.origins || []),
+    ...(next.spaces || []),
+    ...(next.applications || []),
+    ...(next.colors || []),
+    ...(next.styles || []),
+    ...(next.patternDetails || []),
+    ...(next.finishes || []),
+    ...(next.textures || []),
+    ...(next.materials || []),
+    ...(next.moods || []),
+    ...(next.specialTypes || []),
+    ...(next.sizes || []),
+    ...(next.priceRanges || []),
+    ...(next.freeTokens || [])
+  ]).map(makeTaxonomyTokenGroup);
+  return next;
 }
 
 function applyTaxonomyIntentSelections(intent) {

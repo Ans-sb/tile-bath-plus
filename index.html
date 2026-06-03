@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260603-image-preview1" />
+    <link rel="stylesheet" href="styles.css?v=20260604-search-options2" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -711,6 +711,22 @@
                 <input id="taxonomySearch" type="search" placeholder="예: 중국 바닥 베이지 마블 유광 600x1200 재고" />
                 <button class="primary-action" id="taxonomySearchBtn" type="button">검색</button>
               </div>
+              <div class="taxonomy-search-assist">
+                <div class="taxonomy-assist-control">
+                  <span>규격</span>
+                  <button class="secondary-action taxonomy-size-toggle" id="taxonomyAssistSizeBtn" type="button" aria-expanded="false" aria-controls="taxonomyAssistSizePanel">전체 규격</button>
+                </div>
+                <div class="taxonomy-assist-control">
+                  <span>표면</span>
+                  <div class="taxonomy-segmented" id="taxonomyAssistFinishGroup" role="group" aria-label="표면 선택">
+                    <button type="button" class="active" data-taxonomy-assist-finish="all">전체</button>
+                    <button type="button" data-taxonomy-assist-finish="유광">유광</button>
+                    <button type="button" data-taxonomy-assist-finish="무광">무광</button>
+                  </div>
+                </div>
+                <button class="secondary-action" id="taxonomyAssistClearBtn" type="button">옵션 초기화</button>
+              </div>
+              <div class="taxonomy-size-panel hidden" id="taxonomyAssistSizePanel"></div>
               <div class="taxonomy-intent-chips" id="taxonomyIntentChips" aria-live="polite"></div>
             </div>
           </div>
@@ -1603,6 +1619,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260603-image-preview1"></script>
+    <script src="app.js?v=20260604-search-options2"></script>
   </body>
 </html>
