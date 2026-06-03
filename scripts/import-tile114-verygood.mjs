@@ -201,7 +201,12 @@ function mapTile114ToAppProduct(item) {
   const material = inferMaterial(`${modelName} ${categoryName} ${item.memo || ""}`);
   const patternCategory = classifyPatternCategory(`${modelName} ${categoryName} ${material} ${surface} ${item.memo || ""}`);
   const color = inferColor(modelName);
-  const image = cleanText(item.imageUrl || item.thumbnailUrl);
+  const imageUrls = unique([
+    ...(Array.isArray(item.imageUrls) ? item.imageUrls : []),
+    item.imageUrl,
+    item.thumbnailUrl
+  ].map(cleanText).filter(Boolean));
+  const image = cleanText(imageUrls[0] || item.imageUrl || item.thumbnailUrl);
 
   return {
     id: `${idPrefix}-${item.sourceProductId}`,
@@ -233,10 +238,10 @@ function mapTile114ToAppProduct(item) {
     stockQty,
     stockText,
     image,
-    imageUrls: [image].filter(Boolean),
+    imageUrls,
     originalImage: image,
-    closeImage: "",
-    detailImage: image,
+    closeImage: imageUrls[1] || "",
+    detailImage: imageUrls[2] || imageUrls[1] || image,
     daylightImage: "",
     fluorescentImage: "",
     sceneImage: "",
@@ -393,7 +398,30 @@ function parseTile114ProductDetail(html) {
   const imagePath = findFirst(html, /<figure[^>]*>[\s\S]*?<img\b[^>]*src=["']([^"']+)["']/i)
     || findFirst(html, /<div class=["']prd_view_img["'][^>]*>[\s\S]*?<img\b[^>]*src=["']([^"']+)["']/i);
   detail.imageUrl = absolutizeTile114Url(imagePath);
+  detail.imageUrls = extractTile114ImageUrls(html);
   return detail;
+}
+
+function extractTile114ImageUrls(html) {
+  const values = [];
+  const source = String(html || "");
+  const imageRegex = /<img\b[^>]*(?:src|data-src|data-original)=["']([^"']+)["'][^>]*>/gi;
+  let imageMatch;
+  while ((imageMatch = imageRegex.exec(source))) values.push(imageMatch[1]);
+
+  const imageReadRegex = /(?:\.\.\/|\.\/|\/)?Inc\/ImageRead\.asp\?[^"'\s<>)]*/gi;
+  let imageReadMatch;
+  while ((imageReadMatch = imageReadRegex.exec(source))) values.push(imageReadMatch[0]);
+
+  const backgroundRegex = /url\(["']?([^"')]+)["']?\)/gi;
+  let backgroundMatch;
+  while ((backgroundMatch = backgroundRegex.exec(source))) values.push(backgroundMatch[1]);
+
+  return unique(values
+    .map((value) => absolutizeTile114Url(value))
+    .filter((value) => /ImageRead\.asp|\/upload\/|\/image\//i.test(value))
+    .filter((value) => !/\/Web\/img\//i.test(value))
+  );
 }
 
 function createTile114Session() {
@@ -470,6 +498,18 @@ function cleanHtml(value) {
 
 function cleanText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function unique(values) {
+  const seen = new Set();
+  const results = [];
+  for (const value of values) {
+    const key = String(value || "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    results.push(key);
+  }
+  return results;
 }
 
 function decodeHtmlEntities(value) {
