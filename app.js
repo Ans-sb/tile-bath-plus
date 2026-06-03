@@ -535,7 +535,7 @@ async function loadProducts() {
   syncProductFilters();
 
   try {
-    const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 5000 });
+    const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 30000 });
     products = mergeProducts(remoteProducts, localProducts);
     serverConnection = { online: true, checked: true, failures: 0 };
     productsLoadedFromRemote = true;
