@@ -81,8 +81,14 @@ await mapWithConcurrency(listItems, detailConcurrency, async (item, workerIndex)
   let detail = {};
   let stockDetail = {};
   try {
+    const detailHtml = await detailSession.fetchText(item.detailPath || item.sourceUrl);
+    detail = parseProductDetail(detailHtml, item);
+  } catch (error) {
+    detail = { detailError: error.message };
+  }
+
+  try {
     const stockHtml = await fetchStockHtml(detailSession, item);
-    detail = parseProductDetail(stockHtml, item);
     stockDetail = parseStockHtml(stockHtml);
   } catch (error) {
     stockDetail = { stockError: error.message };
@@ -342,8 +348,8 @@ function mapHwashinToAppProduct(item) {
     image,
     imageUrls: unique([...(item.imageUrls || []), image].filter(Boolean)),
     originalImage: image,
-    closeImage: "",
-    detailImage: item.imageUrls?.[1] || image,
+    closeImage: item.imageUrls?.[1] || "",
+    detailImage: item.imageUrls?.[2] || item.imageUrls?.[1] || image,
     daylightImage: "",
     fluorescentImage: "",
     sceneImage: "",
