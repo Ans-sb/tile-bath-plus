@@ -105,6 +105,8 @@ let taxonomyDisabledIntentKeys = new Set();
 let taxonomyResultFacetFilters = {};
 let taxonomyCurrentPage = 1;
 const TAXONOMY_PAGE_SIZE = 10;
+let tileFinderImageDataUrl = "";
+let tileFinderImageFileName = "";
 let cart = loadCart();
 let proposalProductSelectionIds = new Set();
 let proposalRenderSelectionIds = new Set();
@@ -315,6 +317,7 @@ function bindEvents() {
   document.querySelector("#tileFinderBtn")?.addEventListener("click", () => {
     document.querySelector("#tileFinderFile")?.click();
   });
+  document.querySelector("#tileFinderSearchBtn")?.addEventListener("click", handleTileFinderSearch);
   document.querySelector("#tileFinderFile")?.addEventListener("change", handleTileFinderFileChange);
   document.querySelector("#tileFinderResults")?.addEventListener("click", (event) => {
     const addButton = event.target.closest("[data-add-product]");
@@ -2660,34 +2663,71 @@ async function handleTileFinderFileChange(event) {
     if (status) status.textContent = "사진을 읽지 못했습니다.";
     return;
   }
+  tileFinderImageDataUrl = imageDataUrl;
+  tileFinderImageFileName = file.name || "";
   if (preview && previewWrap) {
     preview.src = imageDataUrl;
     previewWrap.classList.remove("hidden");
   }
 
-  if (status) status.textContent = "색상, 패턴, 재질을 분석하고 있습니다.";
+  if (status) status.textContent = "사진이 준비됐습니다. 타일 사이즈와 표면을 선택한 뒤 검색하세요.";
+  if (tags) tags.innerHTML = `<span>검색 전</span>`;
+  event.target.value = "";
+}
+
+async function handleTileFinderSearch() {
+  const status = document.querySelector("#tileFinderStatus");
+  const results = document.querySelector("#tileFinderResults");
+  const tags = document.querySelector("#tileFinderTags");
+  const size = document.querySelector("#tileFinderSize")?.value || "";
+  const finish = document.querySelector("#tileFinderFinish")?.value || "";
+
+  if (!tileFinderImageDataUrl) {
+    if (status) status.textContent = "먼저 타일 사진을 업로드해주세요.";
+    return;
+  }
+  if (!size) {
+    if (status) status.textContent = "같은 사이즈 타일만 찾기 위해 타일 사이즈를 선택해주세요.";
+    return;
+  }
+  if (!finish) {
+    if (status) status.textContent = "같은 마감 타일만 찾기 위해 표면을 선택해주세요.";
+    return;
+  }
+
+  if (results) {
+    results.classList.add("hidden");
+    results.innerHTML = "";
+  }
+  if (tags) {
+    tags.innerHTML = [
+      `사진 ${tileFinderImageFileName || "업로드됨"}`,
+      `사이즈 ${size}`,
+      `표면 ${finish}`
+    ].map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+  }
+
+  if (status) status.textContent = `${size} · ${finish} 조건의 타일 중 이미지 색상과 패턴이 유사한 상품을 찾는 중입니다.`;
   try {
     const payload = await requestJson("/api/tile-match", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        imageDataUrl,
-        size: document.querySelector("#tileFinderSize")?.value || "",
-        finish: document.querySelector("#tileFinderFinish")?.value || "",
+        imageDataUrl: tileFinderImageDataUrl,
+        size,
+        finish,
         allSimilar: true
       })
-    }, { retries: 0, timeoutMs: 30000 });
+    }, { retries: 0, timeoutMs: 60000 });
 
     products = mergeProducts(products, (payload.matches || []).map(mapPublicProductForClient));
     renderTileFinderAnalysis(payload.analysis || {});
     renderTileFinderResults(payload.matches || []);
     if (status) status.textContent = (payload.matches || []).length
-      ? `조건과 색상/패턴이 유사한 타일 ${(payload.matches || []).length}개를 찾았습니다.`
-      : "비슷한 타일을 찾지 못했습니다. 다른 각도나 더 선명한 사진으로 다시 시도해보세요.";
+      ? `${size} · ${finish} 조건에서 이미지와 유사한 타일 ${(payload.matches || []).length}개를 찾았습니다.`
+      : `${size} · ${finish} 조건에 맞는 유사 타일을 찾지 못했습니다. 다른 사이즈/표면 조건이나 더 선명한 사진으로 다시 시도해보세요.`;
   } catch (error) {
     if (status) status.textContent = error.message || "타일찾기 분석에 실패했습니다.";
-  } finally {
-    event.target.value = "";
   }
 }
 

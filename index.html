@@ -522,7 +522,7 @@
                 <label>
                   타일 사이즈
                   <select id="tileFinderSize">
-                    <option value="">상관없음</option>
+                    <option value="">사이즈 선택</option>
                     <option value="200*200">200*200</option>
                     <option value="300*300">300*300</option>
                     <option value="300*600">300*600</option>
@@ -537,7 +537,7 @@
                 <label>
                   표면
                   <select id="tileFinderFinish">
-                    <option value="">상관없음</option>
+                    <option value="">표면 선택</option>
                     <option value="무광">무광</option>
                     <option value="유광">유광</option>
                     <option value="반무광">반무광</option>
@@ -549,7 +549,8 @@
               </div>
               <input class="visually-hidden" id="tileFinderFile" type="file" accept="image/*" />
               <button class="primary-action" id="tileFinderBtn" type="button">사진 업로드</button>
-              <span id="tileFinderStatus">사진을 업로드하면 분석을 시작합니다.</span>
+              <button class="secondary-action" id="tileFinderSearchBtn" type="button">검색</button>
+              <span id="tileFinderStatus">사진을 올린 뒤 타일 사이즈와 표면을 선택하고 검색하세요.</span>
             </div>
             <div class="tile-finder-preview hidden" id="tileFinderPreviewWrap">
               <img id="tileFinderPreview" alt="업로드한 타일 이미지" />
@@ -1602,6 +1603,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260603-online-db-fix1"></script>
+    <script src="app.js?v=20260603-tile-finder-search1"></script>
   </body>
 </html>
