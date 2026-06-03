@@ -349,6 +349,12 @@ function bindEvents() {
     openProductDetail(productCard.dataset.viewProduct, productCard);
   });
 
+  document.querySelector("#productDetailPage")?.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-preview-image]");
+    if (!trigger) return;
+    openImageSourcePreview(trigger.dataset.previewImage, trigger.dataset.previewTitle || "제품 이미지 확대");
+  });
+
   document.querySelector("#taxonomyCollectionList")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-view-product]");
     if (button) openProductDetail(button.dataset.viewProduct, button);
@@ -2815,7 +2821,11 @@ function renderProductDetail(product) {
   const primaryImage = getProductImage(product, ["image", "originalImage", "liveImage", "closeImage"], true);
 
   document.querySelector("#detailMainMedia").innerHTML = primaryImage
-    ? `<img src="${escapeHtml(primaryImage)}" alt="${escapeHtml(product.name)} 대표 이미지" />`
+    ? `
+      <button class="detail-image-preview-trigger detail-main-preview-trigger" type="button" data-preview-image="${escapeHtml(primaryImage)}" data-preview-title="${escapeHtml(product.name || "제품")} 대표 이미지">
+        <img src="${escapeHtml(primaryImage)}" alt="${escapeHtml(product.name)} 대표 이미지" />
+      </button>
+    `
     : `<div class="detail-main-placeholder">이미지 준비중</div>`;
 
   const specs = [
@@ -2857,7 +2867,11 @@ function renderProductDetail(product) {
     return `
       <article class="detail-image-card">
         <strong>${escapeHtml(label)}</strong>
-        ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${escapeHtml(label)}" loading="lazy" />` : `<div class="detail-image-empty">이미지 준비중</div>`}
+        ${image ? `
+          <button class="detail-image-preview-trigger" type="button" data-preview-image="${escapeHtml(image)}" data-preview-title="${escapeHtml(product.name || "제품")} ${escapeHtml(label)}">
+            <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${escapeHtml(label)}" loading="lazy" />
+          </button>
+        ` : `<div class="detail-image-empty">이미지 준비중</div>`}
       </article>
     `;
   }).join("");
@@ -4046,6 +4060,18 @@ function openImagePreview(type, surfaceKey = "") {
 
   modalTitle.textContent = title;
   modalImage.src = src;
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function openImageSourcePreview(src, title = "이미지 미리보기") {
+  if (!src) return;
+  const modal = document.querySelector("#imagePreviewModal");
+  const modalImage = document.querySelector("#imagePreviewModalImage");
+  const modalTitle = document.querySelector("#imagePreviewTitle");
+  modalTitle.textContent = title;
+  modalImage.src = src;
+  modalImage.alt = title;
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
 }
