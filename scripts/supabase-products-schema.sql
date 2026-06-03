@@ -5,6 +5,15 @@ create table if not exists public.products (
   kind text not null,
   name text not null,
   size text not null default '',
+  model_name text not null default '',
+  material text not null default '',
+  surface text not null default '',
+  pattern_category text not null default '',
+  country_of_origin text not null default '',
+  pcs_per_box integer,
+  sqm_per_box numeric,
+  color text not null default '',
+  features text not null default '',
   finish text not null default '',
   maker text not null,
   unit text not null,
@@ -13,15 +22,26 @@ create table if not exists public.products (
   retail_price integer not null default 0,
   wholesale_price integer not null default 0,
   stock_qty integer not null default 0,
+  stock_text text not null default '',
+  grade_a_price integer,
+  grade_b_price integer,
+  grade_c_price integer,
   image text not null default '',
+  image_urls jsonb not null default '[]'::jsonb,
   original_image text not null default '',
   close_image text not null default '',
   detail_image text not null default '',
   daylight_image text not null default '',
   fluorescent_image text not null default '',
   scene_image text not null default '',
+  source_site text not null default '',
+  source_url text not null default '',
+  source_product_id text not null default '',
+  source_category_code text not null default '',
+  source_category_name text not null default '',
   catalog_source text not null default '',
   catalog_page integer not null default 0,
+  last_synced_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -29,10 +49,35 @@ create table if not exists public.products (
 alter table public.products
 add column if not exists management_code text not null default '';
 
+alter table public.products
+add column if not exists model_name text not null default '',
+add column if not exists material text not null default '',
+add column if not exists surface text not null default '',
+add column if not exists pattern_category text not null default '',
+add column if not exists country_of_origin text not null default '',
+add column if not exists pcs_per_box integer,
+add column if not exists sqm_per_box numeric,
+add column if not exists color text not null default '',
+add column if not exists features text not null default '',
+add column if not exists stock_text text not null default '',
+add column if not exists grade_a_price integer,
+add column if not exists grade_b_price integer,
+add column if not exists grade_c_price integer,
+add column if not exists image_urls jsonb not null default '[]'::jsonb,
+add column if not exists source_site text not null default '',
+add column if not exists source_url text not null default '',
+add column if not exists source_product_id text not null default '',
+add column if not exists source_category_code text not null default '',
+add column if not exists source_category_name text not null default '',
+add column if not exists last_synced_at timestamptz;
+
 create index if not exists products_product_type_idx on public.products (product_type);
 create index if not exists products_management_code_idx on public.products (management_code);
 create index if not exists products_kind_idx on public.products (kind);
 create index if not exists products_name_idx on public.products (name);
+create index if not exists products_catalog_source_idx on public.products (catalog_source);
+create index if not exists products_source_product_id_idx on public.products (source_product_id);
+create index if not exists products_pattern_category_idx on public.products (pattern_category);
 
 create or replace function public.set_products_updated_at()
 returns trigger

@@ -20,12 +20,14 @@ const stopFlagPath = path.join(serverControlDir, "stop.flag");
 const startedAt = new Date();
 const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
 const openAiImageModel = String(process.env.OPENAI_IMAGE_MODEL || "gpt-image-1").trim();
+const openAiVisionModel = String(process.env.OPENAI_VISION_MODEL || "gpt-4o-mini").trim();
 const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const supabaseSecretKey = String(
   process.env.SUPABASE_SERVICE_ROLE_KEY
   || process.env.SUPABASE_SECRET_KEY
   || ""
 ).trim();
+const forceLocalProducts = /^(1|true|yes)$/i.test(String(process.env.FORCE_LOCAL_PRODUCTS || "").trim());
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminDisplayName = String(process.env.ADMIN_DISPLAY_NAME || "내부관리자").trim();
@@ -65,6 +67,27 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       sendJson(response, 200, (await readProducts()).map(mapPublicProduct));
+      return;
+    }
+
+    if (request.method === "GET" && request.url.startsWith("/api/local/normalized-taxonomy")) {
+      if (!isLocalRequest(request)) {
+        sendJson(response, 404, { error: "Not found" });
+        return;
+      }
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      sendJson(response, 200, await readLocalNormalizedTaxonomy(String(url.searchParams.get("view") || "admin")));
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/local/taxonomy-search-log") {
+      if (!isLocalRequest(request)) {
+        sendJson(response, 404, { error: "Not found" });
+        return;
+      }
+      const payload = JSON.parse(await readRequestBody(request));
+      await appendTaxonomySearchLog(payload);
+      sendJson(response, 200, { ok: true });
       return;
     }
 
@@ -153,6 +176,12 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && request.url === "/api/render") {
       const payload = JSON.parse(await readRequestBody(request));
       sendJson(response, 200, await generateRenderPreview(payload));
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/tile-match") {
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, await findSimilarTilesByImage(payload));
       return;
     }
 
@@ -253,6 +282,7 @@ function normalizeProduct(product) {
 }
 
 function hasSupabaseConfig() {
+  if (forceLocalProducts) return false;
   return Boolean(supabaseUrl && supabaseSecretKey);
 }
 
@@ -264,46 +294,110 @@ function areProductsHiddenFromStorefront() {
   return fs.existsSync(productsHiddenFlagPath);
 }
 
+const LEGACY_PRODUCTS_SUPABASE_COLUMNS = [
+  "id",
+  "management_code",
+  "product_type",
+  "kind",
+  "name",
+  "size",
+  "finish",
+  "maker",
+  "unit",
+  "option_text",
+  "cost_price",
+  "retail_price",
+  "wholesale_price",
+  "stock_qty",
+  "image",
+  "original_image",
+  "close_image",
+  "detail_image",
+  "daylight_image",
+  "fluorescent_image",
+  "scene_image",
+  "catalog_source",
+  "catalog_page",
+  "created_at",
+  "updated_at"
+];
+
+const PRODUCTS_SUPABASE_COLUMNS = [
+  "id",
+  "management_code",
+  "product_type",
+  "kind",
+  "name",
+  "size",
+  "model_name",
+  "material",
+  "surface",
+  "pattern_category",
+  "country_of_origin",
+  "pcs_per_box",
+  "sqm_per_box",
+  "color",
+  "features",
+  "finish",
+  "maker",
+  "unit",
+  "option_text",
+  "cost_price",
+  "retail_price",
+  "wholesale_price",
+  "stock_qty",
+  "stock_text",
+  "grade_a_price",
+  "grade_b_price",
+  "grade_c_price",
+  "image",
+  "image_urls",
+  "original_image",
+  "close_image",
+  "detail_image",
+  "daylight_image",
+  "fluorescent_image",
+  "scene_image",
+  "source_site",
+  "source_url",
+  "source_product_id",
+  "source_category_code",
+  "source_category_name",
+  "catalog_source",
+  "catalog_page",
+  "last_synced_at",
+  "created_at",
+  "updated_at"
+];
+
 async function readProductsFromSupabase() {
   const pageSize = 1000;
   const query = new URLSearchParams({
-    select: [
-      "id",
-      "management_code",
-      "product_type",
-      "kind",
-      "name",
-      "size",
-      "finish",
-      "maker",
-      "unit",
-      "option_text",
-      "cost_price",
-      "retail_price",
-      "wholesale_price",
-      "stock_qty",
-      "image",
-      "original_image",
-      "close_image",
-      "detail_image",
-      "daylight_image",
-      "fluorescent_image",
-      "scene_image",
-      "catalog_source",
-      "catalog_page",
-      "created_at",
-      "updated_at"
-    ].join(","),
+    select: PRODUCTS_SUPABASE_COLUMNS.join(","),
+    order: "name.asc"
+  });
+  const legacyQuery = new URLSearchParams({
+    select: LEGACY_PRODUCTS_SUPABASE_COLUMNS.join(","),
     order: "name.asc"
   });
 
   const rows = [];
   for (let offset = 0; ; offset += pageSize) {
-    const page = await requestSupabase(`/rest/v1/products?${query.toString()}`, {
-      headers: {
-        Range: `${offset}-${offset + pageSize - 1}`
-      }
-    });
+    let page;
+    try {
+      page = await requestSupabase(`/rest/v1/products?${query.toString()}`, {
+        headers: {
+          Range: `${offset}-${offset + pageSize - 1}`
+        }
+      });
+    } catch (error) {
+      if (!String(error?.message || "").includes("does not exist")) throw error;
+      page = await requestSupabase(`/rest/v1/products?${legacyQuery.toString()}`, {
+        headers: {
+          Range: `${offset}-${offset + pageSize - 1}`
+        }
+      });
+    }
     if (!Array.isArray(page) || !page.length) break;
     rows.push(...page);
     if (page.length < pageSize) break;
@@ -314,13 +408,24 @@ async function readProductsFromSupabase() {
 
 async function upsertProductToSupabase(product) {
   const payload = mapAppProductToSupabase(product);
-  await requestSupabase("/rest/v1/products", {
-    method: "POST",
-    headers: {
-      Prefer: "resolution=merge-duplicates,return=minimal"
-    },
-    body: JSON.stringify(payload)
-  });
+  try {
+    await requestSupabase("/rest/v1/products", {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    if (!String(error?.message || "").match(/column .* does not exist|could not find .* column/i)) throw error;
+    await requestSupabase("/rest/v1/products", {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(toLegacySupabaseProduct(payload))
+    });
+  }
 }
 
 async function saveProduct(product) {
@@ -346,6 +451,15 @@ function mapAppProductToSupabase(product) {
     kind: product.kind,
     name: product.name,
     size: product.size,
+    model_name: product.modelName || product.name || "",
+    material: product.material || "",
+    surface: product.surface || "",
+    pattern_category: product.patternCategory || classifyPatternCategory(product),
+    country_of_origin: product.countryOfOrigin || "",
+    pcs_per_box: toNullableInteger(product.pcsPerBox),
+    sqm_per_box: toNullableNumber(product.sqmPerBox),
+    color: product.color || "",
+    features: product.features || "",
     finish: product.finish,
     maker: product.maker,
     unit: product.unit,
@@ -354,15 +468,26 @@ function mapAppProductToSupabase(product) {
     retail_price: Number(product.retailPrice) || 0,
     wholesale_price: Number(product.wholesalePrice) || 0,
     stock_qty: Number(product.stockQty) || 0,
+    stock_text: product.stockText || "",
+    grade_a_price: toNullableInteger(product.gradeAPrice),
+    grade_b_price: toNullableInteger(product.gradeBPrice),
+    grade_c_price: toNullableInteger(product.gradeCPrice),
     image: product.image || "",
+    image_urls: Array.isArray(product.imageUrls) ? product.imageUrls : [],
     original_image: product.originalImage || "",
     close_image: product.closeImage || "",
     detail_image: product.detailImage || "",
     daylight_image: product.daylightImage || "",
     fluorescent_image: product.fluorescentImage || "",
     scene_image: product.sceneImage || "",
+    source_site: product.sourceSite || "",
+    source_url: product.sourceUrl || "",
+    source_product_id: product.sourceProductId || "",
+    source_category_code: product.sourceCategoryCode || "",
+    source_category_name: product.sourceCategoryName || "",
     catalog_source: product.catalogSource || "",
-    catalog_page: Number(product.catalogPage) || 0
+    catalog_page: Number(product.catalogPage) || 0,
+    last_synced_at: product.lastSyncedAt || null
   };
 }
 
@@ -374,6 +499,15 @@ function mapSupabaseProductToApp(row) {
     kind: String(row.kind || "").trim(),
     name: String(row.name || "").trim(),
     size: String(row.size || "").trim(),
+    modelName: String(row.model_name || row.name || "").trim(),
+    material: String(row.material || "").trim(),
+    surface: String(row.surface || "").trim(),
+    patternCategory: String(row.pattern_category || "").trim() || classifyPatternCategory(row),
+    countryOfOrigin: String(row.country_of_origin || "").trim(),
+    pcsPerBox: toBlankableNumber(row.pcs_per_box),
+    sqmPerBox: toBlankableNumber(row.sqm_per_box),
+    color: String(row.color || "").trim(),
+    features: String(row.features || "").trim(),
     finish: String(row.finish || "").trim(),
     maker: String(row.maker || "").trim(),
     unit: String(row.unit || "").trim(),
@@ -382,15 +516,26 @@ function mapSupabaseProductToApp(row) {
     retailPrice: Number(row.retail_price) || 0,
     wholesalePrice: Number(row.wholesale_price) || 0,
     stockQty: Number(row.stock_qty) || 0,
+    stockText: String(row.stock_text || "").trim(),
+    gradeAPrice: toBlankableNumber(row.grade_a_price),
+    gradeBPrice: toBlankableNumber(row.grade_b_price),
+    gradeCPrice: toBlankableNumber(row.grade_c_price),
     image: String(row.image || "").trim(),
+    imageUrls: Array.isArray(row.image_urls) ? row.image_urls : [],
     originalImage: String(row.original_image || "").trim(),
     closeImage: String(row.close_image || "").trim(),
     detailImage: String(row.detail_image || "").trim(),
     daylightImage: String(row.daylight_image || "").trim(),
     fluorescentImage: String(row.fluorescent_image || "").trim(),
     sceneImage: String(row.scene_image || "").trim(),
+    sourceSite: String(row.source_site || "").trim(),
+    sourceUrl: String(row.source_url || "").trim(),
+    sourceProductId: String(row.source_product_id || "").trim(),
+    sourceCategoryCode: String(row.source_category_code || "").trim(),
+    sourceCategoryName: String(row.source_category_name || "").trim(),
     catalogSource: String(row.catalog_source || "").trim(),
-    catalogPage: Number(row.catalog_page) || 0
+    catalogPage: Number(row.catalog_page) || 0,
+    lastSyncedAt: String(row.last_synced_at || "").trim()
   };
 }
 
@@ -398,14 +543,22 @@ function mapPublicProduct(product) {
   return {
     id: String(product.id || "").trim(),
     productType: String(product.productType || "").trim(),
-    kind: String(product.kind || "").trim(),
+    kind: getPublicProductGroup(product),
     name: String(product.name || "").trim(),
     size: String(product.size || "").trim(),
+    modelName: String(product.modelName || product.name || "").trim(),
+    material: String(product.material || "").trim(),
+    surface: String(product.surface || "").trim(),
+    patternCategory: String(product.patternCategory || "").trim() || classifyPatternCategory(product),
+    color: String(product.color || "").trim(),
+    features: String(product.features || "").trim(),
     finish: String(product.finish || "").trim(),
-    maker: String(product.maker || "").trim(),
+    maker: "",
     unit: String(product.unit || "").trim(),
     option: String(product.option || "").trim(),
     retailPrice: Number(product.retailPrice) || 0,
+    stockQty: Number(product.stockQty) || 0,
+    stockText: String(product.stockText || "").trim(),
     image: String(product.image || "").trim(),
     originalImage: String(product.originalImage || "").trim(),
     closeImage: String(product.closeImage || "").trim(),
@@ -414,6 +567,98 @@ function mapPublicProduct(product) {
     fluorescentImage: String(product.fluorescentImage || "").trim(),
     sceneImage: String(product.sceneImage || "").trim()
   };
+}
+
+function getPublicProductGroup(product) {
+  const candidates = [
+    product.option,
+    product.sourceCategoryName,
+    product.source_category_name,
+    product.material,
+    product.productType === "tile" ? "타일" : product.productType
+  ];
+  const internalCodes = new Set(["AJ", "VG", "US", "SG", "GT", "HS"]);
+  for (const candidate of candidates) {
+    const value = String(candidate || "").trim();
+    if (!value) continue;
+    if (internalCodes.has(value.toUpperCase())) continue;
+    return value;
+  }
+  return "상품";
+}
+
+function toNullableInteger(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(String(value).replace(/,/g, ""));
+  return Number.isFinite(number) ? Math.trunc(number) : null;
+}
+
+function toNullableNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(String(value).replace(/,/g, ""));
+  return Number.isFinite(number) ? number : null;
+}
+
+function toBlankableNumber(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const number = Number(value);
+  return Number.isFinite(number) ? number : "";
+}
+
+function classifyPatternCategory(product) {
+  const source = normalizeMatchText([
+    product?.patternCategory,
+    product?.pattern_category,
+    product?.name,
+    product?.modelName,
+    product?.model_name,
+    product?.option,
+    product?.option_text,
+    product?.kind,
+    product?.material,
+    product?.surface,
+    product?.finish,
+    product?.color,
+    product?.features,
+    product?.source_category_name
+  ].filter(Boolean).join(" "));
+
+  if (!source) return "기타";
+  if (/테라조|terrazzo|trz|입자|칩|chip|speckle|스페클/.test(source)) return "테라조";
+  if (/마블|marble|mar|카라라|carrara|calacatta|비앙코|네로마퀴나|nero|베인|vein|대리석/.test(source)) return "마블";
+  if (/시멘트|cement|cem|콘크리트|concrete|con|모르타르|몰탈/.test(source)) return "시멘트";
+  if (/우드|wood|wod|나뭇결|목재|오크|티크/.test(source)) return "우드";
+  if (/스톤|stone|stn|석재|라임스톤|limestone|트라버틴|travertine|슬레이트|현무|라바|lava/.test(source)) return "스톤";
+  if (/패턴|pattern|ptn|art|데코|장식|꽃|플라워|라인|헥사|기하학|모자이크|mosaic|mos|포토/.test(source)) return "패턴";
+  if (/솔리드|solid|단색|plain|무지/.test(source)) return "솔리드";
+  return "솔리드";
+}
+
+function toLegacySupabaseProduct(product) {
+  const {
+    model_name,
+    material,
+    surface,
+    pattern_category,
+    country_of_origin,
+    pcs_per_box,
+    sqm_per_box,
+    color,
+    features,
+    stock_text,
+    grade_a_price,
+    grade_b_price,
+    grade_c_price,
+    image_urls,
+    source_site,
+    source_url,
+    source_product_id,
+    source_category_code,
+    source_category_name,
+    last_synced_at,
+    ...legacyProduct
+  } = product;
+  return legacyProduct;
 }
 
 function createAdminToken() {
@@ -474,6 +719,75 @@ function shouldBlockStaticPath(pathname) {
     "vendor/",
     "정보서류/"
   ].some((prefix) => normalized.startsWith(prefix.toLowerCase()));
+}
+
+async function readLocalNormalizedTaxonomy(view = "admin") {
+  const normalizedPath = path.join(root, "data", "products.normalized.json");
+  try {
+    const rows = JSON.parse(await fs.promises.readFile(normalizedPath, "utf8"));
+    if (String(view).toLowerCase() === "customer") {
+      return Array.isArray(rows) ? rows.map(stripInternalBrandFromNormalizedProduct) : [];
+    }
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+async function appendTaxonomySearchLog(payload) {
+  const logDir = path.join(root, "data", "search-logs");
+  const logPath = path.join(logDir, "taxonomy-search.jsonl");
+  const entry = {
+    createdAt: new Date().toISOString(),
+    audience: String(payload?.audience || "customer").slice(0, 20),
+    query: String(payload?.query || "").slice(0, 500),
+    resultCount: Number(payload?.resultCount || 0),
+    interpreted: sanitizeSearchLogObject(payload?.interpreted || {})
+  };
+  await fs.promises.mkdir(logDir, { recursive: true });
+  await fs.promises.appendFile(logPath, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+function sanitizeSearchLogObject(value) {
+  if (!value || typeof value !== "object") return {};
+  const allowedKeys = [
+    "origins", "spaces", "applications", "colors", "styles", "patternDetails",
+    "finishes", "textures", "materials", "moods", "sizes", "priceRanges",
+    "antiSlipRequired", "stockRequired", "stockEmpty", "freeTokens"
+  ];
+  return Object.fromEntries(allowedKeys.map((key) => {
+    const current = value[key];
+    if (Array.isArray(current)) return [key, current.map((item) => String(item).slice(0, 80)).slice(0, 20)];
+    if (typeof current === "boolean") return [key, current];
+    return [key, current ? String(current).slice(0, 80) : current];
+  }));
+}
+
+function stripInternalBrandFromNormalizedProduct(item) {
+  const {
+    internalBrandId,
+    internalBrandCode,
+    internalBrandName,
+    supplierName,
+    brand,
+    isCustomerBrandVisible,
+    adminSearchableText,
+    searchKeywords,
+    ...safe
+  } = item || {};
+  return {
+    ...safe,
+    customerSearchableText: String(item?.customerSearchableText || "")
+  };
+}
+
+function isLocalRequest(request) {
+  const hostHeader = String(request.headers.host || "").split(":")[0].toLowerCase();
+  const remoteAddress = String(request.socket?.remoteAddress || "").toLowerCase();
+  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostHeader)
+    || remoteAddress === "127.0.0.1"
+    || remoteAddress === "::1"
+    || remoteAddress === "::ffff:127.0.0.1";
 }
 
 async function readApprovalRules() {
@@ -1261,6 +1575,501 @@ async function generateRenderPreview(payload) {
     ok: true,
     imageDataUrl: `data:image/png;base64,${imageBase64}`
   };
+}
+
+async function findSimilarTilesByImage(payload) {
+  if (!openAiApiKey) {
+    throw new Error("OPENAI_API_KEY가 설정되어 있어야 사진으로 타일을 찾을 수 있습니다.");
+  }
+
+  const imageDataUrl = String(payload?.imageDataUrl || "").trim();
+  const requestedSize = normalizeTileSize(String(payload?.size || "").trim());
+  const requestedFinish = String(payload?.finish || "").trim();
+  const allSimilar = payload?.allSimilar !== false;
+  const limit = allSimilar ? Number.POSITIVE_INFINITY : Math.min(Math.max(Number(payload?.limit) || 12, 4), 60);
+  if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(imageDataUrl)) {
+    throw new Error("타일 사진을 다시 업로드해주세요.");
+  }
+
+  const analysis = {
+    ...(await analyzeTileImage(imageDataUrl)),
+    requestedSize,
+    requestedFinish
+  };
+  const products = (await readProducts()).filter((product) => (
+    product.productType === "tile"
+    && product.image
+    && Number(product.stockQty || 0) > 0
+    && productMatchesTileFinderBase(product, analysis)
+  ));
+  const scoredMatches = products
+    .map((product) => scoreTileProduct(product, analysis))
+    .filter((entry) => entry.score > 0);
+  const rankedMatches = scoredMatches.length ? scoredMatches : products.map((product) => ({
+    product,
+    score: 1,
+    reasons: ["사이즈/표면 조건 후보"]
+  }));
+  const matches = rankedMatches
+    .sort((left, right) => right.score - left.score || String(left.product.name || "").localeCompare(String(right.product.name || ""), "ko"))
+    .slice(0, limit)
+    .map((entry) => ({
+      ...mapPublicProduct(entry.product),
+      matchScore: Math.min(99, Math.max(1, Math.round(entry.score))),
+      matchReasons: entry.reasons.slice(0, 4)
+    }));
+
+  return {
+    ok: true,
+    analysis,
+    matches
+  };
+}
+
+async function analyzeTileImage(imageDataUrl) {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${openAiApiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: openAiVisionModel,
+      temperature: 0.1,
+      max_tokens: 700,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You analyze tile photos for product matching. Return compact JSON only. Do not guess brand or price."
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: [
+                "Analyze this tile image for catalog search.",
+                "Return JSON with keys:",
+                "colors: Korean color words array,",
+                "patterns: Korean pattern category words array, use only these when possible: 스톤, 마블, 시멘트, 솔리드, 테라조, 우드, 패턴,",
+                "motifs: Korean visible motif words array such as 꽃, 선형, 구름결, 베인, 입자, 점박이, 나뭇결, 기하학,",
+                "keywords: short search tokens for color and pattern only,",
+                "summary: one Korean sentence."
+              ].join(" ")
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageDataUrl,
+                detail: "low"
+              }
+            }
+          ]
+        }
+      ]
+    })
+  });
+
+  const text = await response.text();
+  let result = null;
+  try {
+    result = text ? JSON.parse(text) : null;
+  } catch {
+    result = null;
+  }
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "타일 이미지 분석에 실패했습니다.");
+  }
+
+  const content = result?.choices?.[0]?.message?.content || "{}";
+  let analysis = {};
+  try {
+    analysis = JSON.parse(content);
+  } catch {
+    analysis = {};
+  }
+
+  return normalizeTileAnalysis(analysis);
+}
+
+function normalizeTileAnalysis(analysis) {
+  const colors = normalizeKeywordList(analysis.colors);
+  const patterns = normalizeKeywordList(analysis.patterns);
+  const motifs = normalizeKeywordList(analysis.motifs);
+  const keywords = normalizeKeywordList(analysis.keywords);
+  const material = normalizeOptionalAnalysisText(analysis.material);
+  const surface = normalizeOptionalAnalysisText(analysis.surface);
+  const patternScale = String(analysis.patternScale || "").trim();
+  const patternFlow = String(analysis.patternFlow || "").trim();
+  const contrast = String(analysis.contrast || "").trim();
+
+  return {
+    colors,
+    patterns,
+    motifs,
+    material,
+    surface,
+    patternScale,
+    patternFlow,
+    contrast,
+    keywords: normalizeKeywordList([...colors, ...patterns, ...motifs, ...keywords, ...expandTileMatchKeywords([...colors, ...patterns, ...motifs, ...keywords])]),
+    summary: String(analysis.summary || "").trim()
+  };
+}
+
+function normalizeOptionalAnalysisText(value) {
+  const text = String(value || "").trim();
+  if (!text || /^(없음|알수없음|알 수 없음|unknown|none|null|n\/a)$/i.test(text)) return "";
+  return text;
+}
+
+function normalizeKeywordList(value) {
+  const list = Array.isArray(value) ? value : String(value || "").split(/[,/·\s]+/);
+  return [...new Set(list.map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 20);
+}
+
+function expandTileMatchKeywords(keywords) {
+  const source = keywords.map((keyword) => String(keyword || "").toLowerCase()).join(" ");
+  const expanded = [];
+  const groups = [
+    [/화이트|흰|white|ivory|아이보리|cream|크림/, ["화이트", "아이보리", "WHT", "IVR", "크림"]],
+    [/베이지|beige|샌드|sand|크림/, ["베이지", "BEG", "크림"]],
+    [/그레이|회색|grey|gray|실버|silver/, ["그레이", "GRY", "GREY", "GRAY", "실버"]],
+    [/블루|파랑|청색|blue|navy|네이비/, ["블루", "파랑", "BLUE", "BLU", "네이비", "NAVY"]],
+    [/그린|초록|녹색|green|olive|올리브/, ["그린", "초록", "GREEN", "GRN", "올리브"]],
+    [/옐로우|노랑|황색|yellow|gold|골드/, ["옐로우", "노랑", "YELLOW", "YLW", "골드"]],
+    [/레드|빨강|적색|red|버건디|burgundy/, ["레드", "빨강", "RED", "버건디"]],
+    [/핑크|분홍|pink|rose|로즈/, ["핑크", "분홍", "PINK", "로즈"]],
+    [/다크|먹색|차콜|charcoal|dark/, ["다크", "DGY", "차콜", "먹색"]],
+    [/블랙|검정|black|nero|네로/, ["블랙", "BLK", "네로", "NERO"]],
+    [/브라운|갈색|brown|초코|choco/, ["브라운", "BRN", "초코"]],
+    [/마블|대리석|marble|calacatta|카라라|carrara|비앙코/, ["마블", "MAR", "대리석", "카라라", "비앙코"]],
+    [/스톤|석재|stone|라임|limestone|트라버틴|travertine/, ["스톤", "STN", "석재", "트라버틴"]],
+    [/테라조|terrazzo/, ["테라조", "TRZ"]],
+    [/콘크리트|시멘트|cement|concrete/, ["콘크리트", "CON", "시멘트", "CEM"]],
+    [/우드|목재|wood/, ["우드", "WOD"]],
+    [/패턴|pattern|art|장식|데코/, ["패턴", "PTN", "ART", "데코"]],
+    [/꽃|플라워|flower|floral/, ["꽃", "플라워", "FLOWER", "FLORAL", "ART", "패턴"]],
+    [/선형|라인|줄무늬|stripe|linear|line/, ["라인", "선형", "STRIPE", "LINE", "패턴"]],
+    [/입자|점박이|칩|chip|speckle|grain|그레인/, ["입자", "점박이", "칩", "SPECKLE", "GRAIN", "테라조"]],
+    [/베인|결|vein|veining|구름결|흐름/, ["베인", "결", "VEIN", "VEINING", "마블", "스톤"]],
+    [/나뭇결|woodgrain|wood grain/, ["나뭇결", "우드", "WOOD", "WOD"]],
+    [/기하학|geometric|hex|헥사|육각/, ["기하학", "GEOMETRIC", "HEX", "헥사", "패턴"]],
+    [/무광|matte|matt/, ["무광", "MAT"]],
+    [/유광|gloss|polish|폴리싱/, ["유광", "GLS", "폴리싱", "POL"]],
+    [/논슬립|nonslip|anti slip/, ["논슬립", "NSP"]]
+  ];
+  for (const [pattern, values] of groups) {
+    if (pattern.test(source)) expanded.push(...values);
+  }
+  return expanded;
+}
+
+function scoreTileProduct(product, analysis) {
+  const text = normalizeMatchText([
+    product.managementCode,
+    product.name,
+    product.modelName,
+    product.kind,
+    product.option,
+    product.size,
+    product.finish,
+    product.material,
+    product.surface,
+    product.patternCategory,
+    product.color,
+    product.features,
+    product.maker
+  ].filter(Boolean).join(" "));
+  const reasons = [];
+  let score = 0;
+  if (analysis.requestedSize) reasons.push(`사이즈: ${analysis.requestedSize}`);
+  if (analysis.requestedFinish) reasons.push(`표면: ${analysis.requestedFinish}`);
+
+  for (const color of analysis.colors || []) {
+    const weight = keywordMatchScore(text, color, "색상", reasons, 30);
+    score += weight;
+  }
+  for (const pattern of analysis.patterns || []) {
+    const weight = keywordMatchScore(text, pattern, "패턴", reasons, 24);
+    score += weight;
+    if (normalizeMatchText(product.patternCategory) === normalizeMatchText(pattern)) {
+      score += 36;
+      reasons.push(`패턴분류: ${pattern}`);
+    }
+  }
+  for (const motif of analysis.motifs || []) {
+    const weight = keywordMatchScore(text, motif, "무늬", reasons, 18);
+    score += weight;
+  }
+  for (const keyword of analysis.keywords || []) {
+    score += keywordMatchScore(text, keyword, "키워드", reasons, 8);
+  }
+
+  if (String(product.option || "").includes("스톤") && (analysis.patterns || []).some((item) => /스톤|마블|대리석|트라버틴/.test(item))) {
+    score += 10;
+    reasons.push("석재 계열 카테고리");
+  }
+  return {
+    product,
+    score,
+    reasons: [...new Set(reasons)]
+  };
+}
+
+function productMatchesTileFinderBase(product, analysis) {
+  if (analysis.requestedSize) {
+    const productSize = normalizeTileSize(product.size);
+    if (!productSize || productSize !== analysis.requestedSize) return false;
+  }
+
+  if (analysis.requestedFinish) {
+    const text = normalizeMatchText([
+      product.finish,
+      product.surface,
+      product.name,
+      product.option,
+      product.features
+    ].filter(Boolean).join(" "));
+    const finishMatched = [analysis.requestedFinish, ...getFinishAliases(analysis.requestedFinish), ...expandTileMatchKeywords([analysis.requestedFinish])]
+      .some((keyword) => {
+        const normalized = normalizeMatchText(keyword);
+        return normalized.length >= 2 && text.includes(normalized);
+      });
+    if (!finishMatched) return false;
+  }
+
+  return true;
+}
+
+async function rerankTileMatchesByVision(imageDataUrl, scoredMatches, analysis) {
+  const candidates = scoredMatches
+    .filter((entry) => entry.product?.image)
+    .slice(0, 12);
+  if (!candidates.length) return scoredMatches;
+  const candidatesWithImages = await Promise.all(candidates.map(async (entry) => ({
+    ...entry,
+    compareImageUrl: await readRemoteImageDataUrl(entry.product.image).catch(() => entry.product.image)
+  })));
+
+  const content = [
+    {
+      type: "text",
+      text: [
+        "Compare the uploaded tile image against candidate product images.",
+        "Color match is mandatory. Give a high colorScore only when the dominant base color, undertone, saturation, and major accent colors are almost the same.",
+        "If the candidate has a similar pattern but a noticeably different color family, colorScore must be below 45.",
+        "After color, compare visible pattern and motif similarity: veining flow, stone grain, terrazzo chips, decorative motif, line rhythm, pattern scale, repeat density, and contrast.",
+        "Also consider requested size and finish if provided.",
+        "Return JSON only with key scores: array of {id, visualScore, patternScore, colorScore, reason}. Scores are 0-100.",
+        `Requested size: ${analysis.requestedSize || "none"}. Requested finish: ${analysis.requestedFinish || "none"}.`,
+        `Uploaded image analysis: ${JSON.stringify({
+          colors: analysis.colors,
+          patterns: analysis.patterns,
+          motifs: analysis.motifs,
+          material: analysis.material,
+          surface: analysis.surface,
+          patternScale: analysis.patternScale,
+          patternFlow: analysis.patternFlow,
+          contrast: analysis.contrast
+        })}.`,
+        `Candidates: ${JSON.stringify(candidatesWithImages.map((entry, index) => ({
+          index: index + 1,
+          id: entry.product.id,
+          name: entry.product.name,
+          size: entry.product.size,
+          finish: entry.product.finish || entry.product.surface || "",
+          category: entry.product.option || entry.product.kind || ""
+        })))}`
+      ].join(" ")
+    },
+    {
+      type: "image_url",
+      image_url: {
+        url: imageDataUrl,
+        detail: "low"
+      }
+    }
+  ];
+
+  candidatesWithImages.forEach((entry, index) => {
+    content.push({
+      type: "text",
+      text: `Candidate ${index + 1}: id=${entry.product.id}, name=${entry.product.name}`
+    });
+    content.push({
+      type: "image_url",
+      image_url: {
+        url: entry.compareImageUrl,
+        detail: "low"
+      }
+    });
+  });
+
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${openAiApiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: openAiVisionModel,
+      temperature: 0.05,
+      max_tokens: 900,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: "You are a tile visual matcher. Use actual image similarity for patterns and motifs, not brand guessing. Return compact JSON."
+        },
+        {
+          role: "user",
+          content
+        }
+      ]
+    })
+  });
+
+  const text = await response.text();
+  let result = null;
+  try {
+    result = text ? JSON.parse(text) : null;
+  } catch {
+    result = null;
+  }
+  if (!response.ok) {
+    throw new Error(result?.error?.message || "visual rerank failed");
+  }
+
+  let parsed = {};
+  try {
+    parsed = JSON.parse(result?.choices?.[0]?.message?.content || "{}");
+  } catch {
+    parsed = {};
+  }
+  const visualScores = new Map();
+  for (const entry of Array.isArray(parsed.scores) ? parsed.scores : []) {
+    const id = String(entry.id || "").trim();
+    if (id) {
+      visualScores.set(id, entry);
+      continue;
+    }
+    const index = Number(entry.index || entry.candidateIndex || entry.candidate || 0);
+    const candidate = candidatesWithImages[index - 1];
+    if (candidate?.product?.id) visualScores.set(String(candidate.product.id), entry);
+  }
+  if (!visualScores.size) throw new Error("visual rerank returned no candidate scores");
+
+  const reranked = scoredMatches.map((entry) => {
+    const visual = visualScores.get(String(entry.product.id));
+    if (!visual) return entry;
+    const visualScore = Number(visual.visualScore) || 0;
+    const patternScore = Number(visual.patternScore) || 0;
+    const colorScore = Number(visual.colorScore) || 0;
+    const score = (entry.score * 0.18) + (visualScore * 0.22) + (patternScore * 0.2) + (colorScore * 0.4);
+    const visualReason = String(visual.reason || "").trim();
+    return {
+      ...entry,
+      score,
+      visualColorScore: colorScore,
+      visualPatternScore: patternScore,
+      visualScore,
+      reasons: [
+        `색상유사도 ${Math.round(colorScore)}`,
+        visualReason ? `무늬비교: ${visualReason}` : "무늬/패턴 이미지 비교",
+        ...entry.reasons
+      ].filter(Boolean)
+    };
+  });
+
+  return reranked;
+}
+
+async function readRemoteImageDataUrl(imageUrl) {
+  const url = String(imageUrl || "").trim();
+  if (!/^https?:\/\//i.test(url)) return url;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`image fetch failed ${response.status}`);
+  const contentType = normalizeImageContentType(response.headers.get("content-type") || "image/jpeg");
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return `data:${contentType};base64,${buffer.toString("base64")}`;
+}
+
+function normalizeImageContentType(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("png")) return "image/png";
+  if (text.includes("webp")) return "image/webp";
+  return "image/jpeg";
+}
+
+function selectColorStrictMatches(matches, limit) {
+  const sorted = [...matches].sort((left, right) => right.score - left.score);
+  const strict = sorted.filter((entry) => Number(entry.visualColorScore || 0) >= 68);
+  if (strict.length) return strict;
+  const relaxed = sorted.filter((entry) => Number(entry.visualColorScore || 0) >= 55);
+  if (relaxed.length) return relaxed;
+  const nearestColor = sorted
+    .filter((entry) => Number(entry.visualColorScore || 0) > 0)
+    .sort((left, right) => Number(right.visualColorScore || 0) - Number(left.visualColorScore || 0));
+  if (nearestColor.length) return nearestColor.slice(0, Math.max(4, limit));
+  return sorted.slice(0, Math.max(4, limit));
+}
+
+function selectTextColorStrictMatches(matches, analysis) {
+  const colorTokens = normalizeKeywordList([
+    ...(analysis.colors || []),
+    ...expandTileMatchKeywords(analysis.colors || [])
+  ]).map(normalizeMatchText).filter((token) => token.length >= 2);
+  if (!colorTokens.length) return matches;
+  const filtered = matches.filter((entry) => {
+    const text = normalizeMatchText([
+      entry.product?.name,
+      entry.product?.color,
+      entry.product?.features,
+      entry.product?.option,
+      entry.product?.patternCategory
+    ].filter(Boolean).join(" "));
+    return colorTokens.some((token) => text.includes(token));
+  });
+  return filtered.length ? filtered : matches;
+}
+
+function normalizeTileSize(value) {
+  const digits = String(value || "").match(/\d{2,4}/g) || [];
+  if (digits.length >= 2) return `${digits[0]}*${digits[1]}`;
+  const compact = String(value || "").replace(/[^0-9]/g, "");
+  if (compact.length === 6) return `${compact.slice(0, 3)}*${compact.slice(3)}`;
+  if (compact.length === 8) return `${compact.slice(0, 4)}*${compact.slice(4)}`;
+  return "";
+}
+
+function getFinishAliases(value) {
+  const text = String(value || "");
+  if (/무광|mat/i.test(text)) return ["MAT", "MATT", "무광"];
+  if (/유광|gls|gloss/i.test(text)) return ["GLS", "GLOSS", "유광"];
+  if (/반무광|sat/i.test(text)) return ["SAT", "반무광"];
+  if (/논슬립|nsp|non/i.test(text)) return ["NSP", "논슬립", "NONSILP", "NONSLIP"];
+  if (/러프|ruf|rough/i.test(text)) return ["RUF", "ROUGH", "러프"];
+  if (/폴리싱|pol/i.test(text)) return ["POL", "폴리싱"];
+  return [text];
+}
+
+function keywordMatchScore(text, keyword, label, reasons, baseScore) {
+  const normalized = normalizeMatchText(keyword);
+  if (!normalized || normalized.length < 2) return 0;
+  if (text.includes(normalized)) {
+    reasons.push(`${label}: ${keyword}`);
+    return baseScore;
+  }
+  return 0;
+}
+
+function normalizeMatchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[(){}\[\]_\-·/]/g, "");
 }
 
 function buildRenderRoomContextInstruction(roomContext) {

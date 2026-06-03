@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260513-photo-real-render" />
+    <link rel="stylesheet" href="styles.css?v=20260602-finish-filter1" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -117,6 +117,10 @@
         <button class="customer-nav-button" type="button" data-page-target="productsPage">
           <span class="nav-glyph">02</span>
           <span class="nav-copy">상품</span>
+        </button>
+        <button class="customer-nav-button" type="button" data-page-target="taxonomyTestPage">
+          <span class="nav-glyph">AI</span>
+          <span class="nav-copy">AI DB 테스트</span>
         </button>
         <button class="customer-nav-button" type="button" data-page-target="cartPage">
           <span class="nav-glyph">03</span>
@@ -507,6 +511,55 @@
             <button class="customer-chip" type="button" data-main-category="sanitary">바스GO 위생도기 보기</button>
             <button class="customer-chip" type="button" data-main-category="material">자재GO 부자재 보기</button>
           </div>
+          <section class="tile-finder-panel">
+            <div class="tile-finder-copy">
+              <p class="eyebrow">Image Match</p>
+              <h3>타일찾기</h3>
+              <p>현장 사진이나 샘플 사진을 올리면 색상, 패턴, 재질을 분석해서 비슷한 타일을 찾아줍니다.</p>
+            </div>
+            <div class="tile-finder-actions">
+              <div class="tile-finder-controls">
+                <label>
+                  타일 사이즈
+                  <select id="tileFinderSize">
+                    <option value="">상관없음</option>
+                    <option value="200*200">200*200</option>
+                    <option value="300*300">300*300</option>
+                    <option value="300*600">300*600</option>
+                    <option value="600*600">600*600</option>
+                    <option value="600*1200">600*1200</option>
+                    <option value="800*800">800*800</option>
+                    <option value="1200*1200">1200*1200</option>
+                    <option value="1200*2400">1200*2400</option>
+                    <option value="1200*3600">1200*3600</option>
+                  </select>
+                </label>
+                <label>
+                  표면
+                  <select id="tileFinderFinish">
+                    <option value="">상관없음</option>
+                    <option value="무광">무광</option>
+                    <option value="유광">유광</option>
+                    <option value="반무광">반무광</option>
+                    <option value="논슬립">논슬립</option>
+                    <option value="러프">러프</option>
+                    <option value="폴리싱">폴리싱</option>
+                  </select>
+                </label>
+              </div>
+              <input class="visually-hidden" id="tileFinderFile" type="file" accept="image/*" />
+              <button class="primary-action" id="tileFinderBtn" type="button">사진 업로드</button>
+              <span id="tileFinderStatus">사진을 업로드하면 분석을 시작합니다.</span>
+            </div>
+            <div class="tile-finder-preview hidden" id="tileFinderPreviewWrap">
+              <img id="tileFinderPreview" alt="업로드한 타일 이미지" />
+              <div>
+                <strong>분석 결과</strong>
+                <div class="tile-finder-tags" id="tileFinderTags"></div>
+              </div>
+            </div>
+            <div class="tile-finder-results hidden" id="tileFinderResults"></div>
+          </section>
           <div class="filter-grid filter-grid-catalog">
             <label>
               대분류
@@ -518,16 +571,28 @@
               </select>
             </label>
             <label>
-              종류
+              브랜드
               <select id="kindFilter"></select>
+            </label>
+            <label>
+              종류
+              <select id="optionFilter"></select>
+            </label>
+            <label>
+              타일 분류
+              <select id="tileFeatureFilter">
+                <option value="all">전체</option>
+                <option value="pattern">패턴</option>
+                <option value="special">특수타일</option>
+              </select>
             </label>
             <label>
               규격
               <select id="sizeFilter"></select>
             </label>
             <label>
-              옵션
-              <select id="optionFilter"></select>
+              패턴 카테고리
+              <select id="patternCategoryFilter"></select>
             </label>
             <label class="wide">
               품명 검색
@@ -536,9 +601,124 @@
           </div>
           <div class="customer-list-header">
             <strong>고객용 상품 리스트</strong>
-            <span id="productListStatus">상품을 불러오는 중입니다.</span>
+            <div class="product-pagination-toolbar">
+              <span id="productListStatus">상품을 불러오는 중입니다.</span>
+              <label>
+                페이지당
+                <select id="productPageSize">
+                  <option value="10">10개</option>
+                  <option value="20" selected>20개</option>
+                </select>
+              </label>
+            </div>
           </div>
           <div class="product-list product-page-list" id="productList"></div>
+          <div class="product-pagination" id="productPagination"></div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel customer-page taxonomy-test-page" id="taxonomyTestPage">
+        <section class="page-heading customer-page-heading">
+          <div>
+            <p class="eyebrow">AI Search DB Test</p>
+            <h2>새 카테고리 구조 테스트</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-page-target="productsPage">기존 상품페이지</button>
+            <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
+          </div>
+        </section>
+        <section class="commerce-panel taxonomy-panel">
+          <div class="taxonomy-hero">
+            <div>
+              <p class="eyebrow">Draft Taxonomy</p>
+              <h3>고객에게는 브랜드를 숨기고, 내부관리자는 브랜드를 0차 필터로 봅니다.</h3>
+              <p>이 화면은 로컬 테스트용입니다. 원본 DB를 덮어쓰지 않고 별도로 생성한 정규화 파일을 고객용/관리자용 분류 기준으로 나눠 보여줍니다.</p>
+            </div>
+            <div class="taxonomy-note">
+              <strong>테스트 기준</strong>
+              <span>브랜드는 내부 운영 필터입니다. 고객용 화면과 고객용 검색 텍스트에서는 브랜드를 제외합니다.</span>
+            </div>
+          </div>
+          <div class="taxonomy-metrics" id="taxonomyMetrics"></div>
+          <div class="taxonomy-axis-bar" id="taxonomyAxisBar"></div>
+          <div class="filter-grid taxonomy-filter-grid">
+            <label>
+              보기 모드
+              <select id="taxonomyAudienceMode">
+                <option value="customer">고객 노출 기준</option>
+                <option value="admin">내부 관리자 기준</option>
+              </select>
+            </label>
+            <label>
+              보기 축
+              <select id="taxonomyAxisFilter">
+                <option value="originRegion">원산지</option>
+                <option value="applicationCategories">제품군 / 사용군</option>
+                <option value="mainColor">색상</option>
+                <option value="styleCategories">디자인 / 패턴</option>
+                <option value="finishGroup">마감</option>
+                <option value="thicknessBucket">두께</option>
+                <option value="priceRange">금액대</option>
+                <option value="stockStatus">재고 확인</option>
+                <option value="internalBrandCode">브랜드</option>
+              </select>
+            </label>
+            <label id="taxonomyBrandField">
+              브랜드
+              <select id="taxonomyBrandFilter"></select>
+            </label>
+            <label>
+              원산지
+              <select id="taxonomyOriginFilter"></select>
+            </label>
+            <label>
+              제품군 / 사용군
+              <select id="taxonomyApplicationFilter"></select>
+            </label>
+            <label>
+              색상
+              <select id="taxonomyColorFilter"></select>
+            </label>
+            <label>
+              디자인 / 패턴
+              <select id="taxonomyStyleFilter"></select>
+            </label>
+            <label>
+              마감
+              <select id="taxonomyFinishFilter"></select>
+            </label>
+            <label>
+              두께
+              <select id="taxonomySizeFilter"></select>
+            </label>
+            <label>
+              금액대
+              <select id="taxonomyPriceFilter"></select>
+            </label>
+            <label>
+              재고 확인
+              <select id="taxonomyStockFilter">
+                <option value="all">전체</option>
+                <option value="stocked">재고 있음</option>
+                <option value="empty">재고 없음 / 미확인</option>
+              </select>
+            </label>
+            <div class="wide taxonomy-search-field">
+              <span>AI 검색어 테스트</span>
+              <div class="taxonomy-search-row">
+                <input id="taxonomySearch" type="search" placeholder="예: 중국 바닥 베이지 마블 유광 600x1200 재고" />
+                <button class="primary-action" id="taxonomySearchBtn" type="button">검색</button>
+              </div>
+              <div class="taxonomy-intent-chips" id="taxonomyIntentChips" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="customer-list-header">
+            <strong>컬렉션 기준 테스트 리스트</strong>
+            <span id="taxonomyStatus">새 분류 구조를 준비하는 중입니다.</span>
+          </div>
+          <div class="taxonomy-collection-list" id="taxonomyCollectionList"></div>
+          <div class="product-pagination" id="taxonomyPagination"></div>
         </section>
       </main>
 
@@ -1422,6 +1602,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260520-tile114-import-test"></script>
+    <script src="app.js?v=20260602-finish-filter1"></script>
   </body>
 </html>
