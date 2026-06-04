@@ -128,6 +128,12 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/api/social-auth/login") {
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, await loginWithSocialAuth(String(payload?.accessToken || "")));
+      return;
+    }
+
     if (request.method === "GET" && request.url === "/api/products") {
       if (areProductsHiddenFromStorefront()) {
         sendJson(response, 200, []);
@@ -1016,6 +1022,45 @@ async function loginWithSignupRequest(payload) {
   };
 }
 
+async function loginWithSocialAuth(accessToken) {
+  const profile = await readSocialAuthProfile(accessToken);
+  const record = await readSignupRequestBySocialProfile(profile);
+  if (!record) {
+    throw createHttpError(404, "이 소셜 계정으로 가입된 사업자 회원이 없습니다. 먼저 사업자등록증을 등록해 회원가입을 완료해주세요.");
+  }
+  if (record.approvalStatus !== "승인") {
+    throw createHttpError(403, `${record.companyName || "해당"} 계정은 현재 가입보류 상태입니다. 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
+  }
+  return {
+    ok: true,
+    user: {
+      phone: record.phone,
+      businessNumber: record.businessNumber,
+      name: record.name,
+      title: record.title,
+      companyName: record.companyName,
+      companyAddress: record.companyAddress,
+      provider: record.provider || "소셜 가입",
+      approvalStatus: record.approvalStatus,
+      pricingAccess: "approved",
+      memberGrade: record.memberGrade || "사업자",
+      priceTier: record.priceTier || "wholesale",
+      memberToken: createMemberToken(record)
+    }
+  };
+}
+
+async function readSignupRequestBySocialProfile(profile) {
+  const email = normalizeEmail(profile?.email);
+  const provider = normalizeSocialProvider(profile?.provider || "");
+  if (!email) throw createHttpError(400, "소셜 계정 이메일을 확인하지 못했습니다.");
+  const rows = await readAllSignupRequests();
+  return rows.find((record) => {
+    const social = parseSocialProviderLabel(record.provider);
+    return social.email === email && social.provider === provider;
+  }) || null;
+}
+
 async function readSignupRequestByBusinessNumber(businessNumber) {
   const query = new URLSearchParams({
     select: "*",
@@ -1453,6 +1498,37 @@ function normalizeSocialProvider(value) {
   throw createHttpError(400, "지원하지 않는 소셜 가입 방식입니다.");
 }
 
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function formatSocialProviderLabel(providerValue, emailValue) {
+  const provider = normalizeSocialProvider(providerValue);
+  const label = provider === "kakao" ? "카카오톡 가입" : "Google 가입";
+  const email = normalizeEmail(emailValue);
+  return email ? `${label} <${email}>` : label;
+}
+
+function parseSocialProviderLabel(value) {
+  const text = String(value || "").trim();
+  const email = normalizeEmail((text.match(/<([^>]+)>/) || [])[1] || "");
+  let provider = "";
+  try {
+    if (/google/i.test(text)) provider = normalizeSocialProvider("google");
+    else if (/kakao|카카오/i.test(text)) provider = normalizeSocialProvider("kakao");
+  } catch {
+    provider = "";
+  }
+  return { provider, email };
+}
+
+function normalizeSignupProvider(payload) {
+  const socialEmail = normalizeEmail(payload?.socialEmail);
+  const socialProvider = String(payload?.socialProvider || "").trim();
+  if (socialEmail && socialProvider) return formatSocialProviderLabel(socialProvider, socialEmail);
+  return String(payload?.provider || "일반 회원가입").trim();
+}
+
 function getRequestOrigin(request) {
   const proto = String(request.headers["x-forwarded-proto"] || "").split(",")[0].trim() || "http";
   const hostHeader = String(request.headers["x-forwarded-host"] || request.headers.host || "").split(",")[0].trim();
@@ -1516,7 +1592,7 @@ function normalizeSignupRequest(payload) {
     companyName: String(payload?.companyName || "").trim(),
     companyAddress: String(payload?.companyAddress || "").trim(),
     password: String(payload?.password || ""),
-    provider: String(payload?.provider || "일반 회원가입").trim(),
+    provider: normalizeSignupProvider(payload),
     extractedCompanyName: String(payload?.extractedCompanyName || "").trim(),
     extractedBusinessAddress: String(payload?.extractedBusinessAddress || "").trim(),
     representative: String(payload?.representative || "").trim(),

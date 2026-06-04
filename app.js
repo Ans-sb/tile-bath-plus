@@ -150,6 +150,7 @@ let plannerThreeState = {
 let pendingSignupAuthCode = "";
 let isPhoneVerified = false;
 let selectedSignupProvider = "일반 회원가입";
+let socialSignupProfile = null;
 let authUser = loadAuthSession();
 let businessVerification = { status: "idle", message: "사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다." };
 let tesseractLoaderPromise = null;
@@ -5835,6 +5836,11 @@ function startSocialLogin(provider) {
   window.location.href = `/api/social-auth/start?provider=${encodeURIComponent(provider)}&mode=login`;
 }
 
+function isSocialSignupSelected() {
+  return Boolean(socialSignupProfile?.provider && socialSignupProfile?.email)
+    || /google|kakao|카카오/i.test(selectedSignupProvider);
+}
+
 function readSocialAuthRedirect() {
   const params = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
@@ -5853,6 +5859,28 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ accessToken })
     }, { retries: 1, timeoutMs: 10000 });
+
+    if (mode === "login") {
+      try {
+        const result = await requestJson("/api/social-auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accessToken })
+        }, { retries: 1, timeoutMs: 10000 });
+        await applyAuthenticatedUser(result.user, `${providerLabel} 계정으로 로그인되었습니다.`);
+        return;
+      } catch (loginError) {
+        socialSignupProfile = { provider, providerLabel, email: profile.email, name: profile.name };
+        selectedSignupProvider = `${providerLabel} 가입`;
+        switchPage("signupPage");
+        setText("#authStatus", `${providerLabel} 계정은 확인됐지만 가입된 사업자 정보가 없습니다. 사업자등록증을 등록해 가입을 완료해주세요.`);
+        setText("#signupStatus", loginError.message || `${providerLabel} 가입을 계속 진행해주세요.`);
+        renderSignupSummary();
+        return;
+      }
+    }
+
+    socialSignupProfile = { provider, providerLabel, email: profile.email, name: profile.name };
     selectedSignupProvider = `${providerLabel} 가입`;
     const nameInput = signupForm?.elements?.namedItem("name");
     if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
@@ -5905,21 +5933,29 @@ function renderSignupSummary() {
 
 async function submitSignupForm(event) {
   event.preventDefault();
-  if (!isPhoneVerified) {
+  const socialSignup = isSocialSignupSelected();
+  if (!isPhoneVerified && !socialSignup) {
     setText("#signupStatus", "전화번호 인증을 완료한 뒤 회원가입을 진행해주세요.");
     return;
   }
 
   const formData = new FormData(signupForm);
-  const password = String(formData.get("password") || "");
+  let password = String(formData.get("password") || "");
   const passwordConfirm = String(formData.get("passwordConfirm") || "");
-  if (!password || password.length < 6) {
+  if (!socialSignup && (!password || password.length < 6)) {
     setText("#signupStatus", "비밀번호는 6자 이상으로 입력해주세요.");
     return;
   }
-  if (password !== passwordConfirm) {
+  if (!socialSignup && password !== passwordConfirm) {
     setText("#signupStatus", "비밀번호와 비밀번호 확인이 일치하지 않습니다.");
     return;
+  }
+  if (socialSignup && password && passwordConfirm && password !== passwordConfirm) {
+    setText("#signupStatus", "비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+    return;
+  }
+  if (socialSignup && !password) {
+    password = `SOCIAL:${socialSignupProfile.provider}:${socialSignupProfile.email}:${Date.now()}`;
   }
   if (businessVerification.status !== "verified") {
     setText("#signupStatus", "사업자 확인 버튼으로 올바른 사업자인지 먼저 확인해주세요.");
@@ -5941,6 +5977,8 @@ async function submitSignupForm(event) {
     companyAddress: formData.get("companyAddress"),
     password,
     provider: selectedSignupProvider,
+    socialProvider: socialSignupProfile?.provider || "",
+    socialEmail: socialSignupProfile?.email || "",
     extractedCompanyName: extractedBusinessInfo.companyName,
     extractedBusinessAddress: extractedBusinessInfo.businessAddress,
     representative: extractedBusinessInfo.representative,
@@ -5974,6 +6012,7 @@ async function submitSignupForm(event) {
   signupForm.reset();
   isPhoneVerified = false;
   pendingSignupAuthCode = "";
+  socialSignupProfile = null;
   selectedSignupProvider = "일반 회원가입";
   businessVerification = { status: "idle", message: "사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다." };
   extractedBusinessInfo = {
@@ -6045,6 +6084,12 @@ async function submitLoginForm(event) {
     };
   }
 
+  await applyAuthenticatedUser(matchedUser, `${matchedUser.companyName} 계정으로 로그인되었습니다.`);
+  loginForm.reset();
+  switchPage("homePage");
+}
+
+async function applyAuthenticatedUser(matchedUser, message = "") {
   authUser = {
     phone: matchedUser.phone,
     businessNumber: matchedUser.businessNumber,
@@ -6066,9 +6111,8 @@ async function submitLoginForm(event) {
     await hydrateCartFromServer({ mergeLocal: true });
   }
   renderAuthControls();
-  setText("#loginStatus", `${matchedUser.companyName} 계정으로 로그인되었습니다.`);
-  loginForm.reset();
-  switchPage("homePage");
+  renderMyPage();
+  if (message) setText("#loginStatus", message);
 }
 
 async function submitAdminLoginForm(event) {
