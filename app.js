@@ -381,15 +381,23 @@ function bindEvents() {
   const cartList = document.querySelector("#cartList");
   cartList.addEventListener("input", (event) => {
     const qtyInput = event.target.closest("[data-cart-qty]");
+    const sqmInput = event.target.closest("[data-cart-sqm]");
+    const pieceInput = event.target.closest("[data-cart-pieces]");
     const quoteInput = event.target.closest("[data-cart-price]");
     if (qtyInput && qtyInput.value !== "") updateCartLine(qtyInput.dataset.cartQty, { qty: Number(qtyInput.value) }, { rerenderList: false, removeEmpty: false });
+    if (sqmInput && sqmInput.value !== "") updateCartLineFromTileMeasure(sqmInput.dataset.cartSqm, "sqm", Number(sqmInput.value), { rerenderList: false, removeEmpty: false });
+    if (pieceInput && pieceInput.value !== "") updateCartLineFromTileMeasure(pieceInput.dataset.cartPieces, "pieces", Number(pieceInput.value), { rerenderList: false, removeEmpty: false });
     if (quoteInput && quoteInput.value !== "") updateCartLine(quoteInput.dataset.cartPrice, { quotePrice: Number(quoteInput.value) }, { rerenderList: false, removeEmpty: false });
   });
 
   cartList.addEventListener("change", (event) => {
     const qtyInput = event.target.closest("[data-cart-qty]");
+    const sqmInput = event.target.closest("[data-cart-sqm]");
+    const pieceInput = event.target.closest("[data-cart-pieces]");
     const quoteInput = event.target.closest("[data-cart-price]");
     if (qtyInput) updateCartLine(qtyInput.dataset.cartQty, { qty: Number(qtyInput.value) || 0 });
+    if (sqmInput) updateCartLineFromTileMeasure(sqmInput.dataset.cartSqm, "sqm", Number(sqmInput.value) || 0);
+    if (pieceInput) updateCartLineFromTileMeasure(pieceInput.dataset.cartPieces, "pieces", Number(pieceInput.value) || 0);
     if (quoteInput) updateCartLine(quoteInput.dataset.cartPrice, { quotePrice: Number(quoteInput.value) || 0 });
   });
 
@@ -3524,6 +3532,92 @@ function openProposalRenderWorkspace() {
   openRenderForCartItem(firstSelected.id);
 }
 
+function getPositiveNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function formatMeasureNumber(value, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat("ko-KR", { maximumFractionDigits }).format(Number(value) || 0);
+}
+
+function extractFirstPositiveNumber(source, patterns) {
+  const text = String(source || "");
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    const value = getPositiveNumber(match?.[1]);
+    if (value) return value;
+  }
+  return 0;
+}
+
+function getTileBoxMetrics(item) {
+  const sourceText = [item?.unit, item?.features, item?.material, item?.name, item?.modelName].filter(Boolean).join(" ");
+  return {
+    pcsPerBox: getPositiveNumber(item?.pcsPerBox) || extractFirstPositiveNumber(sourceText, [
+      /들이\s*\(?\s*([0-9]+(?:\.[0-9]+)?)\s*\)?/i,
+      /([0-9]+(?:\.[0-9]+)?)\s*(?:pcs|장)\s*\/?\s*box/i,
+      /box\s*\/\s*들이\s*\(?\s*([0-9]+(?:\.[0-9]+)?)\s*\)?/i
+    ]),
+    sqmPerBox: getPositiveNumber(item?.sqmPerBox) || extractFirstPositiveNumber(sourceText, [
+      /([0-9]+(?:\.[0-9]+)?)\s*(?:㎡|m2|m²)\s*\/?\s*box/i,
+      /box\s*\/.*?([0-9]+(?:\.[0-9]+)?)\s*(?:㎡|m2|m²)/i,
+      /\/\s*([0-9]+(?:\.[0-9]+)?)\s*(?:㎡|m2|m²)/i
+    ])
+  };
+}
+
+function getCartTileMeasureState(item) {
+  const { pcsPerBox, sqmPerBox } = getTileBoxMetrics(item);
+  const boxQty = getPositiveNumber(item?.qty);
+  return {
+    pcsPerBox,
+    sqmPerBox,
+    boxQty,
+    estimatedSqm: sqmPerBox ? boxQty * sqmPerBox : 0,
+    estimatedPieces: pcsPerBox ? Math.ceil(boxQty * pcsPerBox) : 0
+  };
+}
+
+function getCartTileMeasurePanel(item) {
+  if (item.productType !== "tile") return "";
+
+  const measure = getCartTileMeasureState(item);
+  if (!measure.pcsPerBox && !measure.sqmPerBox) {
+    return `
+      <div class="cart-tile-calculator cart-tile-calculator-empty">
+        <strong>박스 계산 정보 없음</strong>
+        <span>이 타일은 박스당 ㎡ 또는 낱장 정보가 없어 수량만 직접 입력할 수 있습니다.</span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="cart-tile-calculator">
+      <div class="cart-tile-calculator-meta">
+        <strong>타일 수량 계산</strong>
+        <span>
+          ${measure.sqmPerBox ? `1BOX ${formatMeasureNumber(measure.sqmPerBox)}㎡` : "㎡ 정보 없음"}
+          ${measure.pcsPerBox ? ` · ${number(measure.pcsPerBox)}장` : " · 낱장 정보 없음"}
+        </span>
+      </div>
+      <label>
+        필요 ㎡
+        <input type="number" min="0" step="0.01" placeholder="예: 3.2" data-cart-sqm="${escapeHtml(item.id)}" />
+      </label>
+      <label>
+        낱장
+        <input type="number" min="0" step="1" placeholder="예: 9" data-cart-pieces="${escapeHtml(item.id)}" />
+      </label>
+      <div class="cart-tile-calculator-result">
+        <span>현재 계산</span>
+        <strong data-cart-box-result="${escapeHtml(item.id)}">${number(measure.boxQty)}BOX</strong>
+        <small data-cart-measure-result="${escapeHtml(item.id)}">${measure.estimatedSqm ? `${formatMeasureNumber(measure.estimatedSqm)}㎡` : "-㎡"}${measure.estimatedPieces ? ` · 약 ${number(measure.estimatedPieces)}장` : ""}</small>
+      </div>
+    </div>
+  `;
+}
+
 function renderCartList() {
   document.querySelector("#cartList").innerHTML = cart.map((item) => `
     <article class="cart-item">
@@ -3538,7 +3632,7 @@ function renderCartList() {
         </div>
       </div>
       <div class="cart-controls">
-        <label>수량<input type="number" min="0.1" step="0.1" value="${item.qty}" data-cart-qty="${escapeHtml(item.id)}" /></label>
+        <label>${item.productType === "tile" ? "박스 수량" : "수량"}<input type="number" min="0.1" step="0.1" value="${item.qty}" data-cart-qty="${escapeHtml(item.id)}" /></label>
         <div class="cart-price-readout" aria-label="원가 정보">
           <span>원가</span>
           <strong>${money.format(getMemberBaseUnitPrice(item))}</strong>
@@ -3547,6 +3641,7 @@ function renderCartList() {
         <label>견적단가<input type="number" min="0" step="100" value="${item.quotePrice}" data-cart-price="${escapeHtml(item.id)}" /></label>
         <button type="button" data-remove-product="${escapeHtml(item.id)}">삭제</button>
       </div>
+      ${getCartTileMeasurePanel(item)}
     </article>
   `).join("") || `<div class="empty-state">장바구니가 비어 있습니다.</div>`;
 }
@@ -6054,6 +6149,34 @@ function updateCartLine(id, changes, options = {}) {
   else renderCart();
   renderDocuments();
   renderPlannerWorkspace();
+}
+
+function updateCartTileMeasureDisplay(id) {
+  const item = cart.find((entry) => entry.id === id);
+  if (!item) return;
+  const measure = getCartTileMeasureState(item);
+  const qtyInput = document.querySelector(`[data-cart-qty="${CSS.escape(id)}"]`);
+  const boxResult = document.querySelector(`[data-cart-box-result="${CSS.escape(id)}"]`);
+  const measureResult = document.querySelector(`[data-cart-measure-result="${CSS.escape(id)}"]`);
+  if (qtyInput) qtyInput.value = measure.boxQty;
+  if (boxResult) boxResult.textContent = `${number(measure.boxQty)}BOX`;
+  if (measureResult) {
+    measureResult.textContent = `${measure.estimatedSqm ? `${formatMeasureNumber(measure.estimatedSqm)}㎡` : "-㎡"}${measure.estimatedPieces ? ` · 약 ${number(measure.estimatedPieces)}장` : ""}`;
+  }
+}
+
+function updateCartLineFromTileMeasure(id, measureType, value, options = {}) {
+  const item = cart.find((entry) => entry.id === id);
+  if (!item || item.productType !== "tile") return;
+
+  const measureValue = Math.max(Number(value) || 0, 0);
+  const { pcsPerBox, sqmPerBox } = getTileBoxMetrics(item);
+  const divisor = measureType === "pieces" ? pcsPerBox : sqmPerBox;
+  if (!divisor) return;
+
+  const boxQty = measureValue > 0 ? Math.ceil(measureValue / divisor) : 0;
+  updateCartLine(id, { qty: boxQty }, options);
+  if (options.rerenderList === false) updateCartTileMeasureDisplay(id);
 }
 
 function removeFromCart(id) {

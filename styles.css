@@ -2269,6 +2269,70 @@ textarea:focus {
   padding: 6px;
 }
 
+.cart-tile-calculator {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(2, minmax(120px, 0.8fr)) minmax(150px, 0.9fr);
+  gap: 10px;
+  align-items: stretch;
+  padding: 12px;
+  border: 1px solid rgba(18, 104, 255, 0.16);
+  border-radius: 8px;
+  background: #f5f8ff;
+}
+
+.cart-tile-calculator-empty {
+  grid-template-columns: 1fr;
+}
+
+.cart-tile-calculator-meta,
+.cart-tile-calculator-result {
+  display: grid;
+  gap: 5px;
+  align-content: center;
+}
+
+.cart-tile-calculator-meta strong,
+.cart-tile-calculator-result strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.cart-tile-calculator-meta span,
+.cart-tile-calculator-result span,
+.cart-tile-calculator-result small,
+.cart-tile-calculator-empty span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.cart-tile-calculator label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.cart-tile-calculator input {
+  min-height: 42px;
+}
+
+.cart-tile-calculator-result {
+  padding: 10px 12px;
+  border: 1px solid rgba(8, 25, 87, 0.12);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.cart-tile-calculator-result strong {
+  color: var(--blue);
+  font-size: 20px;
+  line-height: 1.1;
+}
+
 .cart-price-readout {
   min-height: 36px;
   padding: 7px 9px;
@@ -4615,6 +4679,15 @@ body.customer-experience-mode .cart-controls input {
   min-height: 42px;
 }
 
+body.customer-experience-mode .cart-tile-calculator {
+  border-radius: 22px;
+  background: linear-gradient(180deg, #f5f8ff 0%, #ffffff 100%);
+}
+
+body.customer-experience-mode .cart-tile-calculator-result {
+  border-radius: 18px;
+}
+
 body.customer-experience-mode .cart-controls button {
   min-height: 58px;
   border-radius: 18px;
@@ -4654,6 +4727,11 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
   }
 
   body.customer-experience-mode .cart-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cart-tile-calculator,
+  body.customer-experience-mode .cart-tile-calculator {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -4703,6 +4781,11 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
   body.customer-experience-mode .customer-review-strip,
   body.customer-experience-mode .product-page-list,
   body.customer-experience-mode .cost-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .cart-tile-calculator,
+  body.customer-experience-mode .cart-tile-calculator {
     grid-template-columns: 1fr;
   }
 
