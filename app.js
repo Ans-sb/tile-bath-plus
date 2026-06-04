@@ -82,7 +82,7 @@ const DEFAULT_APPROVAL_RULES = {
   ]
 };
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
-const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "renderPage", "dbPage", "adminPage", "tile114TestPage"]);
+const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "tile114TestPage"]);
 
 const money = new Intl.NumberFormat("ko-KR", {
   style: "currency",
@@ -165,7 +165,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "taxonomyTestPage", "productDetailPage", "cartPage", "plannerPage", "samplePage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "taxonomyTestPage", "productDetailPage", "cartPage", "renderPage", "plannerPage", "samplePage"]);
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
 let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };

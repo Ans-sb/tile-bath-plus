@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260604-clean-member-ui2" />
+    <link rel="stylesheet" href="styles.css?v=20260604-cart-render-entry1" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -134,20 +134,16 @@
           <span class="nav-glyph">05</span>
           <span class="nav-copy">제안서·견적</span>
         </button>
-        <button class="hidden admin-nav-button" type="button" data-page-target="renderPage">
-          <span class="nav-glyph">06</span>
-          <span class="nav-copy">실사 보정</span>
-        </button>
         <button class="hidden admin-nav-button" type="button" data-page-target="dbPage">
-          <span class="nav-glyph">07</span>
+          <span class="nav-glyph">06</span>
           <span class="nav-copy">DB 등록</span>
         </button>
         <button class="hidden admin-nav-button" id="adminNavBtn" type="button" data-page-target="adminPage">
-          <span class="nav-glyph">08</span>
+          <span class="nav-glyph">07</span>
           <span class="nav-copy">내부관리</span>
         </button>
         <button class="hidden admin-nav-button" id="tile114NavBtn" type="button" data-page-target="tile114TestPage">
-          <span class="nav-glyph">09</span>
+          <span class="nav-glyph">08</span>
           <span class="nav-copy">거래사이트 테스트</span>
         </button>
       </nav>
@@ -272,7 +268,6 @@
           </div>
           <div class="customer-admin-actions">
             <button class="secondary-action" type="button" data-page-target="proposalPage">프로 제안서 설정</button>
-            <button class="secondary-action" type="button" data-page-target="renderPage">실사 보정 작업실</button>
             <button class="secondary-action" type="button" data-page-target="dbPage">상품 DB 관리</button>
           </div>
           <div class="signup-status-bar" id="serverControlStatus">서버와 데이터 상태는 관리자 도구 영역에서 계속 확인할 수 있습니다.</div>
@@ -971,7 +966,8 @@
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
-            <button class="primary-action" type="button" data-page-target="proposalPage">프로 제안서 설정 열기</button>
+            <button class="secondary-action admin-only" type="button" data-page-target="proposalPage">프로 제안서 설정 열기</button>
+            <button class="primary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
           </div>
         </section>
         <section class="commerce-panel customer-cart-panel">
@@ -980,12 +976,20 @@
             <span id="cartSummary">0개 품목</span>
           </div>
           <p class="customer-cart-note">원가는 회원 기준으로 먼저 보여주고, 실제 상담용 견적단가는 별도로 입력할 수 있습니다.</p>
+          <div class="cart-render-entry">
+            <div>
+              <strong>현장 사진에 장바구니 타일을 적용해볼 수 있습니다.</strong>
+              <span>현장 이미지를 올리고 바닥, 벽, 포인트면에 적용할 타일을 선택하면 상담용 실사 보정 이미지를 준비할 수 있습니다.</span>
+            </div>
+            <button class="primary-action" type="button" data-page-target="renderPage">실사 보정 시작</button>
+          </div>
           <div class="cart-list cart-page-list" id="cartList"></div>
           <div class="cost-summary" id="costSummary"></div>
           <div class="customer-cart-actions">
             <button class="secondary-action" type="button" data-page-target="productsPage">상품 더 담기</button>
+            <button class="primary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
             <button class="secondary-action" type="button" data-page-target="plannerPage">3D 시공 보기</button>
-            <button class="primary-action" type="button" data-page-target="proposalPage">프로 제안서 설정 열기</button>
+            <button class="secondary-action admin-only" type="button" data-page-target="proposalPage">프로 제안서 설정 열기</button>
           </div>
         </section>
       </main>
@@ -1355,7 +1359,7 @@
         </section>
       </main>
 
-      <main class="app-page page-panel" id="renderPage">
+      <main class="app-page page-panel customer-page" id="renderPage">
         <section class="page-heading">
           <div>
             <p class="eyebrow">AI Rendering</p>
@@ -1619,6 +1623,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260604-clean-member-ui2"></script>
+    <script src="app.js?v=20260604-cart-render-entry1"></script>
   </body>
 </html>
