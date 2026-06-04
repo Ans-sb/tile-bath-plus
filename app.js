@@ -5885,8 +5885,11 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
     const nameInput = signupForm?.elements?.namedItem("name");
     if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
     switchPage("signupPage");
-    setText("#authStatus", `${providerLabel} 계정이 확인되었습니다. 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
-    setText("#signupStatus", `${providerLabel} 계정으로 가입을 계속 진행해주세요. 사업자등록번호 확인과 등록증 첨부가 필요합니다.`);
+    const emailNotice = profile.email
+      ? `${providerLabel} 계정(${profile.email})이 확인되었습니다.`
+      : `${providerLabel} 계정은 확인됐지만 이메일이 전달되지 않았습니다. 카카오 동의항목의 이메일 제공 설정을 확인해주세요.`;
+    setText("#authStatus", `${emailNotice} 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
+    setText("#signupStatus", `${emailNotice} 사업자등록번호 확인과 등록증 첨부가 필요합니다.`);
     renderSignupSummary();
   } catch (error) {
     selectedSignupProvider = `${providerLabel} 가입`;
@@ -5902,11 +5905,15 @@ function renderSignupSummary() {
   const data = signupForm ? new FormData(signupForm) : new FormData();
   const name = data.get("name") || "미입력";
   const company = data.get("companyName") || "미입력";
+  const socialAccount = socialSignupProfile?.provider
+    ? `${socialSignupProfile.providerLabel || socialSignupProfile.provider} · ${socialSignupProfile.email || "이메일 미제공"}`
+    : "없음";
   const summary = [
     ["전화번호 인증", isPhoneVerified ? "완료" : "미완료"],
     ["사업자등록증", file ? file.name : "첨부 전"],
     ["사업자 확인", businessVerification.status === "verified" ? "확인 완료" : businessVerification.status === "rejected" ? "확인 실패" : "미확인"],
     ["가입 방식", selectedSignupProvider],
+    ["연결 계정", socialAccount],
     ["상태", name !== "미입력" && company !== "미입력" ? "입력 진행 중" : "입력 대기"]
   ];
 
