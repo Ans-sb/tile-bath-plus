@@ -647,7 +647,6 @@ function mapPublicProduct(product) {
     maker: "",
     unit: String(product.unit || "").trim(),
     option: String(product.option || "").trim(),
-    retailPrice: Number(product.retailPrice) || 0,
     stockQty: Number(product.stockQty) || 0,
     stockText: String(product.stockText || "").trim(),
     image: String(product.image || "").trim(),
@@ -663,6 +662,7 @@ function mapPublicProduct(product) {
 function mapMemberProduct(product) {
   return {
     ...mapPublicProduct(product),
+    retailPrice: Number(product.retailPrice) || 0,
     wholesalePrice: Number(product.wholesalePrice) || 0,
     gradeAPrice: toBlankableNumber(product.gradeAPrice),
     gradeBPrice: toBlankableNumber(product.gradeBPrice),
