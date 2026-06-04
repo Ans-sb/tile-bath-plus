@@ -540,6 +540,7 @@ function bindEvents() {
   document.querySelector("#scanBusinessFileBtn").addEventListener("click", scanBusinessRegistrationFile);
   document.querySelector("#verifyBusinessBtn").addEventListener("click", verifyBusinessRegistration);
   document.querySelector("#saveApprovalRulesBtn").addEventListener("click", saveApprovalRulesFromForm);
+  document.querySelector("#socialBusinessUploadBtn")?.addEventListener("click", focusBusinessCertificateUpload);
   document.querySelector("#googleSignupBtn").addEventListener("click", () => startSocialSignup("Google"));
   document.querySelector("#kakaoSignupBtn").addEventListener("click", () => startSocialSignup("카카오톡"));
   document.querySelector("#openLoginBtn").addEventListener("click", () => switchPage("loginPage"));
@@ -5889,7 +5890,7 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
       ? `${providerLabel} 계정(${profile.email})이 확인되었습니다.`
       : `${providerLabel} 계정은 확인됐지만 이메일이 전달되지 않았습니다. 카카오 동의항목의 이메일 제공 설정을 확인해주세요.`;
     setText("#authStatus", `${emailNotice} 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
-    setText("#signupStatus", `${emailNotice} 사업자등록번호 확인과 등록증 첨부가 필요합니다.`);
+    setText("#signupStatus", `${getSocialWelcomeName()}님 안녕하세요. 이제 사업자 인증이 필요합니다. 사업자등록증을 업로드해 가입을 완료해주세요.`);
     renderSignupSummary();
   } catch (error) {
     selectedSignupProvider = `${providerLabel} 가입`;
@@ -5898,6 +5899,31 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
   } finally {
     history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   }
+}
+
+function getSocialWelcomeName() {
+  const profileName = String(socialSignupProfile?.name || "").trim();
+  const emailName = String(socialSignupProfile?.email || "").split("@")[0]?.trim();
+  return profileName || emailName || "회원";
+}
+
+function focusBusinessCertificateUpload() {
+  const fileInput = document.querySelector("#signupBizFile");
+  if (!fileInput) return;
+  fileInput.scrollIntoView({ behavior: "smooth", block: "center" });
+  window.setTimeout(() => fileInput.click(), 240);
+}
+
+function renderSocialBusinessGate() {
+  const gate = document.querySelector("#socialBusinessGate");
+  if (!gate) return;
+  const isSocial = Boolean(socialSignupProfile?.provider);
+  gate.classList.toggle("hidden", !isSocial);
+  if (!isSocial) return;
+  setText("#socialWelcomeName", getSocialWelcomeName());
+  setText("#socialBusinessAccount", socialSignupProfile.email
+    ? `${socialSignupProfile.providerLabel || "소셜"} 계정: ${socialSignupProfile.email}`
+    : `${socialSignupProfile.providerLabel || "소셜"} 계정 연결 완료`);
 }
 
 function renderSignupSummary() {
@@ -5920,6 +5946,7 @@ function renderSignupSummary() {
   document.querySelector("#signupSummary").innerHTML = summary.map(([label, value]) => `
     <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
   `).join("");
+  renderSocialBusinessGate();
 
   const extractedSummary = [
     ["상호", extractedBusinessInfo.companyName || "미추출"],

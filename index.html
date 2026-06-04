@@ -363,6 +363,18 @@
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
           </div>
           <form id="signupForm" class="form-grid">
+            <section class="social-business-gate hidden wide" id="socialBusinessGate">
+              <p class="eyebrow">Business Verification</p>
+              <h3><span id="socialWelcomeName">회원</span>님 안녕하세요. 이제 사업자 인증이 필요합니다.</h3>
+              <p>
+                자재GO는 BtoB 플랫폼이며 타일, 부자재, 위생도기, 수전금구 등을 국내 최저 금액과 빠른 배송으로 이용할 수 있는 플랫폼입니다.
+                현재 계정 가입은 완료되었지만 상품 금액은 사업자 인증 후 공개됩니다.
+              </p>
+              <div class="social-business-actions">
+                <button class="primary-action" id="socialBusinessUploadBtn" type="button">사업자등록증 업로드</button>
+                <span id="socialBusinessAccount">연결 계정 확인 중</span>
+              </div>
+            </section>
             <label>
               전화번호
               <input id="signupPhone" name="phone" type="tel" placeholder="01012345678" required />
