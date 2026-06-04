@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260604-cart-render-entry1" />
+    <link rel="stylesheet" href="styles.css?v=20260604-proposal-render-flow1" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -1262,6 +1262,19 @@
               <button class="secondary-action" id="selectAllProposalRendersBtn" type="button">Select All Renders</button>
               <button class="secondary-action" id="clearProposalRendersBtn" type="button">Clear Renders</button>
             </div>
+            <section class="proposal-select-group proposal-render-workflow">
+              <div class="proposal-select-group-header">
+                <strong>실사 보정</strong>
+                <span>장바구니 상품을 기준으로 현장 사진에 타일을 적용하고, 완성된 이미지를 제안서에 포함합니다.</span>
+              </div>
+              <div class="proposal-render-workflow-body">
+                <div>
+                  <strong>보정 이미지를 먼저 만든 뒤 제안서에 넣을 수 있습니다.</strong>
+                  <span id="proposalRenderWorkflowStatus">선택한 상품 또는 첫 번째 장바구니 상품으로 실사 보정을 시작합니다.</span>
+                </div>
+                <button class="primary-action" id="openProposalRenderBtn" type="button">실사 보정 시작</button>
+              </div>
+            </section>
             <section class="proposal-select-group">
               <div class="proposal-select-group-header">
                 <strong>Products For Proposal</strong>
@@ -1623,6 +1636,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260604-cart-render-entry1"></script>
+    <script src="app.js?v=20260604-proposal-render-flow1"></script>
   </body>
 </html>

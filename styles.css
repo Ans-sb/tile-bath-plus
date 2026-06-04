@@ -2668,6 +2668,45 @@ textarea:focus {
   margin-bottom: 6px;
 }
 
+.proposal-render-workflow {
+  border-color: rgba(0, 169, 143, 0.24);
+  background: linear-gradient(180deg, #f7fcfb 0%, #ffffff 100%);
+}
+
+.proposal-render-workflow-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.proposal-render-workflow-body div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.proposal-render-workflow-body strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.proposal-render-workflow-body span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.proposal-render-open-btn {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .proposal-render-surface-card {
   display: grid;
   gap: 10px;
@@ -3592,6 +3631,10 @@ th {
 
   .proposal-render-surface-image {
     width: 64px;
+  }
+
+  .proposal-render-workflow-body {
+    display: grid;
   }
 
   .document-view {

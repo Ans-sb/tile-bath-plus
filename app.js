@@ -413,6 +413,14 @@ function bindEvents() {
     toggleProposalProductSelection(checkbox.dataset.proposalProductSelect, checkbox.checked);
   });
 
+  document.querySelector("#proposalProductSelectionList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-proposal-render-open]");
+    if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openRenderForCartItem(button.dataset.proposalRenderOpen);
+  });
+
   document.querySelector("#proposalRenderSelectionList").addEventListener("change", (event) => {
     const checkbox = event.target.closest("[data-proposal-render-select]");
     if (!checkbox) return;
@@ -423,6 +431,7 @@ function bindEvents() {
   document.querySelector("#clearProposalProductsBtn").addEventListener("click", clearProposalProducts);
   document.querySelector("#selectAllProposalRendersBtn").addEventListener("click", selectAllProposalRenders);
   document.querySelector("#clearProposalRendersBtn").addEventListener("click", clearProposalRenders);
+  document.querySelector("#openProposalRenderBtn")?.addEventListener("click", openProposalRenderWorkspace);
 
   document.querySelector("#renderSiteImage").addEventListener("change", async (event) => {
     pendingSiteImage = await readImageFile(event.target.files[0], 1400);
@@ -3457,6 +3466,7 @@ function renderProposalSelectionControls(selectedProducts, selectedRenderedItems
   const renderSection = document.querySelector("#proposalRenderSelectionControl");
   const renderList = document.querySelector("#proposalRenderSelectionList");
   const summary = document.querySelector("#proposalSelectionSummary");
+  const renderStatus = document.querySelector("#proposalRenderWorkflowStatus");
   if (!productList || !renderSection || !renderList || !summary) return;
 
   productList.innerHTML = cart.map((item) => `
@@ -3468,6 +3478,7 @@ function renderProposalSelectionControls(selectedProducts, selectedRenderedItems
         <span>${escapeHtml(item.kind || "-")} / ${escapeHtml(item.size || "-")}</span>
         <span>${money.format(Number(item.quotePrice || 0))} / ${number(item.qty)}${escapeHtml(item.unit || "")}</span>
       </div>
+      <button class="secondary-action proposal-render-open-btn" type="button" data-proposal-render-open="${escapeHtml(item.id)}">이 상품 보정</button>
       ${item.renderedImage ? `<span class="proposal-select-badge">Rendered</span>` : ""}
     </label>
   `).join("") || `<div class="empty-state">No cart items available for the proposal.</div>`;
@@ -3487,6 +3498,26 @@ function renderProposalSelectionControls(selectedProducts, selectedRenderedItems
   `).join("");
 
   summary.textContent = `${selectedProducts.length} products selected / ${selectedRenderedItems.length} renders selected`;
+  if (renderStatus) {
+    const renderableCount = cart.filter((item) => item.productType === "tile").length;
+    const renderedCount = cart.filter((item) => item.renderedImage).length;
+    renderStatus.textContent = cart.length
+      ? `보정 가능 타일 ${number(renderableCount)}개 · 생성된 보정 이미지 ${number(renderedCount)}개`
+      : "장바구니에 상품을 먼저 담으면 실사 보정을 시작할 수 있습니다.";
+  }
+}
+
+function openProposalRenderWorkspace() {
+  const firstSelected = getSelectedProposalProducts().find((item) => item.productType === "tile")
+    || cart.find((item) => item.productType === "tile")
+    || getSelectedProposalProducts()[0]
+    || cart[0];
+  if (!firstSelected) {
+    setText("#proposalRenderWorkflowStatus", "장바구니에 상품을 먼저 담아주세요.");
+    switchPage("cartPage");
+    return;
+  }
+  openRenderForCartItem(firstSelected.id);
 }
 
 function renderCartList() {
