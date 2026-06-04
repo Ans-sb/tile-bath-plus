@@ -2366,6 +2366,168 @@ textarea:focus {
   line-height: 1.3;
 }
 
+.price-locked,
+.member-price-line {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 6px 9px;
+  border: 1px solid rgba(8, 25, 87, 0.14);
+  border-radius: 8px;
+  background: #f5f8ff;
+  color: #081957;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.price-locked {
+  color: var(--muted);
+  background: #f8fafc;
+}
+
+.price-locked-readout strong {
+  color: var(--muted);
+}
+
+.my-page-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 18px;
+}
+
+.my-profile-card,
+.my-current-order-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.my-profile-card div,
+.my-current-order-summary div {
+  padding: 14px;
+  border: 1px solid rgba(8, 25, 87, 0.12);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.my-profile-card span,
+.my-current-order-summary span,
+.my-past-order-head span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.my-profile-card strong,
+.my-current-order-summary strong,
+.my-past-order-head strong {
+  display: block;
+  margin-top: 4px;
+  color: #081957;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.my-order-list {
+  display: grid;
+  gap: 10px;
+}
+
+.my-order-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(8, 25, 87, 0.1);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.my-order-item img,
+.my-order-thumb-empty {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.my-order-thumb-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.my-order-item strong {
+  display: block;
+  color: #081957;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.my-order-item span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.my-past-order-card {
+  padding: 14px;
+  border: 1px solid rgba(8, 25, 87, 0.12);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
+}
+
+.my-past-order-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.compact-my-order-list .my-order-item {
+  grid-template-columns: 54px minmax(0, 1fr);
+  padding: 9px;
+}
+
+.compact-my-order-list .my-order-item img,
+.compact-my-order-list .my-order-thumb-empty {
+  width: 54px;
+  height: 54px;
+}
+
+.my-empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .my-page-grid,
+  .my-profile-card,
+  .my-current-order-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .my-past-order-head {
+    display: grid;
+  }
+}
+
 .cost-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

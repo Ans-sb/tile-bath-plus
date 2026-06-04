@@ -165,7 +165,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "taxonomyTestPage", "productDetailPage", "cartPage", "renderPage", "plannerPage", "samplePage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage"]);
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
 let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };
@@ -208,6 +208,7 @@ const PROPOSAL_TEMPLATE_PREVIEWS = {
 };
 
 async function init() {
+  const socialRedirect = readSocialAuthRedirect();
   applyInitialPageFromHash();
   history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   syncExperienceMode(currentPageId);
@@ -221,6 +222,7 @@ async function init() {
   startServerConnectionWatcher();
   await hydrateCartFromServer();
   renderAll();
+  if (socialRedirect) await completeSocialAuthRedirect(socialRedirect);
   if (currentPageId === "proposalPage") {
     resetProposalPptState();
   }
@@ -537,8 +539,8 @@ function bindEvents() {
   document.querySelector("#scanBusinessFileBtn").addEventListener("click", scanBusinessRegistrationFile);
   document.querySelector("#verifyBusinessBtn").addEventListener("click", verifyBusinessRegistration);
   document.querySelector("#saveApprovalRulesBtn").addEventListener("click", saveApprovalRulesFromForm);
-  document.querySelector("#googleSignupBtn").addEventListener("click", () => selectSignupProvider("Google 가입"));
-  document.querySelector("#kakaoSignupBtn").addEventListener("click", () => selectSignupProvider("카카오톡 가입"));
+  document.querySelector("#googleSignupBtn").addEventListener("click", () => startSocialSignup("Google"));
+  document.querySelector("#kakaoSignupBtn").addEventListener("click", () => startSocialSignup("카카오톡"));
   document.querySelector("#openLoginBtn").addEventListener("click", () => switchPage("loginPage"));
   document.querySelector("#openSignupBtn").addEventListener("click", () => switchPage("signupPage"));
   document.querySelector("#createProProposalBtn").addEventListener("click", generateProfessionalProposalDeck);
@@ -554,9 +556,14 @@ function bindEvents() {
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
   document.querySelector("#tile114FetchBtn")?.addEventListener("click", fetchTile114SampleProducts);
   document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
+  document.querySelector("#saveCurrentOrderBtn")?.addEventListener("click", saveCurrentCartAsPastOrder);
+  document.querySelector("#myPage")?.addEventListener("click", (event) => {
+    const button = event.target.closest(".my-empty-actions [data-page-target]");
+    if (button) switchPage(button.dataset.pageTarget);
+  });
   document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
-  document.querySelector("#googleLoginBtn").addEventListener("click", () => setText("#loginStatus", "Google 로그인은 추후 OAuth 연결 시 활성화됩니다."));
-  document.querySelector("#kakaoLoginBtn").addEventListener("click", () => setText("#loginStatus", "카카오톡 로그인은 추후 OAuth 연결 시 활성화됩니다."));
+  document.querySelector("#googleLoginBtn").addEventListener("click", () => startSocialLogin("Google"));
+  document.querySelector("#kakaoLoginBtn").addEventListener("click", () => startSocialLogin("카카오톡"));
   window.addEventListener("popstate", handleBrowserBack);
   window.addEventListener("focus", handleServerReconnectCheck);
   window.addEventListener("resize", handlePlannerViewportChange);
@@ -587,6 +594,7 @@ async function loadProducts() {
     products = mergeProducts(remoteProducts, localProducts);
     serverConnection = { online: true, checked: true, failures: 0 };
     productsLoadedFromRemote = true;
+    await hydrateMemberPricingProducts({ render: false });
     await loadStoredNormalizedTaxonomyProducts();
   } catch (error) {
     console.warn(error);
@@ -600,6 +608,32 @@ async function loadProducts() {
   }
 
   syncProductFilters();
+}
+
+async function hydrateMemberPricingProducts(options = {}) {
+  if (!authUser?.businessNumber || !authUser?.memberToken || authUser?.approvalStatus !== "승인") return false;
+
+  try {
+    const url = `/api/member/products?businessNumber=${encodeURIComponent(authUser.businessNumber)}&memberToken=${encodeURIComponent(authUser.memberToken)}`;
+    const payload = await requestJson(url, {}, { retries: 1, timeoutMs: 30000 });
+    if (!payload?.ok || !Array.isArray(payload.products)) return false;
+    const localProducts = loadLocalProducts();
+    products = mergeProducts(payload.products.map(mapPublicProductForClient), localProducts);
+    authUser = {
+      ...authUser,
+      approvalStatus: payload.user?.approvalStatus || authUser.approvalStatus,
+      pricingAccess: payload.user?.pricingAccess || "approved",
+      memberGrade: payload.user?.memberGrade || authUser.memberGrade || "사업자",
+      priceTier: payload.user?.priceTier || authUser.priceTier || "wholesale"
+    };
+    saveAuthSession(authUser);
+    syncProductFilters();
+    if (options.render) renderAll();
+    return true;
+  } catch (error) {
+    console.warn(error);
+    return false;
+  }
 }
 
 async function loadStoredNormalizedTaxonomyProducts() {
@@ -808,6 +842,7 @@ function renderAll() {
   syncTaxonomyFilters();
   renderTaxonomyTestPage();
   renderCart();
+  renderMyPage();
   renderDocuments();
   renderProposalTemplatePreview();
   renderRenderWorkspace();
@@ -941,7 +976,7 @@ function renderProducts() {
         <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
         <span>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType])} · ${escapeHtml(product.kind)} · ${escapeHtml(product.size || "-")} · ${escapeHtml(product.patternCategory || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
         <span>제조사 ${escapeHtml(product.maker)}${hasStockValue(product) ? ` · 재고 ${escapeHtml(formatStockQuantity(product))}` : ""}</span>
-        <span class="cost-only">소매가 ${money.format(product.retailPrice)}${product.wholesalePrice !== undefined ? ` · 도매가 ${money.format(product.wholesalePrice)}` : ""}</span>
+        ${renderProductPriceLine(product)}
       </div>
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
@@ -3032,8 +3067,7 @@ function renderProductDetail(product) {
     ["단위", product.unit || "-"],
     ["유광/무광", product.finish || "-"],
     ["옵션", product.option || "-"],
-    ["소매가", money.format(product.retailPrice)],
-    ...(product.wholesalePrice !== undefined ? [["도매가", money.format(product.wholesalePrice)]] : []),
+    ...getProductDetailPriceSpecs(product),
     ...(hasStockValue(product) ? [["재고량", formatStockQuantity(product)]] : []),
     ...(product.stockText ? [["재고 위치", product.stockText]] : []),
     ["카탈로그", product.catalogSource || "-"],
@@ -3176,6 +3210,11 @@ function mapPublicProductForClient(product) {
     unit: product.unit,
     option: product.option,
     retailPrice: product.retailPrice,
+    wholesalePrice: product.wholesalePrice,
+    gradeAPrice: product.gradeAPrice,
+    gradeBPrice: product.gradeBPrice,
+    gradeCPrice: product.gradeCPrice,
+    memberPriceVisible: product.memberPriceVisible,
     stockQty: product.stockQty,
     stockText: product.stockText,
     matchScore: product.matchScore,
@@ -3188,6 +3227,51 @@ function mapPublicProductForClient(product) {
     fluorescentImage: product.fluorescentImage,
     sceneImage: product.sceneImage
   };
+}
+
+function hasMemberPriceAccess(user = authUser) {
+  return isAdminUser()
+    || Boolean(user?.businessNumber && user?.memberToken && user?.approvalStatus === "승인" && user?.pricingAccess === "approved");
+}
+
+function getPriceLockedMessage() {
+  return "사업자등록증 승인 후 등급별 가격 공개";
+}
+
+function getGradePriceRows(product) {
+  return [
+    ["A등급", Number(product?.gradeAPrice || 0)],
+    ["B등급", Number(product?.gradeBPrice || 0)],
+    ["C등급", Number(product?.gradeCPrice || 0)]
+  ].filter(([, value]) => value > 0);
+}
+
+function renderProductPriceLine(product) {
+  if (!hasMemberPriceAccess()) {
+    return `<span class="price-locked">${escapeHtml(getPriceLockedMessage())}</span>`;
+  }
+
+  const gradeRows = getGradePriceRows(product);
+  if (gradeRows.length) {
+    return `<span class="member-price-line">${gradeRows.map(([label, value]) => `${escapeHtml(label)} ${money.format(value)}`).join(" · ")}</span>`;
+  }
+
+  const prices = [
+    Number(product?.retailPrice || 0) ? `소매가 ${money.format(product.retailPrice)}` : "",
+    Number(product?.wholesalePrice || 0) ? `도매가 ${money.format(product.wholesalePrice)}` : ""
+  ].filter(Boolean);
+  return `<span class="member-price-line">${escapeHtml(prices.join(" · ") || "가격 협의")}</span>`;
+}
+
+function getProductDetailPriceSpecs(product) {
+  if (!hasMemberPriceAccess()) return [["가격", getPriceLockedMessage()]];
+  const gradeRows = getGradePriceRows(product);
+  if (gradeRows.length) return gradeRows;
+  return [
+    ...(Number(product.retailPrice || 0) ? [["소매가", money.format(product.retailPrice)]] : []),
+    ...(Number(product.wholesalePrice || 0) ? [["도매가", money.format(product.wholesalePrice)]] : []),
+    ...(!Number(product.retailPrice || 0) && !Number(product.wholesalePrice || 0) ? [["가격", "협의"]] : [])
+  ];
 }
 
 function getProductImage(product, keys, allowPrimary = false) {
@@ -3237,6 +3321,9 @@ function getMemberPriceTier(user = authUser) {
 }
 
 function getMemberBaseUnitPrice(product, user = authUser) {
+  if (!hasMemberPriceAccess(user)) return 0;
+  const gradeRows = getGradePriceRows(product);
+  if (gradeRows.length) return gradeRows[0][1];
   const tier = getMemberPriceTier(user);
   return tier === "wholesale"
     ? Number(product?.wholesalePrice || 0)
@@ -3244,12 +3331,185 @@ function getMemberBaseUnitPrice(product, user = authUser) {
 }
 
 function getMemberBasePriceCaption(user = authUser) {
+  if (!hasMemberPriceAccess(user)) return "가격 승인 필요";
   return getMemberPriceTier(user) === "wholesale" ? "도매 기준" : "소매 기준";
+}
+
+function renderCartMemberPriceReadout(item) {
+  if (!hasMemberPriceAccess()) {
+    return `
+      <div class="cart-price-readout price-locked-readout" aria-label="가격 승인 필요">
+        <span>가격</span>
+        <strong>승인 필요</strong>
+        <small>${escapeHtml(getPriceLockedMessage())}</small>
+      </div>
+    `;
+  }
+  return `
+    <div class="cart-price-readout" aria-label="회원 기준 가격">
+      <span>회원 기준가</span>
+      <strong>${money.format(getMemberBaseUnitPrice(item))}</strong>
+      <small>${escapeHtml(getMemberBasePriceCaption())}</small>
+    </div>
+  `;
 }
 
 function renderCart() {
   renderCartSummary();
   renderCartList();
+  renderMyPage();
+}
+
+function getOrderHistoryStorageKey(user = authUser) {
+  return `tbpOrderHistory:${String(user?.businessNumber || "guest").trim() || "guest"}`;
+}
+
+function loadPastOrders(user = authUser) {
+  try {
+    const rows = JSON.parse(localStorage.getItem(getOrderHistoryStorageKey(user)) || "[]");
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePastOrders(orders, user = authUser) {
+  localStorage.setItem(getOrderHistoryStorageKey(user), JSON.stringify(Array.isArray(orders) ? orders : []));
+}
+
+function getCartQuoteTotal(items = cart) {
+  return items.reduce((sum, item) => sum + (Number(item.quotePrice || 0) * Number(item.qty || 0)), 0);
+}
+
+function getMemberGradeLabel(user = authUser) {
+  if (!user) return "비회원";
+  if (isAdminUser()) return "관리자";
+  if (hasMemberPriceAccess(user)) return `${user.memberGrade || "사업자"} · 등급별 가격 공개`;
+  if (user.approvalStatus === "보류") return "사업자 승인 대기";
+  return "사업자등록증 등록 필요";
+}
+
+function renderMyPage() {
+  const profile = document.querySelector("#myProfileSummary");
+  const current = document.querySelector("#myCurrentOrderSummary");
+  const myCart = document.querySelector("#myCartList");
+  const past = document.querySelector("#myPastOrderList");
+  if (!profile || !current || !myCart || !past) return;
+
+  if (!authUser) {
+    const loginPrompt = `
+      <div class="empty-state">
+        마이페이지는 회원 로그인 후 사용할 수 있습니다.
+        <div class="my-empty-actions">
+          <button class="primary-action" type="button" data-page-target="loginPage">로그인</button>
+          <button class="secondary-action" type="button" data-page-target="signupPage">회원가입</button>
+        </div>
+      </div>
+    `;
+    profile.innerHTML = loginPrompt;
+    current.innerHTML = `<div class="empty-state">로그인 후 현재 주문내역을 확인할 수 있습니다.</div>`;
+    myCart.innerHTML = `<div class="empty-state">로그인 후 내 장바구니를 확인할 수 있습니다.</div>`;
+    past.innerHTML = `<div class="empty-state">로그인 후 지난 주문내역을 확인할 수 있습니다.</div>`;
+    return;
+  }
+
+  const totalQuote = getCartQuoteTotal(cart);
+  const pastOrders = loadPastOrders();
+  profile.innerHTML = `
+    <div class="my-profile-card">
+      <div>
+        <span>회원</span>
+        <strong>${escapeHtml(authUser.companyName || authUser.name || "-")}</strong>
+      </div>
+      <div>
+        <span>담당자</span>
+        <strong>${escapeHtml(authUser.name || "-")}</strong>
+      </div>
+      <div>
+        <span>사업자등록번호</span>
+        <strong>${escapeHtml(authUser.businessNumber || "-")}</strong>
+      </div>
+      <div>
+        <span>내 등급</span>
+        <strong>${escapeHtml(getMemberGradeLabel())}</strong>
+      </div>
+      <div>
+        <span>가입 방식</span>
+        <strong>${escapeHtml(authUser.provider || "일반 회원가입")}</strong>
+      </div>
+      <div>
+        <span>가격 공개</span>
+        <strong>${hasMemberPriceAccess() ? "가능" : "승인 필요"}</strong>
+      </div>
+    </div>
+  `;
+
+  current.innerHTML = `
+    <div class="my-current-order-summary">
+      <div><span>현재 품목</span><strong>${number(cart.length)}개</strong></div>
+      <div><span>현재 견적 합계</span><strong>${money.format(totalQuote)}</strong></div>
+      <div><span>지난 주문</span><strong>${number(pastOrders.length)}건</strong></div>
+      <div><span>상태</span><strong>${cart.length ? "주문 저장 가능" : "장바구니 비어 있음"}</strong></div>
+    </div>
+  `;
+
+  myCart.innerHTML = renderMyOrderItems(cart, "장바구니에 담긴 상품이 없습니다.");
+  past.innerHTML = pastOrders.map(renderPastOrderCard).join("") || `<div class="empty-state">아직 지난 주문내역이 없습니다.</div>`;
+}
+
+function renderMyOrderItems(items, emptyText) {
+  return (items || []).map((item) => `
+    <article class="my-order-item">
+      ${item.image ? `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="my-order-thumb-empty">이미지 없음</div>`}
+      <div>
+        <strong>${escapeHtml(item.name || "-")}</strong>
+        <span>${escapeHtml(item.kind || "-")} · ${escapeHtml(item.size || "-")} · ${escapeHtml(item.finish || item.option || "-")}</span>
+        <span>${number(item.qty || 0)}${escapeHtml(item.unit || "")} · ${money.format(Number(item.quotePrice || 0))}</span>
+      </div>
+    </article>
+  `).join("") || `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
+}
+
+function renderPastOrderCard(order) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  return `
+    <article class="my-past-order-card">
+      <div class="my-past-order-head">
+        <div>
+          <span>${escapeHtml(formatDateTime(order.createdAt))}</span>
+          <strong>${escapeHtml(order.orderNumber || "-")}</strong>
+        </div>
+        <div>
+          <span>${number(items.length)}개 품목</span>
+          <strong>${money.format(Number(order.totalQuote || 0))}</strong>
+        </div>
+      </div>
+      <div class="my-order-list compact-my-order-list">
+        ${renderMyOrderItems(items.slice(0, 4), "저장된 상품이 없습니다.")}
+      </div>
+    </article>
+  `;
+}
+
+function saveCurrentCartAsPastOrder() {
+  if (!authUser) {
+    switchPage("loginPage");
+    return;
+  }
+  if (!cart.length) {
+    renderMyPage();
+    return;
+  }
+  const orders = loadPastOrders();
+  const createdAt = new Date().toISOString();
+  const order = {
+    orderNumber: `TBP-${createdAt.slice(0, 10).replaceAll("-", "")}-${String(orders.length + 1).padStart(3, "0")}`,
+    createdAt,
+    totalQuote: getCartQuoteTotal(cart),
+    items: cart.map((item) => ({ ...item }))
+  };
+  savePastOrders([order, ...orders].slice(0, 50));
+  renderMyPage();
 }
 
 function renderAdminOverview() {
@@ -3633,11 +3893,7 @@ function renderCartList() {
       </div>
       <div class="cart-controls">
         <label>${item.productType === "tile" ? "박스 수량" : "수량"}<input type="number" min="0.1" step="0.1" value="${item.qty}" data-cart-qty="${escapeHtml(item.id)}" /></label>
-        <div class="cart-price-readout" aria-label="원가 정보">
-          <span>원가</span>
-          <strong>${money.format(getMemberBaseUnitPrice(item))}</strong>
-          <small>${escapeHtml(getMemberBasePriceCaption())}</small>
-        </div>
+        ${renderCartMemberPriceReadout(item)}
         <label>견적단가<input type="number" min="0" step="100" value="${item.quotePrice}" data-cart-price="${escapeHtml(item.id)}" /></label>
         <button type="button" data-remove-product="${escapeHtml(item.id)}">삭제</button>
       </div>
@@ -5566,8 +5822,51 @@ function parseRuleInput(value) {
 
 function selectSignupProvider(provider) {
   selectedSignupProvider = provider;
-  setText("#signupStatus", `${provider} 연동 화면은 준비되었습니다. 실제 OAuth 연결은 추후 API 연동 시 활성화됩니다.`);
+  setText("#signupStatus", `${provider}으로 회원가입을 시작했습니다. 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
   renderSignupSummary();
+}
+
+function startSocialSignup(provider) {
+  selectedSignupProvider = `${provider} 가입`;
+  window.location.href = `/api/social-auth/start?provider=${encodeURIComponent(provider)}&mode=signup`;
+}
+
+function startSocialLogin(provider) {
+  window.location.href = `/api/social-auth/start?provider=${encodeURIComponent(provider)}&mode=login`;
+}
+
+function readSocialAuthRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
+  const accessToken = hashParams.get("access_token") || "";
+  const provider = params.get("socialProvider") || "";
+  const mode = params.get("socialMode") || "signup";
+  if (!accessToken || !provider) return null;
+  return { accessToken, provider, mode };
+}
+
+async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
+  const providerLabel = provider === "kakao" ? "카카오톡" : "Google";
+  try {
+    const profile = await requestJson("/api/social-auth/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken })
+    }, { retries: 1, timeoutMs: 10000 });
+    selectedSignupProvider = `${providerLabel} 가입`;
+    const nameInput = signupForm?.elements?.namedItem("name");
+    if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
+    switchPage("signupPage");
+    setText("#authStatus", `${providerLabel} 계정이 확인되었습니다. 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
+    setText("#signupStatus", `${providerLabel} 계정으로 가입을 계속 진행해주세요. 사업자등록번호 확인과 등록증 첨부가 필요합니다.`);
+    renderSignupSummary();
+  } catch (error) {
+    selectedSignupProvider = `${providerLabel} 가입`;
+    switchPage(mode === "login" ? "loginPage" : "signupPage");
+    setText(mode === "login" ? "#loginStatus" : "#signupStatus", error.message || `${providerLabel} 인증 정보를 확인하지 못했습니다.`);
+  } finally {
+    history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
+  }
 }
 
 function renderSignupSummary() {
@@ -5650,6 +5949,8 @@ async function submitSignupForm(event) {
     businessItem: extractedBusinessInfo.businessItem,
     businessCategorySection: extractedBusinessInfo.businessCategorySection,
     approvalStatus,
+    memberGrade: "사업자",
+    priceTier: approvalStatus === "승인" ? "wholesale" : "retail",
     businessFileName: businessFile?.name || "",
     submittedAt: new Date().toISOString()
   };
@@ -5735,7 +6036,12 @@ async function submitLoginForm(event) {
       title: localMatchedUser.title,
       companyName: localMatchedUser.companyName,
       companyAddress: localMatchedUser.companyAddress,
-      provider: localMatchedUser.provider || "일반 회원가입"
+      provider: localMatchedUser.provider || "일반 회원가입",
+      approvalStatus: localMatchedUser.approvalStatus,
+      pricingAccess: "approved",
+      memberGrade: localMatchedUser.memberGrade || "사업자",
+      priceTier: localMatchedUser.priceTier || "wholesale",
+      memberToken: localMatchedUser.memberToken || ""
     };
   }
 
@@ -5748,10 +6054,14 @@ async function submitLoginForm(event) {
     companyAddress: matchedUser.companyAddress,
     provider: matchedUser.provider || "일반 회원가입",
     role: matchedUser.role || "member",
+    approvalStatus: matchedUser.approvalStatus || "승인",
+    pricingAccess: matchedUser.pricingAccess || "approved",
+    memberToken: matchedUser.memberToken || "",
     memberGrade: matchedUser.memberGrade || matchedUser.grade || "",
     priceTier: matchedUser.priceTier || matchedUser.pricingTier || matchedUser.memberPriceTier || ""
   };
   saveAuthSession(authUser);
+  await hydrateMemberPricingProducts({ render: false });
   if (authUser.role !== "admin") {
     await hydrateCartFromServer({ mergeLocal: true });
   }
@@ -5812,12 +6122,15 @@ function saveAuthSession(user) {
   localStorage.setItem("tbpAuthSession", JSON.stringify(user));
 }
 
-function logoutUser() {
+async function logoutUser() {
   authUser = null;
   adminOverview = null;
   localStorage.removeItem("tbpAuthSession");
   if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
+  await loadProducts();
   renderAuthControls();
+  renderProducts();
+  renderCart();
   switchPage("homePage");
 }
 
@@ -6129,7 +6442,7 @@ function addToCart(id) {
 
   const existing = cart.find((item) => item.id === id);
   if (existing) existing.qty += 1;
-  else cart.push({ ...product, qty: 1, quotePrice: product.retailPrice });
+  else cart.push({ ...product, qty: 1, quotePrice: getMemberBaseUnitPrice(product) });
 
   saveCart();
   renderCart();
@@ -7226,6 +7539,10 @@ function switchPage(pageId, options = {}) {
 
   if (pageId === "productsPage") {
     void ensureProductsReady();
+  }
+
+  if (pageId === "myPage") {
+    renderMyPage();
   }
 
   if (pageId === "taxonomyTestPage") {

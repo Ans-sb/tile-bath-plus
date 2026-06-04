@@ -126,6 +126,10 @@
           <span class="nav-glyph">03</span>
           <span class="nav-copy">장바구니 <span id="navCartCount">0</span></span>
         </button>
+        <button class="customer-nav-button" type="button" data-page-target="myPage">
+          <span class="nav-glyph">MY</span>
+          <span class="nav-copy">마이페이지</span>
+        </button>
         <button class="customer-nav-button" type="button" data-page-target="plannerPage">
           <span class="nav-glyph">04</span>
           <span class="nav-copy">3D 시공</span>
@@ -338,11 +342,11 @@
           <div class="social-signup-grid">
             <button class="social-signup-button google-signup" id="googleLoginBtn" type="button">
               <strong>Google 로그인</strong>
-              <span>추후 OAuth 연결 예정</span>
+              <span>가입 후 사업자 승인 회원 로그인</span>
             </button>
             <button class="social-signup-button kakao-signup" id="kakaoLoginBtn" type="button">
               <strong>카카오톡 로그인</strong>
-              <span>추후 카카오 간편 로그인 연결 예정</span>
+              <span>가입 후 사업자 승인 회원 로그인</span>
             </button>
           </div>
           <div class="signup-status-bar" id="loginStatus">사업자등록번호와 비밀번호로 로그인할 수 있습니다.</div>
@@ -432,11 +436,11 @@
           <div class="social-signup-grid">
             <button class="social-signup-button google-signup" id="googleSignupBtn" type="button">
               <strong>Google로 가입</strong>
-              <span>업무용 구글 계정으로 빠르게 시작</span>
+              <span>사업자등록증 승인 후 등급별 가격 공개</span>
             </button>
             <button class="social-signup-button kakao-signup" id="kakaoSignupBtn" type="button">
               <strong>카카오톡으로 가입</strong>
-              <span>카카오 간편인증 연동 준비</span>
+              <span>사업자등록증 승인 후 등급별 가격 공개</span>
             </button>
           </div>
           <section class="doc-section signup-summary-card">
@@ -991,6 +995,63 @@
             <button class="secondary-action" type="button" data-page-target="plannerPage">3D 시공 보기</button>
             <button class="secondary-action" type="button" data-page-target="proposalPage">프로 제안서</button>
           </div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel customer-page customer-my-page" id="myPage">
+        <section class="page-heading customer-page-heading">
+          <div>
+            <p class="eyebrow">My Page</p>
+            <h2>마이페이지</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="primary-action" type="button" data-page-target="productsPage">상품 보러가기</button>
+          </div>
+        </section>
+
+        <section class="my-page-grid">
+          <article class="commerce-panel my-profile-panel">
+            <div class="section-header-inline">
+              <div>
+                <p class="eyebrow">Membership</p>
+                <h3>내 등급</h3>
+              </div>
+            </div>
+            <div id="myProfileSummary"></div>
+          </article>
+
+          <article class="commerce-panel my-current-order-panel">
+            <div class="section-header-inline">
+              <div>
+                <p class="eyebrow">Current Order</p>
+                <h3>현재 주문내역</h3>
+              </div>
+              <button class="secondary-action" id="saveCurrentOrderBtn" type="button">지난 주문으로 저장</button>
+            </div>
+            <div id="myCurrentOrderSummary"></div>
+          </article>
+        </section>
+
+        <section class="commerce-panel">
+          <div class="section-header-inline">
+            <div>
+              <p class="eyebrow">Cart</p>
+              <h3>내 장바구니</h3>
+            </div>
+            <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 수정</button>
+          </div>
+          <div class="my-order-list" id="myCartList"></div>
+        </section>
+
+        <section class="commerce-panel">
+          <div class="section-header-inline">
+            <div>
+              <p class="eyebrow">Order History</p>
+              <h3>지난 주문내역</h3>
+            </div>
+          </div>
+          <div class="my-order-list" id="myPastOrderList"></div>
         </section>
       </main>
 
