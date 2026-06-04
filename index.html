@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260604-search-options2" />
+    <link rel="stylesheet" href="styles.css?v=20260604-clean-member-ui2" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -120,7 +120,7 @@
         </button>
         <button class="customer-nav-button" type="button" data-page-target="taxonomyTestPage">
           <span class="nav-glyph">AI</span>
-          <span class="nav-copy">AI DB 테스트</span>
+          <span class="nav-copy">AI 타일검색</span>
         </button>
         <button class="customer-nav-button" type="button" data-page-target="cartPage">
           <span class="nav-glyph">03</span>
@@ -130,15 +130,15 @@
           <span class="nav-glyph">04</span>
           <span class="nav-copy">3D 시공</span>
         </button>
-        <button class="admin-nav-button" type="button" data-page-target="proposalPage">
+        <button class="hidden admin-nav-button" type="button" data-page-target="proposalPage">
           <span class="nav-glyph">05</span>
           <span class="nav-copy">제안서·견적</span>
         </button>
-        <button class="admin-nav-button" type="button" data-page-target="renderPage">
+        <button class="hidden admin-nav-button" type="button" data-page-target="renderPage">
           <span class="nav-glyph">06</span>
           <span class="nav-copy">실사 보정</span>
         </button>
-        <button class="admin-nav-button" type="button" data-page-target="dbPage">
+        <button class="hidden admin-nav-button" type="button" data-page-target="dbPage">
           <span class="nav-glyph">07</span>
           <span class="nav-copy">DB 등록</span>
         </button>
@@ -171,7 +171,7 @@
             </div>
           </div>
         </section>
-        <section class="home-section customer-story-section">
+        <section class="home-section customer-story-section admin-only">
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Highlights</p>
@@ -222,7 +222,7 @@
             </button>
           </div>
         </section>
-        <section class="home-section home-flow-section customer-flow-section">
+        <section class="home-section home-flow-section customer-flow-section admin-only">
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Flow</p>
@@ -244,7 +244,7 @@
             </article>
           </div>
         </section>
-        <section class="home-section customer-review-section">
+        <section class="home-section customer-review-section admin-only">
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Comfort</p>
@@ -262,7 +262,7 @@
             </article>
           </div>
         </section>
-        <section class="home-section customer-admin-entry">
+        <section class="home-section customer-admin-entry admin-only">
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Admin Tools</p>
@@ -621,8 +621,8 @@
       <main class="app-page page-panel customer-page taxonomy-test-page" id="taxonomyTestPage">
         <section class="page-heading customer-page-heading">
           <div>
-            <p class="eyebrow">AI Search DB Test</p>
-            <h2>새 카테고리 구조 테스트</h2>
+            <p class="eyebrow">AI Tile Search</p>
+            <h2>타일 AI 검색</h2>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-page-target="productsPage">기존 상품페이지</button>
@@ -630,7 +630,7 @@
           </div>
         </section>
         <section class="commerce-panel taxonomy-panel">
-          <div class="taxonomy-hero">
+          <div class="taxonomy-hero admin-only">
             <div>
               <p class="eyebrow">Draft Taxonomy</p>
               <h3>고객에게는 브랜드를 숨기고, 내부관리자는 브랜드를 0차 필터로 봅니다.</h3>
@@ -641,17 +641,17 @@
               <span>브랜드는 내부 운영 필터입니다. 고객용 화면과 고객용 검색 텍스트에서는 브랜드를 제외합니다.</span>
             </div>
           </div>
-          <div class="taxonomy-metrics" id="taxonomyMetrics"></div>
-          <div class="taxonomy-axis-bar" id="taxonomyAxisBar"></div>
+          <div class="taxonomy-metrics admin-only" id="taxonomyMetrics"></div>
+          <div class="taxonomy-axis-bar admin-only" id="taxonomyAxisBar"></div>
           <div class="filter-grid taxonomy-filter-grid">
-            <label>
+            <label class="admin-only" id="taxonomyAudienceField">
               보기 모드
               <select id="taxonomyAudienceMode">
                 <option value="customer">고객 노출 기준</option>
                 <option value="admin">내부 관리자 기준</option>
               </select>
             </label>
-            <label>
+            <label class="admin-only" id="taxonomyAxisField">
               보기 축
               <select id="taxonomyAxisFilter">
                 <option value="originRegion">원산지</option>
@@ -665,7 +665,7 @@
                 <option value="internalBrandCode">브랜드</option>
               </select>
             </label>
-            <label id="taxonomyBrandField">
+            <label class="admin-only" id="taxonomyBrandField">
               브랜드
               <select id="taxonomyBrandFilter"></select>
             </label>
@@ -706,7 +706,7 @@
               </select>
             </label>
             <div class="wide taxonomy-search-field">
-              <span>AI 검색어 테스트</span>
+              <span>AI 검색</span>
               <div class="taxonomy-search-row">
                 <input id="taxonomySearch" type="search" placeholder="예: 중국 바닥 베이지 마블 유광 600x1200 재고" />
                 <button class="primary-action" id="taxonomySearchBtn" type="button">검색</button>
@@ -731,8 +731,8 @@
             </div>
           </div>
           <div class="customer-list-header">
-            <strong>컬렉션 기준 테스트 리스트</strong>
-            <span id="taxonomyStatus">새 분류 구조를 준비하는 중입니다.</span>
+            <strong>검색 결과</strong>
+            <span id="taxonomyStatus">상품을 준비하는 중입니다.</span>
           </div>
           <div class="taxonomy-collection-list" id="taxonomyCollectionList"></div>
           <div class="product-pagination" id="taxonomyPagination"></div>
@@ -1619,6 +1619,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260604-search-options2"></script>
+    <script src="app.js?v=20260604-clean-member-ui2"></script>
   </body>
 </html>

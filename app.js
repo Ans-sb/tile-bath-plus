@@ -82,6 +82,7 @@ const DEFAULT_APPROVAL_RULES = {
   ]
 };
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
+const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "renderPage", "dbPage", "adminPage", "tile114TestPage"]);
 
 const money = new Intl.NumberFormat("ko-KR", {
   style: "currency",
@@ -807,7 +808,8 @@ function applyInitialPageFromHash() {
   if (!requestedPageId) return;
   const targetPage = document.getElementById(requestedPageId);
   if (!targetPage || !targetPage.classList.contains("app-page")) return;
-  if (["adminPage", "tile114TestPage"].includes(requestedPageId) && authUser?.role !== "admin") {
+  if (ADMIN_ONLY_PAGE_IDS.has(requestedPageId) && !isAdminUser()) {
+    setText("#adminLoginStatus", "관리자 페이지는 관리자 로그인 후 사용할 수 있습니다.");
     requestedPageId = "loginPage";
   }
 
@@ -1218,11 +1220,16 @@ function syncTaxonomyFilters() {
 }
 
 function getTaxonomyAudienceMode() {
+  if (!isAdminUser()) return "customer";
   return document.querySelector("#taxonomyAudienceMode")?.value === "admin" ? "admin" : "customer";
 }
 
 function syncTaxonomyAudienceControls() {
   const isAdmin = getTaxonomyAudienceMode() === "admin";
+  document.querySelector("#taxonomyAudienceField")?.classList.toggle("hidden", !isAdminUser());
+  document.querySelector("#taxonomyAxisField")?.classList.toggle("hidden", !isAdminUser());
+  const audienceMode = document.querySelector("#taxonomyAudienceMode");
+  if (!isAdminUser() && audienceMode) audienceMode.value = "customer";
   document.querySelector("#taxonomyBrandField")?.classList.toggle("hidden", !isAdmin);
   const brandFilter = document.querySelector("#taxonomyBrandFilter");
   if (!isAdmin && brandFilter) brandFilter.value = "all";
@@ -1364,7 +1371,9 @@ function renderTaxonomyTestPage() {
 
   const status = document.querySelector("#taxonomyStatus");
   if (status) {
-    status.textContent = `${number(filtered.length)}개 SKU · ${number(collections.length)}개 예상 컬렉션 · ${number(taxonomyCurrentPage)}/${number(totalPages)}페이지 · 페이지당 ${number(TAXONOMY_PAGE_SIZE)}개`;
+    status.textContent = getTaxonomyAudienceMode() === "admin"
+      ? `${number(filtered.length)}개 SKU · ${number(collections.length)}개 예상 컬렉션 · ${number(taxonomyCurrentPage)}/${number(totalPages)}페이지 · 페이지당 ${number(TAXONOMY_PAGE_SIZE)}개`
+      : `${number(collections.length)}개 상품군 · ${number(taxonomyCurrentPage)}/${number(totalPages)}페이지`;
   }
   return { filtered, baseFiltered, collections, searchIntent };
 }
@@ -5671,9 +5680,13 @@ function renderAuthControls() {
   const tile114NavBtn = document.querySelector("#tile114NavBtn");
 
   const isLoggedIn = Boolean(authUser);
-  const isAdmin = authUser?.role === "admin";
+  const isAdmin = isAdminUser();
+  document.body.classList.toggle("admin-authenticated", isAdmin);
   authActions.classList.toggle("hidden", isLoggedIn);
   authSession.classList.toggle("hidden", !isLoggedIn);
+  document.querySelectorAll(".admin-nav-button").forEach((button) => {
+    button.classList.toggle("hidden", !isAdmin);
+  });
   adminNavBtn?.classList.toggle("hidden", !isAdmin);
   tile114NavBtn?.classList.toggle("hidden", !isAdmin);
 
@@ -5778,6 +5791,10 @@ async function addProductFromForm(event) {
 function createProductId(formData) {
   const source = `${formData.get("productType")}-${formData.get("kind")}-${formData.get("name")}-${Date.now()}`;
   return source.toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function isAdminUser() {
+  return authUser?.role === "admin";
 }
 
 function createManagementCode(product, existingProducts = products) {
@@ -6987,8 +7004,8 @@ function updatePlannerCamera(camera, config) {
 }
 
 function switchPage(pageId, options = {}) {
-  if (["adminPage", "tile114TestPage"].includes(pageId) && authUser?.role !== "admin") {
-    setText("#adminLoginStatus", "내부관리자 페이지는 관리자 아이디와 비밀번호로 로그인해야 사용할 수 있습니다.");
+  if (ADMIN_ONLY_PAGE_IDS.has(pageId) && !isAdminUser()) {
+    setText("#adminLoginStatus", "관리자 페이지는 관리자 로그인 후 사용할 수 있습니다.");
     pageId = "loginPage";
   }
 
