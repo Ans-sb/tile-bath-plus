@@ -432,6 +432,10 @@ function bindEvents() {
   document.querySelector("#selectAllProposalRendersBtn").addEventListener("click", selectAllProposalRenders);
   document.querySelector("#clearProposalRendersBtn").addEventListener("click", clearProposalRenders);
   document.querySelector("#openProposalRenderBtn")?.addEventListener("click", openProposalRenderWorkspace);
+  document.querySelector("#renderCartTileList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-render-cart-tile]");
+    if (button) selectRenderPrimaryTile(button.dataset.renderCartTile);
+  });
 
   document.querySelector("#renderSiteImage").addEventListener("change", async (event) => {
     pendingSiteImage = await readImageFile(event.target.files[0], 1400);
@@ -4131,9 +4135,17 @@ function clearRenderSurfaceTile(surface) {
   renderRenderWorkspace();
 }
 
+function selectRenderPrimaryTile(tileId) {
+  const tile = getRenderableCartTiles().find((entry) => entry.id === tileId);
+  if (!tile) return;
+  selectedRenderCartId = tile.id;
+  selectedRenderTileId = tile.id;
+  renderRenderWorkspace();
+}
+
 function renderRenderWorkspace() {
   ensureRenderSelection();
-  const selected = document.querySelector("#renderSelectedProduct");
+  const tileList = document.querySelector("#renderCartTileList");
   const sitePreview = document.querySelector("#renderSitePreview");
   const wallPreview = document.querySelector("#renderWallTilePreview");
   const floorPreview = document.querySelector("#renderFloorTilePreview");
@@ -4161,9 +4173,9 @@ function renderRenderWorkspace() {
   clearFloorButton.disabled = !renderSurfaceSelections.floor.tileId;
   clearPointButton.disabled = !renderSurfaceSelections.point.tileId;
   generateButton.textContent = renderJobRunning ? "\uC2E4\uC0AC \uBCF4\uC815 \uC0DD\uC131 \uC911..." : "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC2E4\uD589";
+  renderRenderCartTileList(tileList, cartTiles);
 
   if (!item) {
-    selected.innerHTML = "\uC7A5\uBC14\uAD6C\uB2C8\uC5D0 \uB2F4\uAE34 \uD488\uBAA9\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uBA3C\uC800 \uD0C0\uC77C \uB610\uB294 \uC0C1\uD488\uC744 \uB2F4\uC544\uC8FC\uC138\uC694.";
     sitePreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     wallPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
     floorPreview.innerHTML = "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
@@ -4181,17 +4193,6 @@ function renderRenderWorkspace() {
     downloadLink.removeAttribute("href");
     return;
   }
-
-  selected.innerHTML = [
-    '<div class="render-product-card">',
-    item.image ? '<img src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '" />' : '<div class="render-product-empty">\uC774\uBBF8\uC9C0 \uC5C6\uC74C</div>',
-    '<div>',
-    '<strong>' + escapeHtml(item.name) + '</strong>',
-    '<span>\uC120\uD0DD \uD488\uBAA9 \uC815\uBCF4 \u00B7 ' + escapeHtml(item.kind) + ' \u00B7 \uADDC\uACA9 ' + escapeHtml(item.size || '-') + '</span>',
-    '<span>\uBCBD, \uBC14\uB2E5, \uD3EC\uC778\uD2B8 \uAC01 \uC601\uC5ED\uC5D0 \uD0C0\uC77C\uC744 \uC120\uD0DD\uD558\uBA74 \uC120\uD0DD\uB41C \uBD80\uC704\uB9CC \uBC18\uC601\uD574 \uD55C \uC7A5\uC758 \uBCF4\uC815 \uACB0\uACFC\uB97C \uC0DD\uC131\uD569\uB2C8\uB2E4.</span>',
-    '</div>',
-    '</div>'
-  ].join('');
 
   sitePreview.innerHTML = pendingSiteImage
     ? '<img src="' + escapeHtml(pendingSiteImage) + '" alt="\uD604\uC7A5 \uC0AC\uC9C4 \uBBF8\uB9AC\uBCF4\uAE30" />'
@@ -4222,6 +4223,28 @@ function renderRenderWorkspace() {
     downloadLink.classList.add("hidden");
     downloadLink.removeAttribute("href");
   }
+}
+
+function renderRenderCartTileList(container, tiles) {
+  if (!container) return;
+  if (!tiles.length) {
+    container.innerHTML = '<div class="empty-state compact-empty-state">장바구니에 담긴 타일 상품이 없습니다.</div>';
+    return;
+  }
+
+  container.innerHTML = tiles.map((tile) => {
+    const isActive = tile.id === selectedRenderTileId || tile.id === selectedRenderCartId;
+    const modelName = tile.modelName || tile.name || "모델명 미확인";
+    return `
+      <button class="render-cart-tile${isActive ? " active" : ""}" type="button" data-render-cart-tile="${escapeHtml(tile.id)}">
+        ${tile.image ? `<img src="${escapeHtml(tile.image)}" alt="${escapeHtml(modelName)}" loading="lazy" />` : '<span class="render-cart-tile-empty">이미지 없음</span>'}
+        <span>
+          <strong>${escapeHtml(modelName)}</strong>
+          <small>${escapeHtml(tile.size || "규격 미확인")}</small>
+        </span>
+      </button>
+    `;
+  }).join("");
 }
 
 function openRenderResultPreview() {

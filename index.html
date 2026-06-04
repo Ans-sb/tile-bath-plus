@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260604-proposal-render-flow1" />
+    <link rel="stylesheet" href="styles.css?v=20260604-render-tile-list1" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -1384,9 +1384,13 @@
         </section>
         <section class="commerce-panel">
           <p class="service-copy">현장 사진과 장바구니 타일을 선택해 벽, 바닥, 포인트 영역에 실제 시공된 느낌으로 이미지를 보정합니다.</p>
-          <div class="render-selected" id="renderSelectedProduct">
-            장바구니에서 선택한 품목 정보를 여기에 표시합니다.
-          </div>
+          <section class="render-cart-tile-section">
+            <div class="render-section-heading">
+              <strong>장바구니 타일</strong>
+              <span>실사 보정에 사용할 타일을 확인하고 선택합니다.</span>
+            </div>
+            <div class="render-cart-tile-list" id="renderCartTileList"></div>
+          </section>
           <div class="render-grid">
             <label class="wide">
               현장 사진
@@ -1636,6 +1640,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260604-proposal-render-flow1"></script>
+    <script src="app.js?v=20260604-render-tile-list1"></script>
   </body>
 </html>
