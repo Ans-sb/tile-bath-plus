@@ -1086,7 +1086,7 @@ function updateProductListStatus(message) {
 }
 
 function getProductPageSize() {
-  return 40;
+  return 15;
 }
 
 function goToProductPage(page, options = {}) {
