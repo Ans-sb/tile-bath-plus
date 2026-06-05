@@ -1111,26 +1111,9 @@ function animateProductPageTransition(nextPage, direction) {
   if (clampedNextPage === productCurrentPage) return false;
 
   productPageTransitioning = true;
-  const listHeight = productList.getBoundingClientRect().height;
-  const currentPage = productCurrentPage;
-  const currentStart = (currentPage - 1) * pageSize;
-  const nextStart = (clampedNextPage - 1) * pageSize;
-  const currentHtml = buildProductPageCardsHtml(filtered.slice(currentStart, currentStart + pageSize), keyword);
-  const nextHtml = buildProductPageCardsHtml(filtered.slice(nextStart, nextStart + pageSize), keyword);
   const fromX = direction > 0 ? "0%" : "-50%";
   const toX = direction > 0 ? "-50%" : "0%";
-
-  productList.classList.add("is-sliding");
-  productList.style.transform = "";
-  productList.style.minHeight = `${Math.max(1, Math.round(listHeight))}px`;
-  productList.innerHTML = `
-    <div class="product-page-slide-track" style="transform: translateX(${fromX});">
-      <div class="product-page-slide-panel">${direction > 0 ? currentHtml : nextHtml}</div>
-      <div class="product-page-slide-panel">${direction > 0 ? nextHtml : currentHtml}</div>
-    </div>
-  `;
-
-  const track = productList.querySelector(".product-page-slide-track");
+  const track = renderProductPageSlideTrack(productList, clampedNextPage, direction, filtered, keyword, pageSize, fromX);
   if (!track) {
     productPageTransitioning = false;
     return false;
@@ -1140,14 +1123,37 @@ function animateProductPageTransition(nextPage, direction) {
     track.style.transform = `translateX(${toX})`;
   });
 
-  window.setTimeout(() => {
-    productPageTransitioning = false;
-    productCurrentPage = clampedNextPage;
-    renderProducts();
-    productList.style.minHeight = "";
-  }, 440);
+  finalizeProductPageSlide(clampedNextPage, 440);
 
   return true;
+}
+
+function renderProductPageSlideTrack(productList, nextPage, direction, filtered, keyword, pageSize, transformX) {
+  const listHeight = productList.getBoundingClientRect().height;
+  const currentStart = (productCurrentPage - 1) * pageSize;
+  const nextStart = (nextPage - 1) * pageSize;
+  const currentHtml = buildProductPageCardsHtml(filtered.slice(currentStart, currentStart + pageSize), keyword);
+  const nextHtml = buildProductPageCardsHtml(filtered.slice(nextStart, nextStart + pageSize), keyword);
+  productList.classList.add("is-sliding");
+  productList.style.transform = "";
+  productList.style.minHeight = `${Math.max(1, Math.round(listHeight))}px`;
+  productList.innerHTML = `
+    <div class="product-page-slide-track" style="transform: translateX(${transformX});">
+      <div class="product-page-slide-panel">${direction > 0 ? currentHtml : nextHtml}</div>
+      <div class="product-page-slide-panel">${direction > 0 ? nextHtml : currentHtml}</div>
+    </div>
+  `;
+  return productList.querySelector(".product-page-slide-track");
+}
+
+function finalizeProductPageSlide(nextPage, delay = 440) {
+  window.setTimeout(() => {
+    productPageTransitioning = false;
+    productCurrentPage = nextPage;
+    renderProducts();
+    const productList = document.querySelector("#productList");
+    if (productList) productList.style.minHeight = "";
+  }, delay);
 }
 
 function setupProductPageSwipe() {
@@ -1159,13 +1165,77 @@ function setupProductPageSwipe() {
   let pointerStartX = 0;
   let pointerStartY = 0;
   let pointerStartTime = 0;
+  let dragState = null;
+
+  const clampDragPercent = (value, direction) => {
+    if (direction > 0) return Math.max(-50, Math.min(0, value));
+    return Math.max(-50, Math.min(0, -50 + value));
+  };
+
+  const startProductDrag = (dx) => {
+    if (productPageTransitioning || Math.abs(dx) < 12) return null;
+    const direction = dx < 0 ? 1 : -1;
+    const totalPages = Number(list.dataset.totalPages || 1);
+    const currentPage = Number(list.dataset.currentPage || productCurrentPage || 1);
+    const nextPage = currentPage + direction;
+    if (nextPage < 1 || nextPage > totalPages) return null;
+    const { filtered, keyword } = getFilteredProductsForProductPage();
+    const pageSize = getProductPageSize();
+    const fromX = direction > 0 ? "0%" : "-50%";
+    productPageTransitioning = true;
+    const track = renderProductPageSlideTrack(list, nextPage, direction, filtered, keyword, pageSize, fromX);
+    if (!track) {
+      productPageTransitioning = false;
+      return null;
+    }
+    track.classList.add("is-dragging");
+    return {
+      direction,
+      nextPage,
+      track,
+      width: Math.max(1, list.getBoundingClientRect().width)
+    };
+  };
+
+  const updateProductDrag = (startX, startY, currentX, currentY) => {
+    const dx = currentX - startX;
+    const dy = currentY - startY;
+    if (Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (!dragState) dragState = startProductDrag(dx);
+    if (!dragState) return;
+    const deltaPercent = (dx / dragState.width) * 50;
+    const translatePercent = clampDragPercent(deltaPercent, dragState.direction);
+    dragState.track.style.transform = `translateX(${translatePercent}%)`;
+  };
+
+  const settleProductDrag = (accepted) => {
+    if (!dragState) return false;
+    const { direction, nextPage, track } = dragState;
+    const target = accepted ? (direction > 0 ? -50 : 0) : (direction > 0 ? 0 : -50);
+    track.classList.remove("is-dragging");
+    requestAnimationFrame(() => {
+      track.style.transform = `translateX(${target}%)`;
+    });
+    if (accepted) {
+      finalizeProductPageSlide(nextPage, 440);
+    } else {
+      window.setTimeout(() => {
+        productPageTransitioning = false;
+        renderProducts();
+      }, 300);
+    }
+    dragState = null;
+    return true;
+  };
 
   const finishSwipe = (startX, startY, endX, endY, startTime) => {
     if (!startTime) return;
     const dx = endX - startX;
     const dy = endY - startY;
     const elapsed = Date.now() - startTime;
-    if (elapsed > 700 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    const accepted = elapsed <= 900 && Math.abs(dx) >= 70 && Math.abs(dx) >= Math.abs(dy) * 1.35;
+    if (settleProductDrag(accepted)) return;
+    if (!accepted) return;
     const totalPages = Number(list.dataset.totalPages || 1);
     const currentPage = Number(list.dataset.currentPage || productCurrentPage || 1);
     if (dx < 0 && currentPage < totalPages) {
@@ -1182,9 +1252,19 @@ function setupProductPageSwipe() {
     touchStartTime = Date.now();
   }, { passive: true });
 
+  list.addEventListener("touchmove", (event) => {
+    if (!touchStartTime || event.touches.length !== 1) return;
+    updateProductDrag(touchStartX, touchStartY, event.touches[0].clientX, event.touches[0].clientY);
+  }, { passive: true });
+
   list.addEventListener("touchend", (event) => {
     if (!touchStartTime || !event.changedTouches.length) return;
     finishSwipe(touchStartX, touchStartY, event.changedTouches[0].clientX, event.changedTouches[0].clientY, touchStartTime);
+    touchStartTime = 0;
+  }, { passive: true });
+
+  list.addEventListener("touchcancel", () => {
+    settleProductDrag(false);
     touchStartTime = 0;
   }, { passive: true });
 
@@ -1195,10 +1275,21 @@ function setupProductPageSwipe() {
     pointerStartTime = Date.now();
   });
 
+  list.addEventListener("pointermove", (event) => {
+    if (!pointerStartTime) return;
+    if (event.pointerType === "mouse" && event.buttons !== 1) return;
+    updateProductDrag(pointerStartX, pointerStartY, event.clientX, event.clientY);
+  });
+
   list.addEventListener("pointerup", (event) => {
     finishSwipe(pointerStartX, pointerStartY, event.clientX, event.clientY, pointerStartTime);
     pointerStartTime = 0;
   }, { passive: true });
+
+  list.addEventListener("pointercancel", () => {
+    settleProductDrag(false);
+    pointerStartTime = 0;
+  });
 }
 
 function renderProductPagination(totalItems, pageSize, totalPages) {

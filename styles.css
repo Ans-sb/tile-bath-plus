@@ -5299,6 +5299,10 @@ body.customer-experience-mode .product-page-list.is-sliding,
   will-change: transform;
 }
 
+.product-page-slide-track.is-dragging {
+  transition: none;
+}
+
 .product-page-slide-panel {
   display: grid;
   flex: 0 0 50%;
