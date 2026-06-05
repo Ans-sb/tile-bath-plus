@@ -99,6 +99,9 @@ const shortDate = new Intl.DateTimeFormat("ko-KR", {
 let products = [];
 let productCurrentPage = 1;
 let productPageTransitioning = false;
+let productPageCacheVersion = 0;
+let productPageStateCache = null;
+const productSearchTextCache = new WeakMap();
 let normalizedTaxonomyProducts = [];
 let storedNormalizedTaxonomyProducts = [];
 let normalizedTaxonomySourceKey = "";
@@ -808,6 +811,7 @@ function getKinds(type) {
 }
 
 function syncProductFilters(config = {}) {
+  invalidateProductPageCache();
   const type = document.querySelector("#mainCategoryFilter").value;
   const kindFilter = document.querySelector("#kindFilter");
   const sizeFilter = document.querySelector("#sizeFilter");
@@ -937,52 +941,9 @@ function renderProposalTemplatePreview() {
 
 function renderProducts() {
   updateProductListStatus("상품 목록을 정리하는 중입니다.");
-  const type = document.querySelector("#mainCategoryFilter").value;
-  const kind = document.querySelector("#kindFilter").value;
-  const size = document.querySelector("#sizeFilter").value;
-  const option = document.querySelector("#optionFilter").value;
-  const tileFeature = document.querySelector("#tileFeatureFilter").value;
-  const patternCategory = document.querySelector("#patternCategoryFilter").value;
-  const keyword = document.querySelector("#productSearch").value.trim().toLowerCase();
-  const normalizedKeyword = normalizeSearchText(keyword);
-
-  const filtered = products.filter((product) => {
-    const searchable = normalizeSearchText([
-      product.managementCode,
-      product.name,
-      product.kind,
-      product.size,
-      product.patternCategory,
-      product.finish,
-      product.option,
-      product.maker
-    ].filter(Boolean).join(" "));
-    return (type === "all" || product.productType === type)
-      && (normalizedKeyword || kind === "all" || product.kind === kind)
-      && (normalizedKeyword || size === "all" || product.size === size)
-      && (normalizedKeyword || option === "all" || product.option === option)
-      && (tileFeature === "all" || matchesTileFeatureFilter(product, tileFeature))
-      && (normalizedKeyword || patternCategory === "all" || product.patternCategory === patternCategory)
-      && (!normalizedKeyword || searchable.includes(normalizedKeyword));
-  }).sort(compareProductsForDisplay);
-
-  const pageSize = getProductPageSize();
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const { filtered, activeFilters, totalPages, pageSize } = getProductPageState();
   productCurrentPage = Math.min(Math.max(productCurrentPage, 1), totalPages);
-  const startIndex = (productCurrentPage - 1) * pageSize;
-  const pagedProducts = filtered.slice(startIndex, startIndex + pageSize);
-
-  renderProductPageList(pagedProducts, productCurrentPage, totalPages, keyword);
-
-  const activeFilters = [
-    type !== "all",
-    kind !== "all",
-    size !== "all",
-    option !== "all",
-    tileFeature !== "all",
-    patternCategory !== "all",
-    Boolean(keyword)
-  ].filter(Boolean).length;
+  renderProductPageList(getProductPageHtml(productCurrentPage), productCurrentPage, totalPages);
 
   if (filtered.length) {
     updateProductListStatus(`총 ${number(filtered.length)}개 상품 · ${number(productCurrentPage)}/${number(totalPages)}페이지${activeFilters ? ` · 필터 ${activeFilters}개 적용` : ""}`);
@@ -995,6 +956,15 @@ function renderProducts() {
 }
 
 function getFilteredProductsForProductPage() {
+  return getProductPageState();
+}
+
+function invalidateProductPageCache() {
+  productPageCacheVersion += 1;
+  productPageStateCache = null;
+}
+
+function getProductFilterSnapshot() {
   const type = document.querySelector("#mainCategoryFilter").value;
   const kind = document.querySelector("#kindFilter").value;
   const size = document.querySelector("#sizeFilter").value;
@@ -1002,32 +972,104 @@ function getFilteredProductsForProductPage() {
   const tileFeature = document.querySelector("#tileFeatureFilter").value;
   const patternCategory = document.querySelector("#patternCategoryFilter").value;
   const keyword = document.querySelector("#productSearch").value.trim().toLowerCase();
-  const normalizedKeyword = normalizeSearchText(keyword);
-
-  const filtered = products.filter((product) => {
-    const searchable = normalizeSearchText([
-      product.managementCode,
-      product.name,
-      product.kind,
-      product.size,
-      product.patternCategory,
-      product.finish,
-      product.option,
-      product.maker
-    ].filter(Boolean).join(" "));
-    return (type === "all" || product.productType === type)
-      && (normalizedKeyword || kind === "all" || product.kind === kind)
-      && (normalizedKeyword || size === "all" || product.size === size)
-      && (normalizedKeyword || option === "all" || product.option === option)
-      && (tileFeature === "all" || matchesTileFeatureFilter(product, tileFeature))
-      && (normalizedKeyword || patternCategory === "all" || product.patternCategory === patternCategory)
-      && (!normalizedKeyword || searchable.includes(normalizedKeyword));
-  }).sort(compareProductsForDisplay);
-
-  return { filtered, keyword };
+  return {
+    type,
+    kind,
+    size,
+    option,
+    tileFeature,
+    patternCategory,
+    keyword,
+    normalizedKeyword: normalizeSearchText(keyword)
+  };
 }
 
-function renderProductPageList(pageProducts, currentPage, totalPages, keyword = "") {
+function getProductPriceCacheKey() {
+  return [
+    authUser?.role || "guest",
+    authUser?.approvalStatus || "",
+    authUser?.pricingAccess || "",
+    authUser?.memberGrade || "",
+    authUser?.priceTier || "",
+    hasMemberPriceAccess() ? "price-open" : "price-locked"
+  ].join("|");
+}
+
+function getProductPageState() {
+  const snapshot = getProductFilterSnapshot();
+  const cacheKey = JSON.stringify({
+    version: productPageCacheVersion,
+    products: products.length,
+    first: products[0]?.id || "",
+    last: products[products.length - 1]?.id || "",
+    price: getProductPriceCacheKey(),
+    ...snapshot
+  });
+  if (productPageStateCache?.key === cacheKey) return productPageStateCache.state;
+
+  const filtered = products.filter((product) => {
+    const searchable = getProductSearchableText(product);
+    return (snapshot.type === "all" || product.productType === snapshot.type)
+      && (snapshot.normalizedKeyword || snapshot.kind === "all" || product.kind === snapshot.kind)
+      && (snapshot.normalizedKeyword || snapshot.size === "all" || product.size === snapshot.size)
+      && (snapshot.normalizedKeyword || snapshot.option === "all" || product.option === snapshot.option)
+      && (snapshot.tileFeature === "all" || matchesTileFeatureFilter(product, snapshot.tileFeature))
+      && (snapshot.normalizedKeyword || snapshot.patternCategory === "all" || product.patternCategory === snapshot.patternCategory)
+      && (!snapshot.normalizedKeyword || searchable.includes(snapshot.normalizedKeyword));
+  }).sort(compareProductsForDisplay);
+
+  const pageSize = getProductPageSize();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const activeFilters = [
+    snapshot.type !== "all",
+    snapshot.kind !== "all",
+    snapshot.size !== "all",
+    snapshot.option !== "all",
+    snapshot.tileFeature !== "all",
+    snapshot.patternCategory !== "all",
+    Boolean(snapshot.keyword)
+  ].filter(Boolean).length;
+  const state = {
+    ...snapshot,
+    filtered,
+    pageSize,
+    totalPages,
+    activeFilters,
+    pageHtmlCache: new Map()
+  };
+  productPageStateCache = { key: cacheKey, state };
+  return state;
+}
+
+function getProductSearchableText(product) {
+  if (!product || typeof product !== "object") return "";
+  if (productSearchTextCache.has(product)) return productSearchTextCache.get(product);
+  const text = normalizeSearchText([
+    product.managementCode,
+    product.name,
+    product.kind,
+    product.size,
+    product.patternCategory,
+    product.finish,
+    product.option,
+    product.maker
+  ].filter(Boolean).join(" "));
+  productSearchTextCache.set(product, text);
+  return text;
+}
+
+function getProductPageHtml(page) {
+  const state = getProductPageState();
+  const normalizedPage = Math.min(Math.max(Number(page) || 1, 1), state.totalPages);
+  if (state.pageHtmlCache.has(normalizedPage)) return state.pageHtmlCache.get(normalizedPage);
+  const startIndex = (normalizedPage - 1) * state.pageSize;
+  const pageProducts = state.filtered.slice(startIndex, startIndex + state.pageSize);
+  const html = buildProductPageCardsHtml(pageProducts, state.keyword);
+  state.pageHtmlCache.set(normalizedPage, html);
+  return html;
+}
+
+function renderProductPageList(pageHtml, currentPage, totalPages) {
   const productList = document.querySelector("#productList");
   if (!productList) return;
   productList.classList.remove("is-sliding");
@@ -1035,7 +1077,7 @@ function renderProductPageList(pageProducts, currentPage, totalPages, keyword = 
   productList.style.minHeight = "";
   productList.dataset.currentPage = String(currentPage);
   productList.dataset.totalPages = String(totalPages);
-  productList.innerHTML = buildProductPageCardsHtml(pageProducts, keyword);
+  productList.innerHTML = pageHtml;
 }
 
 function buildProductPageCardsHtml(pageProducts, keyword = "") {
@@ -1104,16 +1146,14 @@ function goToProductPage(page, options = {}) {
 function animateProductPageTransition(nextPage, direction) {
   const productList = document.querySelector("#productList");
   if (!productList || productPageTransitioning) return false;
-  const { filtered, keyword } = getFilteredProductsForProductPage();
-  const pageSize = getProductPageSize();
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const { totalPages } = getFilteredProductsForProductPage();
   const clampedNextPage = Math.min(Math.max(nextPage, 1), totalPages);
   if (clampedNextPage === productCurrentPage) return false;
 
   productPageTransitioning = true;
   const fromX = direction > 0 ? "0%" : "-50%";
   const toX = direction > 0 ? "-50%" : "0%";
-  const track = renderProductPageSlideTrack(productList, clampedNextPage, direction, filtered, keyword, pageSize, fromX);
+  const track = renderProductPageSlideTrack(productList, clampedNextPage, direction, fromX);
   if (!track) {
     productPageTransitioning = false;
     return false;
@@ -1128,12 +1168,10 @@ function animateProductPageTransition(nextPage, direction) {
   return true;
 }
 
-function renderProductPageSlideTrack(productList, nextPage, direction, filtered, keyword, pageSize, transformX) {
+function renderProductPageSlideTrack(productList, nextPage, direction, transformX) {
   const listHeight = productList.getBoundingClientRect().height;
-  const currentStart = (productCurrentPage - 1) * pageSize;
-  const nextStart = (nextPage - 1) * pageSize;
-  const currentHtml = buildProductPageCardsHtml(filtered.slice(currentStart, currentStart + pageSize), keyword);
-  const nextHtml = buildProductPageCardsHtml(filtered.slice(nextStart, nextStart + pageSize), keyword);
+  const currentHtml = getProductPageHtml(productCurrentPage);
+  const nextHtml = getProductPageHtml(nextPage);
   productList.classList.add("is-sliding");
   productList.style.transform = "";
   productList.style.minHeight = `${Math.max(1, Math.round(listHeight))}px`;
@@ -1179,11 +1217,9 @@ function setupProductPageSwipe() {
     const currentPage = Number(list.dataset.currentPage || productCurrentPage || 1);
     const nextPage = currentPage + direction;
     if (nextPage < 1 || nextPage > totalPages) return null;
-    const { filtered, keyword } = getFilteredProductsForProductPage();
-    const pageSize = getProductPageSize();
     const fromX = direction > 0 ? "0%" : "-50%";
     productPageTransitioning = true;
-    const track = renderProductPageSlideTrack(list, nextPage, direction, filtered, keyword, pageSize, fromX);
+    const track = renderProductPageSlideTrack(list, nextPage, direction, fromX);
     if (!track) {
       productPageTransitioning = false;
       return null;
