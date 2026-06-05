@@ -27,6 +27,7 @@ const supabaseSecretKey = String(
   || process.env.SUPABASE_SECRET_KEY
   || ""
 ).trim();
+const businessDocumentBucket = String(process.env.SUPABASE_BUSINESS_DOCUMENT_BUCKET || "business-documents").trim();
 const forceLocalProducts = /^(1|true|yes)$/i.test(String(process.env.FORCE_LOCAL_PRODUCTS || "").trim());
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
@@ -38,6 +39,7 @@ const memberTokenSecret = crypto
   .createHash("sha256")
   .update([supabaseSecretKey, adminPassword, "tile-bath-plus-member-token"].filter(Boolean).join(":"))
   .digest("hex");
+let businessDocumentBucketReady = false;
 const defaultApprovalRules = {
   businessTypes: [
     "인테리어",
@@ -1515,11 +1517,53 @@ async function requestSupabase(pathname, options = {}) {
   return response.json();
 }
 
+async function requestSupabaseStorage(pathname, options = {}) {
+  if (!hasSupabaseConfig()) {
+    throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
+  }
+
+  const response = await fetch(`${supabaseUrl}${pathname}`, {
+    method: options.method || "GET",
+    headers: {
+      apikey: supabaseSecretKey,
+      Authorization: `Bearer ${supabaseSecretKey}`,
+      ...(options.headers || {})
+    },
+    body: options.body
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+  let payload = text;
+  if (contentType.includes("application/json") && text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = text;
+    }
+  }
+
+  if (!response.ok) {
+    const message = typeof payload === "string" ? payload : JSON.stringify(payload);
+    const error = new Error(`Supabase Storage 요청 오류 (${response.status}): ${message}`);
+    error.statusCode = response.status;
+    error.payload = payload;
+    throw error;
+  }
+
+  return payload || null;
+}
+
 function isMissingSupabaseTableError(error, tableName) {
   const message = String(error?.message || "");
   return message.includes("PGRST205")
     && message.includes("Could not find the table")
     && message.includes(`'public.${tableName}'`);
+}
+
+function isSupabaseConstraintError(error, constraintName) {
+  const message = String(error?.message || "");
+  return message.includes(`"${constraintName}"`) || message.includes(constraintName);
 }
 
 function normalizeSocialProvider(value) {
@@ -1648,9 +1692,42 @@ async function upsertCustomerAccountFromSocialProfile(profile) {
     });
     return Array.isArray(rows) ? rows[0] : null;
   } catch (error) {
+    if (isSupabaseConstraintError(error, "customer_accounts_provider_email_unique") && payload.email) {
+      const existing = await readCustomerAccountByProviderEmail(provider, payload.email);
+      if (existing?.id) {
+        return updateCustomerAccount(existing.id, payload);
+      }
+    }
     if (!isMissingSupabaseTableError(error, "customer_accounts")) throw error;
     return null;
   }
+}
+
+async function readCustomerAccountByProviderEmail(provider, email) {
+  const query = new URLSearchParams({
+    select: "*",
+    social_provider: `eq.${provider}`,
+    email: `eq.${email}`,
+    limit: "1"
+  });
+  try {
+    const rows = await requestSupabase(`/rest/v1/customer_accounts?${query.toString()}`);
+    return Array.isArray(rows) ? rows[0] : null;
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "customer_accounts")) throw error;
+    return null;
+  }
+}
+
+async function updateCustomerAccount(accountId, payload) {
+  const rows = await requestSupabase(`/rest/v1/customer_accounts?id=eq.${encodeURIComponent(accountId)}`, {
+    method: "PATCH",
+    headers: {
+      Prefer: "return=representation"
+    },
+    body: JSON.stringify(payload)
+  });
+  return Array.isArray(rows) ? rows[0] : null;
 }
 
 async function updateCustomerAccountStatus(accountId, accountStatus) {
@@ -1720,12 +1797,13 @@ async function upsertBusinessProfileFromSignupRecord(record) {
 
 async function insertBusinessDocumentFromSignupRecord(record) {
   if (!hasSupabaseConfig() || !record?.businessNumber || !record?.businessFileName) return null;
+  const uploadedFile = await uploadBusinessDocumentFile(record);
   const payload = {
     account_id: record.accountId || null,
     business_number: record.businessNumber,
     file_name: record.businessFileName,
-    file_url: "",
-    mime_type: "",
+    file_url: uploadedFile?.fileUrl || "",
+    mime_type: uploadedFile?.mimeType || record.businessFileMime || "",
     review_status: record.approvalStatus === "승인" ? "approved" : "pending",
     ocr_result: {
       companyName: record.extractedCompanyName,
@@ -1750,6 +1828,95 @@ async function insertBusinessDocumentFromSignupRecord(record) {
     if (!isMissingSupabaseTableError(error, "business_documents")) throw error;
     return null;
   }
+}
+
+async function uploadBusinessDocumentFile(record) {
+  const parsed = parseBusinessDocumentDataUrl(record.businessFileDataUrl);
+  if (!parsed) return null;
+  await ensureBusinessDocumentBucket();
+  const originalName = record.businessFileName || "business-document";
+  const safeName = sanitizeStorageFileName(originalName);
+  const objectPath = [
+    sanitizeStorageFileName(record.businessNumber || "unknown"),
+    `${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${safeName}`
+  ].join("/");
+
+  await requestSupabaseStorage(`/storage/v1/object/${encodeURIComponent(businessDocumentBucket)}/${objectPath.split("/").map(encodeURIComponent).join("/")}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": parsed.mimeType,
+      "x-upsert": "true"
+    },
+    body: parsed.buffer
+  });
+
+  return {
+    fileUrl: `supabase://${businessDocumentBucket}/${objectPath}`,
+    mimeType: parsed.mimeType
+  };
+}
+
+async function ensureBusinessDocumentBucket() {
+  if (businessDocumentBucketReady || !businessDocumentBucket) return;
+  try {
+    await requestSupabaseStorage(`/storage/v1/bucket/${encodeURIComponent(businessDocumentBucket)}`);
+    businessDocumentBucketReady = true;
+    return;
+  } catch (error) {
+    const storageStatus = Number(error?.payload?.statusCode || error?.statusCode || 0);
+    if (storageStatus !== 404) throw error;
+  }
+
+  try {
+    await requestSupabaseStorage("/storage/v1/bucket", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        id: businessDocumentBucket,
+        name: businessDocumentBucket,
+        public: false,
+        file_size_limit: 15728640,
+        allowed_mime_types: ["application/pdf", "image/png", "image/jpeg", "image/webp"]
+      })
+    });
+  } catch (error) {
+    const message = String(error?.message || "");
+    if (!/already|exists|duplicate/i.test(message)) throw error;
+  }
+  businessDocumentBucketReady = true;
+}
+
+function parseBusinessDocumentDataUrl(dataUrl) {
+  const source = String(dataUrl || "").trim();
+  if (!source) return null;
+  const match = source.match(/^data:([^;,]+)?(;base64)?,(.*)$/s);
+  if (!match) return null;
+  const mimeType = String(match[1] || "application/octet-stream").trim().toLowerCase();
+  const isBase64 = Boolean(match[2]);
+  const data = match[3] || "";
+  const buffer = isBase64
+    ? Buffer.from(data, "base64")
+    : Buffer.from(decodeURIComponent(data), "utf8");
+  if (!buffer.length) return null;
+  if (buffer.length > 15 * 1024 * 1024) {
+    throw createHttpError(413, "사업자등록증 파일은 15MB 이하만 업로드할 수 있습니다.");
+  }
+  if (!["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(mimeType)) {
+    throw createHttpError(400, "사업자등록증은 PDF, PNG, JPG, WEBP 파일만 업로드할 수 있습니다.");
+  }
+  return { buffer, mimeType };
+}
+
+function sanitizeStorageFileName(value) {
+  const name = String(value || "file")
+    .normalize("NFKD")
+    .replace(/[^\w.\-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 120);
+  return name || "file";
 }
 
 function normalizeStringArray(values) {
@@ -1792,6 +1959,8 @@ function normalizeSignupRequest(payload) {
     memberGrade: String(payload?.memberGrade || "사업자").trim(),
     priceTier: normalizeMemberPriceTier(payload?.priceTier || "wholesale"),
     businessFileName: String(payload?.businessFileName || "").trim(),
+    businessFileMime: String(payload?.businessFileMime || "").trim(),
+    businessFileDataUrl: String(payload?.businessFileDataUrl || "").trim(),
     submittedAt: String(payload?.submittedAt || new Date().toISOString()).trim()
   };
 }

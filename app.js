@@ -6017,6 +6017,7 @@ async function submitSignupForm(event) {
   }
 
   const businessFile = document.querySelector("#signupBizFile").files?.[0];
+  const businessFileDataUrl = businessFile ? await readFileAsDataUrl(businessFile) : "";
   const approvalStatus = extractedBusinessInfo.approvalStatus === "가입승인" ? "승인" : "보류";
   const signupPayload = {
     phone: formData.get("phone"),
@@ -6044,6 +6045,8 @@ async function submitSignupForm(event) {
     memberGrade: "사업자",
     priceTier: approvalStatus === "승인" ? "wholesale" : "retail",
     businessFileName: businessFile?.name || "",
+    businessFileMime: businessFile?.type || "",
+    businessFileDataUrl,
     submittedAt: new Date().toISOString()
   };
 
@@ -6282,6 +6285,16 @@ function readImageFile(file, maxWidth, quality = 0.84) {
       img.onerror = () => resolve(String(reader.result || ""));
       img.src = String(reader.result || "");
     };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
+function readFileAsDataUrl(file) {
+  if (!file) return Promise.resolve("");
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
     reader.onerror = () => resolve("");
     reader.readAsDataURL(file);
   });
