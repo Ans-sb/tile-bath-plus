@@ -6072,6 +6072,7 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
           avatarUrl: profile.avatarUrl || ""
         };
         selectedSignupProvider = `${providerLabel} 가입`;
+        applyPendingSocialUser(socialSignupProfile, `${providerLabel} 계정이 확인되었습니다. 사업자등록증 등록을 완료하면 상품 금액을 볼 수 있습니다.`);
         switchPage("signupPage");
         setText("#authStatus", `${providerLabel} 계정은 확인됐지만 가입된 사업자 정보가 없습니다. 사업자등록증을 등록해 가입을 완료해주세요.`);
         setText("#signupStatus", loginError.message || `${providerLabel} 가입을 계속 진행해주세요.`);
@@ -6092,6 +6093,7 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
     selectedSignupProvider = `${providerLabel} 가입`;
     const nameInput = signupForm?.elements?.namedItem("name");
     if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
+    applyPendingSocialUser(socialSignupProfile, `${providerLabel} 계정이 확인되었습니다. 사업자 인증을 이어서 진행해주세요.`);
     switchPage("signupPage");
     const emailNotice = profile.email
       ? `${providerLabel} 계정(${profile.email})이 확인되었습니다.`
@@ -6106,6 +6108,35 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
   } finally {
     history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   }
+}
+
+function applyPendingSocialUser(profile, message = "") {
+  const displayName = String(profile?.name || profile?.email || "회원").trim();
+  authUser = {
+    phone: "",
+    businessNumber: "",
+    name: displayName,
+    title: "",
+    companyName: "사업자 인증 대기",
+    companyAddress: "",
+    provider: profile?.email
+      ? `${profile?.providerLabel || "소셜"} 가입 <${profile.email}>`
+      : `${profile?.providerLabel || "소셜"} 가입`,
+    role: "member",
+    approvalStatus: "사업자등록증 등록 필요",
+    pricingAccess: "pending",
+    memberToken: "",
+    memberGrade: "인증 대기",
+    priceTier: "retail",
+    socialProvider: profile?.provider || "",
+    socialProviderId: profile?.providerId || "",
+    socialEmail: profile?.email || "",
+    socialAvatarUrl: profile?.avatarUrl || ""
+  };
+  saveAuthSession(authUser);
+  renderAuthControls();
+  renderMyPage();
+  if (message) setText("#loginStatus", message);
 }
 
 function getSocialWelcomeName() {
@@ -6486,9 +6517,11 @@ function renderAuthControls() {
   tile114NavBtn?.classList.toggle("hidden", !isAdmin);
 
   if (isLoggedIn) {
+    const company = authUser.companyName || "사업자 인증 대기";
+    const name = authUser.name || "회원";
     authBadge.textContent = isAdmin
       ? `${authUser.name} · 관리자`
-      : `${authUser.companyName} · ${authUser.name}`;
+      : `${company} · ${name}`;
   }
   renderMemberHomeBoard();
 }
