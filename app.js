@@ -330,10 +330,10 @@ function bindEvents() {
   document.querySelector("#productPagination")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-product-page]");
     if (!button || button.disabled) return;
-    productCurrentPage = Number(button.dataset.productPage) || 1;
-    renderProducts();
-    document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    goToProductPage(Number(button.dataset.productPage) || 1);
   });
+
+  setupProductPageSwipe();
 
   document.querySelector("#tileFinderBtn")?.addEventListener("click", () => {
     document.querySelector("#tileFinderFile")?.click();
@@ -971,7 +971,10 @@ function renderProducts() {
   const startIndex = (productCurrentPage - 1) * pageSize;
   const pagedProducts = filtered.slice(startIndex, startIndex + pageSize);
 
-  document.querySelector("#productList").innerHTML = pagedProducts.map((product) => `
+  const productList = document.querySelector("#productList");
+  productList.dataset.currentPage = String(productCurrentPage);
+  productList.dataset.totalPages = String(totalPages);
+  productList.innerHTML = pagedProducts.map((product) => `
     <article class="product-card">
       <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
         ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
@@ -1033,8 +1036,64 @@ function updateProductListStatus(message) {
 }
 
 function getProductPageSize() {
-  const value = Number(document.querySelector("#productPageSize")?.value || 20);
-  return value === 10 ? 10 : 20;
+  return 40;
+}
+
+function goToProductPage(page) {
+  productCurrentPage = Math.max(1, Number(page) || 1);
+  renderProducts();
+  document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function setupProductPageSwipe() {
+  const list = document.querySelector("#productList");
+  if (!list) return;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let pointerStartX = 0;
+  let pointerStartY = 0;
+  let pointerStartTime = 0;
+
+  const finishSwipe = (startX, startY, endX, endY, startTime) => {
+    if (!startTime) return;
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const elapsed = Date.now() - startTime;
+    if (elapsed > 700 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    const totalPages = Number(list.dataset.totalPages || 1);
+    const currentPage = Number(list.dataset.currentPage || productCurrentPage || 1);
+    if (dx < 0 && currentPage < totalPages) {
+      goToProductPage(currentPage + 1);
+    } else if (dx > 0 && currentPage > 1) {
+      goToProductPage(currentPage - 1);
+    }
+  };
+
+  list.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 1) return;
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+    touchStartTime = Date.now();
+  }, { passive: true });
+
+  list.addEventListener("touchend", (event) => {
+    if (!touchStartTime || !event.changedTouches.length) return;
+    finishSwipe(touchStartX, touchStartY, event.changedTouches[0].clientX, event.changedTouches[0].clientY, touchStartTime);
+    touchStartTime = 0;
+  }, { passive: true });
+
+  list.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.buttons !== 1) return;
+    pointerStartX = event.clientX;
+    pointerStartY = event.clientY;
+    pointerStartTime = Date.now();
+  });
+
+  list.addEventListener("pointerup", (event) => {
+    finishSwipe(pointerStartX, pointerStartY, event.clientX, event.clientY, pointerStartTime);
+    pointerStartTime = 0;
+  }, { passive: true });
 }
 
 function renderProductPagination(totalItems, pageSize, totalPages) {
