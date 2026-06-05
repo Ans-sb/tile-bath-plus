@@ -6050,8 +6050,9 @@ async function submitSignupForm(event) {
     submittedAt: new Date().toISOString()
   };
 
+  let savedSignupResult = null;
   try {
-    await requestJson("/api/signup-requests", {
+    savedSignupResult = await requestJson("/api/signup-requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(signupPayload)
@@ -6064,8 +6065,25 @@ async function submitSignupForm(event) {
     ? `${signupPayload.companyName} 회원가입이 승인 상태로 저장되었습니다.`
     : `${signupPayload.companyName} 회원가입은 업태/업종 기준에 맞지 않아 가입보류로 저장되었습니다.`);
   setText("#loginStatus", approvalStatus === "승인"
-    ? `${signupPayload.companyName} 회원가입이 저장되었습니다. 같은 사업자등록번호와 비밀번호로 로그인해주세요.`
-    : `${signupPayload.companyName} 계정은 현재 가입보류 상태입니다. 관리자 확인 후 로그인할 수 있습니다.`);
+    ? `${signupPayload.companyName} 회원가입이 저장되었습니다. 등급별 가격을 볼 수 있습니다.`
+    : `${signupPayload.companyName} 계정은 가입되었고 사업자 승인 대기 상태입니다. 승인 후 상품 금액이 공개됩니다.`);
+  const signupUser = savedSignupResult?.user || {
+    phone: signupPayload.phone,
+    businessNumber: signupPayload.businessNumber,
+    name: signupPayload.name,
+    title: signupPayload.title,
+    companyName: signupPayload.companyName,
+    companyAddress: signupPayload.companyAddress,
+    provider: signupPayload.provider,
+    approvalStatus,
+    pricingAccess: approvalStatus === "승인" ? "approved" : "pending",
+    memberGrade: signupPayload.memberGrade,
+    priceTier: signupPayload.priceTier,
+    memberToken: ""
+  };
+  await applyAuthenticatedUser(signupUser, approvalStatus === "승인"
+    ? `${signupPayload.companyName} 계정으로 로그인되었습니다.`
+    : `${signupPayload.companyName} 계정으로 로그인되었습니다. 사업자 승인 후 상품 금액이 공개됩니다.`);
   signupForm.reset();
   isPhoneVerified = false;
   pendingSignupAuthCode = "";
@@ -6087,7 +6105,7 @@ async function submitSignupForm(event) {
   setText("#businessScanStatus", "PDF 또는 이미지 등록증에서 사업자번호를 자동 추출합니다.");
   setText("#businessFileName", "첨부 전");
   renderSignupSummary();
-  switchPage("loginPage");
+  switchPage("myPage");
 }
 
 function saveSignupRequest(payload) {

@@ -990,7 +990,26 @@ async function saveSignupRequestRecord(payload) {
     ok: true,
     approvalStatus: record.approvalStatus,
     businessNumber: record.businessNumber,
-    companyName: record.companyName
+    companyName: record.companyName,
+    user: createUserSessionFromSignupRecord(record)
+  };
+}
+
+function createUserSessionFromSignupRecord(record) {
+  const pricingApproved = record.approvalStatus === "승인";
+  return {
+    phone: record.phone,
+    businessNumber: record.businessNumber,
+    name: record.name,
+    title: record.title,
+    companyName: record.companyName,
+    companyAddress: record.companyAddress,
+    provider: record.provider || "일반 회원가입",
+    approvalStatus: record.approvalStatus,
+    pricingAccess: pricingApproved ? "approved" : "pending",
+    memberGrade: record.memberGrade || "사업자",
+    priceTier: record.priceTier || (pricingApproved ? "wholesale" : "retail"),
+    memberToken: createMemberToken(record)
   };
 }
 
@@ -1011,26 +1030,9 @@ async function loginWithSignupRequest(payload) {
     throw new Error("사업자등록번호 또는 비밀번호가 일치하지 않습니다.");
   }
 
-  if (record.approvalStatus !== "승인") {
-    throw new Error(`${record.companyName || "해당"} 계정은 현재 가입보류 상태입니다. 업태/업종 승인 후 로그인할 수 있습니다.`);
-  }
-
   return {
     ok: true,
-    user: {
-      phone: record.phone,
-      businessNumber: record.businessNumber,
-      name: record.name,
-      title: record.title,
-      companyName: record.companyName,
-      companyAddress: record.companyAddress,
-      provider: record.provider || "일반 회원가입",
-      approvalStatus: record.approvalStatus,
-      pricingAccess: "approved",
-      memberGrade: record.memberGrade || "사업자",
-      priceTier: record.priceTier || "wholesale",
-      memberToken: createMemberToken(record)
-    }
+    user: createUserSessionFromSignupRecord(record)
   };
 }
 
@@ -1040,25 +1042,12 @@ async function loginWithSocialAuth(accessToken) {
   if (!record) {
     throw createHttpError(404, "이 소셜 계정으로 가입된 사업자 회원이 없습니다. 먼저 사업자등록증을 등록해 회원가입을 완료해주세요.");
   }
-  if (record.approvalStatus !== "승인") {
-    throw createHttpError(403, `${record.companyName || "해당"} 계정은 현재 가입보류 상태입니다. 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
-  }
   return {
     ok: true,
-    user: {
-      phone: record.phone,
-      businessNumber: record.businessNumber,
-      name: record.name,
-      title: record.title,
-      companyName: record.companyName,
-      companyAddress: record.companyAddress,
-      provider: record.provider || "소셜 가입",
-      approvalStatus: record.approvalStatus,
-      pricingAccess: "approved",
-      memberGrade: record.memberGrade || "사업자",
-      priceTier: record.priceTier || "wholesale",
-      memberToken: createMemberToken(record)
-    }
+    user: createUserSessionFromSignupRecord({
+      ...record,
+      provider: record.provider || "소셜 가입"
+    })
   };
 }
 
