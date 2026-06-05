@@ -101,7 +101,9 @@ let productCurrentPage = 1;
 let productPageTransitioning = false;
 let productPageCacheVersion = 0;
 let productPageStateCache = null;
+let productPageWarmupTimer = null;
 const productSearchTextCache = new WeakMap();
+const productImagePreloadCache = new Set();
 let normalizedTaxonomyProducts = [];
 let storedNormalizedTaxonomyProducts = [];
 let normalizedTaxonomySourceKey = "";
@@ -940,19 +942,9 @@ function renderProposalTemplatePreview() {
 }
 
 function renderProducts() {
-  updateProductListStatus("상품 목록을 정리하는 중입니다.");
-  const { filtered, activeFilters, totalPages, pageSize } = getProductPageState();
+  const { totalPages } = getProductPageState();
   productCurrentPage = Math.min(Math.max(productCurrentPage, 1), totalPages);
-  renderProductPageList(getProductPageHtml(productCurrentPage), productCurrentPage, totalPages);
-
-  if (filtered.length) {
-    updateProductListStatus(`총 ${number(filtered.length)}개 상품 · ${number(productCurrentPage)}/${number(totalPages)}페이지${activeFilters ? ` · 필터 ${activeFilters}개 적용` : ""}`);
-  } else if (products.length) {
-    updateProductListStatus(activeFilters ? "필터 조건에 맞는 상품이 없습니다. 조건을 넓혀보세요." : "등록된 상품은 있지만 현재 표시할 목록이 없습니다.");
-  } else {
-    updateProductListStatus("상품 데이터를 아직 불러오지 못했습니다.");
-  }
-  renderProductPagination(filtered.length, pageSize, totalPages);
+  commitProductPageView(productCurrentPage);
 }
 
 function getFilteredProductsForProductPage() {
@@ -1062,11 +1054,68 @@ function getProductPageHtml(page) {
   const state = getProductPageState();
   const normalizedPage = Math.min(Math.max(Number(page) || 1, 1), state.totalPages);
   if (state.pageHtmlCache.has(normalizedPage)) return state.pageHtmlCache.get(normalizedPage);
-  const startIndex = (normalizedPage - 1) * state.pageSize;
-  const pageProducts = state.filtered.slice(startIndex, startIndex + state.pageSize);
+  const pageProducts = getProductPageProducts(normalizedPage, state);
   const html = buildProductPageCardsHtml(pageProducts, state.keyword);
   state.pageHtmlCache.set(normalizedPage, html);
   return html;
+}
+
+function getProductPageProducts(page, state = getProductPageState()) {
+  const normalizedPage = Math.min(Math.max(Number(page) || 1, 1), state.totalPages);
+  const startIndex = (normalizedPage - 1) * state.pageSize;
+  return state.filtered.slice(startIndex, startIndex + state.pageSize);
+}
+
+function commitProductPageView(page) {
+  const state = getProductPageState();
+  const normalizedPage = Math.min(Math.max(Number(page) || 1, 1), state.totalPages);
+  productCurrentPage = normalizedPage;
+  renderProductPageList(getProductPageHtml(normalizedPage), normalizedPage, state.totalPages);
+  if (state.filtered.length) {
+    updateProductListStatus(`총 ${number(state.filtered.length)}개 상품 · ${number(normalizedPage)}/${number(state.totalPages)}페이지${state.activeFilters ? ` · 필터 ${state.activeFilters}개 적용` : ""}`);
+  } else if (products.length) {
+    updateProductListStatus(state.activeFilters ? "필터 조건에 맞는 상품이 없습니다. 조건을 넓혀보세요." : "등록된 상품은 있지만 현재 표시할 목록이 없습니다.");
+  } else {
+    updateProductListStatus("상품 데이터를 아직 불러오지 못했습니다.");
+  }
+  renderProductPagination(state.filtered.length, state.pageSize, state.totalPages);
+  scheduleProductPageWarmup(normalizedPage);
+}
+
+function scheduleProductPageWarmup(currentPage) {
+  if (productPageWarmupTimer) {
+    if ("cancelIdleCallback" in window) {
+      window.cancelIdleCallback(productPageWarmupTimer);
+    } else {
+      window.clearTimeout(productPageWarmupTimer);
+    }
+    productPageWarmupTimer = null;
+  }
+  const warmup = () => {
+    productPageWarmupTimer = null;
+    const state = getProductPageState();
+    [currentPage + 1, currentPage - 1].forEach((page) => {
+      if (page < 1 || page > state.totalPages) return;
+      getProductPageHtml(page);
+      preloadProductPageImages(page, state);
+    });
+  };
+  if ("requestIdleCallback" in window) {
+    productPageWarmupTimer = window.requestIdleCallback(warmup, { timeout: 700 });
+  } else {
+    productPageWarmupTimer = window.setTimeout(warmup, 120);
+  }
+}
+
+function preloadProductPageImages(page, state = getProductPageState()) {
+  getProductPageProducts(page, state).forEach((product) => {
+    const src = product?.image;
+    if (!src || productImagePreloadCache.has(src)) return;
+    productImagePreloadCache.add(src);
+    const image = new Image();
+    image.decoding = "async";
+    image.src = src;
+  });
 }
 
 function renderProductPageList(pageHtml, currentPage, totalPages) {
@@ -1089,7 +1138,7 @@ function buildProductCardHtml(product) {
   return `
     <article class="product-card">
       <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
-        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
+        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" fetchpriority="low" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
       </button>
       <div>
         <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
@@ -1188,8 +1237,7 @@ function renderProductPageSlideTrack(productList, nextPage, direction, transform
 function finalizeProductPageSlide(nextPage, delay = 440) {
   window.setTimeout(() => {
     productPageTransitioning = false;
-    productCurrentPage = nextPage;
-    renderProducts();
+    commitProductPageView(nextPage);
     const productList = document.querySelector("#productList");
     if (productList) productList.style.minHeight = "";
   }, delay);
@@ -1258,7 +1306,7 @@ function setupProductPageSwipe() {
     } else {
       window.setTimeout(() => {
         productPageTransitioning = false;
-        renderProducts();
+        commitProductPageView(productCurrentPage);
       }, 300);
     }
     dragState = null;
