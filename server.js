@@ -1617,6 +1617,7 @@ function buildSocialAuthStartUrl(providerValue, modeValue, request) {
   const authUrl = new URL(`${supabaseUrl}/auth/v1/authorize`);
   authUrl.searchParams.set("provider", provider);
   authUrl.searchParams.set("redirect_to", redirectTo.toString());
+  authUrl.searchParams.set("response_type", "token");
   return authUrl.toString();
 }
 
