@@ -820,6 +820,7 @@ function shouldBlockStaticPath(pathname) {
   if (normalized.startsWith(".")) return true;
   if (normalized === "products-db.js") return true;
   if (normalized === "catalog-data.js") return true;
+  if (normalized.startsWith("outputs/proposals/") && normalized.endsWith(".pptx")) return false;
   return [
     "data/",
     "docs/",
