@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260604-cart-box-calc1" />
+    <link rel="stylesheet" href="styles.css?v=20260605-member-board1" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -169,6 +169,32 @@
                 <span>자재샘플 신청하러가기</span>
               </button>
             </div>
+          </div>
+        </section>
+        <section class="member-home-board hidden" id="memberHomeBoard" aria-label="회원 현황 보드">
+          <div class="member-board-head">
+            <div>
+              <p class="eyebrow">Member Board</p>
+              <h3 id="memberBoardTitle">회원 현황</h3>
+            </div>
+            <button class="secondary-action" type="button" data-page-target="myPage">마이페이지</button>
+          </div>
+          <div class="member-board-grid">
+            <button class="member-board-card" type="button" data-page-target="myPage">
+              <span>내 등급</span>
+              <strong id="memberBoardGrade">-</strong>
+              <small id="memberBoardPriceAccess">승인 상태 확인 중</small>
+            </button>
+            <button class="member-board-card" type="button" data-page-target="myPage">
+              <span>내 주문건</span>
+              <strong id="memberBoardOrderCount">0건</strong>
+              <small id="memberBoardCartSummary">장바구니 0개</small>
+            </button>
+            <button class="member-board-card" type="button" data-page-target="myPage">
+              <span>반품 주문</span>
+              <strong id="memberBoardReturnCount">0건</strong>
+              <small>접수/처리 현황</small>
+            </button>
           </div>
         </section>
         <section class="home-section customer-story-section admin-only">

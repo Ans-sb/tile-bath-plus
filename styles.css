@@ -348,6 +348,70 @@ svg {
   background: linear-gradient(180deg, #f9fffd 0%, #f7fbff 100%);
 }
 
+.member-home-board {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(8, 25, 87, 0.12);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--shadow-soft);
+}
+
+.member-board-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.member-board-head h3 {
+  margin: 0;
+  color: #081957;
+  font-size: 24px;
+}
+
+.member-board-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.member-board-card {
+  display: grid;
+  gap: 8px;
+  min-height: 118px;
+  padding: 18px;
+  border: 1px solid rgba(8, 25, 87, 0.12);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  color: #081957;
+  text-align: left;
+  cursor: pointer;
+}
+
+.member-board-card:hover {
+  border-color: rgba(20, 101, 255, 0.38);
+  box-shadow: 0 14px 30px rgba(8, 25, 87, 0.1);
+}
+
+.member-board-card span {
+  color: #1465ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.member-board-card strong {
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.member-board-card small {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .highlight-card {
   display: grid;
   gap: 8px;
@@ -4968,6 +5032,19 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
 
   body.customer-experience-mode .app-nav button {
     min-width: 110px;
+  }
+
+  .member-board-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .member-board-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .member-board-card {
+    min-height: 98px;
   }
 
   body.customer-experience-mode .customer-entry-grid {

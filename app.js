@@ -3359,6 +3359,7 @@ function renderCartMemberPriceReadout(item) {
 function renderCart() {
   renderCartSummary();
   renderCartList();
+  renderMemberHomeBoard();
   renderMyPage();
 }
 
@@ -3379,6 +3380,19 @@ function savePastOrders(orders, user = authUser) {
   localStorage.setItem(getOrderHistoryStorageKey(user), JSON.stringify(Array.isArray(orders) ? orders : []));
 }
 
+function getReturnOrderStorageKey(user = authUser) {
+  return `tbpReturnOrders:${String(user?.businessNumber || "guest").trim() || "guest"}`;
+}
+
+function loadReturnOrders(user = authUser) {
+  try {
+    const rows = JSON.parse(localStorage.getItem(getReturnOrderStorageKey(user)) || "[]");
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
 function getCartQuoteTotal(items = cart) {
   return items.reduce((sum, item) => sum + (Number(item.quotePrice || 0) * Number(item.qty || 0)), 0);
 }
@@ -3389,6 +3403,25 @@ function getMemberGradeLabel(user = authUser) {
   if (hasMemberPriceAccess(user)) return `${user.memberGrade || "사업자"} · 등급별 가격 공개`;
   if (user.approvalStatus === "보류") return "사업자 승인 대기";
   return "사업자등록증 등록 필요";
+}
+
+function renderMemberHomeBoard() {
+  const board = document.querySelector("#memberHomeBoard");
+  if (!board) return;
+  const showBoard = Boolean(authUser && !isAdminUser());
+  board.classList.toggle("hidden", !showBoard);
+  if (!showBoard) return;
+
+  const pastOrders = loadPastOrders();
+  const returnOrders = loadReturnOrders();
+  const currentOrderCount = cart.length ? 1 : 0;
+  const totalOrderCount = pastOrders.length + currentOrderCount;
+  setText("#memberBoardTitle", `${authUser.companyName || authUser.name || "회원"}님 현황`);
+  setText("#memberBoardGrade", getMemberGradeLabel());
+  setText("#memberBoardPriceAccess", hasMemberPriceAccess() ? "상품 금액 확인 가능" : "사업자 승인 후 금액 공개");
+  setText("#memberBoardOrderCount", `${number(totalOrderCount)}건`);
+  setText("#memberBoardCartSummary", cart.length ? `장바구니 ${number(cart.length)}개 품목` : "장바구니 비어 있음");
+  setText("#memberBoardReturnCount", `${number(returnOrders.length)}건`);
 }
 
 function renderMyPage() {
@@ -3511,6 +3544,7 @@ function saveCurrentCartAsPastOrder() {
     items: cart.map((item) => ({ ...item }))
   };
   savePastOrders([order, ...orders].slice(0, 50));
+  renderMemberHomeBoard();
   renderMyPage();
 }
 
@@ -6276,6 +6310,7 @@ function renderAuthControls() {
       ? `${authUser.name} · 관리자`
       : `${authUser.companyName} · ${authUser.name}`;
   }
+  renderMemberHomeBoard();
 }
 
 function formatDateTime(value) {
