@@ -98,6 +98,7 @@ const shortDate = new Intl.DateTimeFormat("ko-KR", {
 
 let products = [];
 let productCurrentPage = 1;
+let productPageTransitioning = false;
 let normalizedTaxonomyProducts = [];
 let storedNormalizedTaxonomyProducts = [];
 let normalizedTaxonomySourceKey = "";
@@ -971,24 +972,7 @@ function renderProducts() {
   const startIndex = (productCurrentPage - 1) * pageSize;
   const pagedProducts = filtered.slice(startIndex, startIndex + pageSize);
 
-  const productList = document.querySelector("#productList");
-  productList.dataset.currentPage = String(productCurrentPage);
-  productList.dataset.totalPages = String(totalPages);
-  productList.innerHTML = pagedProducts.map((product) => `
-    <article class="product-card">
-      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
-        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
-      </button>
-      <div>
-        ${product.managementCode ? `<span class="product-code-badge">${escapeHtml(product.managementCode)}</span>` : ""}
-        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
-        <span>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType])} · ${escapeHtml(product.kind)} · ${escapeHtml(product.size || "-")} · ${escapeHtml(product.patternCategory || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
-        <span>제조사 ${escapeHtml(product.maker)}${hasStockValue(product) ? ` · 재고 ${escapeHtml(formatStockQuantity(product))}` : ""}</span>
-        ${renderProductPriceLine(product)}
-      </div>
-      <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
-    </article>
-  `).join("") || `<div class="empty-state">${keyword ? "품명 검색 결과가 없습니다." : "새 상품 리스트 업데이트 준비 중입니다."}</div>`;
+  renderProductPageList(pagedProducts, productCurrentPage, totalPages, keyword);
 
   const activeFilters = [
     type !== "all",
@@ -1008,6 +992,72 @@ function renderProducts() {
     updateProductListStatus("상품 데이터를 아직 불러오지 못했습니다.");
   }
   renderProductPagination(filtered.length, pageSize, totalPages);
+}
+
+function getFilteredProductsForProductPage() {
+  const type = document.querySelector("#mainCategoryFilter").value;
+  const kind = document.querySelector("#kindFilter").value;
+  const size = document.querySelector("#sizeFilter").value;
+  const option = document.querySelector("#optionFilter").value;
+  const tileFeature = document.querySelector("#tileFeatureFilter").value;
+  const patternCategory = document.querySelector("#patternCategoryFilter").value;
+  const keyword = document.querySelector("#productSearch").value.trim().toLowerCase();
+  const normalizedKeyword = normalizeSearchText(keyword);
+
+  const filtered = products.filter((product) => {
+    const searchable = normalizeSearchText([
+      product.managementCode,
+      product.name,
+      product.kind,
+      product.size,
+      product.patternCategory,
+      product.finish,
+      product.option,
+      product.maker
+    ].filter(Boolean).join(" "));
+    return (type === "all" || product.productType === type)
+      && (normalizedKeyword || kind === "all" || product.kind === kind)
+      && (normalizedKeyword || size === "all" || product.size === size)
+      && (normalizedKeyword || option === "all" || product.option === option)
+      && (tileFeature === "all" || matchesTileFeatureFilter(product, tileFeature))
+      && (normalizedKeyword || patternCategory === "all" || product.patternCategory === patternCategory)
+      && (!normalizedKeyword || searchable.includes(normalizedKeyword));
+  }).sort(compareProductsForDisplay);
+
+  return { filtered, keyword };
+}
+
+function renderProductPageList(pageProducts, currentPage, totalPages, keyword = "") {
+  const productList = document.querySelector("#productList");
+  if (!productList) return;
+  productList.classList.remove("is-sliding");
+  productList.style.transform = "";
+  productList.dataset.currentPage = String(currentPage);
+  productList.dataset.totalPages = String(totalPages);
+  productList.innerHTML = buildProductPageCardsHtml(pageProducts, keyword);
+}
+
+function buildProductPageCardsHtml(pageProducts, keyword = "") {
+  return pageProducts.map((product) => buildProductCardHtml(product)).join("")
+    || `<div class="empty-state">${keyword ? "품명 검색 결과가 없습니다." : "새 상품 리스트 업데이트 준비 중입니다."}</div>`;
+}
+
+function buildProductCardHtml(product) {
+  return `
+    <article class="product-card">
+      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
+        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
+      </button>
+      <div>
+        ${product.managementCode ? `<span class="product-code-badge">${escapeHtml(product.managementCode)}</span>` : ""}
+        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
+        <span>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType])} · ${escapeHtml(product.kind)} · ${escapeHtml(product.size || "-")} · ${escapeHtml(product.patternCategory || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
+        <span>제조사 ${escapeHtml(product.maker)}${hasStockValue(product) ? ` · 재고 ${escapeHtml(formatStockQuantity(product))}` : ""}</span>
+        ${renderProductPriceLine(product)}
+      </div>
+      <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
+    </article>
+  `;
 }
 
 function matchesTileFeatureFilter(product, filterValue) {
@@ -1039,10 +1089,60 @@ function getProductPageSize() {
   return 40;
 }
 
-function goToProductPage(page) {
-  productCurrentPage = Math.max(1, Number(page) || 1);
+function goToProductPage(page, options = {}) {
+  const nextPage = Math.max(1, Number(page) || 1);
+  const direction = Math.sign(nextPage - productCurrentPage);
+  if (options.animate && direction && animateProductPageTransition(nextPage, direction)) return;
+  productCurrentPage = nextPage;
   renderProducts();
   document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function animateProductPageTransition(nextPage, direction) {
+  const productList = document.querySelector("#productList");
+  if (!productList || productPageTransitioning) return false;
+  const { filtered, keyword } = getFilteredProductsForProductPage();
+  const pageSize = getProductPageSize();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const clampedNextPage = Math.min(Math.max(nextPage, 1), totalPages);
+  if (clampedNextPage === productCurrentPage) return false;
+
+  productPageTransitioning = true;
+  const currentPage = productCurrentPage;
+  const currentStart = (currentPage - 1) * pageSize;
+  const nextStart = (clampedNextPage - 1) * pageSize;
+  const currentHtml = buildProductPageCardsHtml(filtered.slice(currentStart, currentStart + pageSize), keyword);
+  const nextHtml = buildProductPageCardsHtml(filtered.slice(nextStart, nextStart + pageSize), keyword);
+  const fromX = direction > 0 ? "0%" : "-50%";
+  const toX = direction > 0 ? "-50%" : "0%";
+
+  productList.classList.add("is-sliding");
+  productList.style.transform = "";
+  productList.innerHTML = `
+    <div class="product-page-slide-track" style="transform: translateX(${fromX});">
+      <div class="product-page-slide-panel">${direction > 0 ? currentHtml : nextHtml}</div>
+      <div class="product-page-slide-panel">${direction > 0 ? nextHtml : currentHtml}</div>
+    </div>
+  `;
+
+  const track = productList.querySelector(".product-page-slide-track");
+  if (!track) {
+    productPageTransitioning = false;
+    return false;
+  }
+
+  requestAnimationFrame(() => {
+    track.style.transform = `translateX(${toX})`;
+  });
+
+  window.setTimeout(() => {
+    productPageTransitioning = false;
+    productCurrentPage = clampedNextPage;
+    renderProducts();
+    productList.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 340);
+
+  return true;
 }
 
 function setupProductPageSwipe() {
@@ -1064,9 +1164,9 @@ function setupProductPageSwipe() {
     const totalPages = Number(list.dataset.totalPages || 1);
     const currentPage = Number(list.dataset.currentPage || productCurrentPage || 1);
     if (dx < 0 && currentPage < totalPages) {
-      goToProductPage(currentPage + 1);
+      goToProductPage(currentPage + 1, { animate: true });
     } else if (dx > 0 && currentPage > 1) {
-      goToProductPage(currentPage - 1);
+      goToProductPage(currentPage - 1, { animate: true });
     }
   };
 

@@ -5277,13 +5277,35 @@ body.customer-experience-mode .customer-admin-actions .secondary-action {
   }
 }
 
-/* Product page compact grid: 4 square cards per row on desktop and mobile. */
+/* Product page compact grid: 3 square cards per row on desktop and mobile. */
 body.customer-experience-mode .product-page-list,
 .product-list.product-page-list {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 12px !important;
   align-items: stretch !important;
   touch-action: pan-y;
+}
+
+body.customer-experience-mode .product-page-list.is-sliding,
+.product-list.product-page-list.is-sliding {
+  display: block !important;
+  overflow: hidden !important;
+}
+
+.product-page-slide-track {
+  display: grid;
+  width: 200%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.product-page-slide-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
 }
 
 body.customer-experience-mode .product-page-list .product-card,
@@ -5374,6 +5396,11 @@ body.customer-experience-mode .product-pagination-toolbar label {
   body.customer-experience-mode .product-page-list,
   .product-list.product-page-list {
     gap: 7px !important;
+  }
+
+  .product-page-slide-track,
+  .product-page-slide-panel {
+    gap: 7px;
   }
 
   body.customer-experience-mode .product-page-list .product-card,
