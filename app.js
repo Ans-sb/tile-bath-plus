@@ -5871,7 +5871,15 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
         await applyAuthenticatedUser(result.user, `${providerLabel} 계정으로 로그인되었습니다.`);
         return;
       } catch (loginError) {
-        socialSignupProfile = { provider, providerLabel, email: profile.email, name: profile.name };
+        socialSignupProfile = {
+          accountId: profile.accountId || "",
+          provider,
+          providerLabel,
+          providerId: profile.providerId || "",
+          email: profile.email,
+          name: profile.name,
+          avatarUrl: profile.avatarUrl || ""
+        };
         selectedSignupProvider = `${providerLabel} 가입`;
         switchPage("signupPage");
         setText("#authStatus", `${providerLabel} 계정은 확인됐지만 가입된 사업자 정보가 없습니다. 사업자등록증을 등록해 가입을 완료해주세요.`);
@@ -5881,7 +5889,15 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
       }
     }
 
-    socialSignupProfile = { provider, providerLabel, email: profile.email, name: profile.name };
+    socialSignupProfile = {
+      accountId: profile.accountId || "",
+      provider,
+      providerLabel,
+      providerId: profile.providerId || "",
+      email: profile.email,
+      name: profile.name,
+      avatarUrl: profile.avatarUrl || ""
+    };
     selectedSignupProvider = `${providerLabel} 가입`;
     const nameInput = signupForm?.elements?.namedItem("name");
     if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
@@ -5989,7 +6005,7 @@ async function submitSignupForm(event) {
     return;
   }
   if (socialSignup && !password) {
-    password = `SOCIAL:${socialSignupProfile.provider}:${socialSignupProfile.email}:${Date.now()}`;
+    password = `SOCIAL:${socialSignupProfile?.provider || "social"}:${socialSignupProfile?.providerId || socialSignupProfile?.email || "pending"}:${Date.now()}`;
   }
   if (businessVerification.status !== "verified") {
     setText("#signupStatus", "사업자 확인 버튼으로 올바른 사업자인지 먼저 확인해주세요.");
@@ -6011,8 +6027,12 @@ async function submitSignupForm(event) {
     companyAddress: formData.get("companyAddress"),
     password,
     provider: selectedSignupProvider,
+    accountId: socialSignupProfile?.accountId || "",
     socialProvider: socialSignupProfile?.provider || "",
     socialEmail: socialSignupProfile?.email || "",
+    socialProviderId: socialSignupProfile?.providerId || "",
+    socialName: socialSignupProfile?.name || "",
+    socialAvatarUrl: socialSignupProfile?.avatarUrl || "",
     extractedCompanyName: extractedBusinessInfo.companyName,
     extractedBusinessAddress: extractedBusinessInfo.businessAddress,
     representative: extractedBusinessInfo.representative,

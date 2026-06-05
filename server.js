@@ -962,6 +962,8 @@ async function saveSignupRequestRecord(payload) {
 
   if (hasSupabaseConfig()) {
     try {
+      const account = await upsertCustomerAccountFromSignupRecord(record);
+      if (account?.id) record.accountId = account.id;
       await requestSupabase("/rest/v1/signup_requests", {
         method: "POST",
         headers: {
@@ -969,6 +971,14 @@ async function saveSignupRequestRecord(payload) {
         },
         body: JSON.stringify([mapSignupRequestToSupabase(record)])
       });
+      await upsertBusinessProfileFromSignupRecord(record);
+      await insertBusinessDocumentFromSignupRecord(record);
+      if (record.accountId) {
+        await updateCustomerAccountStatus(
+          record.accountId,
+          record.approvalStatus === "승인" ? "approved" : "business_verification_pending"
+        );
+      }
     } catch (error) {
       if (!isMissingSupabaseTableError(error, "signup_requests")) throw error;
     }
@@ -1051,13 +1061,34 @@ async function loginWithSocialAuth(accessToken) {
 }
 
 async function readSignupRequestBySocialProfile(profile) {
-  const email = normalizeEmail(profile?.email);
   const provider = normalizeSocialProvider(profile?.provider || "");
+  const providerId = String(profile?.providerId || "").trim();
+  const email = normalizeEmail(profile?.email);
+
+  if (providerId) {
+    const query = new URLSearchParams({
+      select: "*",
+      social_provider: `eq.${provider}`,
+      social_provider_id: `eq.${providerId}`,
+      limit: "1"
+    });
+    let rows = [];
+    try {
+      rows = await requestSupabase(`/rest/v1/signup_requests?${query.toString()}`);
+    } catch (error) {
+      if (!isMissingSupabaseTableError(error, "signup_requests")) throw error;
+      rows = [];
+    }
+    if (Array.isArray(rows) && rows.length) return mapSupabaseSignupRequest(rows[0]);
+  }
+
   if (!email) throw createHttpError(400, "소셜 계정 이메일을 확인하지 못했습니다.");
   const rows = await readAllSignupRequests();
   return rows.find((record) => {
     const social = parseSocialProviderLabel(record.provider);
-    return social.email === email && social.provider === provider;
+    return (record.socialEmail && record.socialProvider
+      ? record.socialEmail === email && record.socialProvider === provider
+      : social.email === email && social.provider === provider);
   }) || null;
 }
 
@@ -1498,6 +1529,12 @@ function normalizeSocialProvider(value) {
   throw createHttpError(400, "지원하지 않는 소셜 가입 방식입니다.");
 }
 
+function normalizeSocialProviderOptional(value) {
+  const provider = String(value || "").trim();
+  if (!provider) return "";
+  return normalizeSocialProvider(provider);
+}
+
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -1562,12 +1599,157 @@ async function readSocialAuthProfile(accessToken) {
   });
   if (!response.ok) throw createHttpError(401, "소셜 로그인 정보를 확인하지 못했습니다.");
   const user = await response.json();
-  return {
+  const provider = String(user.app_metadata?.provider || "").trim();
+  const providerId = String(
+    user.user_metadata?.provider_id
+    || user.user_metadata?.sub
+    || user.identities?.[0]?.id
+    || user.id
+    || ""
+  ).trim();
+  const profile = {
     ok: true,
+    accountId: "",
+    authUserId: String(user.id || "").trim(),
     email: String(user.email || "").trim(),
     name: String(user.user_metadata?.full_name || user.user_metadata?.name || user.email || "").trim(),
-    provider: String(user.app_metadata?.provider || "").trim()
+    avatarUrl: String(user.user_metadata?.avatar_url || user.user_metadata?.picture || "").trim(),
+    provider,
+    providerId
   };
+  const account = await upsertCustomerAccountFromSocialProfile(profile);
+  profile.accountId = account?.id || "";
+  return profile;
+}
+
+async function upsertCustomerAccountFromSocialProfile(profile) {
+  if (!hasSupabaseConfig()) return null;
+  const provider = normalizeSocialProvider(profile?.provider || "");
+  const providerId = String(profile?.providerId || profile?.authUserId || "").trim();
+  if (!providerId) return null;
+
+  const payload = {
+    auth_user_id: profile?.authUserId || null,
+    social_provider: provider,
+    social_provider_id: providerId,
+    email: normalizeEmail(profile?.email),
+    display_name: String(profile?.name || "").trim(),
+    avatar_url: String(profile?.avatarUrl || "").trim(),
+    last_login_at: new Date().toISOString()
+  };
+
+  try {
+    const rows = await requestSupabase("/rest/v1/customer_accounts?on_conflict=social_provider,social_provider_id", {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify([payload])
+    });
+    return Array.isArray(rows) ? rows[0] : null;
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "customer_accounts")) throw error;
+    return null;
+  }
+}
+
+async function updateCustomerAccountStatus(accountId, accountStatus) {
+  if (!hasSupabaseConfig() || !accountId || !accountStatus) return;
+  try {
+    await requestSupabase(`/rest/v1/customer_accounts?id=eq.${encodeURIComponent(accountId)}`, {
+      method: "PATCH",
+      headers: {
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({ account_status: accountStatus })
+    });
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "customer_accounts")) throw error;
+  }
+}
+
+async function upsertCustomerAccountFromSignupRecord(record) {
+  if (!record?.socialProvider && !record?.socialProviderId) return null;
+  return upsertCustomerAccountFromSocialProfile({
+    accountId: record.accountId,
+    authUserId: "",
+    provider: record.socialProvider,
+    providerId: record.socialProviderId,
+    email: record.socialEmail,
+    name: record.socialName || record.name,
+    avatarUrl: record.socialAvatarUrl
+  });
+}
+
+async function upsertBusinessProfileFromSignupRecord(record) {
+  if (!hasSupabaseConfig() || !record?.businessNumber) return null;
+  const isApproved = record.approvalStatus === "승인";
+  const payload = {
+    account_id: record.accountId || null,
+    business_number: record.businessNumber,
+    phone: record.phone,
+    contact_name: record.name,
+    title: record.title,
+    company_name: record.companyName,
+    company_address: record.companyAddress,
+    representative: record.representative,
+    opening_date: record.openingDate || null,
+    business_type: record.businessType,
+    business_item: record.businessItem,
+    business_category_section: record.businessCategorySection,
+    verification_status: isApproved ? "approved" : "pending",
+    member_grade: record.memberGrade || "사업자",
+    price_tier: record.priceTier || (isApproved ? "wholesale" : "retail"),
+    pricing_access: isApproved ? "approved" : "pending",
+    approved_at: isApproved ? new Date().toISOString() : null
+  };
+  try {
+    const rows = await requestSupabase("/rest/v1/business_profiles?on_conflict=business_number", {
+      method: "POST",
+      headers: {
+        Prefer: "resolution=merge-duplicates,return=representation"
+      },
+      body: JSON.stringify([payload])
+    });
+    return Array.isArray(rows) ? rows[0] : null;
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "business_profiles")) throw error;
+    return null;
+  }
+}
+
+async function insertBusinessDocumentFromSignupRecord(record) {
+  if (!hasSupabaseConfig() || !record?.businessNumber || !record?.businessFileName) return null;
+  const payload = {
+    account_id: record.accountId || null,
+    business_number: record.businessNumber,
+    file_name: record.businessFileName,
+    file_url: "",
+    mime_type: "",
+    review_status: record.approvalStatus === "승인" ? "approved" : "pending",
+    ocr_result: {
+      companyName: record.extractedCompanyName,
+      businessAddress: record.extractedBusinessAddress,
+      representative: record.representative,
+      openingDate: record.openingDate,
+      businessType: record.businessType,
+      businessItem: record.businessItem,
+      businessCategorySection: record.businessCategorySection
+    }
+  };
+  try {
+    const rows = await requestSupabase("/rest/v1/business_documents", {
+      method: "POST",
+      headers: {
+        Prefer: "return=representation"
+      },
+      body: JSON.stringify([payload])
+    });
+    return Array.isArray(rows) ? rows[0] : null;
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "business_documents")) throw error;
+    return null;
+  }
 }
 
 function normalizeStringArray(values) {
@@ -1585,6 +1767,7 @@ function cloneApprovalRules(rules) {
 
 function normalizeSignupRequest(payload) {
   return {
+    accountId: String(payload?.accountId || "").trim(),
     phone: String(payload?.phone || "").trim(),
     businessNumber: String(payload?.businessNumber || "").trim(),
     name: String(payload?.name || "").trim(),
@@ -1593,6 +1776,11 @@ function normalizeSignupRequest(payload) {
     companyAddress: String(payload?.companyAddress || "").trim(),
     password: String(payload?.password || ""),
     provider: normalizeSignupProvider(payload),
+    socialProvider: normalizeSocialProviderOptional(payload?.socialProvider),
+    socialEmail: normalizeEmail(payload?.socialEmail),
+    socialProviderId: String(payload?.socialProviderId || "").trim(),
+    socialName: String(payload?.socialName || "").trim(),
+    socialAvatarUrl: String(payload?.socialAvatarUrl || "").trim(),
     extractedCompanyName: String(payload?.extractedCompanyName || "").trim(),
     extractedBusinessAddress: String(payload?.extractedBusinessAddress || "").trim(),
     representative: String(payload?.representative || "").trim(),
@@ -1610,6 +1798,7 @@ function normalizeSignupRequest(payload) {
 
 function mapSignupRequestToSupabase(record) {
   return {
+    account_id: record.accountId || null,
     phone: record.phone,
     business_number: record.businessNumber,
     name: record.name,
@@ -1618,6 +1807,11 @@ function mapSignupRequestToSupabase(record) {
     company_address: record.companyAddress,
     password: record.password,
     provider: record.provider,
+    social_provider: record.socialProvider,
+    social_email: record.socialEmail,
+    social_provider_id: record.socialProviderId,
+    social_name: record.socialName,
+    social_avatar_url: record.socialAvatarUrl,
     extracted_company_name: record.extractedCompanyName,
     extracted_business_address: record.extractedBusinessAddress,
     representative: record.representative,
@@ -1626,6 +1820,8 @@ function mapSignupRequestToSupabase(record) {
     business_item: record.businessItem,
     business_category_section: record.businessCategorySection,
     approval_status: record.approvalStatus,
+    member_grade: record.memberGrade,
+    price_tier: record.priceTier,
     business_file_name: record.businessFileName,
     submitted_at: record.submittedAt || new Date().toISOString()
   };
@@ -1633,6 +1829,7 @@ function mapSignupRequestToSupabase(record) {
 
 function mapSupabaseSignupRequest(row) {
   return {
+    accountId: String(row.account_id || "").trim(),
     phone: String(row.phone || "").trim(),
     businessNumber: String(row.business_number || "").trim(),
     name: String(row.name || "").trim(),
@@ -1641,6 +1838,11 @@ function mapSupabaseSignupRequest(row) {
     companyAddress: String(row.company_address || "").trim(),
     password: String(row.password || ""),
     provider: String(row.provider || "일반 회원가입").trim(),
+    socialProvider: normalizeSocialProviderOptional(row.social_provider),
+    socialEmail: normalizeEmail(row.social_email),
+    socialProviderId: String(row.social_provider_id || "").trim(),
+    socialName: String(row.social_name || "").trim(),
+    socialAvatarUrl: String(row.social_avatar_url || "").trim(),
     extractedCompanyName: String(row.extracted_company_name || "").trim(),
     extractedBusinessAddress: String(row.extracted_business_address || "").trim(),
     representative: String(row.representative || "").trim(),
