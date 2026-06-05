@@ -331,7 +331,7 @@ function bindEvents() {
   document.querySelector("#productPagination")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-product-page]");
     if (!button || button.disabled) return;
-    goToProductPage(Number(button.dataset.productPage) || 1);
+    goToProductPage(Number(button.dataset.productPage) || 1, { animate: true });
   });
 
   setupProductPageSwipe();
@@ -1032,6 +1032,7 @@ function renderProductPageList(pageProducts, currentPage, totalPages, keyword = 
   if (!productList) return;
   productList.classList.remove("is-sliding");
   productList.style.transform = "";
+  productList.style.minHeight = "";
   productList.dataset.currentPage = String(currentPage);
   productList.dataset.totalPages = String(totalPages);
   productList.innerHTML = buildProductPageCardsHtml(pageProducts, keyword);
@@ -1095,7 +1096,9 @@ function goToProductPage(page, options = {}) {
   if (options.animate && direction && animateProductPageTransition(nextPage, direction)) return;
   productCurrentPage = nextPage;
   renderProducts();
-  document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (options.scroll !== false) {
+    document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function animateProductPageTransition(nextPage, direction) {
@@ -1108,6 +1111,7 @@ function animateProductPageTransition(nextPage, direction) {
   if (clampedNextPage === productCurrentPage) return false;
 
   productPageTransitioning = true;
+  const listHeight = productList.getBoundingClientRect().height;
   const currentPage = productCurrentPage;
   const currentStart = (currentPage - 1) * pageSize;
   const nextStart = (clampedNextPage - 1) * pageSize;
@@ -1118,6 +1122,7 @@ function animateProductPageTransition(nextPage, direction) {
 
   productList.classList.add("is-sliding");
   productList.style.transform = "";
+  productList.style.minHeight = `${Math.max(1, Math.round(listHeight))}px`;
   productList.innerHTML = `
     <div class="product-page-slide-track" style="transform: translateX(${fromX});">
       <div class="product-page-slide-panel">${direction > 0 ? currentHtml : nextHtml}</div>
@@ -1139,8 +1144,8 @@ function animateProductPageTransition(nextPage, direction) {
     productPageTransitioning = false;
     productCurrentPage = clampedNextPage;
     renderProducts();
-    productList.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 340);
+    productList.style.minHeight = "";
+  }, 440);
 
   return true;
 }

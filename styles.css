@@ -5293,16 +5293,16 @@ body.customer-experience-mode .product-page-list.is-sliding,
 }
 
 .product-page-slide-track {
-  display: grid;
+  display: flex;
   width: 200%;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
 
 .product-page-slide-panel {
   display: grid;
+  flex: 0 0 50%;
+  width: 50%;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
@@ -5398,7 +5398,6 @@ body.customer-experience-mode .product-pagination-toolbar label {
     gap: 7px !important;
   }
 
-  .product-page-slide-track,
   .product-page-slide-panel {
     gap: 7px;
   }
