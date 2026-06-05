@@ -6058,6 +6058,8 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
           body: JSON.stringify({ accessToken })
         }, { retries: 1, timeoutMs: 10000 });
         await applyAuthenticatedUser(result.user, `${providerLabel} 계정으로 로그인되었습니다.`);
+        loginForm?.reset();
+        switchPage("homePage", { pushHistory: false });
         return;
       } catch (loginError) {
         socialSignupProfile = {
