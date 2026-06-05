@@ -2635,6 +2635,82 @@ textarea:focus {
   height: 54px;
 }
 
+.client-management-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.client-management-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 16px;
+  border: 1px solid rgba(8, 25, 87, 0.12);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.client-management-card > div:first-child span,
+.client-status-strip span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.client-management-card > div:first-child strong,
+.client-status-strip strong {
+  display: block;
+  margin-top: 4px;
+  color: #081957;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.25;
+}
+
+.client-management-card label {
+  display: grid;
+  gap: 6px;
+  color: #081957;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.client-management-card input,
+.client-management-card select,
+.client-management-card textarea {
+  width: 100%;
+  border: 1px solid rgba(8, 25, 87, 0.16);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #081957;
+  font: inherit;
+}
+
+.client-management-card textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.client-management-card .wide {
+  grid-column: 1 / -1;
+}
+
+.client-status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.client-status-strip div {
+  padding: 10px;
+  border: 1px solid rgba(20, 101, 255, 0.14);
+  border-radius: 8px;
+  background: #f5f8ff;
+}
+
 .my-empty-actions {
   display: flex;
   justify-content: center;
@@ -2646,12 +2722,17 @@ textarea:focus {
 @media (max-width: 860px) {
   .my-page-grid,
   .my-profile-card,
-  .my-current-order-summary {
+  .my-current-order-summary,
+  .client-management-grid {
     grid-template-columns: 1fr;
   }
 
   .my-past-order-head {
     display: grid;
+  }
+
+  .client-status-strip {
+    grid-template-columns: 1fr;
   }
 }
 

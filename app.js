@@ -561,6 +561,7 @@ function bindEvents() {
   document.querySelector("#tile114FetchBtn")?.addEventListener("click", fetchTile114SampleProducts);
   document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
   document.querySelector("#saveCurrentOrderBtn")?.addEventListener("click", saveCurrentCartAsPastOrder);
+  document.querySelector("#saveClientManagementBtn")?.addEventListener("click", saveClientManagementInfo);
   document.querySelector("#myPage")?.addEventListener("click", (event) => {
     const button = event.target.closest(".my-empty-actions [data-page-target]");
     if (button) switchPage(button.dataset.pageTarget);
@@ -3382,6 +3383,37 @@ function savePastOrders(orders, user = authUser) {
   localStorage.setItem(getOrderHistoryStorageKey(user), JSON.stringify(Array.isArray(orders) ? orders : []));
 }
 
+function getClientManagementStorageKey(user = authUser) {
+  return `tbpClientManagement:${String(user?.businessNumber || "guest").trim() || "guest"}`;
+}
+
+function loadClientManagementInfo(user = authUser) {
+  try {
+    const row = JSON.parse(localStorage.getItem(getClientManagementStorageKey(user)) || "{}");
+    return row && typeof row === "object" ? row : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveClientManagementInfo() {
+  const panel = document.querySelector("#myClientManagementPanel");
+  if (!panel || !authUser) return;
+  const data = {
+    clientName: panel.querySelector("[name='clientName']")?.value.trim() || "",
+    clientPhone: panel.querySelector("[name='clientPhone']")?.value.trim() || "",
+    requirements: panel.querySelector("[name='clientRequirements']")?.value.trim() || "",
+    siteName: panel.querySelector("[name='siteName']")?.value.trim() || "",
+    siteAddress: panel.querySelector("[name='siteAddress']")?.value.trim() || "",
+    siteSchedule: panel.querySelector("[name='siteSchedule']")?.value.trim() || "",
+    tradeStatus: panel.querySelector("[name='tradeStatus']")?.value || "상담중",
+    tradeMemo: panel.querySelector("[name='tradeMemo']")?.value.trim() || "",
+    updatedAt: new Date().toISOString()
+  };
+  localStorage.setItem(getClientManagementStorageKey(), JSON.stringify(data));
+  renderClientManagementPanel();
+}
+
 function getReturnOrderStorageKey(user = authUser) {
   return `tbpReturnOrders:${String(user?.businessNumber || "guest").trim() || "guest"}`;
 }
@@ -3430,8 +3462,9 @@ function renderMyPage() {
   const profile = document.querySelector("#myProfileSummary");
   const current = document.querySelector("#myCurrentOrderSummary");
   const myCart = document.querySelector("#myCartList");
+  const clientPanel = document.querySelector("#myClientManagementPanel");
   const past = document.querySelector("#myPastOrderList");
-  if (!profile || !current || !myCart || !past) return;
+  if (!profile || !current || !myCart || !clientPanel || !past) return;
 
   if (!authUser) {
     const loginPrompt = `
@@ -3446,6 +3479,7 @@ function renderMyPage() {
     profile.innerHTML = loginPrompt;
     current.innerHTML = `<div class="empty-state">로그인 후 현재 주문내역을 확인할 수 있습니다.</div>`;
     myCart.innerHTML = `<div class="empty-state">로그인 후 내 장바구니를 확인할 수 있습니다.</div>`;
+    clientPanel.innerHTML = `<div class="empty-state">로그인 후 거래처 요구사항과 현장정보를 관리할 수 있습니다.</div>`;
     past.innerHTML = `<div class="empty-state">로그인 후 지난 주문내역을 확인할 수 있습니다.</div>`;
     return;
   }
@@ -3491,7 +3525,86 @@ function renderMyPage() {
   `;
 
   myCart.innerHTML = renderMyOrderItems(cart, "장바구니에 담긴 상품이 없습니다.");
+  renderClientManagementPanel();
   past.innerHTML = pastOrders.map(renderPastOrderCard).join("") || `<div class="empty-state">아직 지난 주문내역이 없습니다.</div>`;
+}
+
+function renderClientManagementPanel() {
+  const panel = document.querySelector("#myClientManagementPanel");
+  if (!panel) return;
+  if (!authUser) {
+    panel.innerHTML = `<div class="empty-state">로그인 후 거래처 정보를 관리할 수 있습니다.</div>`;
+    return;
+  }
+
+  const info = loadClientManagementInfo();
+  const tradeStatus = info.tradeStatus || (cart.length ? "견적중" : "상담중");
+  const lastUpdated = info.updatedAt ? formatDateTime(info.updatedAt) : "저장 전";
+  panel.innerHTML = `
+    <div class="client-management-grid">
+      <article class="client-management-card">
+        <div>
+          <span>클라이언트 요구사항</span>
+          <strong>요청 내용</strong>
+        </div>
+        <label>
+          고객명
+          <input name="clientName" type="text" value="${escapeHtml(info.clientName || authUser.companyName || "")}" placeholder="고객 또는 거래처명" />
+        </label>
+        <label>
+          연락처
+          <input name="clientPhone" type="text" value="${escapeHtml(info.clientPhone || authUser.phone || "")}" placeholder="010-0000-0000" />
+        </label>
+        <label class="wide">
+          요구사항
+          <textarea name="clientRequirements" rows="5" placeholder="원하는 타일 스타일, 예산, 납기, 배송 요청 등을 입력하세요.">${escapeHtml(info.requirements || "")}</textarea>
+        </label>
+      </article>
+
+      <article class="client-management-card">
+        <div>
+          <span>현장정보</span>
+          <strong>시공/배송 현장</strong>
+        </div>
+        <label>
+          현장명
+          <input name="siteName" type="text" value="${escapeHtml(info.siteName || "")}" placeholder="예: 강남 욕실 리모델링" />
+        </label>
+        <label>
+          일정
+          <input name="siteSchedule" type="text" value="${escapeHtml(info.siteSchedule || "")}" placeholder="예: 6월 20일 입고 희망" />
+        </label>
+        <label class="wide">
+          현장주소
+          <input name="siteAddress" type="text" value="${escapeHtml(info.siteAddress || authUser.companyAddress || "")}" placeholder="배송 또는 시공 현장 주소" />
+        </label>
+      </article>
+
+      <article class="client-management-card">
+        <div>
+          <span>거래현황</span>
+          <strong>${escapeHtml(tradeStatus)}</strong>
+        </div>
+        <div class="client-status-strip">
+          <div><span>장바구니</span><strong>${number(cart.length)}개</strong></div>
+          <div><span>현재 견적</span><strong>${money.format(getCartQuoteTotal(cart))}</strong></div>
+          <div><span>최종 저장</span><strong>${escapeHtml(lastUpdated)}</strong></div>
+        </div>
+        <label>
+          진행 상태
+          <select name="tradeStatus">
+            ${["상담중", "견적중", "발주대기", "배송준비", "거래완료", "보류"].map((status) => `
+              <option value="${escapeHtml(status)}"${status === tradeStatus ? " selected" : ""}>${escapeHtml(status)}</option>
+            `).join("")}
+          </select>
+        </label>
+        <label class="wide">
+          거래 메모
+          <textarea name="tradeMemo" rows="4" placeholder="견적 조건, 결제 예정일, 반품/교환 요청 등을 기록하세요.">${escapeHtml(info.tradeMemo || "")}</textarea>
+        </label>
+      </article>
+    </div>
+  `;
 }
 
 function renderMyOrderItems(items, emptyText) {
