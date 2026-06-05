@@ -975,6 +975,7 @@ async function saveSignupRequestRecord(payload) {
       });
       await upsertBusinessProfileFromSignupRecord(record);
       await insertBusinessDocumentFromSignupRecord(record);
+      await insertBusinessCardDocumentFromSignupRecord(record);
       if (record.accountId) {
         await updateCustomerAccountStatus(
           record.accountId,
@@ -1786,7 +1787,7 @@ async function upsertBusinessProfileFromSignupRecord(record) {
 
 async function insertBusinessDocumentFromSignupRecord(record) {
   if (!hasSupabaseConfig() || !record?.businessNumber || !record?.businessFileName) return null;
-  const uploadedFile = await uploadBusinessDocumentFile(record);
+  const uploadedFile = await uploadBusinessDocumentFile(record.businessFileDataUrl, record.businessFileName);
   const payload = {
     account_id: record.accountId || null,
     business_number: record.businessNumber,
@@ -1795,6 +1796,7 @@ async function insertBusinessDocumentFromSignupRecord(record) {
     mime_type: uploadedFile?.mimeType || record.businessFileMime || "",
     review_status: record.approvalStatus === "승인" ? "approved" : "pending",
     ocr_result: {
+      documentType: "business_registration",
       companyName: record.extractedCompanyName,
       businessAddress: record.extractedBusinessAddress,
       representative: record.representative,
@@ -1819,14 +1821,47 @@ async function insertBusinessDocumentFromSignupRecord(record) {
   }
 }
 
-async function uploadBusinessDocumentFile(record) {
-  const parsed = parseBusinessDocumentDataUrl(record.businessFileDataUrl);
+async function insertBusinessCardDocumentFromSignupRecord(record) {
+  if (!hasSupabaseConfig() || !record?.businessNumber || !record?.businessCardFileName) return null;
+  const uploadedFile = await uploadBusinessDocumentFile(record.businessCardFileDataUrl, record.businessCardFileName);
+  const payload = {
+    account_id: record.accountId || null,
+    business_number: record.businessNumber,
+    file_name: record.businessCardFileName,
+    file_url: uploadedFile?.fileUrl || "",
+    mime_type: uploadedFile?.mimeType || record.businessCardFileMime || "",
+    review_status: "pending",
+    ocr_result: {
+      documentType: "business_card",
+      contactName: record.name,
+      title: record.title,
+      companyName: record.companyName,
+      phone: record.phone
+    }
+  };
+  try {
+    const rows = await requestSupabase("/rest/v1/business_documents", {
+      method: "POST",
+      headers: {
+        Prefer: "return=representation"
+      },
+      body: JSON.stringify([payload])
+    });
+    return Array.isArray(rows) ? rows[0] : null;
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "business_documents")) throw error;
+    return null;
+  }
+}
+
+async function uploadBusinessDocumentFile(dataUrl, fileName) {
+  const parsed = parseBusinessDocumentDataUrl(dataUrl);
   if (!parsed) return null;
   await ensureBusinessDocumentBucket();
-  const originalName = record.businessFileName || "business-document";
+  const originalName = fileName || "business-document";
   const safeName = sanitizeStorageFileName(originalName);
   const objectPath = [
-    sanitizeStorageFileName(record.businessNumber || "unknown"),
+    "signup-documents",
     `${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${safeName}`
   ].join("/");
 
@@ -1950,6 +1985,9 @@ function normalizeSignupRequest(payload) {
     businessFileName: String(payload?.businessFileName || "").trim(),
     businessFileMime: String(payload?.businessFileMime || "").trim(),
     businessFileDataUrl: String(payload?.businessFileDataUrl || "").trim(),
+    businessCardFileName: String(payload?.businessCardFileName || "").trim(),
+    businessCardFileMime: String(payload?.businessCardFileMime || "").trim(),
+    businessCardFileDataUrl: String(payload?.businessCardFileDataUrl || "").trim(),
     submittedAt: String(payload?.submittedAt || new Date().toISOString()).trim()
   };
 }

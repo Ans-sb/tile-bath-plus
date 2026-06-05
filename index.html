@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260605-member-board1" />
+    <link rel="stylesheet" href="styles.css?v=20260605-member-grade-docs1" />
     <style>
       body.customer-experience-mode .customer-entry-grid {
         display: grid;
@@ -421,38 +421,49 @@
               <small class="field-note" id="authStatus">간편인증 시스템 연동 전 단계입니다. 현재는 화면에서 인증 흐름을 먼저 설정합니다.</small>
             </label>
             <label>
-              사업자등록번호
-              <div class="inline-field">
-                <input id="signupBizNo" name="businessNumber" type="text" placeholder="123-45-67890" required />
-                <button class="secondary-action compact-action" id="verifyBusinessBtn" type="button">사업자 확인</button>
-              </div>
-              <small class="field-note" id="businessVerifyStatus">사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다.</small>
-            </label>
-            <label>
               사업자등록증 첨부
               <input id="signupBizFile" name="businessFile" type="file" accept=".pdf,image/*" required />
               <div class="inline-field">
                 <button class="secondary-action compact-action" id="scanBusinessFileBtn" type="button">재스캔</button>
                 <span class="file-hint" id="businessFileName">첨부 전</span>
               </div>
-              <small class="field-note" id="businessScanStatus">파일을 선택하면 자동으로 등록증을 스캔하고 추출 정보를 채웁니다.</small>
+              <small class="field-note" id="businessScanStatus">사업자 회원은 사업자등록증 첨부가 필수입니다. 파일 선택 후 자동으로 등록증을 스캔합니다.</small>
             </label>
             <label>
-              이름
-              <input name="name" type="text" required />
+              사업자등록번호
+              <div class="inline-field">
+                <input id="signupBizNo" name="businessNumber" type="text" placeholder="123-45-67890" required />
+                <button class="secondary-action compact-action" id="verifyBusinessBtn" type="button">사업자 확인</button>
+              </div>
+              <small class="field-note" id="businessVerifyStatus">등록증에서 추출된 번호를 확인하거나, 스캔값이 다르면 번호만 수정해 확인해주세요.</small>
             </label>
             <label>
-              직함
-              <input name="title" type="text" placeholder="대표, 실장, 팀장" required />
+              명함 사진 첨부
+              <input id="signupBusinessCardFile" name="businessCardFile" type="file" accept="image/*" />
+              <small class="field-note" id="businessCardFileStatus">명함 사진이 있으면 등급 심사가 더 빠릅니다. 없으면 직접 입력만으로 신청할 수 있습니다.</small>
             </label>
-            <label>
-              업체명
-              <input name="companyName" type="text" required />
-            </label>
-            <label class="wide">
-              업체주소
-              <input name="companyAddress" type="text" required />
-            </label>
+            <div class="wide manual-business-toggle-row">
+              <button class="secondary-action" id="toggleManualBusinessInputBtn" type="button">명함 직접 입력</button>
+              <span>명함 사진이 없거나 담당자 정보를 직접 입력해야 하면 열어주세요.</span>
+            </div>
+            <section class="manual-business-input-panel hidden wide" id="manualBusinessInputPanel">
+              <label>
+                이름
+                <input name="name" type="text" />
+              </label>
+              <label>
+                직함
+                <input name="title" type="text" placeholder="대표, 실장, 팀장" />
+              </label>
+              <label>
+                업체명
+                <input name="companyName" type="text" />
+              </label>
+              <label class="wide">
+                업체주소
+                <input name="companyAddress" type="text" />
+              </label>
+            </section>
             <label>
               비밀번호
               <input name="password" type="password" placeholder="사업자번호 로그인용 비밀번호, 소셜 가입은 선택" />

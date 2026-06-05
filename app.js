@@ -536,6 +536,8 @@ function bindEvents() {
   document.querySelector("#verifyAuthBtn").addEventListener("click", verifySignupAuth);
   document.querySelector("#signupPhone").addEventListener("input", resetPhoneVerification);
   document.querySelector("#signupBizFile").addEventListener("change", handleBusinessFileChange);
+  document.querySelector("#signupBusinessCardFile")?.addEventListener("change", handleBusinessCardFileChange);
+  document.querySelector("#toggleManualBusinessInputBtn")?.addEventListener("click", toggleManualBusinessInput);
   document.querySelector("#signupBizNo").addEventListener("input", () => resetBusinessVerification(false));
   document.querySelector("#scanBusinessFileBtn").addEventListener("click", scanBusinessRegistrationFile);
   document.querySelector("#verifyBusinessBtn").addEventListener("click", verifyBusinessRegistration);
@@ -4849,7 +4851,7 @@ function resetPhoneVerification() {
 async function handleBusinessFileChange() {
   const file = document.querySelector("#signupBizFile")?.files?.[0];
   setText("#businessFileName", file ? file.name : "첨부 전");
-  setText("#businessScanStatus", file ? "등록증 파일이 첨부되었습니다. 자동으로 스캔을 시작합니다." : "PDF 또는 이미지 등록증에서 사업자번호를 자동 추출합니다.");
+  setText("#businessScanStatus", file ? "등록증 파일이 첨부되었습니다. 자동으로 스캔을 시작합니다." : "사업자 회원은 사업자등록증 첨부가 필수입니다.");
   extractedBusinessInfo = {
     companyName: "",
     businessAddress: "",
@@ -4864,6 +4866,26 @@ async function handleBusinessFileChange() {
   renderSignupSummary();
   if (file) {
     await scanBusinessRegistrationFile({ autoTriggered: true });
+  }
+}
+
+function handleBusinessCardFileChange() {
+  const file = document.querySelector("#signupBusinessCardFile")?.files?.[0];
+  setText("#businessCardFileStatus", file
+    ? `${file.name} 첨부됨. 명함 정보는 이름, 직함, 업체명, 전화번호 입력값과 함께 저장됩니다.`
+    : "명함 사진이 있으면 등급 심사가 더 빠릅니다. 없으면 직접 입력만으로 신청할 수 있습니다.");
+  renderSignupSummary();
+}
+
+function toggleManualBusinessInput(forceOpen) {
+  const panel = document.querySelector("#manualBusinessInputPanel");
+  const button = document.querySelector("#toggleManualBusinessInputBtn");
+  if (!panel) return;
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : panel.classList.contains("hidden");
+  panel.classList.toggle("hidden", !shouldOpen);
+  if (button) button.textContent = shouldOpen ? "직접 입력 닫기" : "명함 직접 입력";
+  if (shouldOpen) {
+    panel.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 }
 
@@ -5670,6 +5692,10 @@ function cleanupAddressNoise(value) {
 function autofillSignupFieldsFromBusinessInfo(info) {
   const companyNameInput = signupForm?.elements?.namedItem("companyName");
   const companyAddressInput = signupForm?.elements?.namedItem("companyAddress");
+  const representativeInput = signupForm?.elements?.namedItem("representative");
+  const openingDateInput = signupForm?.elements?.namedItem("openingDate");
+  const businessTypeInput = signupForm?.elements?.namedItem("businessType");
+  const businessItemInput = signupForm?.elements?.namedItem("businessItem");
 
   if (companyNameInput && info.companyName) {
     companyNameInput.value = info.companyName;
@@ -5677,6 +5703,22 @@ function autofillSignupFieldsFromBusinessInfo(info) {
 
   if (companyAddressInput && info.businessAddress) {
     companyAddressInput.value = info.businessAddress;
+  }
+
+  if (representativeInput && info.representative) {
+    representativeInput.value = info.representative;
+  }
+
+  if (openingDateInput && info.openingDate) {
+    openingDateInput.value = info.openingDate;
+  }
+
+  if (businessTypeInput && info.businessType) {
+    businessTypeInput.value = info.businessType;
+  }
+
+  if (businessItemInput && info.businessItem) {
+    businessItemInput.value = info.businessItem;
   }
 }
 
@@ -5978,6 +6020,7 @@ function renderSocialBusinessGate() {
 
 function renderSignupSummary() {
   const file = document.querySelector("#signupBizFile")?.files?.[0];
+  const businessCardFile = document.querySelector("#signupBusinessCardFile")?.files?.[0];
   const data = signupForm ? new FormData(signupForm) : new FormData();
   const name = data.get("name") || "미입력";
   const company = data.get("companyName") || "미입력";
@@ -5986,7 +6029,8 @@ function renderSignupSummary() {
     : "없음";
   const summary = [
     ["전화번호 인증", isPhoneVerified ? "완료" : "미완료"],
-    ["사업자등록증", file ? file.name : "첨부 전"],
+    ["사업자등록증", file ? file.name : "첨부 필수"],
+    ["명함", businessCardFile ? businessCardFile.name : "직접 입력 가능"],
     ["사업자 확인", businessVerification.status === "verified" ? "확인 완료" : businessVerification.status === "rejected" ? "확인 실패" : "미확인"],
     ["가입 방식", selectedSignupProvider],
     ["연결 계정", socialAccount],
@@ -6051,15 +6095,31 @@ async function submitSignupForm(event) {
   }
 
   const businessFile = document.querySelector("#signupBizFile").files?.[0];
+  const businessCardFile = document.querySelector("#signupBusinessCardFile")?.files?.[0];
+  if (!businessFile) {
+    setText("#signupStatus", "사업자 회원은 사업자등록증 첨부가 필수입니다.");
+    return;
+  }
+  const manualContactName = String(formData.get("name") || "").trim();
+  const manualContactTitle = String(formData.get("title") || "").trim();
+  const manualCompanyName = String(formData.get("companyName") || "").trim();
+  if (!businessCardFile && (!manualContactName || !manualContactTitle || !manualCompanyName)) {
+    toggleManualBusinessInput(true);
+    setText("#signupStatus", "명함 사진이 없으면 이름, 직함, 업체명을 직접 입력해주세요.");
+    return;
+  }
   const businessFileDataUrl = businessFile ? await readFileAsDataUrl(businessFile) : "";
+  const businessCardFileDataUrl = businessCardFile ? await readFileAsDataUrl(businessCardFile) : "";
   const approvalStatus = extractedBusinessInfo.approvalStatus === "가입승인" ? "승인" : "보류";
+  const manualBusinessType = String(formData.get("businessType") || "").trim();
+  const manualBusinessItem = String(formData.get("businessItem") || "").trim();
   const signupPayload = {
     phone: formData.get("phone"),
     businessNumber: formData.get("businessNumber"),
-    name: formData.get("name"),
-    title: formData.get("title"),
-    companyName: formData.get("companyName"),
-    companyAddress: formData.get("companyAddress"),
+    name: manualContactName || socialSignupProfile?.name || "명함 확인 필요",
+    title: manualContactTitle || "명함 확인 필요",
+    companyName: manualCompanyName || extractedBusinessInfo.companyName || "명함 확인 필요",
+    companyAddress: formData.get("companyAddress") || extractedBusinessInfo.businessAddress,
     password,
     provider: selectedSignupProvider,
     accountId: socialSignupProfile?.accountId || "",
@@ -6070,17 +6130,20 @@ async function submitSignupForm(event) {
     socialAvatarUrl: socialSignupProfile?.avatarUrl || "",
     extractedCompanyName: extractedBusinessInfo.companyName,
     extractedBusinessAddress: extractedBusinessInfo.businessAddress,
-    representative: extractedBusinessInfo.representative,
-    openingDate: extractedBusinessInfo.openingDate,
-    businessType: extractedBusinessInfo.businessType,
-    businessItem: extractedBusinessInfo.businessItem,
-    businessCategorySection: extractedBusinessInfo.businessCategorySection,
+    representative: formData.get("representative") || extractedBusinessInfo.representative,
+    openingDate: formData.get("openingDate") || extractedBusinessInfo.openingDate,
+    businessType: manualBusinessType || extractedBusinessInfo.businessType,
+    businessItem: manualBusinessItem || extractedBusinessInfo.businessItem,
+    businessCategorySection: extractedBusinessInfo.businessCategorySection || [manualBusinessType, manualBusinessItem].filter(Boolean).join(" / "),
     approvalStatus,
     memberGrade: "사업자",
     priceTier: approvalStatus === "승인" ? "wholesale" : "retail",
     businessFileName: businessFile?.name || "",
     businessFileMime: businessFile?.type || "",
     businessFileDataUrl,
+    businessCardFileName: businessCardFile?.name || "",
+    businessCardFileMime: businessCardFile?.type || "",
+    businessCardFileDataUrl,
     submittedAt: new Date().toISOString()
   };
 
@@ -6136,8 +6199,10 @@ async function submitSignupForm(event) {
   };
   setText("#authStatus", "간편인증 시스템 연동 전 단계입니다. 현재는 화면에서 인증 흐름을 먼저 설정합니다.");
   setText("#businessVerifyStatus", businessVerification.message);
-  setText("#businessScanStatus", "PDF 또는 이미지 등록증에서 사업자번호를 자동 추출합니다.");
+  setText("#businessScanStatus", "사업자 회원은 사업자등록증 첨부가 필수입니다.");
   setText("#businessFileName", "첨부 전");
+  setText("#businessCardFileStatus", "명함 사진이 있으면 등급 심사가 더 빠릅니다. 없으면 직접 입력만으로 신청할 수 있습니다.");
+  toggleManualBusinessInput(false);
   renderSignupSummary();
   switchPage("myPage");
 }
