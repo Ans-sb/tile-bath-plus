@@ -1092,11 +1092,12 @@ function buildProductCardHtml(product) {
         ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
       </button>
       <div>
-        ${product.managementCode ? `<span class="product-code-badge">${escapeHtml(product.managementCode)}</span>` : ""}
         <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
-        <span>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType])} · ${escapeHtml(product.kind)} · ${escapeHtml(product.size || "-")} · ${escapeHtml(product.patternCategory || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
-        <span>제조사 ${escapeHtml(product.maker)}${hasStockValue(product) ? ` · 재고 ${escapeHtml(formatStockQuantity(product))}` : ""}</span>
-        ${renderProductPriceLine(product)}
+        <span>사이즈 ${escapeHtml(product.size || "미확인")}</span>
+        <span>색상 ${escapeHtml(product.color || "미확인")}</span>
+        <span>마감 ${escapeHtml(product.finish || product.surface || product.option || "미확인")}</span>
+        <span>재고 ${escapeHtml(hasStockValue(product) ? formatStockQuantity(product) : "확인 필요")}</span>
+        ${renderProductCardPriceLine(product)}
       </div>
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
@@ -3540,6 +3541,42 @@ function getGradePriceRows(product) {
     ["B등급", Number(product?.gradeBPrice || 0)],
     ["C등급", Number(product?.gradeCPrice || 0)]
   ].filter(([, value]) => value > 0);
+}
+
+function getMemberGradePriceRow(product, user = authUser) {
+  const gradeRows = getGradePriceRows(product);
+  if (!gradeRows.length) return null;
+  const gradeSource = String([
+    user?.priceTier,
+    user?.memberGrade,
+    user?.grade
+  ].filter(Boolean).join(" ")).toUpperCase();
+  if (/(^|[^A-Z])C([^A-Z]|$)|C등급|GRADE C/.test(gradeSource)) {
+    return gradeRows.find(([label]) => label.startsWith("C")) || gradeRows[gradeRows.length - 1];
+  }
+  if (/(^|[^A-Z])B([^A-Z]|$)|B등급|GRADE B/.test(gradeSource)) {
+    return gradeRows.find(([label]) => label.startsWith("B")) || gradeRows[0];
+  }
+  return gradeRows.find(([label]) => label.startsWith("A")) || gradeRows[0];
+}
+
+function renderProductCardPriceLine(product) {
+  if (!hasMemberPriceAccess()) {
+    return `<span class="price-locked">사업자 인증 후 가격 공개</span>`;
+  }
+
+  const gradeRow = getMemberGradePriceRow(product);
+  if (gradeRow) {
+    const [label, value] = gradeRow;
+    return `<span class="member-price-line">${escapeHtml(label)} ${money.format(value)}</span>`;
+  }
+
+  const tier = getMemberPriceTier();
+  const price = tier === "wholesale"
+    ? Number(product?.wholesalePrice || 0)
+    : Number(product?.retailPrice || 0);
+  const label = tier === "wholesale" ? "도매가" : "소매가";
+  return `<span class="member-price-line">${price ? `${escapeHtml(label)} ${money.format(price)}` : "가격 협의"}</span>`;
 }
 
 function renderProductPriceLine(product) {
