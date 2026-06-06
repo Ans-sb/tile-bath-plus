@@ -27,6 +27,12 @@ const supabaseSecretKey = String(
   || process.env.SUPABASE_SECRET_KEY
   || ""
 ).trim();
+const publicSiteUrl = String(
+  process.env.PUBLIC_SITE_URL
+  || process.env.APP_PUBLIC_URL
+  || process.env.RAILWAY_PUBLIC_DOMAIN
+  || ""
+).trim().replace(/\/+$/, "");
 const businessDocumentBucket = String(process.env.SUPABASE_BUSINESS_DOCUMENT_BUCKET || "business-documents").trim();
 const forceLocalProducts = /^(1|true|yes)$/i.test(String(process.env.FORCE_LOCAL_PRODUCTS || "").trim());
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
@@ -1646,9 +1652,16 @@ function normalizeSignupProvider(payload) {
 }
 
 function getRequestOrigin(request) {
+  if (publicSiteUrl) {
+    if (/^https?:\/\//i.test(publicSiteUrl)) return publicSiteUrl;
+    return `https://${publicSiteUrl}`;
+  }
   const proto = String(request.headers["x-forwarded-proto"] || "").split(",")[0].trim() || "http";
   const hostHeader = String(request.headers["x-forwarded-host"] || request.headers.host || "").split(",")[0].trim();
-  return `${proto}://${hostHeader}`;
+  const safeProto = proto === "http" && !/^localhost(?::|$)|^127\.0\.0\.1(?::|$)/.test(hostHeader)
+    ? "https"
+    : proto;
+  return `${safeProto}://${hostHeader}`;
 }
 
 function buildSocialAuthStartUrl(providerValue, modeValue, request) {
