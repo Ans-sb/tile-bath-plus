@@ -569,6 +569,9 @@ function bindEvents() {
   document.querySelector("#saveCurrentOrderBtn")?.addEventListener("click", saveCurrentCartAsPastOrder);
   document.querySelector("#saveClientManagementBtn")?.addEventListener("click", saveClientManagementInfo);
   document.querySelector("#myPage")?.addEventListener("click", (event) => {
+    if (event.target.closest("#saveMyContactInfoBtn")) saveMyContactInfo();
+  });
+  document.querySelector("#myPage")?.addEventListener("click", (event) => {
     const button = event.target.closest(".my-empty-actions [data-page-target]");
     if (button) switchPage(button.dataset.pageTarget);
   });
@@ -3790,6 +3793,93 @@ function saveClientManagementInfo() {
   renderClientManagementPanel();
 }
 
+function getUserContactInfo(user = authUser) {
+  const source = user?.contactInfo && typeof user.contactInfo === "object" ? user.contactInfo : {};
+  return {
+    name: source.name || user?.contactName || user?.name || "",
+    title: source.title || user?.contactTitle || user?.title || "",
+    companyName: source.companyName || user?.contactCompanyName || user?.companyName || "",
+    phone: source.phone || user?.contactPhone || user?.phone || "",
+    email: source.email || user?.contactEmail || user?.email || user?.socialEmail || "",
+    address: source.address || user?.contactAddress || user?.companyAddress || "",
+    businessCardFileName: source.businessCardFileName || user?.businessCardFileName || "",
+    updatedAt: source.updatedAt || ""
+  };
+}
+
+function renderMyContactInfoPanel(user = authUser) {
+  const contact = getUserContactInfo(user);
+  return `
+    <section class="my-contact-info-panel" id="myContactInfoPanel">
+      <div class="my-contact-info-head">
+        <div>
+          <span>담당자정보</span>
+          <strong>명함 정보</strong>
+        </div>
+        <small>${contact.businessCardFileName ? `명함: ${escapeHtml(contact.businessCardFileName)}` : "명함 파일 없음"}</small>
+      </div>
+      <div class="my-contact-info-grid">
+        <label>
+          이름
+          <input name="contactName" type="text" value="${escapeHtml(contact.name)}" />
+        </label>
+        <label>
+          직함
+          <input name="contactTitle" type="text" value="${escapeHtml(contact.title)}" />
+        </label>
+        <label>
+          회사명
+          <input name="contactCompanyName" type="text" value="${escapeHtml(contact.companyName)}" />
+        </label>
+        <label>
+          번호
+          <input name="contactPhone" type="text" value="${escapeHtml(contact.phone)}" />
+        </label>
+        <label>
+          이메일
+          <input name="contactEmail" type="email" value="${escapeHtml(contact.email)}" />
+        </label>
+        <label class="wide">
+          주소
+          <input name="contactAddress" type="text" value="${escapeHtml(contact.address)}" />
+        </label>
+      </div>
+      <div class="my-contact-info-actions">
+        <span id="myContactInfoStatus">${contact.updatedAt ? `${escapeHtml(formatDateTime(contact.updatedAt))} 저장됨` : "저장된 담당자정보를 확인하세요."}</span>
+        <button class="secondary-action compact-action" id="saveMyContactInfoBtn" type="button">담당자정보 저장</button>
+      </div>
+    </section>
+  `;
+}
+
+function saveMyContactInfo() {
+  const panel = document.querySelector("#myContactInfoPanel");
+  if (!panel || !authUser) return;
+  const contactInfo = {
+    ...getUserContactInfo(authUser),
+    name: panel.querySelector("[name='contactName']")?.value.trim() || "",
+    title: panel.querySelector("[name='contactTitle']")?.value.trim() || "",
+    companyName: panel.querySelector("[name='contactCompanyName']")?.value.trim() || "",
+    phone: panel.querySelector("[name='contactPhone']")?.value.trim() || "",
+    email: panel.querySelector("[name='contactEmail']")?.value.trim() || "",
+    address: panel.querySelector("[name='contactAddress']")?.value.trim() || "",
+    updatedAt: new Date().toISOString()
+  };
+  authUser = {
+    ...authUser,
+    name: contactInfo.name || authUser.name,
+    title: contactInfo.title || authUser.title,
+    companyName: contactInfo.companyName || authUser.companyName,
+    phone: contactInfo.phone || authUser.phone,
+    email: contactInfo.email || authUser.email,
+    companyAddress: contactInfo.address || authUser.companyAddress,
+    contactInfo
+  };
+  saveAuthSession(authUser);
+  renderAuthControls();
+  renderMyPage();
+}
+
 function getReturnOrderStorageKey(user = authUser) {
   return `tbpReturnOrders:${String(user?.businessNumber || "guest").trim() || "guest"}`;
 }
@@ -3889,6 +3979,7 @@ function renderMyPage() {
         <strong>${hasMemberPriceAccess() ? "가능" : "승인 필요"}</strong>
       </div>
     </div>
+    ${renderMyContactInfoPanel(authUser)}
   `;
 
   current.innerHTML = `
@@ -5360,8 +5451,17 @@ async function handleBusinessFileChange() {
 
 function handleBusinessCardFileChange() {
   const file = document.querySelector("#signupBusinessCardFile")?.files?.[0];
+  if (file) {
+    const emailInput = signupForm?.elements?.namedItem("contactEmail");
+    const phoneInput = signupForm?.elements?.namedItem("contactPhone");
+    const addressInput = signupForm?.elements?.namedItem("contactAddress");
+    if (emailInput && !emailInput.value && socialSignupProfile?.email) emailInput.value = socialSignupProfile.email;
+    if (phoneInput && !phoneInput.value) phoneInput.value = signupForm?.elements?.namedItem("phone")?.value || "";
+    if (addressInput && !addressInput.value) addressInput.value = signupForm?.elements?.namedItem("companyAddress")?.value || extractedBusinessInfo.businessAddress || "";
+    toggleManualBusinessInput(true);
+  }
   setText("#businessCardFileStatus", file
-    ? `${file.name} 첨부됨. 명함 정보는 이름, 직함, 업체명, 전화번호 입력값과 함께 저장됩니다.`
+    ? `${file.name} 첨부됨. 이름, 직함, 회사명, 번호, 이메일, 주소가 담당자정보로 저장됩니다.`
     : "명함 사진이 있으면 등급 심사가 더 빠릅니다. 없으면 직접 입력만으로 신청할 수 있습니다.");
   renderSignupSummary();
 }
@@ -6468,7 +6568,9 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
     };
     selectedSignupProvider = `${providerLabel} 가입`;
     const nameInput = signupForm?.elements?.namedItem("name");
+    const emailInput = signupForm?.elements?.namedItem("contactEmail");
     if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
+    if (emailInput && !emailInput.value && profile.email) emailInput.value = profile.email;
     applyPendingSocialUser(socialSignupProfile, `${providerLabel} 계정이 확인되었습니다. 사업자 인증을 이어서 진행해주세요.`);
     switchPage("signupPage");
     const emailNotice = profile.email
@@ -6625,7 +6727,21 @@ async function submitSignupForm(event) {
   const manualContactName = String(formData.get("name") || "").trim();
   const manualContactTitle = String(formData.get("title") || "").trim();
   const manualCompanyName = String(formData.get("companyName") || "").trim();
-  if (!businessCardFile && (!manualContactName || !manualContactTitle || !manualCompanyName)) {
+  const manualContactPhone = String(formData.get("contactPhone") || "").trim();
+  const manualContactEmail = String(formData.get("contactEmail") || "").trim();
+  const manualContactAddress = String(formData.get("contactAddress") || "").trim();
+  const businessCardContactInfo = {
+    name: manualContactName || socialSignupProfile?.name || "",
+    title: manualContactTitle || "",
+    companyName: manualCompanyName || extractedBusinessInfo.companyName || "",
+    phone: manualContactPhone || String(formData.get("phone") || "").trim(),
+    email: manualContactEmail || socialSignupProfile?.email || "",
+    address: manualContactAddress || String(formData.get("companyAddress") || "").trim() || extractedBusinessInfo.businessAddress || "",
+    businessCardFileName: businessCardFile?.name || "",
+    businessCardFileMime: businessCardFile?.type || "",
+    updatedAt: new Date().toISOString()
+  };
+  if (!businessCardFile && (!businessCardContactInfo.name || !businessCardContactInfo.title || !businessCardContactInfo.companyName)) {
     toggleManualBusinessInput(true);
     setText("#signupStatus", "명함 사진이 없으면 이름, 직함, 업체명을 직접 입력해주세요.");
     return;
@@ -6641,7 +6757,14 @@ async function submitSignupForm(event) {
     name: manualContactName || socialSignupProfile?.name || "명함 확인 필요",
     title: manualContactTitle || "명함 확인 필요",
     companyName: manualCompanyName || extractedBusinessInfo.companyName || "명함 확인 필요",
-    companyAddress: formData.get("companyAddress") || extractedBusinessInfo.businessAddress,
+    companyAddress: businessCardContactInfo.address || formData.get("companyAddress") || extractedBusinessInfo.businessAddress,
+    contactName: businessCardContactInfo.name,
+    contactTitle: businessCardContactInfo.title,
+    contactCompanyName: businessCardContactInfo.companyName,
+    contactPhone: businessCardContactInfo.phone,
+    contactEmail: businessCardContactInfo.email,
+    contactAddress: businessCardContactInfo.address,
+    contactInfo: businessCardContactInfo,
     password,
     provider: selectedSignupProvider,
     accountId: socialSignupProfile?.accountId || "",
@@ -6700,7 +6823,22 @@ async function submitSignupForm(event) {
     priceTier: signupPayload.priceTier,
     memberToken: ""
   };
-  await applyAuthenticatedUser(signupUser, approvalStatus === "승인"
+  const authenticatedSignupUser = {
+    ...signupUser,
+    contactName: signupPayload.contactName,
+    contactTitle: signupPayload.contactTitle,
+    contactCompanyName: signupPayload.contactCompanyName,
+    contactPhone: signupPayload.contactPhone,
+    contactEmail: signupPayload.contactEmail,
+    contactAddress: signupPayload.contactAddress,
+    businessCardFileName: signupPayload.businessCardFileName,
+    contactInfo: {
+      ...businessCardContactInfo,
+      businessCardFileName: signupPayload.businessCardFileName,
+      businessCardFileMime: signupPayload.businessCardFileMime
+    }
+  };
+  await applyAuthenticatedUser(authenticatedSignupUser, approvalStatus === "승인"
     ? `${signupPayload.companyName} 계정으로 로그인되었습니다.`
     : `${signupPayload.companyName} 계정으로 로그인되었습니다. 사업자 승인 후 상품 금액이 공개됩니다.`);
   signupForm.reset();

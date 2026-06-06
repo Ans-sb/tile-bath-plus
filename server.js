@@ -1006,6 +1006,24 @@ function createUserSessionFromSignupRecord(record) {
     title: record.title,
     companyName: record.companyName,
     companyAddress: record.companyAddress,
+    contactName: record.contactName || record.name,
+    contactTitle: record.contactTitle || record.title,
+    contactCompanyName: record.contactCompanyName || record.companyName,
+    contactPhone: record.contactPhone || record.phone,
+    contactEmail: record.contactEmail || record.socialEmail || "",
+    contactAddress: record.contactAddress || record.companyAddress,
+    businessCardFileName: record.businessCardFileName || "",
+    contactInfo: {
+      name: record.contactName || record.name,
+      title: record.contactTitle || record.title,
+      companyName: record.contactCompanyName || record.companyName,
+      phone: record.contactPhone || record.phone,
+      email: record.contactEmail || record.socialEmail || "",
+      address: record.contactAddress || record.companyAddress,
+      businessCardFileName: record.businessCardFileName || "",
+      businessCardFileMime: record.businessCardFileMime || "",
+      updatedAt: record.submittedAt || new Date().toISOString()
+    },
     provider: record.provider || "일반 회원가입",
     approvalStatus: record.approvalStatus,
     pricingAccess: pricingApproved ? "approved" : "pending",
@@ -1072,17 +1090,18 @@ async function readSignupRequestBySocialProfile(profile) {
       if (!isMissingSupabaseTableError(error, "signup_requests")) throw error;
       rows = [];
     }
-    if (Array.isArray(rows) && rows.length) return mapSupabaseSignupRequest(rows[0]);
+    if (Array.isArray(rows) && rows.length) return enrichSignupRecordWithBusinessProfile(mapSupabaseSignupRequest(rows[0]));
   }
 
   if (!email) throw createHttpError(400, "소셜 계정 이메일을 확인하지 못했습니다.");
   const rows = await readAllSignupRequests();
-  return rows.find((record) => {
+  const matched = rows.find((record) => {
     const social = parseSocialProviderLabel(record.provider);
     return (record.socialEmail && record.socialProvider
       ? record.socialEmail === email && record.socialProvider === provider
       : social.email === email && social.provider === provider);
   }) || null;
+  return enrichSignupRecordWithBusinessProfile(matched);
 }
 
 async function readSignupRequestByBusinessNumber(businessNumber) {
@@ -1097,7 +1116,32 @@ async function readSignupRequestByBusinessNumber(businessNumber) {
     if (!isMissingSupabaseTableError(error, "signup_requests")) throw error;
     return null;
   }
-  return Array.isArray(rows) && rows.length ? mapSupabaseSignupRequest(rows[0]) : null;
+  return Array.isArray(rows) && rows.length ? enrichSignupRecordWithBusinessProfile(mapSupabaseSignupRequest(rows[0])) : null;
+}
+
+async function enrichSignupRecordWithBusinessProfile(record) {
+  if (!record?.businessNumber || !hasSupabaseConfig()) return record || null;
+  const query = new URLSearchParams({
+    select: "business_number,phone,contact_name,title,company_name,company_address",
+    business_number: `eq.${record.businessNumber}`,
+    limit: "1"
+  });
+  try {
+    const rows = await requestSupabase(`/rest/v1/business_profiles?${query.toString()}`);
+    const profile = Array.isArray(rows) ? rows[0] : null;
+    if (!profile) return record;
+    return {
+      ...record,
+      contactName: String(profile.contact_name || record.contactName || record.name || "").trim(),
+      contactTitle: String(profile.title || record.contactTitle || record.title || "").trim(),
+      contactCompanyName: String(profile.company_name || record.contactCompanyName || record.companyName || "").trim(),
+      contactPhone: String(profile.phone || record.contactPhone || record.phone || "").trim(),
+      contactAddress: String(profile.company_address || record.contactAddress || record.companyAddress || "").trim()
+    };
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "business_profiles")) console.warn("Business profile enrichment failed:", error.message);
+    return record;
+  }
 }
 
 async function readCartRecord(businessNumber) {
@@ -1755,11 +1799,11 @@ async function upsertBusinessProfileFromSignupRecord(record) {
   const payload = {
     account_id: record.accountId || null,
     business_number: record.businessNumber,
-    phone: record.phone,
-    contact_name: record.name,
-    title: record.title,
-    company_name: record.companyName,
-    company_address: record.companyAddress,
+    phone: record.contactPhone || record.phone,
+    contact_name: record.contactName || record.name,
+    title: record.contactTitle || record.title,
+    company_name: record.contactCompanyName || record.companyName,
+    company_address: record.contactAddress || record.companyAddress,
     representative: record.representative,
     opening_date: record.openingDate || null,
     business_type: record.businessType,
@@ -1834,10 +1878,12 @@ async function insertBusinessCardDocumentFromSignupRecord(record) {
     review_status: "pending",
     ocr_result: {
       documentType: "business_card",
-      contactName: record.name,
-      title: record.title,
-      companyName: record.companyName,
-      phone: record.phone
+      contactName: record.contactName || record.name,
+      title: record.contactTitle || record.title,
+      companyName: record.contactCompanyName || record.companyName,
+      phone: record.contactPhone || record.phone,
+      email: record.contactEmail || record.socialEmail,
+      address: record.contactAddress || record.companyAddress
     }
   };
   try {
@@ -1966,6 +2012,12 @@ function normalizeSignupRequest(payload) {
     title: String(payload?.title || "").trim(),
     companyName: String(payload?.companyName || "").trim(),
     companyAddress: String(payload?.companyAddress || "").trim(),
+    contactName: String(payload?.contactName || payload?.contactInfo?.name || "").trim(),
+    contactTitle: String(payload?.contactTitle || payload?.contactInfo?.title || "").trim(),
+    contactCompanyName: String(payload?.contactCompanyName || payload?.contactInfo?.companyName || "").trim(),
+    contactPhone: String(payload?.contactPhone || payload?.contactInfo?.phone || "").trim(),
+    contactEmail: normalizeEmail(payload?.contactEmail || payload?.contactInfo?.email),
+    contactAddress: String(payload?.contactAddress || payload?.contactInfo?.address || "").trim(),
     password: String(payload?.password || ""),
     provider: normalizeSignupProvider(payload),
     socialProvider: normalizeSocialProviderOptional(payload?.socialProvider),
