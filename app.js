@@ -6510,15 +6510,43 @@ function isSocialSignupSelected() {
 function readSocialAuthRedirect() {
   const params = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
-  const accessToken = hashParams.get("access_token") || "";
+  const accessToken = hashParams.get("access_token") || params.get("access_token") || "";
   const provider = params.get("socialProvider") || "";
   const mode = params.get("socialMode") || "signup";
+  const error = hashParams.get("error_description")
+    || params.get("error_description")
+    || hashParams.get("error")
+    || params.get("error")
+    || "";
+  const code = params.get("code") || "";
+  if (error && provider) return { error, provider, mode };
+  if (!accessToken && code && provider) {
+    return {
+      error: "인증은 완료됐지만 앱으로 로그인 토큰이 전달되지 않았습니다. Supabase Auth URL 설정과 Provider callback URL을 다시 확인해주세요.",
+      provider,
+      mode
+    };
+  }
   if (!accessToken || !provider) return null;
   return { accessToken, provider, mode };
 }
 
-async function completeSocialAuthRedirect({ accessToken, provider, mode }) {
+async function completeSocialAuthRedirect({ accessToken, provider, mode, error = "" }) {
   const providerLabel = provider === "kakao" ? "카카오톡" : "Google";
+  if (!accessToken) {
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
+    const errorMessage = hashParams.get("error_description")
+      || params.get("error_description")
+      || hashParams.get("error")
+      || params.get("error")
+      || error
+      || "소셜 로그인 토큰이 전달되지 않았습니다.";
+    switchPage(mode === "login" ? "loginPage" : "signupPage");
+    setText(mode === "login" ? "#loginStatus" : "#signupStatus", `${providerLabel} 인증 오류: ${errorMessage}`);
+    history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
+    return;
+  }
   try {
     const profile = await requestJson("/api/social-auth/profile", {
       method: "POST",
