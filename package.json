@@ -11,6 +11,7 @@
     "taxonomy:normalize": "node scripts/build-normalized-taxonomy.mjs",
     "finish:update": "node scripts/update-missing-finishes-from-source.mjs",
     "taxonomy:simulate": "node scripts/simulate-taxonomy-search.mjs",
-    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node --check scripts/apply-management-codes.mjs && node --check scripts/import-tile114-verygood.mjs && node --check scripts/import-sgcera.mjs && node --check scripts/import-hwashin.mjs && node --check scripts/import-goldtile.mjs && node --check scripts/build-normalized-taxonomy.mjs && node --check scripts/update-missing-finishes-from-source.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""
+    "audit:architecture": "node scripts/audit-platform-architecture.mjs",
+    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node --check scripts/apply-management-codes.mjs && node --check scripts/import-tile114-verygood.mjs && node --check scripts/import-sgcera.mjs && node --check scripts/import-hwashin.mjs && node --check scripts/import-goldtile.mjs && node --check scripts/build-normalized-taxonomy.mjs && node --check scripts/update-missing-finishes-from-source.mjs && node --check scripts/audit-platform-architecture.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""
   }
 }
