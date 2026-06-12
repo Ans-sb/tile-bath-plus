@@ -39,7 +39,7 @@ const businessDocumentBucket = String(process.env.SUPABASE_BUSINESS_DOCUMENT_BUC
 const forceLocalProducts = /^(1|true|yes)$/i.test(String(process.env.FORCE_LOCAL_PRODUCTS || "").trim());
 const productReadCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_CACHE_TTL_MS || 5 * 60 * 1000));
 const productReadFallbackCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_FALLBACK_CACHE_TTL_MS || 60 * 1000));
-const productRemoteReadTimeoutMs = Math.max(0, Number(process.env.PRODUCT_REMOTE_READ_TIMEOUT_MS || 3000));
+const productRemoteReadTimeoutMs = Math.max(0, Number(process.env.PRODUCT_REMOTE_READ_TIMEOUT_MS || 20000));
 const supabaseRequestTimeoutMs = Math.max(0, Number(process.env.SUPABASE_REQUEST_TIMEOUT_MS || 12000));
 const productReadMode = String(process.env.PRODUCT_READ_MODE || "supabase-first").trim().toLowerCase();
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
@@ -405,19 +405,7 @@ async function readProducts(options = {}) {
   const cachedProducts = options.cache === false ? null : getCachedProducts();
   if (cachedProducts) return cachedProducts;
 
-  if (productReadMode !== "supabase-first") {
-    try {
-      const localProducts = await readProductsFromLocalFile();
-      if (localProducts.length || productReadMode === "local-first") {
-        return setCachedProducts(localProducts, "file");
-      }
-    } catch (error) {
-      if (productReadMode === "local-only" || !hasSupabaseConfig()) throw error;
-      console.warn("[products] Local products.json read failed; trying Supabase.", error.message);
-    }
-  }
-
-  if (hasSupabaseConfig()) {
+  if (hasSupabaseConfig() && productReadMode !== "local-only") {
     try {
       const remoteProducts = await withTimeout(
         readProductsFromSupabase(),
