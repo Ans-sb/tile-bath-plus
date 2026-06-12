@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
+const { pathToFileURL } = require("url");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -10,6 +11,7 @@ loadEnvFile(path.join(root, ".env"));
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 const productsPath = path.join(root, "data", "products.json");
+const normalizedTaxonomyPath = path.join(root, "data", "products.normalized.json");
 const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
 const bodyLimit = 80 * 1024 * 1024;
 const proposalOutputDir = path.join(root, "outputs", "proposals");
@@ -35,6 +37,11 @@ const publicSiteUrl = String(
 ).trim().replace(/\/+$/, "");
 const businessDocumentBucket = String(process.env.SUPABASE_BUSINESS_DOCUMENT_BUCKET || "business-documents").trim();
 const forceLocalProducts = /^(1|true|yes)$/i.test(String(process.env.FORCE_LOCAL_PRODUCTS || "").trim());
+const productReadCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_CACHE_TTL_MS || 5 * 60 * 1000));
+const productReadFallbackCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_FALLBACK_CACHE_TTL_MS || 60 * 1000));
+const productRemoteReadTimeoutMs = Math.max(0, Number(process.env.PRODUCT_REMOTE_READ_TIMEOUT_MS || 3000));
+const supabaseRequestTimeoutMs = Math.max(0, Number(process.env.SUPABASE_REQUEST_TIMEOUT_MS || 12000));
+const productReadMode = String(process.env.PRODUCT_READ_MODE || "local-first").trim().toLowerCase();
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminDisplayName = String(process.env.ADMIN_DISPLAY_NAME || "내부관리자").trim();
@@ -46,6 +53,9 @@ const memberTokenSecret = crypto
   .update([supabaseSecretKey, adminPassword, "tile-bath-plus-member-token"].filter(Boolean).join(":"))
   .digest("hex");
 let businessDocumentBucketReady = false;
+let tileSearchEnginePromise = null;
+let productsReadCache = { expiresAt: 0, rows: null, source: "" };
+let publicProductsJsonCache = { expiresAt: 0, json: "" };
 const defaultApprovalRules = {
   businessTypes: [
     "인테리어",
@@ -147,7 +157,7 @@ const server = http.createServer(async (request, response) => {
         sendJson(response, 200, []);
         return;
       }
-      sendJson(response, 200, (await readProducts()).map(mapPublicProduct));
+      sendRawJson(response, 200, await getPublicProductsJson());
       return;
     }
 
@@ -187,6 +197,12 @@ const server = http.createServer(async (request, response) => {
       const payload = JSON.parse(await readRequestBody(request));
       await appendTaxonomySearchLog(payload);
       sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/tile-search") {
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, await searchTileCatalog(payload));
       return;
     }
 
@@ -319,6 +335,9 @@ server.requestTimeout = 0;
 
 server.listen(port, host, () => {
   console.log(`Tile & Bath Plus app: http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
+  getPublicProductsJson().catch((error) => {
+    console.warn("[products] Public product cache warmup failed.", error.message);
+  });
 });
 
 process.on("unhandledRejection", (error) => {
@@ -331,18 +350,92 @@ process.on("uncaughtException", (error) => {
   setTimeout(() => process.exit(1), 50).unref();
 });
 
-async function readProducts() {
+function getCachedProducts() {
+  if (!productsReadCache.rows || Date.now() >= productsReadCache.expiresAt) return null;
+  return productsReadCache.rows;
+}
+
+function setCachedProducts(rows, source, ttlMs = productReadCacheTtlMs) {
+  productsReadCache = {
+    expiresAt: Date.now() + ttlMs,
+    rows,
+    source
+  };
+  return rows;
+}
+
+function invalidateProductsReadCache() {
+  productsReadCache = { expiresAt: 0, rows: null, source: "" };
+  publicProductsJsonCache = { expiresAt: 0, json: "" };
+}
+
+async function withTimeout(promise, timeoutMs, message) {
+  if (!timeoutMs) return promise;
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function readProductsFromLocalFile() {
+  const content = await fs.promises.readFile(productsPath, "utf8");
+  return JSON.parse(content);
+}
+
+async function getPublicProductsJson() {
+  if (publicProductsJsonCache.json && Date.now() < publicProductsJsonCache.expiresAt) {
+    return publicProductsJsonCache.json;
+  }
+  const json = JSON.stringify((await readProducts()).map(mapPublicProduct));
+  publicProductsJsonCache = {
+    expiresAt: Date.now() + productReadCacheTtlMs,
+    json
+  };
+  return json;
+}
+
+async function readProducts(options = {}) {
+  const cachedProducts = options.cache === false ? null : getCachedProducts();
+  if (cachedProducts) return cachedProducts;
+
+  if (productReadMode !== "supabase-first") {
+    try {
+      const localProducts = await readProductsFromLocalFile();
+      if (localProducts.length || productReadMode === "local-first") {
+        return setCachedProducts(localProducts, "file");
+      }
+    } catch (error) {
+      if (productReadMode === "local-only" || !hasSupabaseConfig()) throw error;
+      console.warn("[products] Local products.json read failed; trying Supabase.", error.message);
+    }
+  }
+
   if (hasSupabaseConfig()) {
     try {
-      const remoteProducts = await readProductsFromSupabase();
-      if (remoteProducts.length) return remoteProducts;
+      const remoteProducts = await withTimeout(
+        readProductsFromSupabase(),
+        productRemoteReadTimeoutMs,
+        `Supabase 상품 읽기 시간 초과 (${productRemoteReadTimeoutMs}ms)`
+      );
+      if (remoteProducts.length) return setCachedProducts(remoteProducts, "supabase");
     } catch (error) {
       console.warn("[products] Supabase read failed; using local products.json.", error.message);
     }
   }
 
-  const content = await fs.promises.readFile(productsPath, "utf8");
-  return JSON.parse(content);
+  const localProducts = await readProductsFromLocalFile();
+  return setCachedProducts(
+    localProducts,
+    "file",
+    hasSupabaseConfig() ? productReadFallbackCacheTtlMs : productReadCacheTtlMs
+  );
 }
 
 function normalizeProduct(product) {
@@ -485,6 +578,7 @@ async function readProductsFromSupabase() {
     let page;
     try {
       page = await requestSupabase(`/rest/v1/products?${query.toString()}`, {
+        timeoutMs: Math.min(supabaseRequestTimeoutMs || 12000, 5000),
         headers: {
           Range: `${offset}-${offset + pageSize - 1}`
         }
@@ -492,6 +586,7 @@ async function readProductsFromSupabase() {
     } catch (error) {
       if (!String(error?.message || "").includes("does not exist")) throw error;
       page = await requestSupabase(`/rest/v1/products?${legacyQuery.toString()}`, {
+        timeoutMs: Math.min(supabaseRequestTimeoutMs || 12000, 5000),
         headers: {
           Range: `${offset}-${offset + pageSize - 1}`
         }
@@ -528,17 +623,19 @@ async function upsertProductToSupabase(product) {
 }
 
 async function saveProduct(product) {
-  let products = await readProducts();
+  let products = await readProducts({ cache: false });
   const index = products.findIndex((item) => item.id === product.id);
   if (index >= 0) products[index] = product;
   else products.push(product);
 
   if (hasSupabaseConfig()) {
     await upsertProductToSupabase(product);
-    products = await readProducts();
+    invalidateProductsReadCache();
+    products = await readProducts({ cache: false });
   }
 
   await fs.promises.writeFile(productsPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
+  setCachedProducts(products, "file");
   return products;
 }
 
@@ -839,9 +936,8 @@ function shouldBlockStaticPath(pathname) {
 }
 
 async function readLocalNormalizedTaxonomy(view = "admin") {
-  const normalizedPath = path.join(root, "data", "products.normalized.json");
   try {
-    const rows = JSON.parse(await fs.promises.readFile(normalizedPath, "utf8"));
+    const rows = JSON.parse(await fs.promises.readFile(normalizedTaxonomyPath, "utf8"));
     if (String(view).toLowerCase() === "customer") {
       return Array.isArray(rows) ? rows.map(stripInternalBrandFromNormalizedProduct) : [];
     }
@@ -849,6 +945,91 @@ async function readLocalNormalizedTaxonomy(view = "admin") {
   } catch {
     return [];
   }
+}
+
+async function searchTileCatalog(payload) {
+  const requestedAudience = String(payload?.audience || "customer").toLowerCase();
+  const audience = requestedAudience === "admin" ? "admin" : "customer";
+  if (audience === "admin") {
+    assertAdminCredentials(payload?.adminUsername, payload?.adminToken);
+  }
+
+  const query = String(payload?.query || "").slice(0, 500);
+  const limit = Math.min(Math.max(Number(payload?.limit || 80), 1), 200);
+  const products = await readLocalNormalizedTaxonomy(audience);
+  const engine = await getTileSearchEngine();
+  const result = engine.searchTiles(products, query, { audience, limit });
+  const summaries = result.results.map((entry) => {
+    const summary = engine.summarizeResult(entry);
+    return audience === "admin"
+      ? addAdminTileSearchSummary(summary, entry.item)
+      : stripInternalBrandFromSearchSummary(summary);
+  });
+
+  await appendTaxonomySearchLog({
+    audience,
+    query,
+    resultCount: result.total,
+    interpreted: result.intent
+  }).catch((error) => {
+    console.warn("[tile-search] unable to append search log:", error.message);
+  });
+
+  return {
+    ok: true,
+    engineVersion: result.engineVersion,
+    audience,
+    total: result.total,
+    intent: sanitizeSearchIntentForResponse(result.intent, audience),
+    results: summaries
+  };
+}
+
+async function getTileSearchEngine() {
+  if (!tileSearchEnginePromise) {
+    tileSearchEnginePromise = import(pathToFileURL(path.join(root, "scripts", "tile-search-engine.mjs")).href);
+  }
+  return tileSearchEnginePromise;
+}
+
+function sanitizeSearchIntentForResponse(intent, audience) {
+  const {
+    internalBrands,
+    internalBrandCodes,
+    internalBrandNames,
+    ...safeIntent
+  } = intent || {};
+  if (audience === "admin") {
+    return {
+      ...safeIntent,
+      internalBrands: Array.isArray(internalBrands) ? internalBrands : [],
+      internalBrandCodes: Array.isArray(internalBrandCodes) ? internalBrandCodes : [],
+      internalBrandNames: Array.isArray(internalBrandNames) ? internalBrandNames : []
+    };
+  }
+  return safeIntent;
+}
+
+function stripInternalBrandFromSearchSummary(summary) {
+  const {
+    internalBrandId,
+    internalBrandCode,
+    internalBrandName,
+    supplierName,
+    marginGrade,
+    qualityGrade,
+    ...safe
+  } = summary || {};
+  return safe;
+}
+
+function addAdminTileSearchSummary(summary, item) {
+  return {
+    ...summary,
+    internalBrandCode: item?.internalBrandCode || "",
+    internalBrandName: item?.internalBrandName || "",
+    supplierName: item?.supplierName || ""
+  };
 }
 
 async function appendTaxonomySearchLog(payload) {
@@ -869,7 +1050,7 @@ function sanitizeSearchLogObject(value) {
   if (!value || typeof value !== "object") return {};
   const allowedKeys = [
     "origins", "spaces", "applications", "colors", "styles", "patternDetails",
-    "finishes", "textures", "materials", "moods", "sizes", "priceRanges",
+    "finishes", "textures", "materials", "moods", "sizes", "thicknesses", "priceRanges",
     "antiSlipRequired", "stockRequired", "stockEmpty", "freeTokens"
   ];
   return Object.fromEntries(allowedKeys.map((key) => {
@@ -1537,16 +1718,33 @@ async function requestSupabase(pathname, options = {}) {
     throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
   }
 
-  const response = await fetch(`${supabaseUrl}${pathname}`, {
-    method: options.method || "GET",
-    headers: {
-      apikey: supabaseSecretKey,
-      Authorization: `Bearer ${supabaseSecretKey}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
-    body: options.body
-  });
+  const timeoutMs = Number(options.timeoutMs ?? supabaseRequestTimeoutMs);
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const timeout = controller
+    ? setTimeout(() => controller.abort(), timeoutMs)
+    : null;
+  let response;
+
+  try {
+    response = await fetch(`${supabaseUrl}${pathname}`, {
+      method: options.method || "GET",
+      headers: {
+        apikey: supabaseSecretKey,
+        Authorization: `Bearer ${supabaseSecretKey}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      },
+      body: options.body,
+      signal: controller?.signal
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`Supabase 요청 시간 초과 (${timeoutMs}ms)`);
+    }
+    throw error;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const text = await response.text();
@@ -2419,7 +2617,7 @@ async function findSimilarTilesByImage(payload) {
   const searchMode = String(payload?.searchMode || "").trim() === "global" ? "global" : "strict";
   const allSimilar = payload?.allSimilar !== false;
   const limit = allSimilar
-    ? (searchMode === "global" ? 80 : 240)
+    ? Number.MAX_SAFE_INTEGER
     : Math.min(Math.max(Number(payload?.limit) || 12, 4), 60);
   if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(imageDataUrl)) {
     throw new Error("타일 사진을 다시 업로드해주세요.");
@@ -2774,7 +2972,11 @@ function getProductTileFinderFinishGroups(product) {
     || (hasStandaloneFinishCode(rawText, "M") && (!hasExplicitFinish || explicitMatte) && !explicitGlossy)) {
     groups.push("무광");
   }
-  if (/포쉐린/.test(text) && !groups.includes("유광") && !groups.includes("폴리싱")) groups.push("무광");
+  if ((/포쉐린|포세린|porcelain/.test(text) || hasStandaloneFinishCode(rawText, "POR"))
+    && !groups.includes("유광")
+    && !groups.includes("폴리싱")) {
+    groups.push("무광");
+  }
   return [...new Set(groups)];
 }
 
@@ -2962,7 +3164,7 @@ function selectTextColorStrictMatches(matches, analysis) {
     ...expandTileMatchKeywords(analysis.colors || [])
   ]).map(normalizeMatchText).filter((token) => token.length >= 2);
   if (!colorTokens.length) return matches;
-  const filtered = matches.filter((entry) => {
+  return matches.map((entry) => {
     const text = normalizeMatchText([
       entry.product?.name,
       entry.product?.color,
@@ -2970,9 +3172,13 @@ function selectTextColorStrictMatches(matches, analysis) {
       entry.product?.option,
       entry.product?.patternCategory
     ].filter(Boolean).join(" "));
-    return colorTokens.some((token) => text.includes(token));
+    if (!colorTokens.some((token) => text.includes(token))) return entry;
+    return {
+      ...entry,
+      score: entry.score + 14,
+      reasons: [...new Set([...(entry.reasons || []), "색상 텍스트 우선"])]
+    };
   });
-  return filtered.length ? filtered : matches;
 }
 
 function normalizeTileSize(value) {
@@ -3167,6 +3373,14 @@ function sendJson(response, status, body) {
     "Cache-Control": "no-store"
   });
   response.end(JSON.stringify(body));
+}
+
+function sendRawJson(response, status, json) {
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store"
+  });
+  response.end(json);
 }
 
 function loadEnvFile(filePath) {

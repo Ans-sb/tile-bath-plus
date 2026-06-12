@@ -1645,8 +1645,9 @@ textarea:focus {
 .tile-finder-results {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  touch-action: pan-y;
 }
 
 .tile-match-card {
@@ -1904,6 +1905,19 @@ textarea:focus {
   background: #eaf2ff;
 }
 
+.taxonomy-image-control {
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.taxonomy-image-control span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
 .taxonomy-assist-control {
   display: grid;
   gap: 6px;
@@ -1947,6 +1961,103 @@ textarea:focus {
   border-color: var(--teal);
   background: rgba(0, 166, 147, 0.1);
   color: var(--teal-deep);
+}
+
+.taxonomy-image-preview {
+  margin-top: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.taxonomy-image-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(8, 25, 87, 0.12);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.taxonomy-image-results-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.image-search-pagination {
+  grid-column: 1 / -1;
+}
+
+body.customer-experience-mode .tile-finder-results,
+body.customer-experience-mode .taxonomy-image-results {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  padding: 8px !important;
+}
+
+body.customer-experience-mode .tile-finder-results .tile-match-card,
+body.customer-experience-mode .taxonomy-image-results .tile-match-card {
+  min-width: 0 !important;
+  padding: 8px !important;
+  gap: 6px !important;
+  border-radius: 12px !important;
+}
+
+body.customer-experience-mode .tile-finder-results .tile-match-card img,
+body.customer-experience-mode .taxonomy-image-results .tile-match-card img,
+body.customer-experience-mode .tile-finder-results .tile-match-card .product-thumb-empty,
+body.customer-experience-mode .taxonomy-image-results .tile-match-card .product-thumb-empty {
+  border-radius: 10px !important;
+}
+
+body.customer-experience-mode .tile-finder-results .tile-match-card strong,
+body.customer-experience-mode .taxonomy-image-results .tile-match-card strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px !important;
+  line-height: 1.28 !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body.customer-experience-mode .tile-finder-results .tile-match-card span,
+body.customer-experience-mode .taxonomy-image-results .tile-match-card span,
+body.customer-experience-mode .tile-finder-results .tile-match-card small,
+body.customer-experience-mode .taxonomy-image-results .tile-match-card small {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 10px !important;
+  line-height: 1.35 !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body.customer-experience-mode .tile-finder-results .tile-match-actions,
+body.customer-experience-mode .taxonomy-image-results .tile-match-actions {
+  gap: 6px !important;
+}
+
+body.customer-experience-mode .tile-finder-results .tile-match-actions button,
+body.customer-experience-mode .taxonomy-image-results .tile-match-actions button {
+  min-height: 34px !important;
+  padding: 0 8px !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+}
+
+.taxonomy-image-results-heading strong {
+  font-size: 15px;
+}
+
+.taxonomy-image-results-heading span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .taxonomy-size-panel {
@@ -2069,6 +2180,18 @@ textarea:focus {
   .taxonomy-search-assist,
   .taxonomy-assist-control {
     width: 100%;
+  }
+
+  .taxonomy-image-control {
+    width: 100%;
+  }
+
+  .taxonomy-image-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .taxonomy-image-results-heading {
+    display: grid;
   }
 
   .taxonomy-segmented {
@@ -3827,7 +3950,7 @@ th {
   }
 
   .tile-finder-results {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .product-card [data-add-product] {
@@ -4022,7 +4145,7 @@ th {
 
 @media (max-width: 640px) {
   .tile-finder-results {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .app-shell {

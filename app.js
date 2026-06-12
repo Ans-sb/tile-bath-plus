@@ -83,6 +83,7 @@ const DEFAULT_APPROVAL_RULES = {
 };
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
 const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "tile114TestPage"]);
+const IMAGE_SEARCH_RESULTS_PAGE_SIZE = 20;
 
 const money = new Intl.NumberFormat("ko-KR", {
   style: "currency",
@@ -107,6 +108,7 @@ const productImagePreloadCache = new Set();
 let normalizedTaxonomyProducts = [];
 let storedNormalizedTaxonomyProducts = [];
 let normalizedTaxonomySourceKey = "";
+let normalizedTaxonomyProductById = new Map();
 let taxonomyLastSearchRaw = "";
 let taxonomyDisabledIntentKeys = new Set();
 let taxonomyResultFacetFilters = {};
@@ -114,6 +116,13 @@ let taxonomyCurrentPage = 1;
 const TAXONOMY_PAGE_SIZE = 10;
 let tileFinderImageDataUrl = "";
 let tileFinderImageFileName = "";
+let taxonomyImageSearchDataUrl = "";
+let taxonomyImageSearchFileName = "";
+let tileFinderMatches = [];
+let tileFinderResultsPage = 1;
+let taxonomyImageMatches = [];
+let taxonomyImageResultsPage = 1;
+let suppressImageSearchClickUntil = 0;
 let cart = loadCart();
 let proposalProductSelectionIds = new Set();
 let proposalRenderSelectionIds = new Set();
@@ -309,6 +318,32 @@ function bindEvents() {
   document.querySelector("#taxonomyAssistClearBtn")?.addEventListener("click", () => {
     setTaxonomyAssistSize("");
     setTaxonomyAssistFinish("all");
+    clearTaxonomyImageSearch();
+  });
+  document.querySelector("#taxonomyImageSearchBtn")?.addEventListener("click", () => {
+    document.querySelector("#taxonomyImageSearchFile")?.click();
+  });
+  document.querySelector("#taxonomyImageSearchFile")?.addEventListener("change", handleTaxonomyImageSearchFileChange);
+  document.querySelector("#taxonomyImageResults")?.addEventListener("click", (event) => {
+    if (shouldSuppressImageSearchClick()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const pageButton = event.target.closest("[data-taxonomy-image-page]");
+    if (pageButton) {
+      taxonomyImageResultsPage = Number(pageButton.dataset.taxonomyImagePage) || 1;
+      renderTaxonomyImageResults(taxonomyImageMatches, { preservePage: true });
+      document.querySelector("#taxonomyImageResults")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    const addButton = event.target.closest("[data-add-product]");
+    if (addButton) {
+      addToCart(addButton.dataset.addProduct);
+      return;
+    }
+    const viewButton = event.target.closest("[data-view-product]");
+    if (viewButton) openProductDetail(viewButton.dataset.viewProduct, viewButton);
   });
   document.querySelector("#taxonomyIntentChips")?.addEventListener("click", (event) => {
     const resetButton = event.target.closest("[data-taxonomy-reset-facets]");
@@ -347,6 +382,18 @@ function bindEvents() {
   document.querySelector("#tileFinderSearchBtn")?.addEventListener("click", handleTileFinderSearch);
   document.querySelector("#tileFinderFile")?.addEventListener("change", handleTileFinderFileChange);
   document.querySelector("#tileFinderResults")?.addEventListener("click", (event) => {
+    if (shouldSuppressImageSearchClick()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const pageButton = event.target.closest("[data-tile-finder-page]");
+    if (pageButton) {
+      tileFinderResultsPage = Number(pageButton.dataset.tileFinderPage) || 1;
+      renderTileFinderResults(tileFinderMatches, { preservePage: true });
+      document.querySelector("#tileFinderResults")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     const addButton = event.target.closest("[data-add-product]");
     if (addButton) {
       addToCart(addButton.dataset.addProduct);
@@ -355,6 +402,8 @@ function bindEvents() {
     const detailButton = event.target.closest("[data-view-product]");
     if (detailButton) openProductDetail(detailButton.dataset.viewProduct, detailButton);
   });
+  bindImageSearchSwipeNavigation("#taxonomyImageResults", "taxonomy");
+  bindImageSearchSwipeNavigation("#tileFinderResults", "tileFinder");
 
   document.querySelector("#productList").addEventListener("click", (event) => {
     const button = event.target.closest("[data-add-product]");
@@ -602,6 +651,7 @@ async function loadProducts() {
   products = mergeProducts(bundledProducts, localProducts);
   productsLoadedFromRemote = false;
   syncProductFilters();
+  if (document.querySelector("#productList")) renderProducts();
 
   try {
     const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 30000 });
@@ -615,6 +665,8 @@ async function loadProducts() {
     serverConnection = { ...serverConnection, online: false, checked: true, failures: (serverConnection.failures || 0) + 1 };
     products = mergeProducts(bundledProducts, localProducts);
     await loadStoredNormalizedTaxonomyProducts();
+    syncProductFilters();
+    if (document.querySelector("#productList")) renderProducts();
     if (!products.length) {
       document.querySelector("#productList").innerHTML = `<div class="empty-state">상품 DB를 불러오지 못했습니다. 서버를 실행하거나 index.html을 다시 열어주세요.</div>`;
     }
@@ -622,6 +674,7 @@ async function loadProducts() {
   }
 
   syncProductFilters();
+  if (document.querySelector("#productList")) renderProducts();
 }
 
 async function hydrateMemberPricingProducts(options = {}) {
@@ -890,7 +943,7 @@ function applyInitialPageFromHash() {
 
   currentPageId = requestedPageId;
   const activeNavPage = requestedPageId === "productDetailPage"
-    ? "productsPage"
+    ? "taxonomyTestPage"
     : requestedPageId === "samplePage"
       ? "homePage"
       : requestedPageId;
@@ -967,6 +1020,8 @@ function getProductFilterSnapshot() {
   const tileFeature = document.querySelector("#tileFeatureFilter").value;
   const patternCategory = document.querySelector("#patternCategoryFilter").value;
   const keyword = document.querySelector("#productSearch").value.trim().toLowerCase();
+  const normalizedKeyword = normalizeSearchText(keyword);
+  const naturalIntent = keyword ? parseTaxonomyNaturalSearch(keyword, "customer") : null;
   return {
     type,
     kind,
@@ -975,7 +1030,8 @@ function getProductFilterSnapshot() {
     tileFeature,
     patternCategory,
     keyword,
-    normalizedKeyword: normalizeSearchText(keyword)
+    normalizedKeyword,
+    naturalIntent
   };
 }
 
@@ -1002,16 +1058,33 @@ function getProductPageState() {
   });
   if (productPageStateCache?.key === cacheKey) return productPageStateCache.state;
 
-  const filtered = products.filter((product) => {
+  const scoredProducts = products.map((product) => {
     const searchable = getProductSearchableText(product);
-    return (snapshot.type === "all" || product.productType === snapshot.type)
+    const normalizedProduct = snapshot.naturalIntent?.active && product.productType === "tile"
+      ? getNormalizedTaxonomyProductForProduct(product)
+      : null;
+    const naturalScore = normalizedProduct
+      ? scoreProductPageNaturalSearch(normalizedProduct, snapshot.naturalIntent)
+      : 0;
+    const keywordMatched = !snapshot.normalizedKeyword || searchable.includes(snapshot.normalizedKeyword) || naturalScore > 0;
+    const passed = (snapshot.type === "all" || product.productType === snapshot.type)
       && (snapshot.normalizedKeyword || snapshot.kind === "all" || product.kind === snapshot.kind)
       && (snapshot.normalizedKeyword || snapshot.size === "all" || product.size === snapshot.size)
       && (snapshot.normalizedKeyword || snapshot.option === "all" || product.option === snapshot.option)
       && (snapshot.tileFeature === "all" || matchesTileFeatureFilter(product, snapshot.tileFeature))
       && (snapshot.normalizedKeyword || snapshot.patternCategory === "all" || product.patternCategory === snapshot.patternCategory)
-      && (!snapshot.normalizedKeyword || searchable.includes(snapshot.normalizedKeyword));
-  }).sort(compareProductsForDisplay);
+      && keywordMatched;
+    if (!passed) return null;
+    return { product, naturalScore };
+  }).filter(Boolean);
+
+  const hasNaturalSearch = snapshot.naturalIntent?.active && hasActiveTaxonomyIntentCriteria(snapshot.naturalIntent);
+  const filtered = scoredProducts
+    .sort((left, right) => {
+      if (hasNaturalSearch && left.naturalScore !== right.naturalScore) return right.naturalScore - left.naturalScore;
+      return compareProductsForDisplay(left.product, right.product);
+    })
+    .map((entry) => entry.product);
 
   const pageSize = getProductPageSize();
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -1044,13 +1117,31 @@ function getProductSearchableText(product) {
     product.name,
     product.kind,
     product.size,
+    product.color,
+    product.material,
+    product.surface,
     product.patternCategory,
     product.finish,
     product.option,
+    product.features,
     product.maker
   ].filter(Boolean).join(" "));
   productSearchTextCache.set(product, text);
   return text;
+}
+
+function getNormalizedTaxonomyProductForProduct(product) {
+  if (!product || product.productType !== "tile") return null;
+  prepareTaxonomyProducts();
+  return normalizedTaxonomyProductById.get(product.id)
+    || normalizeProductForTaxonomy(product);
+}
+
+function scoreProductPageNaturalSearch(item, intent) {
+  if (!item || !intent?.active) return 0;
+  const searchText = item.customerSearchText || item.searchText || "";
+  if (!passesTaxonomySearchHardRules(item, intent, "customer")) return 0;
+  return scoreTaxonomySearchIntent(item, intent, searchText, "customer");
 }
 
 function getProductPageHtml(page) {
@@ -1424,6 +1515,7 @@ function prepareTaxonomyProducts() {
   normalizedTaxonomyProducts = storedNormalizedTaxonomyProducts.length
     ? mapStoredNormalizedTaxonomyProducts()
     : products.map(normalizeProductForTaxonomy);
+  normalizedTaxonomyProductById = new Map(normalizedTaxonomyProducts.map((item) => [item.product?.id || item.id, item]));
   normalizedTaxonomySourceKey = sourceKey;
 }
 
@@ -1782,7 +1874,7 @@ function renderTaxonomyTestPage() {
   return { filtered, baseFiltered, collections, searchIntent };
 }
 
-function runTaxonomySearch() {
+async function runTaxonomySearch() {
   const raw = document.querySelector("#taxonomySearch")?.value || "";
   if (raw !== taxonomyLastSearchRaw) {
     taxonomyLastSearchRaw = raw;
@@ -1793,6 +1885,7 @@ function runTaxonomySearch() {
   syncTaxonomyFilters();
   const result = renderTaxonomyTestPage();
   recordTaxonomySearchLog(result?.searchIntent, result?.filtered?.length || 0);
+  if (taxonomyImageSearchDataUrl) await runTaxonomyImageSearch();
   document.querySelector("#taxonomyCollectionList")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -3239,6 +3332,8 @@ async function handleTileFinderFileChange(event) {
     results.innerHTML = "";
   }
   if (tags) tags.innerHTML = "";
+  tileFinderMatches = [];
+  tileFinderResultsPage = 1;
 
   const imageDataUrl = await readImageFile(file, 1200, 0.82);
   if (!imageDataUrl) {
@@ -3255,6 +3350,267 @@ async function handleTileFinderFileChange(event) {
   if (status) status.textContent = "사진이 준비됐습니다. 타일 사이즈와 표면을 선택한 뒤 검색하세요.";
   if (tags) tags.innerHTML = `<span>검색 전</span>`;
   event.target.value = "";
+}
+
+async function handleTaxonomyImageSearchFileChange(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const status = document.querySelector("#taxonomyImageSearchStatus");
+  const previewWrap = document.querySelector("#taxonomyImagePreviewWrap");
+  const preview = document.querySelector("#taxonomyImagePreview");
+  const results = document.querySelector("#taxonomyImageResults");
+  const tags = document.querySelector("#taxonomyImageTags");
+
+  if (!file.type.startsWith("image/")) {
+    if (status) status.textContent = "이미지 파일만 업로드할 수 있습니다.";
+    return;
+  }
+
+  if (status) status.textContent = "사진을 읽는 중입니다.";
+  if (results) {
+    results.classList.add("hidden");
+    results.innerHTML = "";
+  }
+  if (tags) tags.innerHTML = "";
+  taxonomyImageMatches = [];
+  taxonomyImageResultsPage = 1;
+
+  const imageDataUrl = await readImageFile(file, 1200, 0.82);
+  if (!imageDataUrl) {
+    if (status) status.textContent = "사진을 읽지 못했습니다.";
+    return;
+  }
+
+  taxonomyImageSearchDataUrl = imageDataUrl;
+  taxonomyImageSearchFileName = file.name || "";
+  if (preview && previewWrap) {
+    preview.src = imageDataUrl;
+    previewWrap.classList.remove("hidden");
+  }
+  if (tags) tags.innerHTML = `<span>사진 준비됨</span>`;
+  if (status) status.textContent = "사진이 준비됐습니다. 규격과 표면을 선택한 뒤 검색하세요.";
+  event.target.value = "";
+}
+
+function clearTaxonomyImageSearch() {
+  taxonomyImageSearchDataUrl = "";
+  taxonomyImageSearchFileName = "";
+  taxonomyImageMatches = [];
+  taxonomyImageResultsPage = 1;
+  const previewWrap = document.querySelector("#taxonomyImagePreviewWrap");
+  const preview = document.querySelector("#taxonomyImagePreview");
+  const results = document.querySelector("#taxonomyImageResults");
+  const tags = document.querySelector("#taxonomyImageTags");
+  const status = document.querySelector("#taxonomyImageSearchStatus");
+  if (preview) preview.removeAttribute("src");
+  if (previewWrap) previewWrap.classList.add("hidden");
+  if (results) {
+    results.classList.add("hidden");
+    results.innerHTML = "";
+  }
+  if (tags) tags.innerHTML = "";
+  if (status) status.textContent = "사진 없이 AI검색 가능";
+}
+
+async function runTaxonomyImageSearch() {
+  const status = document.querySelector("#taxonomyImageSearchStatus");
+  const results = document.querySelector("#taxonomyImageResults");
+  const tags = document.querySelector("#taxonomyImageTags");
+  const size = getTaxonomyAssistSize();
+  const finish = getTaxonomyAssistFinish();
+  const query = document.querySelector("#taxonomySearch")?.value || "";
+
+  if (!taxonomyImageSearchDataUrl) return;
+  if (!size) {
+    if (status) status.textContent = "이미지검색은 같은 규격만 찾도록 규격 선택이 필요합니다.";
+    if (results) results.classList.add("hidden");
+    return;
+  }
+  if (!finish || finish === "all") {
+    if (status) status.textContent = "이미지검색은 같은 표면만 찾도록 유광 또는 무광을 선택해야 합니다.";
+    if (results) results.classList.add("hidden");
+    return;
+  }
+
+  if (results) {
+    results.classList.add("hidden");
+    results.innerHTML = "";
+  }
+  if (tags) {
+    tags.innerHTML = [
+      taxonomyImageSearchFileName ? `사진 ${taxonomyImageSearchFileName}` : "사진 업로드됨",
+      `AI검색 ${query || "전체"}`,
+      `규격 ${size}`,
+      `표면 ${finish}`
+    ].map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+  }
+  if (status) status.textContent = `${size} · ${finish} 조건으로 이미지와 가장 유사한 타일을 찾는 중입니다.`;
+
+  try {
+    const payload = await requestJson("/api/tile-match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        imageDataUrl: taxonomyImageSearchDataUrl,
+        size,
+        finish,
+        query,
+        searchMode: "strict",
+        allSimilar: true
+      })
+    }, { retries: 0, timeoutMs: 60000 });
+
+    taxonomyImageMatches = payload.matches || [];
+    taxonomyImageResultsPage = 1;
+    products = mergeProducts(products, taxonomyImageMatches.map(mapPublicProductForClient));
+    renderTaxonomyImageAnalysis(payload.analysis || {});
+    renderTaxonomyImageResults(taxonomyImageMatches);
+    if (status) status.textContent = taxonomyImageMatches.length
+      ? `${size} · ${finish} 조건에서 이미지 유사 타일 ${taxonomyImageMatches.length}개를 찾았습니다.`
+      : `${size} · ${finish} 조건의 이미지 유사 타일을 찾지 못했습니다. 규격/표면 조건 또는 DB 이미지를 점검해주세요.`;
+  } catch (error) {
+    if (status) status.textContent = error.message || "이미지 통합검색에 실패했습니다.";
+  }
+}
+
+function renderTaxonomyImageAnalysis(analysis) {
+  const tags = document.querySelector("#taxonomyImageTags");
+  if (!tags) return;
+  const values = [
+    taxonomyImageSearchFileName ? `사진 ${taxonomyImageSearchFileName}` : "사진 업로드됨",
+    analysis.requestedSize ? `규격 ${analysis.requestedSize}` : "",
+    analysis.requestedFinish ? `표면 ${analysis.requestedFinish}` : "",
+    ...(analysis.colors || []).map((item) => `색상 ${item}`),
+    ...(analysis.patterns || []).map((item) => `패턴 ${item}`),
+    ...(analysis.motifs || []).map((item) => `무늬 ${item}`)
+  ].filter(Boolean);
+  tags.innerHTML = values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
+    || `<span>분석값 없음</span>`;
+}
+
+function renderTaxonomyImageResults(matches, options = {}) {
+  const results = document.querySelector("#taxonomyImageResults");
+  if (!results) return;
+  if (!options.preservePage) taxonomyImageResultsPage = 1;
+  const totalPages = Math.max(1, Math.ceil(matches.length / IMAGE_SEARCH_RESULTS_PAGE_SIZE));
+  taxonomyImageResultsPage = Math.min(Math.max(taxonomyImageResultsPage, 1), totalPages);
+  const startIndex = (taxonomyImageResultsPage - 1) * IMAGE_SEARCH_RESULTS_PAGE_SIZE;
+  const pageMatches = matches.slice(startIndex, startIndex + IMAGE_SEARCH_RESULTS_PAGE_SIZE);
+  results.classList.toggle("hidden", !matches.length);
+  results.innerHTML = matches.length ? [
+    `<div class="taxonomy-image-results-heading">
+      <strong>이미지 유사 결과</strong>
+      <span>총 ${number(matches.length)}개 · ${number(taxonomyImageResultsPage)}/${number(totalPages)}페이지 · 20개씩 표시</span>
+    </div>`,
+    ...pageMatches.map(renderTaxonomyImageMatchCard),
+    renderImageSearchPagination(taxonomyImageResultsPage, totalPages, "taxonomy")
+  ].join("") : "";
+}
+
+function renderTaxonomyImageMatchCard(product) {
+  return `
+    <article class="tile-match-card">
+      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
+        ${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb-empty">이미지 없음</div>`}
+      </button>
+      <strong>${escapeHtml(product.name || "-")}</strong>
+      <span>${escapeHtml(product.size || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
+      <span>재고 ${escapeHtml(formatStockQuantity(product))}</span>
+      <small>${escapeHtml((product.matchReasons || []).slice(0, 3).join(" · ") || "이미지 유사 후보")}</small>
+      <span class="tile-match-score">유사도 ${number(product.matchScore || 0)}</span>
+      <div class="tile-match-actions">
+        <button class="secondary-action" type="button" data-view-product="${escapeHtml(product.id)}">상세</button>
+        <button class="primary-action" type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderImageSearchPagination(currentPage, totalPages, mode) {
+  if (totalPages <= 1) return "";
+  const dataName = mode === "taxonomy" ? "taxonomy-image-page" : "tile-finder-page";
+  const buttons = [];
+  const start = Math.max(1, currentPage - 2);
+  const end = Math.min(totalPages, currentPage + 2);
+  buttons.push(`<button type="button" data-${dataName}="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""}>이전</button>`);
+  if (start > 1) {
+    buttons.push(`<button type="button" data-${dataName}="1">1</button>`);
+    if (start > 2) buttons.push(`<span class="product-pagination-ellipsis">...</span>`);
+  }
+  for (let page = start; page <= end; page += 1) {
+    buttons.push(`<button type="button" class="${page === currentPage ? "active" : ""}" data-${dataName}="${page}">${number(page)}</button>`);
+  }
+  if (end < totalPages) {
+    if (end < totalPages - 1) buttons.push(`<span class="product-pagination-ellipsis">...</span>`);
+    buttons.push(`<button type="button" data-${dataName}="${totalPages}">${number(totalPages)}</button>`);
+  }
+  buttons.push(`<button type="button" data-${dataName}="${currentPage + 1}" ${currentPage >= totalPages ? "disabled" : ""}>다음</button>`);
+  buttons.push(`<span class="product-pagination-summary">${number(currentPage)} / ${number(totalPages)}</span>`);
+  return `<div class="product-pagination image-search-pagination">${buttons.join("")}</div>`;
+}
+
+function bindImageSearchSwipeNavigation(selector, mode) {
+  const container = document.querySelector(selector);
+  if (!container) return;
+  let start = null;
+  container.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    start = {
+      x: event.clientX,
+      y: event.clientY,
+      time: Date.now()
+    };
+  }, { passive: true });
+  container.addEventListener("pointercancel", () => {
+    start = null;
+  });
+  container.addEventListener("pointerup", (event) => {
+    if (!start) return;
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const elapsed = Date.now() - start.time;
+    start = null;
+    if (elapsed > 1400) return;
+    if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
+    const moved = mode === "taxonomy"
+      ? moveTaxonomyImageResultsPage(deltaX < 0 ? 1 : -1)
+      : moveTileFinderResultsPage(deltaX < 0 ? 1 : -1);
+    if (!moved) return;
+    suppressImageSearchClickBriefly();
+    event.preventDefault();
+  });
+}
+
+function moveTaxonomyImageResultsPage(delta) {
+  const totalPages = getImageSearchTotalPages(taxonomyImageMatches);
+  if (totalPages <= 1) return false;
+  const nextPage = Math.min(Math.max(taxonomyImageResultsPage + delta, 1), totalPages);
+  if (nextPage === taxonomyImageResultsPage) return false;
+  taxonomyImageResultsPage = nextPage;
+  renderTaxonomyImageResults(taxonomyImageMatches, { preservePage: true });
+  return true;
+}
+
+function moveTileFinderResultsPage(delta) {
+  const totalPages = getImageSearchTotalPages(tileFinderMatches);
+  if (totalPages <= 1) return false;
+  const nextPage = Math.min(Math.max(tileFinderResultsPage + delta, 1), totalPages);
+  if (nextPage === tileFinderResultsPage) return false;
+  tileFinderResultsPage = nextPage;
+  renderTileFinderResults(tileFinderMatches, { preservePage: true });
+  return true;
+}
+
+function getImageSearchTotalPages(matches) {
+  return Math.max(1, Math.ceil((matches || []).length / IMAGE_SEARCH_RESULTS_PAGE_SIZE));
+}
+
+function suppressImageSearchClickBriefly() {
+  suppressImageSearchClickUntil = Date.now() + 350;
+}
+
+function shouldSuppressImageSearchClick() {
+  return Date.now() < suppressImageSearchClickUntil;
 }
 
 async function handleTileFinderSearch() {
@@ -3303,11 +3659,13 @@ async function handleTileFinderSearch() {
       })
     }, { retries: 0, timeoutMs: 60000 });
 
-    products = mergeProducts(products, (payload.matches || []).map(mapPublicProductForClient));
+    tileFinderMatches = payload.matches || [];
+    tileFinderResultsPage = 1;
+    products = mergeProducts(products, tileFinderMatches.map(mapPublicProductForClient));
     renderTileFinderAnalysis(payload.analysis || {});
-    renderTileFinderResults(payload.matches || []);
-    if (status) status.textContent = (payload.matches || []).length
-      ? `${size} · ${finish}와 동일한 타일 중 이미지와 유사한 상품 ${(payload.matches || []).length}개를 찾았습니다.`
+    renderTileFinderResults(tileFinderMatches);
+    if (status) status.textContent = tileFinderMatches.length
+      ? `${size} · ${finish}와 동일한 타일 중 이미지와 유사한 상품 ${tileFinderMatches.length}개를 찾았습니다.`
       : `${size} · ${finish}와 동일한 유사 타일을 찾지 못했습니다. 다른 사진으로 다시 시도하거나 DB 마감/사이즈 값을 점검해주세요.`;
   } catch (error) {
     if (status) status.textContent = error.message || "타일찾기 분석에 실패했습니다.";
@@ -3328,11 +3686,21 @@ function renderTileFinderAnalysis(analysis) {
     || `<span>분석값 없음</span>`;
 }
 
-function renderTileFinderResults(matches) {
+function renderTileFinderResults(matches, options = {}) {
   const results = document.querySelector("#tileFinderResults");
   if (!results) return;
+  if (!options.preservePage) tileFinderResultsPage = 1;
+  const totalPages = Math.max(1, Math.ceil(matches.length / IMAGE_SEARCH_RESULTS_PAGE_SIZE));
+  tileFinderResultsPage = Math.min(Math.max(tileFinderResultsPage, 1), totalPages);
+  const startIndex = (tileFinderResultsPage - 1) * IMAGE_SEARCH_RESULTS_PAGE_SIZE;
+  const pageMatches = matches.slice(startIndex, startIndex + IMAGE_SEARCH_RESULTS_PAGE_SIZE);
   results.classList.toggle("hidden", !matches.length);
-  results.innerHTML = matches.map((product) => `
+  results.innerHTML = matches.length ? [
+    `<div class="taxonomy-image-results-heading">
+      <strong>이미지 유사 결과</strong>
+      <span>총 ${number(matches.length)}개 · ${number(tileFinderResultsPage)}/${number(totalPages)}페이지 · 20개씩 표시</span>
+    </div>`,
+    ...pageMatches.map((product) => `
     <article class="tile-match-card">
       <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
         ${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb-empty">이미지 없음</div>`}
@@ -3347,7 +3715,9 @@ function renderTileFinderResults(matches) {
         <button class="primary-action" type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
       </div>
     </article>
-  `).join("");
+  `),
+    renderImageSearchPagination(tileFinderResultsPage, totalPages, "tileFinder")
+  ].join("") : "";
 }
 
 function hasStockValue(product) {
@@ -8437,7 +8807,7 @@ function switchPage(pageId, options = {}) {
   currentPageId = pageId;
   syncExperienceMode(pageId);
   const activeNavPage = pageId === "productDetailPage"
-    ? "productsPage"
+    ? "taxonomyTestPage"
     : pageId === "samplePage"
       ? "homePage"
       : pageId;

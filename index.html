@@ -114,13 +114,13 @@
           <span class="nav-glyph">01</span>
           <span class="nav-copy">메인</span>
         </button>
-        <button class="customer-nav-button" type="button" data-page-target="productsPage">
+        <button class="customer-nav-button" type="button" data-page-target="taxonomyTestPage">
           <span class="nav-glyph">02</span>
           <span class="nav-copy">상품</span>
         </button>
-        <button class="customer-nav-button" type="button" data-page-target="taxonomyTestPage">
-          <span class="nav-glyph">AI</span>
-          <span class="nav-copy">AI 타일검색</span>
+        <button class="customer-nav-button" type="button" data-page-target="productsPage">
+          <span class="nav-glyph">찾기</span>
+          <span class="nav-copy">직접찾기</span>
         </button>
         <button class="customer-nav-button" type="button" data-page-target="cartPage">
           <span class="nav-glyph">03</span>
@@ -546,8 +546,8 @@
       <main class="app-page page-panel customer-page customer-products-page" id="productsPage">
         <section class="page-heading customer-page-heading">
           <div>
-            <p class="eyebrow">Products</p>
-              <h2>자재GO · 바스GO 둘러보기</h2>
+            <p class="eyebrow">Manual Browse</p>
+              <h2>직접찾기</h2>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
@@ -558,8 +558,8 @@
           <div class="catalog-toolbar customer-catalog-hero">
             <div class="catalog-toolbar-copy">
               <p class="eyebrow">Browse Catalog</p>
-              <h3>자재GO와 바스GO로 나눠 필요한 상품만 빠르게 좁혀보세요.</h3>
-              <p>타일과 부자재는 자재GO, 위생도기는 바스GO로 나눠서 고객이 훨씬 빠르게 이해하고 탐색할 수 있게 구성했습니다.</p>
+              <h3>카테고리와 조건을 직접 골라 상품을 좁혀보세요.</h3>
+              <p>상품군, 규격, 색상, 마감, 재고 조건을 직접 선택해서 원하는 상품만 빠르게 확인할 수 있습니다.</p>
             </div>
             <div class="catalog-summary-card">
               <strong>추천 탐색 흐름</strong>
@@ -656,12 +656,12 @@
               <select id="patternCategoryFilter"></select>
             </label>
             <label class="wide">
-              품명 검색
-              <input id="productSearch" type="search" placeholder="예: PH CK 612141M, 양변기, 세면대" />
+              AI 자연어 검색
+              <input id="productSearch" type="search" placeholder="예: 모자이크타일, 베이지 600각 유광 재고, 양변기, 세면대" />
             </label>
           </div>
           <div class="customer-list-header">
-            <strong>고객용 상품 리스트</strong>
+            <strong>직접찾기 상품 리스트</strong>
             <div class="product-pagination-toolbar">
               <span id="productListStatus">상품을 불러오는 중입니다.</span>
               <label>
@@ -684,7 +684,7 @@
             <h2>타일 AI 검색</h2>
           </div>
           <div class="detail-actions">
-            <button class="secondary-action" type="button" data-page-target="productsPage">기존 상품페이지</button>
+            <button class="secondary-action" type="button" data-page-target="productsPage">직접찾기</button>
             <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
           </div>
         </section>
@@ -765,12 +765,17 @@
               </select>
             </label>
             <div class="wide taxonomy-search-field">
-              <span>AI 검색</span>
+              <span>AI 통합검색</span>
               <div class="taxonomy-search-row">
-                <input id="taxonomySearch" type="search" placeholder="예: 중국 바닥 베이지 마블 유광 600x1200 재고" />
+                <input id="taxonomySearch" type="search" placeholder="예: 욕실 바닥 베이지 마블 600x1200 재고 또는 사진과 함께 검색" />
                 <button class="primary-action" id="taxonomySearchBtn" type="button">검색</button>
               </div>
               <div class="taxonomy-search-assist">
+                <div class="taxonomy-image-control">
+                  <input class="visually-hidden" id="taxonomyImageSearchFile" type="file" accept="image/*" />
+                  <button class="secondary-action" id="taxonomyImageSearchBtn" type="button">사진 업로드</button>
+                  <span id="taxonomyImageSearchStatus">사진 없이 AI검색 가능</span>
+                </div>
                 <div class="taxonomy-assist-control">
                   <span>규격</span>
                   <button class="secondary-action taxonomy-size-toggle" id="taxonomyAssistSizeBtn" type="button" aria-expanded="false" aria-controls="taxonomyAssistSizePanel">전체 규격</button>
@@ -785,7 +790,15 @@
                 </div>
                 <button class="secondary-action" id="taxonomyAssistClearBtn" type="button">옵션 초기화</button>
               </div>
+              <div class="tile-finder-preview taxonomy-image-preview hidden" id="taxonomyImagePreviewWrap">
+                <img id="taxonomyImagePreview" alt="업로드한 검색 이미지" />
+                <div>
+                  <strong>이미지 분석</strong>
+                  <div class="tile-finder-tags" id="taxonomyImageTags"></div>
+                </div>
+              </div>
               <div class="taxonomy-size-panel hidden" id="taxonomyAssistSizePanel"></div>
+              <div class="tile-finder-results taxonomy-image-results hidden" id="taxonomyImageResults"></div>
               <div class="taxonomy-intent-chips" id="taxonomyIntentChips" aria-live="polite"></div>
             </div>
           </div>
@@ -1050,7 +1063,7 @@
           <div class="cart-list cart-page-list" id="cartList"></div>
           <div class="cost-summary" id="costSummary"></div>
           <div class="customer-cart-actions">
-            <button class="secondary-action" type="button" data-page-target="productsPage">상품 더 담기</button>
+            <button class="secondary-action" type="button" data-page-target="taxonomyTestPage">상품 더 담기</button>
             <button class="primary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
             <button class="secondary-action" type="button" data-page-target="plannerPage">3D 시공 보기</button>
             <button class="secondary-action" type="button" data-page-target="proposalPage">프로 제안서</button>
@@ -1066,7 +1079,7 @@
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
-            <button class="primary-action" type="button" data-page-target="productsPage">상품 보러가기</button>
+            <button class="primary-action" type="button" data-page-target="taxonomyTestPage">상품 보러가기</button>
           </div>
         </section>
 
@@ -1134,6 +1147,7 @@
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="primary-action" type="button" data-page-target="taxonomyTestPage">AI검색</button>
             <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
           </div>
         </section>
