@@ -2629,12 +2629,17 @@ async function findSimilarTilesByImage(payload) {
     requestedFinish,
     searchMode
   };
-  const products = (await readProducts()).filter((product) => (
+  const baseProducts = (await readProducts()).filter((product) => (
     isTileFinderTileCandidate(product)
     && product.image
-    && Number(product.stockQty || 0) > 0
     && (searchMode === "global" || productMatchesTileFinderBase(product, analysis))
   ));
+  let products = baseProducts.filter((product) => Number(product.stockQty || 0) > 0);
+  const usedStockFallback = !products.length && baseProducts.length > 0;
+  if (usedStockFallback) {
+    products = baseProducts;
+    analysis.stockFallback = true;
+  }
   const scoredMatches = products
     .map((product) => scoreTileProduct(product, analysis))
     .filter((entry) => entry.score > 0);
@@ -2643,6 +2648,12 @@ async function findSimilarTilesByImage(payload) {
     score: 1,
     reasons: [searchMode === "global" ? "전체 DB 후보" : "사이즈/표면 조건 후보"]
   }));
+  if (usedStockFallback) {
+    rankedMatches = rankedMatches.map((entry) => ({
+      ...entry,
+      reasons: [...new Set([...(entry.reasons || []), "재고 확인 필요"])]
+    }));
+  }
   if (searchMode !== "global") {
     rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
   }
