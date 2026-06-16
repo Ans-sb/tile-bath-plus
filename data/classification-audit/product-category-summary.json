@@ -1,0 +1,30 @@
+{
+  "total": 8575,
+  "countsByType": {
+    "tile": 6186,
+    "accessory": 766,
+    "material": 655,
+    "sanitary": 522,
+    "faucet": 446
+  },
+  "countsByKind": {
+    "US": 1931,
+    "VG": 1808,
+    "HS": 1150,
+    "악세사리": 766,
+    "부자재": 655,
+    "GT": 500,
+    "수전 금구": 446,
+    "SG": 429,
+    "AJ": 368,
+    "세면기": 196,
+    "양변기": 157,
+    "위생도기": 116,
+    "비데": 24,
+    "소변기": 24,
+    "욕조": 5
+  },
+  "changed": 107,
+  "reviewNeeded": 484,
+  "reportDir": "C:\\Users\\asb82\\OneDrive\\문서\\타일앤바스플러스\\data\\classification-audit"
+}

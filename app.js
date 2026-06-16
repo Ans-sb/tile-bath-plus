@@ -1,10 +1,14 @@
-const TILE_KINDS = ["바닥 타일", "벽 타일", "부자재"];
+const TILE_KINDS = ["바닥 타일", "벽 타일", "타일"];
 const TILE_SIZES = ["600*600", "300*600", "600*1200", "300*300", "200*200", "100*300", "800*800", "400*800", "100*100", "150*600"];
-const SANITARY_KINDS = ["양변기", "비데", "소변기", "세면대", "수전 금구", "악세사리"];
+const SANITARY_KINDS = ["양변기", "비데", "소변기", "세면기", "욕조", "위생도기"];
+const FAUCET_KINDS = ["수전 금구", "세면수전", "샤워수전", "주방수전", "해바라기샤워"];
+const ACCESSORY_KINDS = ["악세사리", "욕실장", "거울", "수건걸이", "휴지걸이", "선반", "유가"];
 const MATERIAL_KINDS = ["부자재"];
 const PRODUCT_TYPE_LABELS = {
   tile: "타일",
   sanitary: "위생도기",
+  faucet: "수전금구",
+  accessory: "악세사리",
   material: "부자재"
 };
 const PLANNER_THREE_URL = "https://unpkg.com/three@0.164.1/build/three.module.js";
@@ -841,7 +845,11 @@ function getKindDisplayRank(product) {
     ? TILE_KINDS
     : type === "sanitary"
       ? SANITARY_KINDS
-      : MATERIAL_KINDS;
+      : type === "faucet"
+        ? FAUCET_KINDS
+        : type === "accessory"
+          ? ACCESSORY_KINDS
+          : MATERIAL_KINDS;
   const index = kinds.indexOf(kind);
   return index >= 0 ? index : kinds.length;
 }
@@ -861,16 +869,30 @@ function setupDbForm() {
     finishSelect.disabled = false;
     optionInput.placeholder = "타일 옵션 메모";
   } else {
-    sizeInput.placeholder = type === "sanitary" ? "예: 원피스, 탑볼, 600mm" : "예: 대형타일 겸용";
+    sizeInput.placeholder = type === "sanitary"
+      ? "예: 원피스, 탑볼, 600mm"
+      : type === "faucet"
+        ? "예: 원홀, 샤워, 주방"
+        : type === "accessory"
+          ? "예: 600mm, 코너형, 매립형"
+          : "예: 20kg, 25kg, 대형타일 겸용";
     finishSelect.value = "";
     finishSelect.disabled = true;
-    optionInput.placeholder = type === "sanitary" ? "예: 절수형, 치마형, 크롬, 무광 니켈" : "부자재 옵션";
+    optionInput.placeholder = type === "sanitary"
+      ? "예: 절수형, 치마형"
+      : type === "faucet"
+        ? "예: 크롬, 무광 니켈, 샤워겸용"
+        : type === "accessory"
+          ? "예: 매립형, 코너형, 블랙"
+          : "부자재 옵션";
   }
 }
 
 function getKinds(type) {
   if (type === "tile") return TILE_KINDS;
   if (type === "sanitary") return SANITARY_KINDS;
+  if (type === "faucet") return FAUCET_KINDS;
+  if (type === "accessory") return ACCESSORY_KINDS;
   if (type === "material") return MATERIAL_KINDS;
   return [...new Set(products.map((product) => product.kind))];
 }

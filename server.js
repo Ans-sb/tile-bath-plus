@@ -785,16 +785,23 @@ function getPublicProductGroup(product) {
   const productType = String(product.productType || "").trim();
   const internalCodes = new Set(["AJ", "VG", "US", "SG", "GT", "HS"]);
   const semanticKind = String(product.kind || "").trim();
-  if ((productType === "sanitary" || productType === "material") && semanticKind && !internalCodes.has(semanticKind.toUpperCase())) {
+  if (["sanitary", "faucet", "accessory", "material"].includes(productType) && semanticKind && !internalCodes.has(semanticKind.toUpperCase())) {
     return semanticKind;
   }
 
+  const productTypeLabels = {
+    tile: "타일",
+    sanitary: "위생도기",
+    faucet: "수전금구",
+    accessory: "악세사리",
+    material: "부자재"
+  };
   const candidates = [
     product.option,
     product.sourceCategoryName,
     product.source_category_name,
     product.material,
-    productType === "tile" ? "타일" : productType
+    productTypeLabels[productType] || productType
   ];
   for (const candidate of candidates) {
     const value = String(candidate || "").trim();

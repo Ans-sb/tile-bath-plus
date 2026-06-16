@@ -1,0 +1,19 @@
+{
+  "backup": "data/backups/products-before-category-classification-20260617-001031.json",
+  "total": 8575,
+  "changed": 1572,
+  "byAfterType": {
+    "accessory": 766,
+    "faucet": 446,
+    "sanitary": 162,
+    "tile": 130,
+    "material": 68
+  },
+  "countsByType": {
+    "tile": 6186,
+    "accessory": 766,
+    "material": 655,
+    "sanitary": 522,
+    "faucet": 446
+  }
+}
