@@ -803,8 +803,21 @@
             </div>
           </div>
           <div class="customer-list-header">
-            <strong>검색 결과</strong>
-            <span id="taxonomyStatus">상품을 준비하는 중입니다.</span>
+            <div>
+              <strong>검색 결과</strong>
+              <span id="taxonomyStatus">상품을 준비하는 중입니다.</span>
+            </div>
+            <div class="taxonomy-sort-toolbar">
+              <label for="taxonomySortMode">
+                정렬
+                <select id="taxonomySortMode">
+                  <option value="match">일치도 높은순</option>
+                  <option value="priceAsc">금액 낮은순</option>
+                  <option value="priceDesc">금액 높은순</option>
+                  <option value="stockDesc">재고 많은순</option>
+                </select>
+              </label>
+            </div>
           </div>
           <div class="taxonomy-collection-list" id="taxonomyCollectionList"></div>
           <div class="product-pagination" id="taxonomyPagination"></div>

@@ -113,6 +113,7 @@ let taxonomyLastSearchRaw = "";
 let taxonomyDisabledIntentKeys = new Set();
 let taxonomyResultFacetFilters = {};
 let taxonomyCurrentPage = 1;
+let taxonomySortMode = "match";
 const TAXONOMY_PAGE_SIZE = 10;
 let tileFinderImageDataUrl = "";
 let tileFinderImageFileName = "";
@@ -295,6 +296,11 @@ function bindEvents() {
       syncTaxonomyFilters();
       renderTaxonomyTestPage();
     });
+  });
+  document.querySelector("#taxonomySortMode")?.addEventListener("change", (event) => {
+    taxonomySortMode = event.target.value || "match";
+    taxonomyCurrentPage = 1;
+    renderTaxonomyTestPage();
   });
   document.querySelector("#taxonomySearchBtn")?.addEventListener("click", runTaxonomySearch);
   document.querySelector("#taxonomySearch")?.addEventListener("keydown", (event) => {
@@ -1852,7 +1858,7 @@ function renderTaxonomyTestPage() {
   const searchIntent = getCurrentTaxonomySearchIntent();
   const baseFiltered = filterTaxonomyProducts(searchIntent, { skipResultFacets: true });
   const filtered = applyTaxonomyResultFacetFilters(baseFiltered);
-  const collections = groupTaxonomyCollections(filtered);
+  const collections = sortTaxonomyCollections(groupTaxonomyCollections(filtered));
   renderTaxonomyResultFacets(searchIntent, baseFiltered, filtered);
   renderTaxonomyMetrics(filtered, collections);
   renderTaxonomyAxisBar(filtered);
@@ -1867,9 +1873,10 @@ function renderTaxonomyTestPage() {
 
   const status = document.querySelector("#taxonomyStatus");
   if (status) {
+    const sortLabel = getTaxonomySortLabel();
     status.textContent = getTaxonomyAudienceMode() === "admin"
-      ? `${number(filtered.length)}개 SKU · ${number(collections.length)}개 예상 컬렉션 · ${number(taxonomyCurrentPage)}/${number(totalPages)}페이지 · 페이지당 ${number(TAXONOMY_PAGE_SIZE)}개`
-      : `${number(collections.length)}개 상품군 · ${number(taxonomyCurrentPage)}/${number(totalPages)}페이지`;
+      ? `${number(filtered.length)}개 SKU · ${number(collections.length)}개 예상 컬렉션 · ${number(taxonomyCurrentPage)}/${number(totalPages)}페이지 · ${sortLabel}`
+      : `${number(collections.length)}개 상품군 · ${number(taxonomyCurrentPage)}/${number(totalPages)}페이지 · ${sortLabel}`;
   }
   return { filtered, baseFiltered, collections, searchIntent };
 }
@@ -2608,6 +2615,8 @@ function groupTaxonomyCollections(items) {
         functions: [],
         stockQty: 0,
         searchScore: 0,
+        minPrice: Number.POSITIVE_INFINITY,
+        maxPrice: 0,
         origin: item.originRegion,
         material: item.materialCategory,
         color: item.mainColor,
@@ -2625,6 +2634,11 @@ function groupTaxonomyCollections(items) {
     collection.functions.push(...item.functionCategories);
     collection.stockQty += Number(item.product.stockQty || 0);
     collection.searchScore = Math.max(collection.searchScore, Number(item.taxonomySearchScore || 0));
+    const productPrice = getTaxonomySortPrice(item.product);
+    if (productPrice > 0) {
+      collection.minPrice = Math.min(collection.minPrice, productPrice);
+      collection.maxPrice = Math.max(collection.maxPrice, productPrice);
+    }
     if (!collection.origin && item.originRegion) collection.origin = item.originRegion;
     if (!collection.material && item.materialCategory) collection.material = item.materialCategory;
     if (!collection.color && item.mainColor) collection.color = item.mainColor;
@@ -2633,23 +2647,81 @@ function groupTaxonomyCollections(items) {
     if (!collection.priceRange && item.priceRange) collection.priceRange = item.priceRange;
   }
   return [...map.values()]
-    .map((collection) => ({
-      ...collection,
-      sizes: unique(collection.sizes.filter(Boolean)),
-      styles: unique(collection.styles.filter(Boolean)),
-      spaces: unique(collection.spaces.filter(Boolean)),
-      applications: unique(collection.applications.filter(Boolean)),
-      functions: unique(collection.functions.filter(Boolean))
-    }))
-    .sort((a, b) => {
-      const score = Number(b.searchScore || 0) - Number(a.searchScore || 0);
-      if (score) return score;
-      const stock = Number(b.stockQty > 0) - Number(a.stockQty > 0);
-      if (stock) return stock;
-      const sku = b.products.length - a.products.length;
-      if (sku) return sku;
-      return a.title.localeCompare(b.title, "ko");
+    .map((collection) => {
+      const minPrice = Number.isFinite(collection.minPrice) ? collection.minPrice : 0;
+      const maxPrice = Number(collection.maxPrice || 0);
+      return {
+        ...collection,
+        minPrice,
+        maxPrice,
+        sortPrice: minPrice || maxPrice || 0,
+        sizes: unique(collection.sizes.filter(Boolean)),
+        styles: unique(collection.styles.filter(Boolean)),
+        spaces: unique(collection.spaces.filter(Boolean)),
+        applications: unique(collection.applications.filter(Boolean)),
+        functions: unique(collection.functions.filter(Boolean))
+      };
     });
+}
+
+function getTaxonomySortMode() {
+  return document.querySelector("#taxonomySortMode")?.value || taxonomySortMode || "match";
+}
+
+function getTaxonomySortLabel() {
+  return {
+    match: "일치도 높은순",
+    priceAsc: "금액 낮은순",
+    priceDesc: "금액 높은순",
+    stockDesc: "재고 많은순"
+  }[getTaxonomySortMode()] || "일치도 높은순";
+}
+
+function getTaxonomySortPrice(product) {
+  return Number(
+    product?.priceSortRank
+    || product?.retailPrice
+    || product?.wholesalePrice
+    || product?.gradeAPrice
+    || product?.gradeBPrice
+    || product?.gradeCPrice
+    || product?.costPrice
+    || 0
+  );
+}
+
+function sortTaxonomyCollections(collections) {
+  const mode = getTaxonomySortMode();
+  return [...collections].sort((a, b) => {
+    if (mode === "priceAsc") return compareTaxonomyCollectionPrice(a, b, "asc") || compareTaxonomyCollectionsByRelevance(a, b);
+    if (mode === "priceDesc") return compareTaxonomyCollectionPrice(a, b, "desc") || compareTaxonomyCollectionsByRelevance(a, b);
+    if (mode === "stockDesc") return compareTaxonomyCollectionStock(a, b) || compareTaxonomyCollectionsByRelevance(a, b);
+    return compareTaxonomyCollectionsByRelevance(a, b);
+  });
+}
+
+function compareTaxonomyCollectionPrice(a, b, direction) {
+  const aPrice = Number(a.sortPrice || 0);
+  const bPrice = Number(b.sortPrice || 0);
+  const aMissing = aPrice <= 0;
+  const bMissing = bPrice <= 0;
+  if (aMissing !== bMissing) return aMissing ? 1 : -1;
+  if (aMissing && bMissing) return 0;
+  return direction === "asc" ? aPrice - bPrice : bPrice - aPrice;
+}
+
+function compareTaxonomyCollectionStock(a, b) {
+  return Number(b.stockQty || 0) - Number(a.stockQty || 0);
+}
+
+function compareTaxonomyCollectionsByRelevance(a, b) {
+  const score = Number(b.searchScore || 0) - Number(a.searchScore || 0);
+  if (score) return score;
+  const stock = Number(b.stockQty > 0) - Number(a.stockQty > 0);
+  if (stock) return stock;
+  const sku = b.products.length - a.products.length;
+  if (sku) return sku;
+  return a.title.localeCompare(b.title, "ko");
 }
 
 function normalizeProductForTaxonomy(product) {
@@ -3927,6 +3999,7 @@ function mapPublicProductForClient(product) {
     maker: product.maker,
     unit: product.unit,
     option: product.option,
+    priceSortRank: product.priceSortRank,
     retailPrice: product.retailPrice,
     wholesalePrice: product.wholesalePrice,
     gradeAPrice: product.gradeAPrice,

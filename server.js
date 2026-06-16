@@ -740,6 +740,7 @@ function mapPublicProduct(product) {
     maker: "",
     unit: String(product.unit || "").trim(),
     option: String(product.option || "").trim(),
+    priceSortRank: getPublicPriceSortRank(product),
     stockQty: Number(product.stockQty) || 0,
     stockText: String(product.stockText || "").trim(),
     image: String(product.image || "").trim(),
@@ -750,6 +751,22 @@ function mapPublicProduct(product) {
     fluorescentImage: String(product.fluorescentImage || "").trim(),
     sceneImage: String(product.sceneImage || "").trim()
   };
+}
+
+function getPublicPriceSortRank(product) {
+  const price = Number(
+    product?.retailPrice
+    || product?.wholesalePrice
+    || product?.gradeAPrice
+    || product?.gradeBPrice
+    || product?.gradeCPrice
+    || product?.costPrice
+    || 0
+  );
+  if (!price) return 0;
+  const bands = [5000, 10000, 15000, 20000, 30000, 50000, 80000, 120000, 200000, 500000, 1000000];
+  const index = bands.findIndex((limit) => price <= limit);
+  return index >= 0 ? index + 1 : bands.length + 1;
 }
 
 function mapMemberProduct(product) {
