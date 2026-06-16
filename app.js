@@ -115,6 +115,7 @@ let taxonomyResultFacetFilters = {};
 let taxonomyCurrentPage = 1;
 let taxonomySortMode = "match";
 const TAXONOMY_PAGE_SIZE = 10;
+const VISIBLE_TAXONOMY_RESULT_FACET_KEYS = new Set(["mainColor", "finishGroup", "sizeLabel", "styleCategories"]);
 let tileFinderImageDataUrl = "";
 let tileFinderImageFileName = "";
 let taxonomyImageSearchDataUrl = "";
@@ -2068,7 +2069,7 @@ function recordTaxonomySearchLog(intent, resultCount) {
 function applyTaxonomyResultFacetFilters(items) {
   const activeEntries = Object.entries(taxonomyResultFacetFilters)
     .map(([key, values]) => [key, Array.isArray(values) ? values : []])
-    .filter(([, values]) => values.length);
+    .filter(([key, values]) => values.length && VISIBLE_TAXONOMY_RESULT_FACET_KEYS.has(key));
   if (!activeEntries.length) return items;
   return items.filter((item) => activeEntries.every(([key, selectedValues]) => {
     const itemValues = getTaxonomyFacetValues(item, key);
@@ -2433,16 +2434,20 @@ function renderTaxonomyResultFacets(intent, baseFiltered, filtered) {
   const wrap = document.querySelector("#taxonomyIntentChips");
   if (!wrap) return;
   if (!intent?.active) {
-    wrap.innerHTML = `<span><strong>검색 대기</strong> 먼저 자연어로 검색하면 결과 안에서 색상, 마감, 원산지, 두께 필터가 나타납니다.</span>`;
+    wrap.innerHTML = `<span><strong>검색 대기</strong> 먼저 자연어로 검색하면 결과 안에서 색상, 마감, 규격, 디자인 필터가 나타납니다.</span>`;
     return;
   }
   const facetGroups = buildTaxonomyResultFacetGroups(baseFiltered);
-  const activeCount = Object.values(taxonomyResultFacetFilters).reduce((sum, values) => sum + (Array.isArray(values) ? values.length : 0), 0);
+  const visibleFacetGroups = getVisibleTaxonomyResultFacetGroups(facetGroups);
+  const visibleFacetKeys = new Set(visibleFacetGroups.map((group) => group.key));
+  const activeCount = Object.entries(taxonomyResultFacetFilters)
+    .filter(([key]) => visibleFacetKeys.has(key))
+    .reduce((sum, [, values]) => sum + (Array.isArray(values) ? values.length : 0), 0);
   const reset = activeCount
     ? `<button class="taxonomy-intent-reset" type="button" data-taxonomy-reset-facets>결과 필터 초기화</button>`
     : "";
-  wrap.innerHTML = facetGroups.length
-    ? `<span class="taxonomy-intent-help"><strong>결과 필터</strong>${number(baseFiltered.length)}개 검색 결과 안에서 필요한 값만 선택하세요. 현재 ${number(filtered.length)}개 표시 중입니다.</span>${reset}${facetGroups.map(renderTaxonomyFacetGroup).join("")}`
+  wrap.innerHTML = visibleFacetGroups.length
+    ? `<span class="taxonomy-intent-help"><strong>결과 필터</strong>${number(baseFiltered.length)}개 검색 결과 안에서 색상, 마감, 규격, 디자인만 좁혀보세요. 현재 ${number(filtered.length)}개 표시 중입니다.</span>${reset}${visibleFacetGroups.map(renderTaxonomyFacetGroup).join("")}`
     : `<span><strong>결과 필터 없음</strong>${number(filtered.length)}개 후보를 점수순으로 정렬했습니다.</span>`;
 }
 
@@ -2452,17 +2457,17 @@ function makeIntentChipRows(label, values) {
 
 function buildTaxonomyResultFacetGroups(items) {
   const configs = [
-    { key: "mainColor", label: "색상", limit: 12 },
-    { key: "finishGroup", label: "마감", limit: 4 },
-    { key: "finishDetail", label: "세부 마감", limit: 10 },
-    { key: "originRegion", label: "원산지", limit: 10 },
-    { key: "thickness", label: "두께", limit: 10 },
-    { key: "sizeLabel", label: "규격", limit: 12 },
-    { key: "styleCategories", label: "디자인", limit: 10 },
-    { key: "applicationCategories", label: "제품군", limit: 10 },
-    { key: "materialCategory", label: "소재", limit: 10 },
-    { key: "functionCategories", label: "특수", limit: 12 },
-    { key: "stockStatus", label: "재고", limit: 4 }
+    { key: "mainColor", label: "색상", limit: 12, visibleInResultFilters: true },
+    { key: "finishGroup", label: "마감", limit: 4, visibleInResultFilters: true },
+    { key: "sizeLabel", label: "규격", limit: 12, visibleInResultFilters: true },
+    { key: "styleCategories", label: "디자인", limit: 10, visibleInResultFilters: true },
+    { key: "finishDetail", label: "세부 마감", limit: 10, visibleInResultFilters: false },
+    { key: "originRegion", label: "원산지", limit: 10, visibleInResultFilters: false },
+    { key: "thickness", label: "두께", limit: 10, visibleInResultFilters: false },
+    { key: "applicationCategories", label: "제품군", limit: 10, visibleInResultFilters: false },
+    { key: "materialCategory", label: "소재", limit: 10, visibleInResultFilters: false },
+    { key: "functionCategories", label: "특수", limit: 12, visibleInResultFilters: false },
+    { key: "stockStatus", label: "재고", limit: 4, visibleInResultFilters: false }
   ];
   return configs.map((config) => {
     const counts = new Map();
@@ -2479,6 +2484,10 @@ function buildTaxonomyResultFacetGroups(items) {
       .slice(0, config.limit);
     return { ...config, values };
   }).filter((group) => group.values.length);
+}
+
+function getVisibleTaxonomyResultFacetGroups(groups) {
+  return groups.filter((group) => group.visibleInResultFilters && VISIBLE_TAXONOMY_RESULT_FACET_KEYS.has(group.key));
 }
 
 function renderTaxonomyFacetGroup(group) {
