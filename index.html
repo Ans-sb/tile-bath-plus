@@ -595,6 +595,7 @@
                   타일 사이즈
                   <select id="tileFinderSize">
                     <option value="">사이즈 선택</option>
+                    <option value="__unknown__">사이즈 모름</option>
                     <option value="200*200">200*200</option>
                     <option value="300*300">300*300</option>
                     <option value="300*600">300*600</option>
@@ -622,7 +623,7 @@
               <input class="visually-hidden" id="tileFinderFile" type="file" accept="image/*" />
               <button class="primary-action" id="tileFinderBtn" type="button">사진 업로드</button>
               <button class="secondary-action" id="tileFinderSearchBtn" type="button">검색</button>
-              <span id="tileFinderStatus">사진을 올린 뒤 타일 사이즈와 표면을 선택하고 검색하세요.</span>
+              <span id="tileFinderStatus">사진을 올린 뒤 타일 사이즈 또는 사이즈 모름과 표면을 선택하고 검색하세요.</span>
             </div>
             <div class="tile-finder-preview hidden" id="tileFinderPreviewWrap">
               <img id="tileFinderPreview" alt="업로드한 타일 이미지" />
@@ -633,6 +634,12 @@
             </div>
             <div class="tile-finder-results hidden" id="tileFinderResults"></div>
           </section>
+          <select class="visually-hidden" id="kindFilter" aria-hidden="true" tabindex="-1">
+            <option value="all">전체</option>
+          </select>
+          <select class="visually-hidden" id="tileFeatureFilter" aria-hidden="true" tabindex="-1">
+            <option value="all">전체</option>
+          </select>
           <div class="filter-grid filter-grid-catalog">
             <label>
               대분류
@@ -646,28 +653,24 @@
               </select>
             </label>
             <label>
-              브랜드
-              <select id="kindFilter"></select>
-            </label>
-            <label>
               종류
               <select id="optionFilter"></select>
             </label>
             <label>
-              타일 분류
-              <select id="tileFeatureFilter">
-                <option value="all">전체</option>
-                <option value="pattern">패턴</option>
-                <option value="special">특수타일</option>
-              </select>
+              타일분류
+              <select id="patternCategoryFilter"></select>
             </label>
             <label>
               규격
               <select id="sizeFilter"></select>
             </label>
             <label>
-              패턴 카테고리
-              <select id="patternCategoryFilter"></select>
+              마감
+              <select id="finishFilter"></select>
+            </label>
+            <label>
+              색상
+              <select id="colorFilter"></select>
             </label>
             <label class="wide">
               AI 자연어 검색
@@ -1817,6 +1820,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260612-image-search-paging2"></script>
+    <script src="app.js?v=20260626-direct-kind-map1"></script>
   </body>
 </html>

@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
     "skia-canvas": "3.0.8"
   },
   "scripts": {
@@ -10,8 +12,11 @@
     "code:products": "node scripts/apply-management-codes.mjs",
     "taxonomy:normalize": "node scripts/build-normalized-taxonomy.mjs",
     "finish:update": "node scripts/update-missing-finishes-from-source.mjs",
+    "db:enrich": "node scripts/enrich-missing-product-fields.mjs",
     "taxonomy:simulate": "node scripts/simulate-taxonomy-search.mjs",
+    "search:simulate": "node scripts/simulate-tile-search-engine.mjs",
+    "stock:refresh": "node scripts/daily-stock-refresh.mjs",
     "audit:architecture": "node scripts/audit-platform-architecture.mjs",
-    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node --check scripts/apply-management-codes.mjs && node --check scripts/import-tile114-verygood.mjs && node --check scripts/import-sgcera.mjs && node --check scripts/import-hwashin.mjs && node --check scripts/import-goldtile.mjs && node --check scripts/build-normalized-taxonomy.mjs && node --check scripts/update-missing-finishes-from-source.mjs && node --check scripts/audit-platform-architecture.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""
+    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/prepare-runtime.cjs && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node --check scripts/apply-management-codes.mjs && node --check scripts/import-tile114-verygood.mjs && node --check scripts/reconcile-vg-products-from-source.mjs && node --check scripts/audit-vg-accuracy-from-source.mjs && node --check scripts/apply-vg-accuracy-audit-corrections.mjs && node --check scripts/import-sgcera.mjs && node --check scripts/import-hwashin.mjs && node --check scripts/import-goldtile.mjs && node --check scripts/daily-stock-refresh.mjs && node --check scripts/build-normalized-taxonomy.mjs && node --check scripts/update-missing-finishes-from-source.mjs && node --check scripts/enrich-missing-product-fields.mjs && node --check scripts/tile-search-engine.mjs && node --check scripts/simulate-tile-search-engine.mjs && node --check scripts/audit-platform-architecture.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""
   }
 }

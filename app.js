@@ -1,4 +1,27 @@
 const TILE_KINDS = ["바닥 타일", "벽 타일", "타일"];
+const TILE_DIRECT_KIND_OPTIONS = [
+  "중국바닥타일",
+  "국산바닥타일",
+  "유럽바닥타일",
+  "아시아바닥타일",
+  "중국벽",
+  "국산벽",
+  "유럽벽",
+  "아시아벽",
+  "계단타일",
+  "스톤",
+  "벽돌",
+  "모자이크",
+  "복합대리석",
+  "기타수입벽",
+  "기타수입바닥",
+  "빅슬랩",
+  "석재타일",
+  "외장타일",
+  "쪽타일",
+  "우드타일"
+];
+const TILE_DIRECT_KIND_OPTION_SET = new Set(TILE_DIRECT_KIND_OPTIONS);
 const TILE_SIZES = ["600*600", "300*600", "600*1200", "300*300", "200*200", "100*300", "800*800", "400*800", "100*100", "150*600"];
 const SANITARY_KINDS = ["양변기", "비데", "소변기", "세면기", "욕조", "위생도기"];
 const FAUCET_KINDS = ["수전 금구", "세면수전", "샤워수전", "주방수전", "해바라기샤워"];
@@ -88,6 +111,8 @@ const DEFAULT_APPROVAL_RULES = {
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
 const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "tile114TestPage"]);
 const IMAGE_SEARCH_RESULTS_PAGE_SIZE = 20;
+const UNKNOWN_TILE_SIZE_VALUE = "__unknown__";
+const STOCK_INQUIRY_THRESHOLD_QTY = 30;
 
 const money = new Intl.NumberFormat("ko-KR", {
   style: "currency",
@@ -282,9 +307,11 @@ function bindEvents() {
     });
   });
 
-  ["#mainCategoryFilter", "#kindFilter", "#sizeFilter", "#optionFilter", "#tileFeatureFilter", "#patternCategoryFilter", "#productSearch"].forEach((selector) => {
-    document.querySelector(selector).addEventListener("input", () => {
-      if (selector === "#mainCategoryFilter" || selector === "#kindFilter") syncProductFilters();
+  ["#mainCategoryFilter", "#sizeFilter", "#optionFilter", "#patternCategoryFilter", "#finishFilter", "#colorFilter", "#productSearch"].forEach((selector) => {
+    const control = document.querySelector(selector);
+    if (!control) return;
+    control.addEventListener("input", () => {
+      if (selector === "#mainCategoryFilter") syncProductFilters({ resetSubFilters: true });
       productCurrentPage = 1;
       renderProducts();
     });
@@ -897,40 +924,297 @@ function getKinds(type) {
   return [...new Set(products.map((product) => product.kind))];
 }
 
+function fillProductFilterSelect(select, values, previousValue = "all", allLabel = "전체", config = {}) {
+  if (!select) return;
+  const normalizedValues = (values || []).map(normalizeDirectProductFilterValue).filter(Boolean);
+  const cleanValues = config.preserveOrder ? unique(normalizedValues) : sortDirectProductFilterValues(normalizedValues);
+  select.innerHTML = `<option value="all">${escapeHtml(allLabel)}</option>${cleanValues.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
+  select.value = cleanValues.includes(previousValue) ? previousValue : "all";
+}
+
+function sortDirectProductFilterValues(values) {
+  return sortTaxonomyValues(unique((values || []).map(normalizeDirectProductFilterValue).filter(Boolean)));
+}
+
+function normalizeDirectProductFilterValue(value) {
+  let text = String(value || "").trim();
+  if (!text || /미확인/.test(text)) return "";
+  text = text
+    .replace(/\s+/g, " ")
+    .replace(/\s*판매단위[\s\S]*$/i, "")
+    .replace(/\s*ea\/box[\s\S]*$/i, "")
+    .replace(/\s*pcs\/box[\s\S]*$/i, "")
+    .replace(/계열$/g, "")
+    .trim();
+  if (!text || /미확인/.test(text)) return "";
+  if (text === "아이보리") return "아이보리 / 크림";
+  if (text === "다크그레이") return "차콜 / 다크그레이";
+  if (text === "멀티") return "멀티컬러";
+  if (text === "테라코타" || text === "오렌지") return "테라코타 / 오렌지";
+  return text;
+}
+
+function getProductDirectKindValues(product) {
+  if (!product) return [];
+  if (product.productType !== "tile") {
+    return unique([product.option, product.kind].map(normalizeDirectProductFilterValue).filter(Boolean));
+  }
+
+  const item = getNormalizedTaxonomyProductForProduct(product);
+  const source = getDirectKindSource(product, item);
+  const compact = normalizeDirectKindSource(source);
+  const sizeInfo = parseDirectKindSize(product.size || product.name || source);
+  const region = getDirectTileRegion(product, item, compact);
+  const useGroup = getDirectTileUseGroup(product, item, compact, sizeInfo);
+  const values = [];
+  const add = (value) => {
+    if (TILE_DIRECT_KIND_OPTION_SET.has(value) && !values.includes(value)) values.push(value);
+  };
+
+  const isMosaic = /모자이크|모자익|mosaic|정각모자이크|직각모자이크|육각모자이크|팔각모자이크|원형모자이크|랜턴모자이크|다이아모자이크|페니|penny|hexagon|헥사곤/.test(compact)
+    || item?.materialCategory === "모자이크";
+  const isBigSlab = /빅슬랩|빅슬립|대형슬랩|슬랩|bigslab/.test(compact);
+  const isCompositeMarble = /복합대리|인조대리|엔지니어드스톤|engineeredstone/.test(compact);
+  const isStoneTile = /석재타일|석재|석재타일/.test(compact) || item?.materialCategory === "석재 타일";
+  const isBrick = /벽돌|고벽돌|브릭|brick/.test(compact);
+  const isWood = /우드|wood|쪽마루|오크|월넛|티크|나뭇결/.test(compact);
+  const isJjokTile = /쪽타일/.test(compact);
+  const isExterior = /외장|외부|외벽|exterior|outdoor/.test(compact);
+  const isStair = /계단/.test(compact);
+  const isStoneLook = /스톤|stone|트라버틴|트래버틴|travertine|현무|산호|오로슬레|슬레이트|알프스톤/.test(compact)
+    || (Array.isArray(item?.styleCategories) && item.styleCategories.some((value) => /스톤|트래버틴/.test(String(value || ""))));
+
+  if (useGroup) add(getDirectRegionalTileKind(region, useGroup, compact));
+  if (isStair) add("계단타일");
+  if (isMosaic) add("모자이크");
+  if (isCompositeMarble) add("복합대리석");
+  if (isStoneTile) add("석재타일");
+  if (isBrick) add("벽돌");
+  if (isBigSlab) add("빅슬랩");
+  if (isExterior) add("외장타일");
+  if (isJjokTile) add("쪽타일");
+  if (isWood) add("우드타일");
+  if (isStoneLook && !isStoneTile && !isCompositeMarble) add("스톤");
+
+  if (!values.length) {
+    const fallbackUse = useGroup || (sizeInfo.width >= 600 && sizeInfo.height >= 600 ? "floor" : "wall");
+    add(getDirectRegionalTileKind(region, fallbackUse, compact));
+  }
+  return values;
+}
+
+function getDirectKindSource(product, item = null) {
+  return [
+    product?.option,
+    product?.sourceCategoryName,
+    product?.name,
+    product?.modelName,
+    product?.size,
+    product?.material,
+    product?.patternCategory,
+    product?.finish,
+    product?.surface,
+    product?.color,
+    product?.features,
+    product?.countryOfOrigin,
+    item?.originRegion,
+    item?.originCountry,
+    item?.materialCategory,
+    item?.patternDetail,
+    ...(Array.isArray(item?.applicationCategories) ? item.applicationCategories : []),
+    ...(Array.isArray(item?.styleCategories) ? item.styleCategories : []),
+    ...(Array.isArray(item?.functionCategories) ? item.functionCategories : [])
+  ].filter(Boolean).join(" ");
+}
+
+function normalizeDirectKindSource(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[×＊]/g, "*")
+    .replace(/포쉐린/g, "포세린")
+    .replace(/트라버틴/g, "트래버틴")
+    .replace(/모자익/g, "모자이크")
+    .replace(/[\s\-_/.,·()\[\]{}]+/g, "");
+}
+
+function parseDirectKindSize(value) {
+  const normalized = String(value || "").replace(/[×xX＊]/g, "*");
+  const match = normalized.match(/(\d{2,4})\s*\*\s*(\d{2,4})/);
+  if (!match) return { width: 0, height: 0 };
+  const width = Number(match[1]) || 0;
+  const height = Number(match[2]) || 0;
+  return { width, height };
+}
+
+function getDirectTileRegion(product, item, compactSource) {
+  const source = normalizeDirectKindSource([
+    product?.countryOfOrigin,
+    item?.originRegion,
+    item?.originCountry,
+    product?.option,
+    product?.sourceCategoryName,
+    product?.name
+  ].filter(Boolean).join(" "));
+  const text = source || compactSource;
+  if (/중국|china|cn/.test(text)) return "중국";
+  if (/국산|한국|대한민국|korea|kr/.test(text)) return "국산";
+  if (/유럽|이태리|이탈리아|스페인|italy|spain|europe/.test(text)) return "유럽";
+  if (/아시아|인도|베트남|말레이|태국|asia|india|vietnam|indonesia/.test(text)) return "아시아";
+  return "";
+}
+
+function getDirectTileUseGroup(product, item, compactSource, sizeInfo) {
+  const material = normalizeDirectKindSource(product?.material || item?.materialCategory || "");
+  const wallExplicit = /벽타일|벽용|수입벽|중국벽|국산벽|유럽벽|아시아벽|이누스벽|태영벽|대동벽|케이티벽|walltile/.test(compactSource);
+  const floorExplicit = /바닥타일|바닥용|수입바닥|중국바닥|국산바닥|유럽바닥|아시아바닥|이누스바닥|태영바닥|대동바닥|floor|폴리싱/.test(compactSource);
+  if (wallExplicit && !floorExplicit) return "wall";
+  if (floorExplicit && !wallExplicit) return "floor";
+  if (/도기질/.test(material)) return "wall";
+  if (/자기질|포세린|폴리싱|석재/.test(material)) return "floor";
+
+  const width = Number(sizeInfo?.width || 0);
+  const height = Number(sizeInfo?.height || 0);
+  const min = Math.min(width, height);
+  const max = Math.max(width, height);
+  if (min >= 600 && max >= 600) return "floor";
+  if ((min === 300 && max === 600) || (min === 250 && max === 400) || (min === 200 && max === 400) || (min === 150 && max === 400) || (min === 100 && max === 300) || (min === 75 && max === 300)) return "wall";
+  if ((min === 300 && max === 300) || (min === 200 && max === 200)) return "floor";
+  return "";
+}
+
+function getDirectRegionalTileKind(region, useGroup, compactSource = "") {
+  const normalizedUse = useGroup === "wall" ? "wall" : "floor";
+  if (normalizedUse === "wall") {
+    if (region === "중국") return "중국벽";
+    if (region === "국산") return "국산벽";
+    if (region === "유럽") return "유럽벽";
+    if (region === "아시아") return "아시아벽";
+    return "기타수입벽";
+  }
+  if (region === "중국") return "중국바닥타일";
+  if (region === "국산") return "국산바닥타일";
+  if (region === "유럽") return "유럽바닥타일";
+  if (region === "아시아") return "아시아바닥타일";
+  if (/수입벽/.test(compactSource)) return "기타수입벽";
+  return "기타수입바닥";
+}
+
+function getProductDirectTileCategories(product) {
+  if (!product || product.productType !== "tile") return [];
+  const item = getNormalizedTaxonomyProductForProduct(product);
+  const specialCategories = [];
+  const normalizedText = normalizeSearchText([
+    ...(Array.isArray(item?.functionCategories) ? item.functionCategories : []),
+    ...(Array.isArray(item?.applicationCategories) ? item.applicationCategories : []),
+    item?.patternDetail,
+    product.name,
+    product.option,
+    product.sourceCategoryName
+  ].filter(Boolean).join(" "));
+  if (normalizedText.includes("모자이크")) specialCategories.push("모자이크");
+  if (/대형슬랩|빅슬랩|슬랩/.test(normalizedText)) specialCategories.push("대형슬랩");
+  if (/외부용|외장|20t/.test(normalizedText)) specialCategories.push("외부용");
+  if (/계단/.test(normalizedText)) specialCategories.push("계단");
+  return unique([
+    ...(Array.isArray(item?.styleCategories) ? item.styleCategories : []),
+    ...specialCategories
+  ].map(normalizeDirectProductFilterValue).filter(Boolean));
+}
+
+function getProductDirectFinishValues(product) {
+  if (!product) return [];
+  if (product.productType === "tile") {
+    const item = getNormalizedTaxonomyProductForProduct(product);
+    const direct = normalizeDirectTaxonomySurface(product.finish || product.surface || "");
+    return unique([item?.finishGroup, direct].map(normalizeDirectProductFilterValue).filter(Boolean));
+  }
+  return unique([product.finish, product.surface].map(normalizeDirectProductFilterValue).filter(Boolean));
+}
+
+function getProductDirectColorValues(product) {
+  if (!product) return [];
+  if (product.productType === "tile") {
+    const item = getNormalizedTaxonomyProductForProduct(product);
+    const normalizedColor = normalizeDirectProductFilterValue(item?.mainColor);
+    return unique([normalizedColor || normalizeDirectProductFilterValue(product.color)].filter(Boolean));
+  }
+  return unique([product.color].map(normalizeDirectProductFilterValue).filter(Boolean));
+}
+
+function productMatchesDirectFilter(product, selectedValue, valueGetter) {
+  if (!selectedValue || selectedValue === "all") return true;
+  return valueGetter(product).includes(selectedValue);
+}
+
+function productMatchesDirectOptionFilter(product, selectedValue) {
+  if (!selectedValue || selectedValue === "all") return true;
+  const normalizedSelected = normalizeDirectProductFilterValue(selectedValue);
+  if (!normalizedSelected) return true;
+  if (product?.productType === "tile") {
+    return getProductDirectKindValues(product).includes(normalizedSelected)
+      || normalizeDirectProductFilterValue(product.option) === normalizedSelected;
+  }
+  return unique([product?.option, product?.kind].map(normalizeDirectProductFilterValue).filter(Boolean)).includes(normalizedSelected);
+}
+
+function getProductDisplayColor(product) {
+  return getProductDirectColorValues(product)[0] || product.color || "미확인";
+}
+
+function getProductDisplayFinish(product) {
+  return getProductDirectFinishValues(product)[0] || product.finish || product.surface || product.option || "미확인";
+}
+
 function syncProductFilters(config = {}) {
   invalidateProductPageCache();
-  const type = document.querySelector("#mainCategoryFilter").value;
+  const type = document.querySelector("#mainCategoryFilter")?.value || "all";
   const kindFilter = document.querySelector("#kindFilter");
   const sizeFilter = document.querySelector("#sizeFilter");
   const optionFilter = document.querySelector("#optionFilter");
   const tileFeatureFilter = document.querySelector("#tileFeatureFilter");
   const patternCategoryFilter = document.querySelector("#patternCategoryFilter");
-  const previousKind = config.resetSubFilters ? "all" : kindFilter.value;
-  const previousPatternCategory = config.resetSubFilters ? "all" : patternCategoryFilter.value;
+  const finishFilter = document.querySelector("#finishFilter");
+  const colorFilter = document.querySelector("#colorFilter");
+  const previousSize = config.resetSubFilters ? "all" : sizeFilter?.value || "all";
+  const previousOption = config.resetSubFilters ? "all" : optionFilter?.value || "all";
+  const previousPatternCategory = config.resetSubFilters ? "all" : patternCategoryFilter?.value || "all";
+  const previousFinish = config.resetSubFilters ? "all" : finishFilter?.value || "all";
+  const previousColor = config.resetSubFilters ? "all" : colorFilter?.value || "all";
   if (config.resetSubFilters && tileFeatureFilter) tileFeatureFilter.value = "all";
 
   const filteredByType = type === "all" ? products : products.filter((product) => product.productType === type);
-  const kinds = [...new Set(filteredByType.map((product) => product.kind).filter(Boolean))];
-  kindFilter.innerHTML = `<option value="all">전체</option>${kinds.map((kind) => `<option value="${escapeHtml(kind)}">${escapeHtml(kind)}</option>`).join("")}`;
-  kindFilter.value = kinds.includes(previousKind) ? previousKind : "all";
+  if (kindFilter) {
+    kindFilter.innerHTML = `<option value="all">전체</option>`;
+    kindFilter.value = "all";
+  }
 
-  const filteredByKind = kindFilter.value === "all" ? filteredByType : filteredByType.filter((product) => product.kind === kindFilter.value);
-  const productSizes = [...new Set(filteredByKind.map((product) => product.size).filter(Boolean))];
+  const productSizes = unique(filteredByType.map((product) => product.size).filter(Boolean));
   const sizes = type === "tile"
     ? [
         ...TILE_SIZES.filter((size) => productSizes.includes(size)),
         ...productSizes.filter((size) => !TILE_SIZES.includes(size))
       ]
     : productSizes;
-  const options = [...new Set(filteredByKind.map((product) => product.option).filter(Boolean))];
-  const patternCategories = [...new Set(filteredByKind.map((product) => product.patternCategory).filter(Boolean))];
+  const nonTileOptions = sortDirectProductFilterValues(filteredByType
+    .filter((product) => product.productType !== "tile")
+    .flatMap((product) => [product.option, product.kind])
+    .filter(Boolean));
+  const rawOptions = sortDirectProductFilterValues(filteredByType.map((product) => product.option).filter(Boolean));
+  const preserveOptionOrder = type === "tile" || type === "all";
+  const options = type === "tile"
+    ? TILE_DIRECT_KIND_OPTIONS
+    : type === "all"
+      ? unique([...TILE_DIRECT_KIND_OPTIONS, ...nonTileOptions])
+      : rawOptions;
+  const patternCategories = sortDirectProductFilterValues(filteredByType.flatMap(getProductDirectTileCategories));
+  const finishes = sortDirectProductFilterValues(filteredByType.flatMap(getProductDirectFinishValues));
+  const colors = sortDirectProductFilterValues(filteredByType.flatMap(getProductDirectColorValues));
 
-  sizeFilter.innerHTML = `<option value="all">전체</option>${sizes.map((size) => `<option value="${escapeHtml(size)}">${escapeHtml(size)}</option>`).join("")}`;
-  optionFilter.innerHTML = `<option value="all">전체</option>${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}`;
-  patternCategoryFilter.innerHTML = `<option value="all">전체</option>${patternCategories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}`;
-  sizeFilter.value = "all";
-  optionFilter.value = "all";
-  patternCategoryFilter.value = patternCategories.includes(previousPatternCategory) ? previousPatternCategory : "all";
+  fillProductFilterSelect(sizeFilter, sizes, previousSize);
+  fillProductFilterSelect(optionFilter, options, previousOption, "전체", { preserveOrder: preserveOptionOrder });
+  fillProductFilterSelect(patternCategoryFilter, patternCategories, previousPatternCategory);
+  fillProductFilterSelect(finishFilter, finishes, previousFinish);
+  fillProductFilterSelect(colorFilter, colors, previousColor);
 }
 
 function renderAll() {
@@ -1042,13 +1326,15 @@ function invalidateProductPageCache() {
 }
 
 function getProductFilterSnapshot() {
-  const type = document.querySelector("#mainCategoryFilter").value;
-  const kind = document.querySelector("#kindFilter").value;
-  const size = document.querySelector("#sizeFilter").value;
-  const option = document.querySelector("#optionFilter").value;
-  const tileFeature = document.querySelector("#tileFeatureFilter").value;
-  const patternCategory = document.querySelector("#patternCategoryFilter").value;
-  const keyword = document.querySelector("#productSearch").value.trim().toLowerCase();
+  const type = document.querySelector("#mainCategoryFilter")?.value || "all";
+  const kind = document.querySelector("#kindFilter")?.value || "all";
+  const size = document.querySelector("#sizeFilter")?.value || "all";
+  const option = document.querySelector("#optionFilter")?.value || "all";
+  const tileFeature = document.querySelector("#tileFeatureFilter")?.value || "all";
+  const patternCategory = document.querySelector("#patternCategoryFilter")?.value || "all";
+  const finish = document.querySelector("#finishFilter")?.value || "all";
+  const color = document.querySelector("#colorFilter")?.value || "all";
+  const keyword = document.querySelector("#productSearch")?.value.trim().toLowerCase() || "";
   const normalizedKeyword = normalizeSearchText(keyword);
   const naturalIntent = keyword ? parseTaxonomyNaturalSearch(keyword, "customer") : null;
   return {
@@ -1058,6 +1344,8 @@ function getProductFilterSnapshot() {
     option,
     tileFeature,
     patternCategory,
+    finish,
+    color,
     keyword,
     normalizedKeyword,
     naturalIntent
@@ -1097,11 +1385,12 @@ function getProductPageState() {
       : 0;
     const keywordMatched = !snapshot.normalizedKeyword || searchable.includes(snapshot.normalizedKeyword) || naturalScore > 0;
     const passed = (snapshot.type === "all" || product.productType === snapshot.type)
-      && (snapshot.normalizedKeyword || snapshot.kind === "all" || product.kind === snapshot.kind)
-      && (snapshot.normalizedKeyword || snapshot.size === "all" || product.size === snapshot.size)
-      && (snapshot.normalizedKeyword || snapshot.option === "all" || product.option === snapshot.option)
+      && (snapshot.size === "all" || product.size === snapshot.size)
+      && productMatchesDirectOptionFilter(product, snapshot.option)
       && (snapshot.tileFeature === "all" || matchesTileFeatureFilter(product, snapshot.tileFeature))
-      && (snapshot.normalizedKeyword || snapshot.patternCategory === "all" || product.patternCategory === snapshot.patternCategory)
+      && productMatchesDirectFilter(product, snapshot.patternCategory, getProductDirectTileCategories)
+      && productMatchesDirectFilter(product, snapshot.finish, getProductDirectFinishValues)
+      && productMatchesDirectFilter(product, snapshot.color, getProductDirectColorValues)
       && keywordMatched;
     if (!passed) return null;
     return { product, naturalScore };
@@ -1119,11 +1408,12 @@ function getProductPageState() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const activeFilters = [
     snapshot.type !== "all",
-    snapshot.kind !== "all",
     snapshot.size !== "all",
     snapshot.option !== "all",
     snapshot.tileFeature !== "all",
     snapshot.patternCategory !== "all",
+    snapshot.finish !== "all",
+    snapshot.color !== "all",
     Boolean(snapshot.keyword)
   ].filter(Boolean).length;
   const state = {
@@ -1144,7 +1434,6 @@ function getProductSearchableText(product) {
   const text = normalizeSearchText([
     product.managementCode,
     product.name,
-    product.kind,
     product.size,
     product.color,
     product.material,
@@ -1152,8 +1441,7 @@ function getProductSearchableText(product) {
     product.patternCategory,
     product.finish,
     product.option,
-    product.features,
-    product.maker
+    product.features
   ].filter(Boolean).join(" "));
   productSearchTextCache.set(product, text);
   return text;
@@ -1258,6 +1546,8 @@ function buildProductPageCardsHtml(pageProducts, keyword = "") {
 }
 
 function buildProductCardHtml(product) {
+  const displayColor = getProductDisplayColor(product);
+  const displayFinish = getProductDisplayFinish(product);
   return `
     <article class="product-card">
       <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
@@ -1266,8 +1556,8 @@ function buildProductCardHtml(product) {
       <div>
         <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
         <span>사이즈 ${escapeHtml(product.size || "미확인")}</span>
-        <span>색상 ${escapeHtml(product.color || "미확인")}</span>
-        <span>마감 ${escapeHtml(product.finish || product.surface || product.option || "미확인")}</span>
+        <span>색상 ${escapeHtml(displayColor)}</span>
+        <span>마감 ${escapeHtml(displayFinish)}</span>
         <span>재고 ${escapeHtml(hasStockValue(product) ? formatStockQuantity(product) : "확인 필요")}</span>
         ${renderProductCardPriceLine(product)}
       </div>
@@ -1571,7 +1861,7 @@ function mapStoredNormalizedTaxonomyProducts() {
         product.surface
       ].filter(Boolean).join(" "), surfaceFinish, item.surfaceTexture, Boolean(item.antiSlip));
       const priceRange = getTaxonomyPriceRange(product);
-      const stockStatus = Number(item.stockQty || product.stockQty || 0) > 0 ? "재고 있음" : "재고 없음 / 미확인";
+      const stockStatus = Number(item.stockQty || product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY ? "재고 있음" : "주문시 재고 문의";
       return {
         id: item.productId,
         product,
@@ -1687,6 +1977,12 @@ function getTaxonomyFinishModel(source, surfaceFinish = "", surfaceTexture = "",
   } else if (/텍스처|texture|텍스쳐|골지|리브드|플루티드|stripe|스트라이프|러프|rough|요철|거친|조면/.test(text)) {
     group = "무광";
     detail = "텍스쳐";
+  } else if (/몰드|mold/.test(text)) {
+    group = "무광";
+    detail = "텍스쳐";
+  } else if (/커팅|cutting|rectified/.test(text)) {
+    group = "무광";
+    detail = "내추럴";
   } else if (/내추럴|natural/.test(text)) {
     group = "무광";
     detail = "내추럴";
@@ -1710,6 +2006,7 @@ function normalizeDirectTaxonomySurface(value) {
   const text = String(value || "").trim();
   if (text === "유광") return "유광";
   if (text === "무광") return "무광";
+  if (/몰드|mold|커팅|cutting|rectified/i.test(text)) return "무광";
   return "";
 }
 
@@ -1778,7 +2075,18 @@ function collectTaxonomyValues(key) {
 }
 
 function getTaxonomyAssistSize() {
+  const value = getTaxonomyAssistSizeSelection();
+  return value === UNKNOWN_TILE_SIZE_VALUE ? "" : value;
+}
+
+function getTaxonomyAssistSizeSelection() {
   return document.querySelector("#taxonomyAssistSizeBtn")?.dataset.selectedSize || "";
+}
+
+function getTaxonomyAssistSizeLabel() {
+  const value = getTaxonomyAssistSizeSelection();
+  if (value === UNKNOWN_TILE_SIZE_VALUE) return "사이즈 모름";
+  return value || "전체 규격";
 }
 
 function getTaxonomyAssistFinish() {
@@ -1799,7 +2107,7 @@ function setTaxonomyAssistSize(value) {
   const panel = document.querySelector("#taxonomyAssistSizePanel");
   if (!button) return;
   button.dataset.selectedSize = value;
-  button.textContent = value || "전체 규격";
+  button.textContent = getTaxonomyAssistSizeLabel();
   if (panel) panel.classList.add("hidden");
   button.setAttribute("aria-expanded", "false");
   taxonomyResultFacetFilters = {};
@@ -1826,7 +2134,7 @@ function syncTaxonomyAssistFinishButtons() {
 function renderTaxonomyAssistSizePanel() {
   const panel = document.querySelector("#taxonomyAssistSizePanel");
   if (!panel) return;
-  const selectedSize = getTaxonomyAssistSize();
+  const selectedSize = getTaxonomyAssistSizeSelection();
   const sizeCounts = new Map();
   products
     .filter((product) => product.productType === "tile")
@@ -1838,6 +2146,7 @@ function renderTaxonomyAssistSizePanel() {
   const sizes = sortTileSizeLabels([...sizeCounts.keys()]);
   const buttons = [
     `<button type="button" class="${selectedSize ? "" : "active"}" data-taxonomy-assist-size="">전체</button>`,
+    `<button type="button" class="${selectedSize === UNKNOWN_TILE_SIZE_VALUE ? "active" : ""}" data-taxonomy-assist-size="${UNKNOWN_TILE_SIZE_VALUE}">사이즈 모름 <span>전체</span></button>`,
     ...sizes.map((size) => {
       const count = sizeCounts.get(size) || 0;
       return `<button type="button" class="${selectedSize === size ? "active" : ""}" data-taxonomy-assist-size="${escapeHtml(size)}">${escapeHtml(size)} <span>${number(count)}</span></button>`;
@@ -1961,7 +2270,7 @@ function filterTaxonomyProducts(searchIntent = getCurrentTaxonomySearchIntent())
       && (finish === "all" || (item.finishGroup || "마감 미확인") === finish)
       && (thickness === "all" || item.thicknessBucket === thickness)
       && (price === "all" || item.priceRange === price)
-      && (stock === "all" || (stock === "stocked" ? Number(item.product.stockQty || 0) > 0 : Number(item.product.stockQty || 0) <= 0))
+      && (stock === "all" || (stock === "stocked" ? Number(item.product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY : Number(item.product.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY))
       && passesTaxonomySearchHardRules(item, searchIntent, audience);
     if (!filterPassed) return null;
     const searchScore = scoreTaxonomySearchIntent(item, searchIntent, searchText, audience);
@@ -2054,7 +2363,7 @@ function applyTaxonomyIntentSelections(intent) {
   intent.freeTokens = (intent.freeTokens || []).filter((value) => isEnabled("유사어", value));
   if (!isEnabled("기능", "논슬립")) intent.antiSlipRequired = false;
   if (!isEnabled("재고", "재고 있음")) intent.stockRequired = false;
-  if (!isEnabled("재고", "재고 없음")) intent.stockEmpty = false;
+  if (!isEnabled("재고", "주문시 재고 문의")) intent.stockEmpty = false;
   intent.tokenGroups = unique([
     ...intent.origins,
     ...intent.spaces,
@@ -2117,8 +2426,8 @@ function toggleTaxonomyResultFacet(key, value) {
 
 function passesTaxonomySearchHardRules(item, intent, audience) {
   if (!intent?.active) return true;
-  if (intent.stockRequired && Number(item.product.stockQty || 0) <= 0) return false;
-  if (intent.stockEmpty && Number(item.product.stockQty || 0) > 0) return false;
+  if (intent.stockRequired && Number(item.product.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY) return false;
+  if (intent.stockEmpty && Number(item.product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY) return false;
   if (intent.internalBrands?.length && audience === "admin" && !intent.internalBrands.includes(item.internalBrandCode)) return false;
   if (intent.sizes?.length && !intent.sizes.some((value) => item.sizeLabel === value || item.sizeThicknessLabel?.startsWith(value))) return false;
   if (intent.origins?.length && !taxonomyHasAny([item.originRegion, item.originCountry], intent.origins)) return false;
@@ -2189,8 +2498,8 @@ function isTaxonomyShapeItem(item, intent) {
 
 function scoreTaxonomySearchIntent(item, intent, searchText = item.searchText, audience = "customer") {
   const stockQty = Number(item.product.stockQty || 0);
-  if (!intent?.active || !hasActiveTaxonomyIntentCriteria(intent)) return (stockQty > 0 ? 20 : 1) + Math.min(item.product.retailPrice ? 3 : 0, 3);
-  let score = stockQty > 0 ? 24 : 0;
+  if (!intent?.active || !hasActiveTaxonomyIntentCriteria(intent)) return (stockQty > STOCK_INQUIRY_THRESHOLD_QTY ? 20 : 1) + Math.min(item.product.retailPrice ? 3 : 0, 3);
+  let score = stockQty > STOCK_INQUIRY_THRESHOLD_QTY ? 24 : 0;
   score += scoreExactList(intent.origins, [item.originRegion, item.originCountry], 12);
   score += scoreExactList(intent.spaces, item.spaceCategories, 18);
   score += scoreExactList(intent.applications, item.applicationCategories, 20);
@@ -2434,7 +2743,7 @@ function renderTaxonomyMetrics(filtered, collections) {
   const metrics = document.querySelector("#taxonomyMetrics");
   if (!metrics) return;
   const isAdmin = getTaxonomyAudienceMode() === "admin";
-  const stockProducts = filtered.filter((item) => Number(item.product.stockQty || 0) > 0).length;
+  const stockProducts = filtered.filter((item) => Number(item.product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY).length;
   const missingCore = filtered.filter((item) => item.hasMissingCore).length;
   const mappedRate = filtered.length ? Math.round(((filtered.length - missingCore) / filtered.length) * 100) : 0;
   metrics.innerHTML = [
@@ -2535,7 +2844,7 @@ function getTaxonomyFacetValues(item, key) {
   if (key === "applicationCategories") return normalizeTaxonomyArray(item.applicationCategories, "");
   if (key === "materialCategory") return [item.materialCategory || "소재 미확인"];
   if (key === "functionCategories") return normalizeTaxonomyArray(item.functionCategories, "");
-  if (key === "stockStatus") return Number(item.product?.stockQty || 0) > 0 ? ["재고 있음"] : ["재고 없음 / 미확인"];
+  if (key === "stockStatus") return Number(item.product?.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY ? ["재고 있음"] : ["주문시 재고 문의"];
   return normalizeTaxonomyArray(item[key], "");
 }
 
@@ -2556,7 +2865,7 @@ function getTaxonomyIntentChipEntries(intent) {
     ...makeIntentChipRows("금액", intent.priceRanges),
     ...(intent.antiSlipRequired ? [["기능", "논슬립"]] : []),
     ...(intent.stockRequired ? [["재고", "재고 있음"]] : []),
-    ...(intent.stockEmpty ? [["재고", "재고 없음"]] : []),
+    ...(intent.stockEmpty ? [["재고", "주문시 재고 문의"]] : []),
     ...(getTaxonomyAudienceMode() === "admin" ? makeIntentChipRows("브랜드", intent.internalBrands) : []),
     ...(intent.freeTokens || []).slice(0, 8).map((token) => ["유사어", token])
   ];
@@ -2748,7 +3057,7 @@ function compareTaxonomyCollectionStock(a, b) {
 function compareTaxonomyCollectionsByRelevance(a, b) {
   const score = Number(b.searchScore || 0) - Number(a.searchScore || 0);
   if (score) return score;
-  const stock = Number(b.stockQty > 0) - Number(a.stockQty > 0);
+  const stock = Number(b.stockQty > STOCK_INQUIRY_THRESHOLD_QTY) - Number(a.stockQty > STOCK_INQUIRY_THRESHOLD_QTY);
   if (stock) return stock;
   const sku = b.products.length - a.products.length;
   if (sku) return sku;
@@ -2806,7 +3115,7 @@ function normalizeProductForTaxonomy(product) {
     originRegion: product.countryOfOrigin || "원산지 미확인",
     originCountry: product.countryOfOrigin || "",
     priceRange,
-    stockStatus: Number(product.stockQty || 0) > 0 ? "재고 있음" : "재고 없음 / 미확인",
+    stockStatus: Number(product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY ? "재고 있음" : "주문시 재고 문의",
     materialCategory,
     surfaceFinish,
     finishGroup: finishModel.finishGroup,
@@ -2951,7 +3260,7 @@ function inferTaxonomyFunctions(product, source, sizeInfo, applications) {
   if (/계단|stair/.test(text)) functions.push("계단");
   if (!accessoryLike && /모자이크|모자익|mosaic|육각|팔각|다이아|랜턴|원형|페니|헥사|헥사곤|스틱|조약돌|pebble/.test(text)) functions.push("모자이크");
   if (/상업|commercial|카페|호텔|매장/.test(text) || applications.includes("상업용 바닥타일")) functions.push("상업용");
-  if (Number(product.stockQty || 0) > 0) {
+  if (Number(product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY) {
     functions.push("재고보유");
     functions.push("빠른출고");
   }
@@ -3155,8 +3464,8 @@ function parseTaxonomyNaturalSearch(value, audience = "customer") {
 
 function matchesTaxonomySearchIntent(item, intent, searchText = item.searchText, audience = "customer") {
   if (!intent?.active) return true;
-  if (intent.stockRequired && Number(item.product.stockQty || 0) <= 0) return false;
-  if (intent.stockEmpty && Number(item.product.stockQty || 0) > 0) return false;
+  if (intent.stockRequired && Number(item.product.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY) return false;
+  if (intent.stockEmpty && Number(item.product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY) return false;
   if (intent.internalBrands?.length && audience === "admin" && !intent.internalBrands.includes(item.internalBrandCode)) return false;
   if (intent.sizes?.length && !intent.sizes.some((value) => item.sizeLabel === value || item.sizeThicknessLabel?.startsWith(value))) return false;
   if (isTaxonomyMosaicIntent(intent) && !isTaxonomyMosaicItem(item, searchText)) return false;
@@ -3450,7 +3759,7 @@ async function handleTileFinderFileChange(event) {
     previewWrap.classList.remove("hidden");
   }
 
-  if (status) status.textContent = "사진이 준비됐습니다. 타일 사이즈와 표면을 선택한 뒤 검색하세요.";
+  if (status) status.textContent = "사진이 준비됐습니다. 사이즈를 모르시면 '사이즈 모름'을 선택하고 표면을 선택한 뒤 검색하세요.";
   if (tags) tags.innerHTML = `<span>검색 전</span>`;
   event.target.value = "";
 }
@@ -3491,7 +3800,7 @@ async function handleTaxonomyImageSearchFileChange(event) {
     previewWrap.classList.remove("hidden");
   }
   if (tags) tags.innerHTML = `<span>사진 준비됨</span>`;
-  if (status) status.textContent = "사진이 준비됐습니다. 규격과 표면을 선택한 뒤 검색하세요.";
+  if (status) status.textContent = "사진이 준비됐습니다. 규격을 모르시면 '사이즈 모름'을 선택하고 표면을 선택한 뒤 검색하세요.";
   event.target.value = "";
 }
 
@@ -3519,13 +3828,15 @@ async function runTaxonomyImageSearch() {
   const status = document.querySelector("#taxonomyImageSearchStatus");
   const results = document.querySelector("#taxonomyImageResults");
   const tags = document.querySelector("#taxonomyImageTags");
+  const sizeSelection = getTaxonomyAssistSizeSelection();
   const size = getTaxonomyAssistSize();
+  const sizeLabel = getTaxonomyAssistSizeLabel();
   const finish = getTaxonomyAssistFinish();
   const query = document.querySelector("#taxonomySearch")?.value || "";
 
   if (!taxonomyImageSearchDataUrl) return;
-  if (!size) {
-    if (status) status.textContent = "이미지검색은 같은 규격만 찾도록 규격 선택이 필요합니다.";
+  if (!sizeSelection) {
+    if (status) status.textContent = "규격을 모르시면 규격에서 '사이즈 모름'을 선택해주세요.";
     if (results) results.classList.add("hidden");
     return;
   }
@@ -3543,11 +3854,11 @@ async function runTaxonomyImageSearch() {
     tags.innerHTML = [
       taxonomyImageSearchFileName ? `사진 ${taxonomyImageSearchFileName}` : "사진 업로드됨",
       `AI검색 ${query || "전체"}`,
-      `규격 ${size}`,
+      `규격 ${size || sizeLabel}`,
       `표면 ${finish}`
     ].map((item) => `<span>${escapeHtml(item)}</span>`).join("");
   }
-  if (status) status.textContent = `${size} · ${finish} 조건으로 이미지와 가장 유사한 타일을 찾는 중입니다.`;
+  if (status) status.textContent = `${size || sizeLabel} · ${finish} 조건으로 이미지와 가장 유사한 타일을 찾는 중입니다.`;
 
   try {
     const payload = await requestJson("/api/tile-match", {
@@ -3556,6 +3867,7 @@ async function runTaxonomyImageSearch() {
       body: JSON.stringify({
         imageDataUrl: taxonomyImageSearchDataUrl,
         size,
+        sizeUnknown: sizeSelection === UNKNOWN_TILE_SIZE_VALUE,
         finish,
         query,
         searchMode: "strict",
@@ -3569,8 +3881,8 @@ async function runTaxonomyImageSearch() {
     renderTaxonomyImageAnalysis(payload.analysis || {});
     renderTaxonomyImageResults(taxonomyImageMatches);
     if (status) status.textContent = taxonomyImageMatches.length
-      ? `${size} · ${finish} 조건에서 이미지 유사 타일 ${taxonomyImageMatches.length}개를 찾았습니다.`
-      : `${size} · ${finish} 조건의 이미지 유사 타일을 찾지 못했습니다. 규격/표면 조건 또는 DB 이미지를 점검해주세요.`;
+      ? `${size || sizeLabel} · ${finish} 조건에서 이미지 유사 타일 ${taxonomyImageMatches.length}개를 찾았습니다.`
+      : `${size || sizeLabel} · ${finish} 조건의 이미지 유사 타일을 찾지 못했습니다. 표면 조건 또는 DB 이미지를 점검해주세요.`;
   } catch (error) {
     if (status) status.textContent = error.message || "이미지 통합검색에 실패했습니다.";
   }
@@ -3582,9 +3894,11 @@ function renderTaxonomyImageAnalysis(analysis) {
   const values = [
     taxonomyImageSearchFileName ? `사진 ${taxonomyImageSearchFileName}` : "사진 업로드됨",
     analysis.requestedSize ? `규격 ${analysis.requestedSize}` : "",
+    analysis.sizeUnknown ? "규격 사이즈 모름" : "",
     analysis.requestedFinish ? `표면 ${analysis.requestedFinish}` : "",
     ...(analysis.colors || []).map((item) => `색상 ${item}`),
     ...(analysis.patterns || []).map((item) => `패턴 ${item}`),
+    ...(analysis.shapes || []).map((item) => `형태 ${item}`),
     ...(analysis.motifs || []).map((item) => `무늬 ${item}`)
   ].filter(Boolean);
   tags.innerHTML = values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
@@ -3720,15 +4034,17 @@ async function handleTileFinderSearch() {
   const status = document.querySelector("#tileFinderStatus");
   const results = document.querySelector("#tileFinderResults");
   const tags = document.querySelector("#tileFinderTags");
-  const size = document.querySelector("#tileFinderSize")?.value || "";
+  const sizeSelection = document.querySelector("#tileFinderSize")?.value || "";
+  const size = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "" : sizeSelection;
+  const sizeLabel = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "사이즈 모름" : size;
   const finish = document.querySelector("#tileFinderFinish")?.value || "";
 
   if (!tileFinderImageDataUrl) {
     if (status) status.textContent = "먼저 타일 사진을 업로드해주세요.";
     return;
   }
-  if (!size) {
-    if (status) status.textContent = "같은 사이즈 타일만 찾기 위해 타일 사이즈를 선택해주세요.";
+  if (!sizeSelection) {
+    if (status) status.textContent = "사이즈를 모르면 '사이즈 모름'을 선택해주세요.";
     return;
   }
   if (!finish) {
@@ -3743,12 +4059,12 @@ async function handleTileFinderSearch() {
   if (tags) {
     tags.innerHTML = [
       `사진 ${tileFinderImageFileName || "업로드됨"}`,
-      `사이즈 ${size}`,
+      `사이즈 ${sizeLabel}`,
       `표면 ${finish}`
     ].map((item) => `<span>${escapeHtml(item)}</span>`).join("");
   }
 
-  if (status) status.textContent = `${size} · ${finish}와 동일한 타일 중 이미지 색상과 패턴이 가장 비슷한 상품을 찾는 중입니다.`;
+  if (status) status.textContent = `${sizeLabel} · ${finish} 조건으로 이미지 색상과 패턴이 가장 비슷한 상품을 찾는 중입니다.`;
   try {
     const payload = await requestJson("/api/tile-match", {
       method: "POST",
@@ -3756,6 +4072,7 @@ async function handleTileFinderSearch() {
       body: JSON.stringify({
         imageDataUrl: tileFinderImageDataUrl,
         size,
+        sizeUnknown: sizeSelection === UNKNOWN_TILE_SIZE_VALUE,
         finish,
         searchMode: "strict",
         allSimilar: true
@@ -3768,8 +4085,8 @@ async function handleTileFinderSearch() {
     renderTileFinderAnalysis(payload.analysis || {});
     renderTileFinderResults(tileFinderMatches);
     if (status) status.textContent = tileFinderMatches.length
-      ? `${size} · ${finish}와 동일한 타일 중 이미지와 유사한 상품 ${tileFinderMatches.length}개를 찾았습니다.`
-      : `${size} · ${finish}와 동일한 유사 타일을 찾지 못했습니다. 다른 사진으로 다시 시도하거나 DB 마감/사이즈 값을 점검해주세요.`;
+      ? `${sizeLabel} · ${finish} 조건에서 이미지와 유사한 상품 ${tileFinderMatches.length}개를 찾았습니다.`
+      : `${sizeLabel} · ${finish} 조건의 유사 타일을 찾지 못했습니다. 다른 사진으로 다시 시도하거나 DB 마감 값을 점검해주세요.`;
   } catch (error) {
     if (status) status.textContent = error.message || "타일찾기 분석에 실패했습니다.";
   }
@@ -3780,9 +4097,11 @@ function renderTileFinderAnalysis(analysis) {
   if (!tags) return;
   const values = [
     analysis.requestedSize ? `사이즈 ${analysis.requestedSize}` : "",
+    analysis.sizeUnknown ? "사이즈 모름" : "",
     analysis.requestedFinish ? `표면조건 ${analysis.requestedFinish}` : "",
     ...(analysis.colors || []).map((item) => `색상 ${item}`),
     ...(analysis.patterns || []).map((item) => `패턴 ${item}`),
+    ...(analysis.shapes || []).map((item) => `형태 ${item}`),
     ...(analysis.motifs || []).map((item) => `무늬 ${item}`)
   ].filter(Boolean);
   tags.innerHTML = values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
@@ -3829,7 +4148,8 @@ function hasStockValue(product) {
 
 function formatStockQuantity(product) {
   const value = Number(product?.stockQty);
-  return Number.isFinite(value) ? number(value) : String(product?.stockQty || "-");
+  if (!Number.isFinite(value)) return "주문시 재고 문의";
+  return value > STOCK_INQUIRY_THRESHOLD_QTY ? number(value) : "주문시 재고 문의";
 }
 
 async function openProductDetail(id, sourceElement = null) {
@@ -4617,7 +4937,7 @@ function renderAdminOverview() {
   const tileCount = products.filter((item) => item.productType === "tile").length;
   const sanitaryCount = products.filter((item) => item.productType === "sanitary").length;
   const materialCount = products.filter((item) => item.productType === "material").length;
-  const lowStockCount = products.filter((item) => Number(item.stockQty || 0) > 0 && Number(item.stockQty || 0) <= 20).length;
+  const lowStockCount = products.filter((item) => Number(item.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY).length;
   const categorySummary = Array.from(products.reduce((map, product) => {
     const key = `${PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"}__${product.kind || "-"}`;
     const current = map.get(key) || {
@@ -4658,7 +4978,7 @@ function renderAdminOverview() {
     ["타일 상품", `${number(tileCount)}개`, "타일 및 타일 관련 상품 수"],
     ["위생도기", `${number(sanitaryCount)}개`, "위생도기/수전/액세서리 수"],
     ["부자재", `${number(materialCount)}개`, "부자재 상품 수"],
-    ["재고 주의", `${number(lowStockCount)}개`, "재고 20 이하 상품 수"],
+    ["재고 문의", `${number(lowStockCount)}개`, "재고 30 이하 상품 수"],
     ["가입 신청", `${number(signupRequests.length)}건`, "저장된 회원가입 신청 수"],
     ["저장 장바구니", `${number(cartRecords.length)}건`, "업체별 저장된 장바구니 수"],
     ["승인 기준", `${number((adminOverview?.approvalRules?.businessTypes || []).length)}개 업태`, "현재 내부 승인 기준 업태 수"]

@@ -5,9 +5,10 @@ const root = process.cwd();
 const productsPath = path.join(root, "data", "products.json");
 const normalizedPath = path.join(root, "data", "products.normalized.json");
 const summaryPath = path.join(root, "data", "products.normalized.summary.json");
+const stockInquiryThresholdQty = Math.max(0, Number(process.env.STOCK_INQUIRY_THRESHOLD_QTY || process.env.MIN_PUBLIC_STOCK_QTY || 30));
 const reportDir = path.join(root, "outputs", "taxonomy-analysis");
 const reportPath = path.join(reportDir, `normalized-taxonomy-${timestampForFile(new Date())}.md`);
-const taxonomyVersion = "2026-06-02-mosaic-fix-v1";
+const taxonomyVersion = "2026-06-06-normalization-v1";
 
 const products = JSON.parse(fs.readFileSync(productsPath, "utf8"));
 const normalized = products.map(normalizeProductForTaxonomy);
@@ -36,10 +37,15 @@ function normalizeProductForTaxonomy(product) {
     product.surface,
     product.color,
     product.sourceCategoryName,
+    makeInternalBrandCode(product),
     product.maker,
+    product.catalogSource,
+    product.kind,
+    product.majorCategory,
     product.countryOfOrigin,
     product.unit
   ].filter(Boolean).join(" ");
+  const productType = normalizeProductType(product, source);
   const sizeInfo = parseSize(product.size || product.name || source);
   const thicknessMm = parseThickness(source);
   const directSurfaceFinish = normalizeDirectSurfaceFinish(product.finish || product.surface);
@@ -47,20 +53,21 @@ function normalizeProductForTaxonomy(product) {
   const surfaceTexture = inferSurfaceTexture(source);
   const antiSlip = inferAntiSlip(source);
   const finishModel = getFinishModel(source, surfaceFinish, surfaceTexture, antiSlip);
-  const materialCategory = inferMaterial(source, product.productType);
+  const materialCategory = inferMaterial(source, productType, sizeInfo, product);
   const materialDetail = inferMaterialDetail(source);
   const slipRating = inferSlipRating(source);
   const mainColor = inferMainColor(source);
   const styleCategories = inferStyles(source, product.patternCategory);
-  const applicationCategories = inferApplications(source, sizeInfo, styleCategories, product.productType);
+  const applicationCategories = inferApplications(source, sizeInfo, styleCategories, productType);
   const spaceCategories = inferSpaces(source, applicationCategories, styleCategories);
   const functionCategories = inferFunctions(product, source, sizeInfo, applicationCategories);
   const patternDetail = inferPatternDetail(source, styleCategories);
   const moodTags = inferMoodTags(source, styleCategories, mainColor);
   const collectionName = makeCollectionName(product, sizeInfo, mainColor, surfaceFinish);
   const collectionKey = normalizeKey([product.kind || product.catalogSource || product.maker, collectionName].filter(Boolean).join("__"));
+  const origin = normalizeOrigin(product.countryOfOrigin, source);
   const reviewReasons = getReviewReasons({
-    product,
+    product: { ...product, productType },
     sizeInfo,
     materialCategory,
     mainColor,
@@ -81,7 +88,8 @@ function normalizeProductForTaxonomy(product) {
     supplierName: String(product.maker || product.catalogSource || product.kind || ""),
     brand: makeInternalBrandCode(product),
     isCustomerBrandVisible: false,
-    productType: String(product.productType || ""),
+    productType,
+    rawProductType: String(product.productType || ""),
     sourceCategoryName: String(product.sourceCategoryName || product.option || ""),
     sourceProductId: String(product.sourceProductId || ""),
     collectionId: collectionKey,
@@ -116,12 +124,12 @@ function normalizeProductForTaxonomy(product) {
     spaceCategories,
     applicationCategories,
     functionCategories,
-    originRegion: String(product.countryOfOrigin || "원산지 미확인"),
-    originCountry: String(product.countryOfOrigin || ""),
-    countryOfOrigin: String(product.countryOfOrigin || ""),
+    originRegion: origin.region,
+    originCountry: origin.country,
+    countryOfOrigin: origin.country,
     pcsPerBox: toNumberOrNull(product.pcsPerBox),
     sqmPerBox: toNumberOrNull(product.sqmPerBox),
-    stockStatus: Number(product.stockQty || 0) > 0 ? "재고보유" : "재고미확인",
+    stockStatus: Number(product.stockQty || 0) > stockInquiryThresholdQty ? "재고보유" : "주문시 재고 문의",
     stockQty: Number(product.stockQty || 0),
     image: String(product.image || ""),
     customerSearchableText: buildSearchableText({
@@ -206,6 +214,63 @@ function makeInternalBrandName(product) {
   return `${code}_INTERNAL`;
 }
 
+function normalizeProductType(product, source) {
+  const current = String(product.productType || "").trim() || "tile";
+  const text = normalizeRaw([
+    source,
+    product.name,
+    product.kind,
+    product.option,
+    product.sourceCategoryName,
+    product.majorCategory
+  ].filter(Boolean).join(" "));
+
+  if (/타일사사삭|타일용|타일부자재|접착|본드|압착|압착시멘트|홈멘트|줄눈|메지|실리콘|방수|아덱스|ardex|grout|adhesive|몰딩|스커팅|코너|엣지|레벨링|클립|웨지/.test(text)) {
+    return "material";
+  }
+
+  if (/양변기|원피스|투피스|비데|소변기|세면기|세면대|세면볼|세면볼|욕조|욕실장|수전|샤워|해바라기|휴지걸이|수건걸이|컵대|비누받침|선반|악세사리|액세사리|toilet|bidet|basin|faucet|shower/.test(text)) {
+    return "sanitary";
+  }
+
+  if (current !== "tile") {
+    return current;
+  }
+
+  if (/타일(?!용|사사삭|부자재)|포세린|포쉐린|자기질|도기질|세라믹|모자이크|모자익|mosaic|폴리싱|고벽돌|브릭|서브웨이/.test(text)) {
+    return "tile";
+  }
+
+  if (/유광|무광|논슬립|600x|300x|200x|100x/.test(text)) {
+    return "tile";
+  }
+
+  return current;
+}
+
+function normalizeOrigin(countryValue, source) {
+  const direct = normalizeRaw(countryValue);
+  const text = normalizeRaw([countryValue, source].filter(Boolean).join(" "));
+  const candidates = [
+    [/이탈리아|이태리|italy|italia|italian/, ["유럽", "이탈리아"]],
+    [/스페인|spain|espana|españa|spanish/, ["유럽", "스페인"]],
+    [/포르투갈|portugal/, ["유럽", "포르투갈"]],
+    [/터키|튀르키예|turkey|turkiye/, ["기타", "터키"]],
+    [/중국|china|cn\b|중국산/, ["중국", "중국"]],
+    [/인도|india|indian/, ["아시아", "인도"]],
+    [/베트남|vietnam/, ["아시아", "베트남"]],
+    [/인도네시아|indonesia|인니/, ["아시아", "인도네시아"]],
+    [/말레이시아|malaysia/, ["아시아", "말레이시아"]],
+    [/태국|thailand/, ["아시아", "태국"]],
+    [/한국|국산|대한민국|korea|kr\b/, ["한국", "한국"]]
+  ];
+  const directMatch = candidates.find(([regex]) => regex.test(direct));
+  if (directMatch) return { region: directMatch[1][0], country: directMatch[1][1] };
+  const sourceMatch = candidates.find(([regex]) => regex.test(text));
+  if (sourceMatch) return { region: sourceMatch[1][0], country: sourceMatch[1][1] };
+  return { region: "원산지 미확인", country: "" };
+}
+
 function parseSize(value) {
   const text = String(value || "").replace(/[×＊]/g, "x");
   const square = /(\d{2,4})\s*각/.exec(text);
@@ -221,6 +286,27 @@ function parseSize(value) {
   else if (maxSide <= 1200) group = "대형 타일";
   else if (maxSide > 1200) group = "초대형 / 슬랩";
   return { width, height, label, group };
+}
+
+function isSameSize(sizeInfo, width, height) {
+  const left = Number(sizeInfo?.width || 0);
+  const right = Number(sizeInfo?.height || 0);
+  return (left === width && right === height) || (left === height && right === width);
+}
+
+function isSizeAtLeast(sizeInfo, width, height) {
+  return Number(sizeInfo?.width || 0) >= width && Number(sizeInfo?.height || 0) >= height;
+}
+
+function isKnownMosaicSheetSize(sizeInfo) {
+  return [
+    [316, 211],
+    [294, 282],
+    [210, 206],
+    [296, 256],
+    [325, 250],
+    [325, 281]
+  ].some(([width, height]) => isSameSize(sizeInfo, width, height));
 }
 
 function parseThickness(value) {
@@ -272,6 +358,12 @@ function getFinishModel(source, surfaceFinish = "", surfaceTexture = "", antiSli
   } else if (/텍스처|texture|텍스쳐|골지|리브드|플루티드|stripe|스트라이프|러프|rough|요철|거친|조면/.test(text)) {
     group = "무광";
     detail = "텍스쳐";
+  } else if (/몰드|mold/.test(text)) {
+    group = "무광";
+    detail = "텍스쳐";
+  } else if (/커팅|cutting|rectified/.test(text)) {
+    group = "무광";
+    detail = "내추럴";
   } else if (/내추럴|natural/.test(text)) {
     group = "무광";
     detail = "내추럴";
@@ -292,9 +384,10 @@ function getFinishModel(source, surfaceFinish = "", surfaceTexture = "", antiSli
 }
 
 function normalizeDirectSurfaceFinish(value) {
-  const text = String(value || "").trim();
-  if (text === "유광") return "유광";
-  if (text === "무광") return "무광";
+  const text = normalizeRaw(value);
+  if (!text || text === "마감미확인") return "";
+  if (/폴리싱|polishing|polished|유광|글로시|gloss|glossy|gls|\bp\b/.test(text)) return "유광";
+  if (/포쉐린|무광|매트|맷|matt|matte|몰드|mold|커팅|cutting|rectified|\bm\b/.test(text)) return "무광";
   return "";
 }
 
@@ -353,11 +446,22 @@ function inferStyles(source, existingPattern) {
   return unique(styles.length ? styles : ["스타일 미확인"]);
 }
 
-function inferMaterial(source, productType) {
+function inferMaterial(source, productType, sizeInfo = {}, product = {}) {
   const text = normalizeRaw(source);
   if (productType && productType !== "tile") return "복합소재 / 기타";
+  if (isManualMosaicMaterialOverride(product)) return "모자이크";
+  if (isManualPorcelainMaterialOverride(product)) return "포세린";
+  if (isManualCeramicMaterialOverride(product)) return "도기질";
+  if (/쪽타일/.test(text)) return "도기질";
+  if (/(^|[^a-z0-9])us([^a-z0-9]|$)/.test(source.toLowerCase()) && /석재/.test(text)) return "석재 타일";
   if (/포세린|포쉐린|porcelain|풀바디|컬러바디|글레이즈드/.test(text)) return "포세린";
   if (/세라믹|ceramic/.test(text)) return "세라믹";
+  if (/regno|레그노/.test(text) && isSameSize(sizeInfo, 200, 200)) return "자기질";
+  if (isSameSize(sizeInfo, 68, 280)) return "도기질";
+  if (isSameSize(sizeInfo, 75, 500)) return "자기질";
+  if (isKnownMosaicSheetSize(sizeInfo) || (!isAccessoryLikeTaxonomyText(text) && /모자이크|모자익|mosaic/.test(text))) return "모자이크";
+  if (isSizeAtLeast(sizeInfo, 600, 600)) return "포세린";
+  if (isSameSize(sizeInfo, 300, 600) && !/바닥|floor/.test(text)) return "도기질";
   if (/자기질|바닥/.test(text)) return "자기질";
   if (/도기질|벽전용/.test(text)) return "도기질";
   if (/석기질|stoneware|보도블럭|보도블록/.test(text)) return "석기질";
@@ -372,8 +476,120 @@ function inferMaterial(source, productType) {
   if (/테라코타/.test(text)) return "테라코타";
   if (/메탈|스테인리스|metal|stainless/.test(text)) return "메탈 / 스테인리스";
   if (/부자재|접착|줄눈|실리콘|시멘트/.test(text)) return "복합소재 / 기타";
-  if (!isAccessoryLikeTaxonomyText(text) && /모자이크|모자익|mosaic/.test(text)) return "세라믹";
   return "재질 미확인";
+}
+
+function isManualMosaicMaterialOverride(product) {
+  const managementCode = String(product.managementCode || "").trim().toUpperCase();
+  const sourceProductId = String(product.sourceProductId || "").trim();
+  const internalBrand = String(product.kind || product.catalogSource || product.majorCategory || product.maker || "").trim().toUpperCase();
+  const usMosaicCodes = new Set([
+    "US-1104861",
+    "US-1104862",
+    "US-1104863",
+    "US-1104868",
+    "US-1104870",
+    "US-1104877",
+    "US-1104878",
+    "US-1104884",
+    "US-1104888",
+    "US-1104889",
+    "US-1104890",
+    "US-1104892",
+    "US-1104893",
+    "US-1104896",
+    "US-1104916",
+    "US-1104918",
+    "US-1104919",
+    "US-1104925",
+    "US-1104926",
+    "US-1104941",
+    "US-1104942",
+    "US-1119719",
+    "US-1119720",
+    "US-1119724",
+    "US-1119725",
+    "US-1119726",
+    "US-1119727",
+    "US-1119728",
+    "US-1140515"
+  ]);
+  const usMosaicSourceIds = new Set([
+    "1104861",
+    "1104862",
+    "1104863",
+    "1104868",
+    "1104870",
+    "1104877",
+    "1104878",
+    "1104884",
+    "1104888",
+    "1104889",
+    "1104890",
+    "1104892",
+    "1104893",
+    "1104896",
+    "1104916",
+    "1104918",
+    "1104919",
+    "1104925",
+    "1104926",
+    "1104941",
+    "1104942",
+    "1119719",
+    "1119720",
+    "1119724",
+    "1119725",
+    "1119726",
+    "1119727",
+    "1119728",
+    "1140515"
+  ]);
+  return usMosaicCodes.has(managementCode) || (internalBrand === "US" && usMosaicSourceIds.has(sourceProductId));
+}
+
+function isManualCeramicMaterialOverride(product) {
+  const managementCode = String(product.managementCode || "").trim().toUpperCase();
+  const sourceProductId = String(product.sourceProductId || "").trim();
+  const internalBrand = String(product.kind || product.catalogSource || product.majorCategory || product.maker || "").trim().toUpperCase();
+  const usCeramicCodes = new Set([
+    "US-1105093",
+    "US-1115593",
+    "US-1116666",
+    "US-1116667",
+    "US-1116669",
+    "US-1116672",
+    "US-1116673",
+    "US-1116676",
+    "US-1116678",
+    "US-1116679",
+    "US-1119497",
+    "US-1119503"
+  ]);
+  const usCeramicSourceIds = new Set([
+    "1105093",
+    "1115593",
+    "1116666",
+    "1116667",
+    "1116669",
+    "1116672",
+    "1116673",
+    "1116676",
+    "1116678",
+    "1116679",
+    "1119497",
+    "1119503"
+  ]);
+  return usCeramicCodes.has(managementCode) || (internalBrand === "US" && usCeramicSourceIds.has(sourceProductId));
+}
+
+function isManualPorcelainMaterialOverride(product) {
+  const managementCode = String(product.managementCode || "").trim().toUpperCase();
+  const sourceProductId = String(product.sourceProductId || "").trim();
+  const internalBrand = String(product.kind || product.catalogSource || product.majorCategory || product.maker || "").trim().toUpperCase();
+  const usPorcelainCodes = new Set(["US-974173", "US-1140520"]);
+  const usPorcelainSourceIds = new Set(["974173", "1140520"]);
+  return usPorcelainCodes.has(managementCode) || (internalBrand === "US" && usPorcelainSourceIds.has(sourceProductId));
 }
 
 function inferMaterialDetail(source) {
@@ -425,9 +641,11 @@ function inferFunctions(product, source, sizeInfo, applications) {
   if (/고하중|주차장|parking|창고|물류|heavy/.test(text)) functions.push("고하중");
   if (/방오|내오염|stain/.test(text)) functions.push("내오염");
   if (/uv/.test(text)) functions.push("UV 코팅");
-  if (Number(product.stockQty || 0) > 0) {
+  if (Number(product.stockQty || 0) > stockInquiryThresholdQty) {
     functions.push("재고보유");
     functions.push("빠른출고");
+  } else {
+    functions.push("주문시 재고 문의");
   }
   return unique(functions);
 }
@@ -438,13 +656,16 @@ function isAccessoryLikeTaxonomyText(text) {
 
 function inferSurfaceFinish(source) {
   const text = normalizeRaw(source);
-  if (/폴리싱|polished/.test(text)) return "폴리싱";
+  const rawText = String(source || "").toLowerCase().replace(/[×＊]/g, "x");
+  const isAjSource = /(^|[^a-z0-9])aj(?=[^a-z0-9]|$)|ajutile|아주/.test(rawText);
+  if (/폴리싱|polishing|polished/.test(text) || /(^|[^a-z0-9])(pi|pl|p)(?=[^a-z0-9]|$)/.test(rawText)) return "폴리싱";
   if (/라파토|lappato/.test(text)) return "라파토";
   if (/혼드|honed/.test(text)) return "혼드";
   if (/내추럴|natural/.test(text)) return "내추럴";
   if (/세미무광|반무광|새틴|satin/.test(text)) return "세미무광";
   if (/유광|gloss|glossy/.test(text)) return "유광";
-  if (/무광|매트|matt|matte/.test(text)) return "무광";
+  if (/무광|매트|맷|matt|matte/.test(text) || /(^|[^a-z0-9])m(?=[^a-z0-9]|$)/.test(rawText)) return "무광";
+  if (isAjSource && (/포쉐린|포세린|porcelain/.test(text) || /(^|[^a-z0-9])por(?=\d|[^a-z0-9]|$)/.test(rawText))) return "무광";
   if (/러프|rough|r11|r12/.test(text)) return "러프";
   return "마감 미확인";
 }
@@ -472,15 +693,15 @@ function inferSlipRating(source) {
 function inferMainColor(source) {
   const text = normalizeRaw(source);
   const matches = [
-    [/화이트|white|bianco|백색/, "화이트"],
-    [/아이보리|ivory|크림|cream|오프화이트/, "아이보리 / 크림"],
-    [/베이지|beige|sand|샌드|그레이지|travertine/, "베이지"],
-    [/브라운|brown|월넛|walnut|밤색/, "브라운"],
-    [/다크그레이|차콜|charcoal|darkgrey|darkgray/, "차콜 / 다크그레이"],
-    [/그레이|grey|gray|회색|시멘트/, "그레이"],
-    [/블랙|black|nero|검정|bk/, "블랙"],
-    [/그린|green|녹색/, "그린"],
-    [/블루|blue|navy|청색/, "블루"],
+    [/화이트|하양|흰색|백색|white|bianco|\bwht\b|\bwh\b|\bwt\b/, "화이트"],
+    [/아이보리|크림|오프화이트|ivory|cream|offwhite|\bivr\b/, "아이보리 / 크림"],
+    [/베이지|샌드|그레이지|트래버틴|beige|sand|greige|travertine|\bbeg\b/, "베이지"],
+    [/브라운|월넛|오크|티크|우드|밤색|brown|walnut|oak|teak|wood|\bbrn\b|\bwod\b/, "브라운"],
+    [/다크그레이|다크그레이|차콜|charcoal|darkgrey|darkgray|\bdgy\b/, "차콜 / 다크그레이"],
+    [/그레이|회색|시멘트|grey|gray|gris|grigio|cement|\bgry\b/, "그레이"],
+    [/블랙|검정|검정색|흑색|black|nero|\bblk\b|\bbk\b/, "블랙"],
+    [/그린|녹색|초록|green|\bgrn\b/, "그린"],
+    [/블루|청색|파랑|네이비|blue|navy|\bblu\b/, "블루"],
     [/핑크|pink/, "핑크"],
     [/레드|red|적색/, "레드"],
     [/옐로우|yellow|노랑|giallo/, "옐로우"],

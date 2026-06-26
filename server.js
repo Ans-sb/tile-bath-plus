@@ -4,6 +4,8 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const { pathToFileURL } = require("url");
+const jpeg = require("jpeg-js");
+const { PNG } = require("pngjs");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -56,6 +58,10 @@ let businessDocumentBucketReady = false;
 let tileSearchEnginePromise = null;
 let productsReadCache = { expiresAt: 0, rows: null, source: "" };
 let publicProductsJsonCache = { expiresAt: 0, json: "" };
+const tileImageSignatureCache = new Map();
+const tileImageSignatureLimit = Math.max(24, Number(process.env.TILE_IMAGE_SIGNATURE_CACHE_LIMIT || 2500));
+const tileVisualCompareLimit = Math.max(40, Number(process.env.TILE_VISUAL_COMPARE_LIMIT || 240));
+const stockInquiryThresholdQty = Math.max(0, Number(process.env.STOCK_INQUIRY_THRESHOLD_QTY || process.env.MIN_PUBLIC_STOCK_QTY || 30));
 const defaultApprovalRules = {
   businessTypes: [
     "인테리어",
@@ -174,7 +180,7 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 200, {
         ok: true,
         user: member,
-        products: (await readProducts()).map(mapMemberProduct)
+        products: (await readProducts()).filter(isPublicCatalogProduct).map(mapMemberProduct)
       });
       return;
     }
@@ -393,12 +399,44 @@ async function getPublicProductsJson() {
   if (publicProductsJsonCache.json && Date.now() < publicProductsJsonCache.expiresAt) {
     return publicProductsJsonCache.json;
   }
-  const json = JSON.stringify((await readProducts()).map(mapPublicProduct));
+  const json = JSON.stringify((await readProducts()).filter(isPublicCatalogProduct).map(mapPublicProduct));
   publicProductsJsonCache = {
     expiresAt: Date.now() + productReadCacheTtlMs,
     json
   };
   return json;
+}
+
+function isPublicCatalogProduct(product) {
+  return !isExcludedVerygoodProduct(product);
+}
+
+function getProductStockQty(product) {
+  const stockQty = Number(product?.stockQty ?? product?.stock_qty ?? product?.stock ?? product?.product?.stockQty ?? product?.product?.stock_qty ?? product?.product?.stock ?? 0);
+  return Number.isFinite(stockQty) ? stockQty : 0;
+}
+
+function hasOrderableStock(product) {
+  return getProductStockQty(product) > stockInquiryThresholdQty;
+}
+
+function isExcludedVerygoodProduct(product) {
+  if (!isVerygoodProduct(product)) return false;
+  const text = normalizeMatchText([
+    product?.name,
+    product?.kind,
+    product?.option,
+    product?.sourceCategoryName,
+    product?.source_category_name
+  ].filter(Boolean).join(" "));
+  if (/할인\s*\(?타일\)?|할인\s*\(?스톤\)?|할인품목|할\s*인\s*품\s*목/.test(text)) return true;
+  return false;
+}
+
+function isVerygoodProduct(product) {
+  return String(product?.id || "").startsWith("verygood-")
+    || /^(VG|VERYGOOD)$/i.test(String(product?.catalogSource || product?.catalog_source || "").trim())
+    || /verygood|vgtns|베리굿/i.test(String(product?.sourceSite || product?.source_site || "").trim());
 }
 
 async function readProducts(options = {}) {
@@ -724,33 +762,99 @@ function mapSupabaseProductToApp(row) {
 }
 
 function mapPublicProduct(product) {
+  const customerProduct = normalizeCustomerProductClassification(product);
   return {
-    id: String(product.id || "").trim(),
-    productType: String(product.productType || "").trim(),
-    kind: getPublicProductGroup(product),
-    name: String(product.name || "").trim(),
-    size: String(product.size || "").trim(),
-    modelName: String(product.modelName || product.name || "").trim(),
-    material: String(product.material || "").trim(),
-    surface: String(product.surface || "").trim(),
-    patternCategory: String(product.patternCategory || "").trim() || classifyPatternCategory(product),
-    color: String(product.color || "").trim(),
-    features: String(product.features || "").trim(),
-    finish: String(product.finish || "").trim(),
+    id: String(customerProduct.id || "").trim(),
+    productType: String(customerProduct.productType || "").trim(),
+    kind: getPublicProductGroup(customerProduct),
+    name: String(customerProduct.name || "").trim(),
+    size: String(customerProduct.size || "").trim(),
+    modelName: String(customerProduct.modelName || customerProduct.name || "").trim(),
+    material: String(customerProduct.material || "").trim(),
+    surface: String(customerProduct.surface || "").trim(),
+    patternCategory: String(customerProduct.patternCategory || "").trim() || classifyPatternCategory(customerProduct),
+    color: String(customerProduct.color || "").trim(),
+    features: String(customerProduct.features || "").trim(),
+    finish: String(customerProduct.finish || "").trim(),
     maker: "",
-    unit: String(product.unit || "").trim(),
-    option: String(product.option || "").trim(),
-    priceSortRank: getPublicPriceSortRank(product),
-    stockQty: Number(product.stockQty) || 0,
-    stockText: String(product.stockText || "").trim(),
-    image: String(product.image || "").trim(),
-    originalImage: String(product.originalImage || "").trim(),
-    closeImage: String(product.closeImage || "").trim(),
-    detailImage: String(product.detailImage || "").trim(),
-    daylightImage: String(product.daylightImage || "").trim(),
-    fluorescentImage: String(product.fluorescentImage || "").trim(),
-    sceneImage: String(product.sceneImage || "").trim()
+    unit: String(customerProduct.unit || "").trim(),
+    option: String(customerProduct.option || "").trim(),
+    priceSortRank: getPublicPriceSortRank(customerProduct),
+    stockQty: Number(customerProduct.stockQty) || 0,
+    stockText: String(customerProduct.stockText || "").trim(),
+    image: String(customerProduct.image || "").trim(),
+    originalImage: String(customerProduct.originalImage || "").trim(),
+    closeImage: String(customerProduct.closeImage || "").trim(),
+    detailImage: String(customerProduct.detailImage || "").trim(),
+    daylightImage: String(customerProduct.daylightImage || "").trim(),
+    fluorescentImage: String(customerProduct.fluorescentImage || "").trim(),
+    sceneImage: String(customerProduct.sceneImage || "").trim()
   };
+}
+
+function normalizeCustomerProductClassification(product) {
+  const text = normalizeMatchText([
+    product?.name,
+    product?.modelName,
+    product?.option,
+    product?.features,
+    product?.sourceCategoryName,
+    product?.source_category_name,
+    product?.kind,
+    product?.material
+  ].filter(Boolean).join(" "));
+  if (isBathroomCabinetText(text)) {
+    return {
+      ...product,
+      productType: "accessory",
+      kind: "욕실장",
+      option: "욕실장",
+      material: String(product?.material || "").trim() || "욕실제품",
+      features: mergeFeatureText(product?.features, "욕실장")
+    };
+  }
+  if (isBathroomPartitionText(text)) {
+    return {
+      ...product,
+      productType: "accessory",
+      kind: "악세사리",
+      option: "파티션",
+      material: String(product?.material || "").trim() || "욕실제품",
+      features: mergeFeatureText(product?.features, "파티션")
+    };
+  }
+  if (isBathroomCeilingText(text)) {
+    return {
+      ...product,
+      productType: "accessory",
+      kind: "악세사리",
+      option: "천장재",
+      material: String(product?.material || "").trim() || "욕실제품",
+      features: mergeFeatureText(product?.features, "천장재")
+    };
+  }
+  return product;
+}
+
+function isBathroomCabinetText(text) {
+  return /하부장|상부장|거울장|욕실장|세면대장|수납장|키큰장|서랍장|슬라이드장|좌우오픈장|상하오픈장|원도어슬라이즈장|쇼바장|혼합형장|브루노장|패스트장|프로방스|사이드장|2도어장|sidecabinet|cabinet|vanity/.test(String(text || ""));
+}
+
+function isBathroomPartitionText(text) {
+  return /파티션|샤워부스|부스파티션/.test(String(text || ""));
+}
+
+function isBathroomCeilingText(text) {
+  return /천장재|점검구|돔형|평형/.test(String(text || ""));
+}
+
+function mergeFeatureText(value, addition) {
+  const parts = String(value || "")
+    .split(/\s*\/\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!parts.includes(addition)) parts.unshift(addition);
+  return parts.join(" / ");
 }
 
 function getPublicPriceSortRank(product) {
@@ -950,10 +1054,11 @@ function shouldBlockStaticPath(pathname) {
 async function readLocalNormalizedTaxonomy(view = "admin") {
   try {
     const rows = JSON.parse(await fs.promises.readFile(normalizedTaxonomyPath, "utf8"));
+    const publicRows = Array.isArray(rows) ? rows.filter(isPublicCatalogProduct) : [];
     if (String(view).toLowerCase() === "customer") {
-      return Array.isArray(rows) ? rows.map(stripInternalBrandFromNormalizedProduct) : [];
+      return publicRows.map(stripInternalBrandFromNormalizedProduct);
     }
-    return rows;
+    return publicRows;
   } catch {
     return [];
   }
@@ -1058,12 +1163,41 @@ async function appendTaxonomySearchLog(payload) {
   await fs.promises.appendFile(logPath, `${JSON.stringify(entry)}\n`, "utf8");
 }
 
+async function appendTileImageSearchLog(payload) {
+  const logDir = path.join(root, "data", "search-logs");
+  const logPath = path.join(logDir, "tile-image-search.jsonl");
+  const entry = {
+    createdAt: new Date().toISOString(),
+    requestedSize: String(payload?.requestedSize || "").slice(0, 40),
+    requestedFinish: String(payload?.requestedFinish || "").slice(0, 40),
+    searchMode: String(payload?.searchMode || "strict").slice(0, 20),
+    resultCount: Number(payload?.resultCount || 0),
+    analysis: sanitizeSearchLogObject(payload?.analysis || {}),
+    topMatches: (Array.isArray(payload?.topMatches) ? payload.topMatches : []).slice(0, 40).map((item, index) => ({
+      rank: index + 1,
+      id: String(item?.id || "").slice(0, 80),
+      managementCode: String(item?.managementCode || "").slice(0, 80),
+      modelName: String(item?.modelName || item?.name || "").slice(0, 160),
+      size: String(item?.size || "").slice(0, 40),
+      finish: String(item?.finish || item?.surface || "").slice(0, 40),
+      color: String(item?.color || "").slice(0, 40),
+      matchScore: Number(item?.matchScore || 0),
+      matchReasons: Array.isArray(item?.matchReasons)
+        ? item.matchReasons.map((reason) => String(reason).slice(0, 80)).slice(0, 5)
+        : []
+    }))
+  };
+  await fs.promises.mkdir(logDir, { recursive: true });
+  await fs.promises.appendFile(logPath, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
 function sanitizeSearchLogObject(value) {
   if (!value || typeof value !== "object") return {};
   const allowedKeys = [
     "origins", "spaces", "applications", "colors", "styles", "patternDetails",
     "finishes", "textures", "materials", "moods", "sizes", "thicknesses", "priceRanges",
-    "antiSlipRequired", "stockRequired", "stockEmpty", "freeTokens"
+    "antiSlipRequired", "stockRequired", "stockEmpty", "freeTokens", "productCodes",
+    "patterns", "motifs", "shapes", "keywords", "requestedSize", "requestedFinish", "searchMode", "summary"
   ];
   return Object.fromEntries(allowedKeys.map((key) => {
     const current = value[key];
@@ -2625,6 +2759,7 @@ async function findSimilarTilesByImage(payload) {
 
   const imageDataUrl = String(payload?.imageDataUrl || "").trim();
   const requestedSize = normalizeTileSize(String(payload?.size || "").trim());
+  const sizeUnknown = /^(1|true|yes)$/i.test(String(payload?.sizeUnknown || "").trim());
   const requestedFinish = String(payload?.finish || "").trim();
   const searchMode = String(payload?.searchMode || "").trim() === "global" ? "global" : "strict";
   const allSimilar = payload?.allSimilar !== false;
@@ -2638,6 +2773,7 @@ async function findSimilarTilesByImage(payload) {
   const analysis = {
     ...(await analyzeTileImage(imageDataUrl)),
     requestedSize,
+    sizeUnknown,
     requestedFinish,
     searchMode
   };
@@ -2646,12 +2782,7 @@ async function findSimilarTilesByImage(payload) {
     && product.image
     && (searchMode === "global" || productMatchesTileFinderBase(product, analysis))
   ));
-  let products = baseProducts.filter((product) => Number(product.stockQty || 0) > 0);
-  const usedStockFallback = !products.length && baseProducts.length > 0;
-  if (usedStockFallback) {
-    products = baseProducts;
-    analysis.stockFallback = true;
-  }
+  const products = baseProducts;
   const scoredMatches = products
     .map((product) => scoreTileProduct(product, analysis))
     .filter((entry) => entry.score > 0);
@@ -2660,14 +2791,18 @@ async function findSimilarTilesByImage(payload) {
     score: 1,
     reasons: [searchMode === "global" ? "전체 DB 후보" : "사이즈/표면 조건 후보"]
   }));
-  if (usedStockFallback) {
-    rankedMatches = rankedMatches.map((entry) => ({
+  rankedMatches = rankedMatches.map((entry) => {
+    const stockQty = getProductStockQty(entry.product);
+    if (stockQty > stockInquiryThresholdQty) return entry;
+    return {
       ...entry,
-      reasons: [...new Set([...(entry.reasons || []), "재고 확인 필요"])]
-    }));
-  }
+      reasons: [...new Set([...(entry.reasons || []), "주문시 재고 문의"])]
+    };
+  });
   if (searchMode !== "global") {
+    rankedMatches = selectShapeFirstMatches(rankedMatches, analysis);
     rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
+    rankedMatches = await rerankTileMatchesByLocalImage(imageDataUrl, rankedMatches, analysis);
   }
   const matches = rankedMatches
     .sort((left, right) => right.score - left.score || String(left.product.name || "").localeCompare(String(right.product.name || ""), "ko"))
@@ -2677,6 +2812,17 @@ async function findSimilarTilesByImage(payload) {
       matchScore: Math.min(99, Math.max(1, Math.round(entry.score))),
       matchReasons: entry.reasons.slice(0, 4)
     }));
+
+  await appendTileImageSearchLog({
+    requestedSize,
+    requestedFinish,
+    searchMode,
+    analysis,
+    resultCount: matches.length,
+    topMatches: matches.slice(0, 40)
+  }).catch((error) => {
+    console.warn("[tile-image-search] unable to append search log:", error.message);
+  });
 
   return {
     ok: true,
@@ -2711,9 +2857,10 @@ async function analyzeTileImage(imageDataUrl) {
                 "Analyze this tile image for catalog search.",
                 "Return JSON with keys:",
                 "colors: Korean color words array,",
-                "patterns: Korean pattern category words array, use only these when possible: 스톤, 마블, 시멘트, 솔리드, 테라조, 우드, 패턴,",
-                "motifs: Korean visible motif words array such as 꽃, 선형, 구름결, 베인, 입자, 점박이, 나뭇결, 기하학,",
-                "keywords: short search tokens for color and pattern only,",
+                "patterns: Korean pattern category words array, use only these when possible: 스톤, 마블, 시멘트, 솔리드, 테라조, 우드, 패턴, 모자이크, 브릭, 입체,",
+                "motifs: Korean visible motif words array such as 꽃, 선형, 구름결, 베인, 입자, 점박이, 나뭇결, 기하학, 줄눈, 반복라인,",
+                "shapes: Korean visible shape/layout words array. Detect physical layout first: 모자이크, 긴브릭, 직사각, 세로라인, 가로라인, 스틱, 서브웨이, 입체, 골지, 웨이브,",
+                "keywords: short search tokens for color, pattern, and shape,",
                 "summary: one Korean sentence."
               ].join(" ")
             },
@@ -2756,6 +2903,7 @@ function normalizeTileAnalysis(analysis) {
   const colors = normalizeKeywordList(analysis.colors);
   const patterns = normalizeKeywordList(analysis.patterns);
   const motifs = normalizeKeywordList(analysis.motifs);
+  const shapes = normalizeKeywordList(analysis.shapes || analysis.shape || analysis.layout || analysis.layouts);
   const keywords = normalizeKeywordList(analysis.keywords);
   const material = normalizeOptionalAnalysisText(analysis.material);
   const surface = normalizeOptionalAnalysisText(analysis.surface);
@@ -2767,12 +2915,13 @@ function normalizeTileAnalysis(analysis) {
     colors,
     patterns,
     motifs,
+    shapes,
     material,
     surface,
     patternScale,
     patternFlow,
     contrast,
-    keywords: normalizeKeywordList([...colors, ...patterns, ...motifs, ...keywords, ...expandTileMatchKeywords([...colors, ...patterns, ...motifs, ...keywords])]),
+    keywords: normalizeKeywordList([...colors, ...patterns, ...motifs, ...shapes, ...keywords, ...expandTileMatchKeywords([...colors, ...patterns, ...motifs, ...shapes, ...keywords])]),
     summary: String(analysis.summary || "").trim()
   };
 }
@@ -2809,8 +2958,11 @@ function expandTileMatchKeywords(keywords) {
     [/콘크리트|시멘트|cement|concrete/, ["콘크리트", "CON", "시멘트", "CEM"]],
     [/우드|목재|wood/, ["우드", "WOD"]],
     [/패턴|pattern|art|장식|데코/, ["패턴", "PTN", "ART", "데코"]],
+    [/모자이크|모자익|mosaic|mosaico/, ["모자이크", "모자익", "MOSAIC", "MOS", "시트"]],
+    [/브릭|brick|subway|서브웨이|직사각|긴브릭|롱브릭|스틱|stick/, ["브릭", "서브웨이", "직사각", "긴브릭", "롱브릭", "스틱", "BRICK", "SUBWAY", "STICK"]],
     [/꽃|플라워|flower|floral/, ["꽃", "플라워", "FLOWER", "FLORAL", "ART", "패턴"]],
-    [/선형|라인|줄무늬|stripe|linear|line/, ["라인", "선형", "STRIPE", "LINE", "패턴"]],
+    [/선형|라인|줄무늬|반복라인|세로라인|가로라인|stripe|linear|line/, ["라인", "선형", "세로", "가로", "반복라인", "STRIPE", "LINE", "패턴"]],
+    [/입체|3d|엠보|emboss|골지|리브|리브드|플루티드|flute|fluted|rib|웨이브|wave/, ["입체", "3D", "엠보", "골지", "리브", "플루티드", "웨이브"]],
     [/입자|점박이|칩|chip|speckle|grain|그레인/, ["입자", "점박이", "칩", "SPECKLE", "GRAIN", "테라조"]],
     [/베인|결|vein|veining|구름결|흐름/, ["베인", "결", "VEIN", "VEINING", "마블", "스톤"]],
     [/나뭇결|woodgrain|wood grain/, ["나뭇결", "우드", "WOOD", "WOD"]],
@@ -2864,6 +3016,17 @@ function scoreTileProduct(product, analysis) {
     }
   }
 
+  const shapeIntent = getTileImageShapeIntent(analysis);
+  if (shapeIntent.active) {
+    const shapeMatch = scoreProductShapeAgainstIntent(product, shapeIntent);
+    if (shapeMatch.score > 0) {
+      score += shapeMatch.score;
+      reasons.push(...shapeMatch.reasons);
+    } else {
+      score -= shapeIntent.strict ? 28 : 10;
+    }
+  }
+
   for (const color of analysis.colors || []) {
     const weight = keywordMatchScore(text, color, "색상", reasons, 30);
     score += weight;
@@ -2895,6 +3058,187 @@ function scoreTileProduct(product, analysis) {
   };
 }
 
+function selectShapeFirstMatches(matches, analysis) {
+  const shapeIntent = getTileImageShapeIntent(analysis);
+  if (!shapeIntent.active) return matches;
+
+  const shapedMatches = matches
+    .map((entry) => {
+      const shapeMatch = scoreProductShapeAgainstIntent(entry.product, shapeIntent);
+      return {
+        ...entry,
+        tileShapeScore: shapeMatch.score,
+        reasons: shapeMatch.score > 0
+          ? [...new Set([...(shapeMatch.reasons || []), ...(entry.reasons || [])])]
+          : entry.reasons
+      };
+    })
+    .filter((entry) => entry.tileShapeScore > 0);
+
+  if (!shapedMatches.length) return matches;
+
+  const strongMatches = shapedMatches.filter((entry) => entry.tileShapeScore >= 70);
+  const selected = strongMatches.length ? strongMatches : shapedMatches;
+  return selected.map((entry) => ({
+    ...entry,
+    score: entry.score + entry.tileShapeScore + getShapeFirstColorBonus(entry.product, analysis)
+  }));
+}
+
+function getTileImageShapeIntent(analysis) {
+  const raw = normalizeMatchText([
+    ...(analysis.shapes || []),
+    ...(analysis.motifs || []),
+    ...(analysis.patterns || []),
+    ...(analysis.keywords || []),
+    analysis.summary,
+    analysis.patternScale,
+    analysis.patternFlow
+  ].filter(Boolean).join(" "));
+  const active = /모자이크|모자익|mosaic|브릭|brick|직사각|긴브릭|롱브릭|스틱|stick|서브웨이|subway|라인|선형|줄무늬|세로|가로|반복라인|입체|3d|엠보|골지|리브|플루티드|웨이브/.test(raw);
+  return {
+    active,
+    mosaic: /모자이크|모자익|mosaic/.test(raw),
+    longBrick: /긴브릭|롱브릭|직사각|브릭|brick|스틱|stick|서브웨이|subway/.test(raw),
+    linear: /라인|선형|줄무늬|세로|가로|반복라인|stripe|linear|line/.test(raw),
+    relief: /입체|3d|엠보|골지|리브|플루티드|웨이브|wave|rib|flute/.test(raw),
+    strict: /모자이크|모자익|mosaic/.test(raw) && /긴브릭|롱브릭|직사각|브릭|brick|스틱|stick|라인|선형|세로|가로|반복라인/.test(raw)
+  };
+}
+
+function scoreProductShapeAgainstIntent(product, intent) {
+  if (!intent?.active) return { score: 0, reasons: [] };
+
+  const text = normalizeMatchText([
+    product?.name,
+    product?.modelName,
+    product?.option,
+    product?.features,
+    product?.patternCategory,
+    product?.material,
+    product?.size
+  ].filter(Boolean).join(" "));
+  const reasons = [];
+  let score = 0;
+
+  const isMosaic = /모자이크|모자익|mosaic|mosaico|시트|sheet|직각모자이크|정각모자이크|원형모자이크|육각모자이크|랜턴모자이크/.test(text);
+  const isLongBrickModule = hasLongBrickProductModule(product);
+  const isLongBrick = /긴브릭|롱브릭|직사각|직사각모자|브릭|brick|subway|서브웨이|스틱|stick|막대|g145|g445|g72|g68|eom2101|eom2141|eom/.test(text)
+    || isLongBrickModule
+    || hasLongRectangularTilePiece(product, isMosaic);
+  const isLinear = isLongBrickModule || /라인|선형|줄|줄무늬|세로|가로|stripe|linear|line|스틱|stick|직사각|브릭/.test(text);
+  const isRelief = /입체|3d|엠보|emboss|골지|리브|리브드|플루티드|flute|fluted|rib|웨이브|wave/.test(text);
+
+  if (intent.mosaic) {
+    if (isMosaic) {
+      score += 46;
+      reasons.push("형태일치: 모자이크");
+    } else if (isLongBrickModule) {
+      score += 28;
+      reasons.push("형태일치: 긴 브릭 모듈");
+    } else if (intent.strict) {
+      return { score: 0, reasons: [] };
+    }
+  }
+  if (intent.longBrick) {
+    if (isLongBrick) {
+      score += 42;
+      reasons.push("형태일치: 긴 브릭/직사각");
+    } else if (intent.strict) {
+      return { score: 0, reasons: [] };
+    }
+  }
+  if (intent.linear && isLinear) {
+    score += 18;
+    reasons.push("형태일치: 반복 라인");
+  }
+  if (intent.relief && isRelief) {
+    score += 22;
+    reasons.push("형태일치: 입체/웨이브");
+  }
+  if (intent.strict && (isMosaic || isLongBrickModule) && isLongBrick) score += 24;
+
+  return { score, reasons };
+}
+
+function hasLongRectangularTilePiece(product, isMosaic = false) {
+  const text = String([
+    product?.name,
+    product?.modelName,
+    product?.features,
+    product?.unit,
+    product?.option
+  ].filter(Boolean).join(" "));
+  const tilePieceMatches = [...text.matchAll(/(?:TILE|타일)\s*(\d{2,4})\s*[x×*]\s*(\d{2,4})/gi)];
+  for (const match of tilePieceMatches) {
+    const a = Number(match[1]);
+    const b = Number(match[2]);
+    if (!a || !b) continue;
+    const longSide = Math.max(a, b);
+    const shortSide = Math.min(a, b);
+    if (shortSide > 0 && longSide / shortSide >= 2.2) return true;
+  }
+
+  if (!isMosaic) return false;
+  const matches = [...String(product?.size || "").matchAll(/(\d{2,4})\s*[x×*]\s*(\d{2,4})/gi)];
+  for (const match of matches) {
+    const a = Number(match[1]);
+    const b = Number(match[2]);
+    if (!a || !b) continue;
+    const longSide = Math.max(a, b);
+    const shortSide = Math.min(a, b);
+    if (shortSide > 0 && longSide <= 320 && longSide / shortSide >= 2.2) return true;
+  }
+  return false;
+}
+
+function hasLongBrickProductModule(product) {
+  const dimensionPairs = collectProductDimensionPairs(product);
+  for (const [a, b] of dimensionPairs) {
+    const longSide = Math.max(a, b);
+    const shortSide = Math.min(a, b);
+    if (!longSide || !shortSide) continue;
+    if (shortSide <= 80 && longSide >= 120 && longSide <= 420 && longSide / shortSide >= 2.4) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function collectProductDimensionPairs(product) {
+  const text = [
+    product?.size,
+    product?.name,
+    product?.modelName,
+    product?.features,
+    product?.unit,
+    product?.option
+  ].filter(Boolean).join(" ");
+  const pairs = [];
+  for (const match of String(text).matchAll(/(\d{2,4})\s*[x×*]\s*(\d{2,4})/gi)) {
+    const a = Number(match[1]);
+    const b = Number(match[2]);
+    if (a && b) pairs.push([a, b]);
+  }
+  return pairs;
+}
+
+function getShapeFirstColorBonus(product, analysis) {
+  const colorTokens = normalizeKeywordList([
+    ...(analysis.colors || []),
+    ...expandTileMatchKeywords(analysis.colors || [])
+  ]).map(normalizeMatchText).filter((token) => token.length >= 2);
+  if (!colorTokens.length) return 0;
+  const text = normalizeMatchText([
+    product?.name,
+    product?.color,
+    product?.features,
+    product?.option,
+    product?.patternCategory
+  ].filter(Boolean).join(" "));
+  return colorTokens.some((token) => text.includes(token)) ? 36 : 0;
+}
+
 function productMatchesTileFinderBase(product, analysis) {
   if (analysis.requestedSize) {
     const productSizes = collectTileFinderProductSizes(product);
@@ -2911,6 +3255,7 @@ function productMatchesTileFinderBase(product, analysis) {
 }
 
 function isTileFinderTileCandidate(product) {
+  if (!isPublicCatalogProduct(product)) return false;
   if (String(product?.productType || "").trim() !== "tile") return false;
   const text = normalizeMatchText([
     product.name,
@@ -3006,6 +3351,308 @@ function getProductTileFinderFinishGroups(product) {
 function hasStandaloneFinishCode(value, code) {
   const pattern = new RegExp(`(^|[^a-z0-9가-힣])${code}($|[^a-z0-9가-힣])`, "i");
   return pattern.test(String(value || ""));
+}
+
+async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analysis) {
+  if (!scoredMatches.length) return scoredMatches;
+
+  let querySignature = null;
+  try {
+    querySignature = await buildTileImageSignatureFromDataUrl(imageDataUrl);
+  } catch (error) {
+    console.warn("[tile-image-search] uploaded image signature failed:", error.message);
+    return scoredMatches;
+  }
+  if (!querySignature) return scoredMatches;
+
+  const candidatePool = [...scoredMatches]
+    .filter((entry) => getProductCompareImageUrl(entry.product))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, tileVisualCompareLimit);
+  if (!candidatePool.length) return scoredMatches;
+
+  const visualEntries = await mapWithConcurrency(candidatePool, 8, async (entry) => {
+    try {
+      const productSignature = await getProductImageSignature(entry.product);
+      if (!productSignature) return null;
+      const visual = compareTileImageSignatures(querySignature, productSignature);
+      return {
+        id: String(entry.product.id),
+        visual
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  const visualById = new Map(
+    visualEntries
+      .filter(Boolean)
+      .map((entry) => [entry.id, entry.visual])
+  );
+  if (!visualById.size) return scoredMatches;
+
+  return scoredMatches.map((entry) => {
+    const visual = visualById.get(String(entry.product.id));
+    if (!visual) return entry;
+    const shapeIntent = getTileImageShapeIntent(analysis);
+    const shapeMatch = scoreProductShapeAgainstIntent(entry.product, shapeIntent);
+    const visualScore = Number(visual.score || 0);
+    const score = (entry.score * 0.35)
+      + (visualScore * 1.25)
+      + (Number(visual.colorScore || 0) * 0.25)
+      + (Number(visual.textureScore || 0) * 0.15)
+      + (shapeMatch.score * 0.35);
+    return {
+      ...entry,
+      score,
+      imageVisualScore: visualScore,
+      imageColorScore: visual.colorScore,
+      imageTextureScore: visual.textureScore,
+      reasons: [
+        `이미지유사도 ${Math.round(visualScore)}`,
+        `색상이미지 ${Math.round(visual.colorScore)}`,
+        `패턴이미지 ${Math.round(visual.textureScore)}`,
+        ...(entry.reasons || [])
+      ].filter(Boolean)
+    };
+  });
+}
+
+async function buildTileImageSignatureFromDataUrl(imageDataUrl) {
+  const parsed = parseImageDataUrl(imageDataUrl);
+  if (!parsed) throw new Error("invalid image data url");
+  const decoded = decodeImageBuffer(parsed.buffer, parsed.mimeType);
+  return buildTileImageSignature(decoded);
+}
+
+async function getProductImageSignature(product) {
+  const imageUrl = getProductCompareImageUrl(product);
+  if (!imageUrl) return null;
+  if (tileImageSignatureCache.has(imageUrl)) {
+    const cached = tileImageSignatureCache.get(imageUrl);
+    tileImageSignatureCache.delete(imageUrl);
+    tileImageSignatureCache.set(imageUrl, cached);
+    return cached;
+  }
+
+  const bufferInfo = await readImageBuffer(imageUrl);
+  const decoded = decodeImageBuffer(bufferInfo.buffer, bufferInfo.mimeType);
+  const signature = buildTileImageSignature(decoded);
+  tileImageSignatureCache.set(imageUrl, signature);
+  while (tileImageSignatureCache.size > tileImageSignatureLimit) {
+    const firstKey = tileImageSignatureCache.keys().next().value;
+    tileImageSignatureCache.delete(firstKey);
+  }
+  return signature;
+}
+
+function getProductCompareImageUrl(product) {
+  return String(
+    product?.closeImage
+    || product?.detailImage
+    || product?.image
+    || product?.originalImage
+    || ""
+  ).trim();
+}
+
+function parseImageDataUrl(value) {
+  const match = String(value || "").match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
+  if (!match) return null;
+  return {
+    mimeType: normalizeImageContentType(match[1]),
+    buffer: Buffer.from(match[2], "base64")
+  };
+}
+
+async function readImageBuffer(imageUrl) {
+  const url = String(imageUrl || "").trim();
+  if (/^data:image\//i.test(url)) {
+    const parsed = parseImageDataUrl(url);
+    if (!parsed) throw new Error("invalid product data image");
+    return parsed;
+  }
+  if (!/^https?:\/\//i.test(url)) throw new Error("unsupported product image url");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`image fetch failed ${response.status}`);
+    return {
+      mimeType: normalizeImageContentType(response.headers.get("content-type") || "image/jpeg"),
+      buffer: Buffer.from(await response.arrayBuffer())
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function decodeImageBuffer(buffer, mimeType) {
+  const type = normalizeImageContentType(mimeType);
+  if (type === "image/png") {
+    const png = PNG.sync.read(buffer);
+    return {
+      width: png.width,
+      height: png.height,
+      data: png.data
+    };
+  }
+  try {
+    const jpg = jpeg.decode(buffer, { useTArray: true });
+    return {
+      width: jpg.width,
+      height: jpg.height,
+      data: jpg.data
+    };
+  } catch (jpegError) {
+    try {
+      const png = PNG.sync.read(buffer);
+      return {
+        width: png.width,
+        height: png.height,
+        data: png.data
+      };
+    } catch {
+      throw jpegError;
+    }
+  }
+}
+
+function buildTileImageSignature(image) {
+  const width = Number(image?.width) || 0;
+  const height = Number(image?.height) || 0;
+  const data = image?.data;
+  if (!width || !height || !data) throw new Error("image decode failed");
+
+  const gridSize = 16;
+  const grid = [];
+  const gray = [];
+  const histogram = Array.from({ length: 64 }, () => 0);
+  let rTotal = 0;
+  let gTotal = 0;
+  let bTotal = 0;
+  let count = 0;
+
+  const crop = getCenteredImageCrop(width, height);
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      const px = Math.min(width - 1, Math.max(0, Math.floor(crop.left + ((x + 0.5) / gridSize) * crop.width)));
+      const py = Math.min(height - 1, Math.max(0, Math.floor(crop.top + ((y + 0.5) / gridSize) * crop.height)));
+      const index = (py * width + px) * 4;
+      const alpha = data[index + 3] == null ? 255 : data[index + 3];
+      if (alpha < 8) continue;
+      const r = data[index] || 0;
+      const g = data[index + 1] || 0;
+      const b = data[index + 2] || 0;
+      grid.push(r / 255, g / 255, b / 255);
+      gray.push(((r * 0.299) + (g * 0.587) + (b * 0.114)) / 255);
+      rTotal += r;
+      gTotal += g;
+      bTotal += b;
+      count += 1;
+      const rBin = Math.min(3, Math.floor(r / 64));
+      const gBin = Math.min(3, Math.floor(g / 64));
+      const bBin = Math.min(3, Math.floor(b / 64));
+      histogram[(rBin * 16) + (gBin * 4) + bBin] += 1;
+    }
+  }
+  if (!count) throw new Error("empty image signature");
+  for (let i = 0; i < histogram.length; i += 1) histogram[i] /= count;
+
+  let verticalEdge = 0;
+  let horizontalEdge = 0;
+  let edgeCount = 0;
+  for (let y = 0; y < gridSize; y += 1) {
+    for (let x = 0; x < gridSize; x += 1) {
+      const value = gray[y * gridSize + x] || 0;
+      if (x + 1 < gridSize) {
+        verticalEdge += Math.abs(value - (gray[y * gridSize + x + 1] || 0));
+        edgeCount += 1;
+      }
+      if (y + 1 < gridSize) {
+        horizontalEdge += Math.abs(value - (gray[(y + 1) * gridSize + x] || 0));
+      }
+    }
+  }
+
+  return {
+    avg: [rTotal / count, gTotal / count, bTotal / count],
+    grid,
+    gray,
+    histogram,
+    verticalEdge: verticalEdge / Math.max(1, edgeCount),
+    horizontalEdge: horizontalEdge / Math.max(1, edgeCount)
+  };
+}
+
+function getCenteredImageCrop(width, height) {
+  const insetX = Math.floor(width * 0.04);
+  const insetY = Math.floor(height * 0.04);
+  return {
+    left: insetX,
+    top: insetY,
+    width: Math.max(1, width - (insetX * 2)),
+    height: Math.max(1, height - (insetY * 2))
+  };
+}
+
+function compareTileImageSignatures(left, right) {
+  const avgDistance = colorDistance(left.avg, right.avg);
+  const avgColorScore = clampScore(100 - ((avgDistance / 441.7) * 100));
+  let histogramIntersection = 0;
+  for (let i = 0; i < left.histogram.length; i += 1) {
+    histogramIntersection += Math.min(left.histogram[i] || 0, right.histogram[i] || 0);
+  }
+  const histogramScore = clampScore(histogramIntersection * 100);
+
+  const gridLength = Math.min(left.grid.length, right.grid.length);
+  let gridDistance = 0;
+  for (let i = 0; i < gridLength; i += 3) {
+    const dr = (left.grid[i] || 0) - (right.grid[i] || 0);
+    const dg = (left.grid[i + 1] || 0) - (right.grid[i + 1] || 0);
+    const db = (left.grid[i + 2] || 0) - (right.grid[i + 2] || 0);
+    gridDistance += Math.sqrt((dr * dr) + (dg * dg) + (db * db));
+  }
+  const gridSamples = Math.max(1, gridLength / 3);
+  const gridScore = clampScore(100 - ((gridDistance / gridSamples) / Math.sqrt(3) * 100));
+
+  const verticalScore = clampScore(100 - (Math.abs(left.verticalEdge - right.verticalEdge) * 260));
+  const horizontalScore = clampScore(100 - (Math.abs(left.horizontalEdge - right.horizontalEdge) * 260));
+  const textureScore = clampScore((verticalScore * 0.48) + (horizontalScore * 0.52));
+  const colorScore = clampScore((avgColorScore * 0.62) + (histogramScore * 0.38));
+  const score = clampScore((colorScore * 0.45) + (gridScore * 0.25) + (textureScore * 0.3));
+  return {
+    score,
+    colorScore,
+    textureScore,
+    gridScore
+  };
+}
+
+function colorDistance(left, right) {
+  const dr = (left?.[0] || 0) - (right?.[0] || 0);
+  const dg = (left?.[1] || 0) - (right?.[1] || 0);
+  const db = (left?.[2] || 0) - (right?.[2] || 0);
+  return Math.sqrt((dr * dr) + (dg * dg) + (db * db));
+}
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Number(value) || 0));
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = Array(items.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 async function rerankTileMatchesByVision(imageDataUrl, scoredMatches, analysis) {
