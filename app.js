@@ -1126,6 +1126,9 @@ function getDirectRegionalTileKind(region, useGroup, compactSource = "") {
 
 function getProductDirectTileCategories(product) {
   if (!product || product.productType !== "tile") return [];
+  const storedStyle = normalizeDirectProductFilterValue(product.patternCategory);
+  if (TILE_STYLE_OPTION_SET.has(storedStyle)) return [storedStyle];
+
   const item = getNormalizedTaxonomyProductForProduct(product);
   const styleValues = [];
   const addStyle = (value) => {
@@ -1134,9 +1137,7 @@ function getProductDirectTileCategories(product) {
   const normalizedText = normalizeSearchText([
     ...(Array.isArray(item?.functionCategories) ? item.functionCategories : []),
     ...(Array.isArray(item?.applicationCategories) ? item.applicationCategories : []),
-    ...(Array.isArray(item?.styleCategories) ? item.styleCategories : []),
     item?.patternDetail,
-    product.patternCategory,
     product.material,
     product.name,
     product.option,
