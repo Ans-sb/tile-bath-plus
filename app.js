@@ -23,6 +23,21 @@ const TILE_DIRECT_KIND_OPTIONS = [
 ];
 const TILE_DIRECT_KIND_OPTION_SET = new Set(TILE_DIRECT_KIND_OPTIONS);
 const TILE_SIZES = ["600*600", "300*600", "600*1200", "300*300", "200*200", "100*300", "800*800", "400*800", "100*100", "150*600"];
+const TILE_STYLE_OPTIONS = [
+  "마블",
+  "스톤",
+  "시멘트",
+  "트래버틴",
+  "콘크리트",
+  "테라조",
+  "우드",
+  "솔리드",
+  "패턴",
+  "브릭",
+  "입체",
+  "핸드메이드"
+];
+const TILE_STYLE_OPTION_SET = new Set(TILE_STYLE_OPTIONS);
 const SANITARY_KINDS = ["양변기", "비데", "소변기", "세면기", "욕조", "위생도기"];
 const FAUCET_KINDS = ["수전 금구", "세면수전", "샤워수전", "주방수전", "해바라기샤워"];
 const ACCESSORY_KINDS = ["악세사리", "욕실장", "거울", "수건걸이", "휴지걸이", "선반", "유가"];
@@ -312,6 +327,7 @@ function bindEvents() {
     if (!control) return;
     control.addEventListener("input", () => {
       if (selector === "#mainCategoryFilter") syncProductFilters({ resetSubFilters: true });
+      if (selector === "#optionFilter" || selector === "#patternCategoryFilter") syncProductFilters();
       productCurrentPage = 1;
       renderProducts();
     });
@@ -925,15 +941,24 @@ function getKinds(type) {
 }
 
 function fillProductFilterSelect(select, values, previousValue = "all", allLabel = "전체", config = {}) {
-  if (!select) return;
+  if (!select) return "all";
   const normalizedValues = (values || []).map(normalizeDirectProductFilterValue).filter(Boolean);
   const cleanValues = config.preserveOrder ? unique(normalizedValues) : sortDirectProductFilterValues(normalizedValues);
   select.innerHTML = `<option value="all">${escapeHtml(allLabel)}</option>${cleanValues.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}`;
   select.value = cleanValues.includes(previousValue) ? previousValue : "all";
+  return select.value;
 }
 
 function sortDirectProductFilterValues(values) {
   return sortTaxonomyValues(unique((values || []).map(normalizeDirectProductFilterValue).filter(Boolean)));
+}
+
+function sortDirectTileStyleValues(values) {
+  const cleanValues = unique((values || []).map(normalizeDirectProductFilterValue).filter(Boolean));
+  return [
+    ...TILE_STYLE_OPTIONS.filter((value) => cleanValues.includes(value)),
+    ...sortDirectProductFilterValues(cleanValues.filter((value) => !TILE_STYLE_OPTION_SET.has(value)))
+  ];
 }
 
 function normalizeDirectProductFilterValue(value) {
@@ -1102,23 +1127,35 @@ function getDirectRegionalTileKind(region, useGroup, compactSource = "") {
 function getProductDirectTileCategories(product) {
   if (!product || product.productType !== "tile") return [];
   const item = getNormalizedTaxonomyProductForProduct(product);
-  const specialCategories = [];
+  const styleValues = [];
+  const addStyle = (value) => {
+    if (TILE_STYLE_OPTION_SET.has(value) && !styleValues.includes(value)) styleValues.push(value);
+  };
   const normalizedText = normalizeSearchText([
     ...(Array.isArray(item?.functionCategories) ? item.functionCategories : []),
     ...(Array.isArray(item?.applicationCategories) ? item.applicationCategories : []),
+    ...(Array.isArray(item?.styleCategories) ? item.styleCategories : []),
     item?.patternDetail,
+    product.patternCategory,
+    product.material,
     product.name,
     product.option,
     product.sourceCategoryName
   ].filter(Boolean).join(" "));
-  if (normalizedText.includes("모자이크")) specialCategories.push("모자이크");
-  if (/대형슬랩|빅슬랩|슬랩/.test(normalizedText)) specialCategories.push("대형슬랩");
-  if (/외부용|외장|20t/.test(normalizedText)) specialCategories.push("외부용");
-  if (/계단/.test(normalizedText)) specialCategories.push("계단");
-  return unique([
-    ...(Array.isArray(item?.styleCategories) ? item.styleCategories : []),
-    ...specialCategories
-  ].map(normalizeDirectProductFilterValue).filter(Boolean));
+
+  if (/마블|marble|카라라|칼라카타|calacatta|carrara|비앙코|대리석|베인|네로|판다/.test(normalizedText)) addStyle("마블");
+  if (/트래버틴|트라버틴|travertine/.test(normalizedText)) addStyle("트래버틴");
+  if (/스톤|stone|라임스톤|슬레이트|현무|알프스톤|자연석|석회석|샌드스톤/.test(normalizedText)) addStyle("스톤");
+  if (/시멘트|cement|cem|몰탈|모르타르/.test(normalizedText)) addStyle("시멘트");
+  if (/콘크리트|concrete|노출콘크리트|마이크로시멘트/.test(normalizedText)) addStyle("콘크리트");
+  if (/테라조|terrazzo|칩|chip|스페클|입자/.test(normalizedText)) addStyle("테라조");
+  if (/우드|wood|쪽마루|오크|월넛|티크|나뭇결/.test(normalizedText)) addStyle("우드");
+  if (/솔리드|solid|단색|무지|컬러솔리드|컬러\/솔리드|컬러룩/.test(normalizedText)) addStyle("솔리드");
+  if (/패턴|pattern|데코|엔카우스틱|체크|플라워|지오메트릭|랜덤패턴|포인트/.test(normalizedText)) addStyle("패턴");
+  if (/브릭|벽돌|brick|서브웨이|subway|롱브릭/.test(normalizedText)) addStyle("브릭");
+  if (/입체|텍스처|텍스쳐|3d|양각|플루티드|리브드|골지/.test(normalizedText)) addStyle("입체");
+  if (/핸드메이드|젤리지|수공예|불규칙엣지|유약흐름/.test(normalizedText)) addStyle("핸드메이드");
+  return styleValues;
 }
 
 function getProductDirectFinishValues(product) {
@@ -1157,6 +1194,29 @@ function productMatchesDirectOptionFilter(product, selectedValue) {
   return unique([product?.option, product?.kind].map(normalizeDirectProductFilterValue).filter(Boolean)).includes(normalizedSelected);
 }
 
+function getDirectProductSizeScope(baseProducts, optionValue = "all", patternCategoryValue = "all") {
+  return (baseProducts || []).filter((product) => (
+    productMatchesDirectOptionFilter(product, optionValue)
+      && productMatchesDirectFilter(product, patternCategoryValue, getProductDirectTileCategories)
+  ));
+}
+
+function isDirectProductSizeLabel(value) {
+  const text = normalizeDirectProductFilterValue(value);
+  if (!text || /미확인|기타|타일|도기|수전|부자재|악세사리|욕실장|세면|양변|비데/.test(text)) return false;
+  return /\d/.test(text);
+}
+
+function getDirectProductSizes(baseProducts) {
+  const productSizes = unique((baseProducts || [])
+    .map((product) => normalizeDirectProductFilterValue(product.size))
+    .filter(isDirectProductSizeLabel));
+  return [
+    ...TILE_SIZES.filter((size) => productSizes.includes(size)),
+    ...productSizes.filter((size) => !TILE_SIZES.includes(size))
+  ];
+}
+
 function getProductDisplayColor(product) {
   return getProductDirectColorValues(product)[0] || product.color || "미확인";
 }
@@ -1188,13 +1248,6 @@ function syncProductFilters(config = {}) {
     kindFilter.value = "all";
   }
 
-  const productSizes = unique(filteredByType.map((product) => product.size).filter(Boolean));
-  const sizes = type === "tile"
-    ? [
-        ...TILE_SIZES.filter((size) => productSizes.includes(size)),
-        ...productSizes.filter((size) => !TILE_SIZES.includes(size))
-      ]
-    : productSizes;
   const nonTileOptions = sortDirectProductFilterValues(filteredByType
     .filter((product) => product.productType !== "tile")
     .flatMap((product) => [product.option, product.kind])
@@ -1206,13 +1259,16 @@ function syncProductFilters(config = {}) {
     : type === "all"
       ? unique([...TILE_DIRECT_KIND_OPTIONS, ...nonTileOptions])
       : rawOptions;
-  const patternCategories = sortDirectProductFilterValues(filteredByType.flatMap(getProductDirectTileCategories));
-  const finishes = sortDirectProductFilterValues(filteredByType.flatMap(getProductDirectFinishValues));
-  const colors = sortDirectProductFilterValues(filteredByType.flatMap(getProductDirectColorValues));
+  const selectedOption = fillProductFilterSelect(optionFilter, options, previousOption, "전체", { preserveOrder: preserveOptionOrder });
+  const filteredByOption = filteredByType.filter((product) => productMatchesDirectOptionFilter(product, selectedOption));
+  const patternCategories = sortDirectTileStyleValues(filteredByOption.flatMap(getProductDirectTileCategories));
+  const selectedPatternCategory = fillProductFilterSelect(patternCategoryFilter, patternCategories, previousPatternCategory, "전체", { preserveOrder: true });
+  const filteredForSize = getDirectProductSizeScope(filteredByType, selectedOption, selectedPatternCategory);
+  const sizes = getDirectProductSizes(filteredForSize);
+  const finishes = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectFinishValues));
+  const colors = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectColorValues));
 
   fillProductFilterSelect(sizeFilter, sizes, previousSize);
-  fillProductFilterSelect(optionFilter, options, previousOption, "전체", { preserveOrder: preserveOptionOrder });
-  fillProductFilterSelect(patternCategoryFilter, patternCategories, previousPatternCategory);
   fillProductFilterSelect(finishFilter, finishes, previousFinish);
   fillProductFilterSelect(colorFilter, colors, previousColor);
 }

@@ -43,7 +43,7 @@ const productReadCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_CACHE_
 const productReadFallbackCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_FALLBACK_CACHE_TTL_MS || 60 * 1000));
 const productRemoteReadTimeoutMs = Math.max(0, Number(process.env.PRODUCT_REMOTE_READ_TIMEOUT_MS || 20000));
 const supabaseRequestTimeoutMs = Math.max(0, Number(process.env.SUPABASE_REQUEST_TIMEOUT_MS || 12000));
-const productReadMode = String(process.env.PRODUCT_READ_MODE || "supabase-first").trim().toLowerCase();
+const productReadMode = String(process.env.PRODUCT_READ_MODE || "local-only").trim().toLowerCase();
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminDisplayName = String(process.env.ADMIN_DISPLAY_NAME || "내부관리자").trim();
@@ -442,6 +442,11 @@ function isVerygoodProduct(product) {
 async function readProducts(options = {}) {
   const cachedProducts = options.cache === false ? null : getCachedProducts();
   if (cachedProducts) return cachedProducts;
+
+  if (forceLocalProducts || productReadMode === "local-only") {
+    const localProducts = await readProductsFromLocalFile();
+    return setCachedProducts(localProducts, "file", productReadCacheTtlMs);
+  }
 
   if (hasSupabaseConfig() && productReadMode !== "local-only") {
     try {
