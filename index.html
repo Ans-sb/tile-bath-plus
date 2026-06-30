@@ -1722,14 +1722,124 @@
           </div>
           <div class="signup-status-bar" id="adminStatus">내부관리자 정보를 불러올 준비가 되었습니다.</div>
           <div class="admin-toolbar">
-            <button class="tab active" id="adminProductsTab" type="button">상품현황</button>
+            <button class="tab active" id="adminOperationsTab" type="button">운영대시보드</button>
+            <button class="tab" id="adminProductsTab" type="button">상품현황</button>
             <button class="tab" id="adminQualityTab" type="button">품질대시보드</button>
             <button class="tab" id="adminOrdersTab" type="button">주문처리현황</button>
             <button class="tab" type="button" data-page-target="tile114TestPage">거래사이트 테스트</button>
           </div>
         </section>
 
-        <section class="commerce-panel admin-view" id="adminProductsView">
+        <section class="commerce-panel admin-view" id="adminOperationsView">
+          <div class="admin-ops-hero">
+            <div>
+              <p class="eyebrow">Operations Command</p>
+              <h3 id="adminOpsHeadline">오늘 처리할 업무를 불러오는 중입니다.</h3>
+              <p id="adminOpsSubline">회원 승인, 주문 접수, 재고 문의, DB 품질 리스크를 한 화면에서 확인합니다.</p>
+            </div>
+            <div class="admin-ops-actions">
+              <button class="secondary-action" type="button" data-admin-view-target="orders">주문 처리 보기</button>
+              <button class="secondary-action" type="button" data-admin-view-target="quality">DB 품질 보기</button>
+              <button class="secondary-action" type="button" data-admin-view-target="products">상품 현황 보기</button>
+            </div>
+          </div>
+
+          <div class="admin-summary-grid admin-ops-kpi-grid" id="adminOpsKpiGrid"></div>
+
+          <div class="admin-ops-layout">
+            <article class="admin-ops-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">Action Queue</p>
+                  <h4>오늘 우선 처리할 일</h4>
+                </div>
+              </div>
+              <div class="admin-task-list" id="adminOpsTaskList"></div>
+            </article>
+
+            <article class="admin-ops-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">Process</p>
+                  <h4>운영 흐름</h4>
+                </div>
+              </div>
+              <div class="admin-process-steps" id="adminOpsFlowSummary"></div>
+            </article>
+          </div>
+
+          <div class="admin-ops-table-grid">
+            <article class="admin-ops-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">Members</p>
+                  <h4>회원 승인 대기</h4>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>업체명</th>
+                      <th>담당자</th>
+                      <th>가입경로</th>
+                      <th>상태</th>
+                      <th>신청일</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminOpsSignupRows"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="admin-ops-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">Orders</p>
+                  <h4>주문/장바구니 진행</h4>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>업체명</th>
+                      <th>품목</th>
+                      <th>견적합계</th>
+                      <th>상태</th>
+                      <th>최근 저장</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminOpsOrderRows"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="admin-ops-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">Risk</p>
+                  <h4>재고/DB 리스크</h4>
+                </div>
+              </div>
+              <div class="table-wrap compact-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>구분</th>
+                      <th>대상</th>
+                      <th>내용</th>
+                      <th>우선순위</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminOpsRiskRows"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="commerce-panel admin-view hidden" id="adminProductsView">
           <div class="section-header-inline">
             <div>
               <p class="eyebrow">Products</p>
@@ -1888,6 +1998,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260630-quality-dashboard1"></script>
+    <script src="app.js?v=20260630-ops-dashboard1"></script>
   </body>
 </html>

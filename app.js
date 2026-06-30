@@ -126,6 +126,7 @@ const DEFAULT_APPROVAL_RULES = {
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
 const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "tile114TestPage"]);
 const IMAGE_SEARCH_RESULTS_PAGE_SIZE = 20;
+const ADMIN_PRODUCT_TABLE_LIMIT = 300;
 const UNKNOWN_TILE_SIZE_VALUE = "__unknown__";
 const STOCK_INQUIRY_THRESHOLD_QTY = 30;
 
@@ -243,7 +244,8 @@ const signupForm = document.querySelector("#signupForm");
 const loginForm = document.querySelector("#loginForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
-let currentAdminView = "products";
+let currentAdminView = "operations";
+let adminProductsHydrated = false;
 const DEFAULT_PROPOSAL_PPT_STATUS = "템플릿을 고르고 상품과 보정 이미지를 선택한 뒤 최종 제안서를 생성하세요.";
 const PROPOSAL_TEMPLATE_PREVIEWS = {
   "beige-black": {
@@ -284,6 +286,9 @@ async function init() {
   startServerConnectionWatcher();
   await hydrateCartFromServer();
   renderAll();
+  if (currentPageId === "adminPage") {
+    loadAdminOverview();
+  }
   if (socialRedirect) await completeSocialAuthRedirect(socialRedirect);
   if (currentPageId === "proposalPage") {
     resetProposalPptState();
@@ -665,9 +670,14 @@ function bindEvents() {
     setText("#serverControlStatus", online ? "서버가 연결되어 있습니다." : getServerRequiredMessage());
   });
   document.querySelector("#refreshAdminBtn")?.addEventListener("click", loadAdminOverview);
+  document.querySelector("#adminOperationsTab")?.addEventListener("click", () => switchAdminView("operations"));
   document.querySelector("#adminProductsTab")?.addEventListener("click", () => switchAdminView("products"));
   document.querySelector("#adminQualityTab")?.addEventListener("click", () => switchAdminView("quality"));
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
+  document.querySelector("#adminPage")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-view-target]");
+    if (button) switchAdminView(button.dataset.adminViewTarget);
+  });
   document.querySelector("#tile114FetchBtn")?.addEventListener("click", fetchTile114SampleProducts);
   document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
   document.querySelector("#saveCurrentOrderBtn")?.addEventListener("click", saveCurrentCartAsPastOrder);
@@ -705,32 +715,44 @@ async function loadProducts() {
   const bundledProducts = Array.isArray(window.PRODUCTS_DB) ? window.PRODUCTS_DB : [];
   products = mergeProducts(bundledProducts, localProducts);
   productsLoadedFromRemote = false;
-  syncProductFilters();
-  if (document.querySelector("#productList")) renderProducts();
+  if (currentPageId === "productsPage") {
+    syncProductFilters();
+    renderProducts();
+  }
 
   try {
     const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 30000 });
     products = mergeProducts(remoteProducts, localProducts);
     serverConnection = { online: true, checked: true, failures: 0 };
     productsLoadedFromRemote = true;
-    await hydrateAdminProducts({ render: false });
+    if (shouldHydrateAdminProductsForCurrentView()) {
+      await hydrateAdminProducts({ render: false });
+    }
     await hydrateMemberPricingProducts({ render: false });
-    await loadStoredNormalizedTaxonomyProducts();
+    if (["productsPage", "taxonomyTestPage"].includes(currentPageId)) {
+      await loadStoredNormalizedTaxonomyProducts();
+    }
   } catch (error) {
     console.warn(error);
     serverConnection = { ...serverConnection, online: false, checked: true, failures: (serverConnection.failures || 0) + 1 };
     products = mergeProducts(bundledProducts, localProducts);
-    await loadStoredNormalizedTaxonomyProducts();
-    syncProductFilters();
-    if (document.querySelector("#productList")) renderProducts();
-    if (!products.length) {
+    if (["productsPage", "taxonomyTestPage"].includes(currentPageId)) {
+      await loadStoredNormalizedTaxonomyProducts();
+    }
+    if (currentPageId === "productsPage") {
+      syncProductFilters();
+      renderProducts();
+    }
+    if (!products.length && currentPageId === "productsPage") {
       document.querySelector("#productList").innerHTML = `<div class="empty-state">상품 DB를 불러오지 못했습니다. 서버를 실행하거나 index.html을 다시 열어주세요.</div>`;
     }
     return;
   }
 
-  syncProductFilters();
-  if (document.querySelector("#productList")) renderProducts();
+  if (currentPageId === "productsPage") {
+    syncProductFilters();
+    renderProducts();
+  }
 }
 
 async function hydrateMemberPricingProducts(options = {}) {
@@ -829,12 +851,31 @@ async function hydrateAdminProducts(options = {}) {
     const payload = await requestJson(`/api/admin/products?${query}`, {}, { retries: 1, timeoutMs: 30000 });
     if (!payload?.ok || !Array.isArray(payload.products)) return false;
     products = mergeProducts(products, payload.products);
-    syncProductFilters();
+    adminProductsHydrated = true;
+    if (currentPageId === "productsPage") syncProductFilters();
     if (options.render) renderAll();
     return true;
   } catch (error) {
     console.warn(error);
     return false;
+  }
+}
+
+function shouldHydrateAdminProductsForCurrentView() {
+  if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return false;
+  if (currentPageId === "adminPage") return ["products", "quality"].includes(currentAdminView);
+  return currentPageId === "productsPage" || currentPageId === "productDetailPage";
+}
+
+async function ensureAdminProductsForView(view) {
+  if (!["products", "quality"].includes(view) || adminProductsHydrated) return;
+  if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return;
+  setText("#adminStatus", "관리자 상품 원가/브랜드 정보를 불러오는 중입니다...");
+  const ok = await hydrateAdminProducts({ render: false });
+  if (ok) {
+    if (view === "products") renderAdminOverview();
+    if (view === "quality") renderQualityDashboard();
+    setText("#adminStatus", "관리자 상품 원가/브랜드 정보가 반영되었습니다.");
   }
 }
 
@@ -1296,18 +1337,34 @@ function syncProductFilters(config = {}) {
 }
 
 function renderAll() {
-  renderProducts();
-  prepareTaxonomyProducts();
-  syncTaxonomyFilters();
-  renderTaxonomyTestPage();
+  if (currentPageId === "productsPage") {
+    renderProducts();
+  }
+  if (currentPageId === "taxonomyTestPage") {
+    prepareTaxonomyProducts();
+    syncTaxonomyFilters();
+    renderTaxonomyTestPage();
+  }
   renderCart();
-  renderMyPage();
-  renderDocuments();
-  renderProposalTemplatePreview();
-  renderRenderWorkspace();
-  renderPlannerWorkspace();
-  renderSignupSummary();
-  renderAdminOverview();
+  if (currentPageId === "myPage") {
+    renderMyPage();
+  }
+  if (currentPageId === "proposalPage") {
+    renderDocuments();
+    renderProposalTemplatePreview();
+  }
+  if (currentPageId === "renderPage") {
+    renderRenderWorkspace();
+  }
+  if (currentPageId === "plannerPage") {
+    renderPlannerWorkspace();
+  }
+  if (currentPageId === "signupPage") {
+    renderSignupSummary();
+  }
+  if (currentPageId === "adminPage") {
+    renderAdminOverview();
+  }
 }
 
 function openProductCategory(productType) {
@@ -5284,6 +5341,156 @@ function renderQualityDashboard() {
   `).join("") || `<tr><td colspan="7">우선 검수 상품이 없습니다.</td></tr>`;
 }
 
+function isRecentAdminDate(value, dayWindow = 1) {
+  const time = Date.parse(value || "");
+  if (!Number.isFinite(time)) return false;
+  return Date.now() - time <= dayWindow * 24 * 60 * 60 * 1000;
+}
+
+function buildAdminOperationsModel(signupRequests, cartRecords, orderRecords) {
+  const qualityModel = buildQualityDashboardModel();
+  const pendingSignups = signupRequests
+    .filter((entry) => entry.approvalStatus !== "승인")
+    .sort((a, b) => Date.parse(b.submittedAt || "") - Date.parse(a.submittedAt || ""));
+  const approvedMembers = signupRequests.filter((entry) => entry.approvalStatus === "승인");
+  const waitingOrders = orderRecords.filter((entry) => entry.stageKey === "waiting");
+  const selectingOrders = orderRecords.filter((entry) => entry.stageKey === "selecting");
+  const reviewOrders = orderRecords.filter((entry) => entry.stageKey === "review");
+  const todaySignups = signupRequests.filter((entry) => isRecentAdminDate(entry.submittedAt, 1));
+  const todayCartUpdates = cartRecords.filter((entry) => isRecentAdminDate(entry.updatedAt, 1));
+  const lowStockProducts = products
+    .filter((product) => hasStockValue(product) && Number(product.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY)
+    .sort((a, b) => Number(a.stockQty || 0) - Number(b.stockQty || 0));
+  const highQualityIssues = qualityModel.issueProducts.filter((entry) => entry.priority === "높음");
+  const gmvDraftTotal = cartRecords.reduce((sum, entry) => sum + Number(entry.totalQuote || 0), 0);
+  const actionCount = pendingSignups.length + waitingOrders.length + lowStockProducts.length;
+
+  return {
+    qualityModel,
+    pendingSignups,
+    approvedMembers,
+    waitingOrders,
+    selectingOrders,
+    reviewOrders,
+    todaySignups,
+    todayCartUpdates,
+    lowStockProducts,
+    highQualityIssues,
+    gmvDraftTotal,
+    actionCount
+  };
+}
+
+function renderAdminTaskItem(label, value, note, tone, viewTarget) {
+  return `
+    <button class="admin-task-item ${tone ? `is-${tone}` : ""}" type="button" data-admin-view-target="${escapeHtml(viewTarget)}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(note)}</small>
+    </button>
+  `;
+}
+
+function renderAdminOperations(signupRequests, cartRecords, orderRecords) {
+  const headline = document.querySelector("#adminOpsHeadline");
+  const subline = document.querySelector("#adminOpsSubline");
+  const kpiGrid = document.querySelector("#adminOpsKpiGrid");
+  const taskList = document.querySelector("#adminOpsTaskList");
+  const flowSummary = document.querySelector("#adminOpsFlowSummary");
+  const signupRows = document.querySelector("#adminOpsSignupRows");
+  const orderRows = document.querySelector("#adminOpsOrderRows");
+  const riskRows = document.querySelector("#adminOpsRiskRows");
+  if (!headline || !subline || !kpiGrid || !taskList || !flowSummary || !signupRows || !orderRows || !riskRows) return;
+
+  const model = buildAdminOperationsModel(signupRequests, cartRecords, orderRecords);
+  headline.textContent = model.actionCount
+    ? `오늘 우선 처리할 업무 ${number(model.actionCount)}건`
+    : "오늘 급한 처리 업무는 없습니다.";
+  subline.textContent = `승인대기 ${number(model.pendingSignups.length)}건 · 주문접수 ${number(model.waitingOrders.length)}건 · 재고문의 ${number(model.lowStockProducts.length)}건 · DB고위험 ${number(model.highQualityIssues.length)}건`;
+
+  kpiGrid.innerHTML = [
+    ["인증 회원", `${number(model.approvedMembers.length)}명`, "사업자 인증이 완료된 회원"],
+    ["승인 대기", `${number(model.pendingSignups.length)}건`, "사업자등록증/명함 확인 필요"],
+    ["주문 접수 대기", `${number(model.waitingOrders.length)}건`, "주문 확정 또는 상담 연결 필요"],
+    ["저장 장바구니", `${number(cartRecords.length)}건`, `잠재 견적 ${money.format(model.gmvDraftTotal)}`],
+    ["오늘 활동", `${number(model.todaySignups.length + model.todayCartUpdates.length)}건`, "최근 24시간 가입/장바구니 변경"],
+    ["재고 문의", `${number(model.lowStockProducts.length)}개`, `재고 ${STOCK_INQUIRY_THRESHOLD_QTY} 이하 상품`],
+    ["DB 고위험", `${number(model.highQualityIssues.length)}건`, "검색 품질에 영향이 큰 누락"],
+    ["타일 완성도", `${number(model.qualityModel.tileCompleteness)}%`, "규격·재질·마감·색상·스타일 기준"]
+  ].map(([label, value, note]) => `
+    <article class="admin-summary-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <p>${escapeHtml(note)}</p>
+    </article>
+  `).join("");
+
+  taskList.innerHTML = [
+    renderAdminTaskItem("회원 승인", `${number(model.pendingSignups.length)}건`, "신규 사업자 가입 승인/보류 처리", model.pendingSignups.length ? "danger" : "stable", "orders"),
+    renderAdminTaskItem("주문 접수", `${number(model.waitingOrders.length)}건`, "견적 확인 후 주문 확정 처리", model.waitingOrders.length ? "warning" : "stable", "orders"),
+    renderAdminTaskItem("재고 문의", `${number(model.lowStockProducts.length)}개`, "30 이하 상품 문의 안내/대체품 추천", model.lowStockProducts.length ? "warning" : "stable", "products"),
+    renderAdminTaskItem("DB 품질", `${number(model.highQualityIssues.length)}건`, "규격·재질·마감·이미지 누락 우선 정리", model.highQualityIssues.length ? "danger" : "stable", "quality")
+  ].join("");
+
+  const flowItems = [
+    ["회원가입", signupRequests.length, "가입 신청 누적"],
+    ["사업자 승인", model.approvedMembers.length, "가격 공개 가능"],
+    ["상품 탐색", model.selectingOrders.length, "장바구니 작성중"],
+    ["주문 접수", model.waitingOrders.length, "관리자 처리 필요"],
+    ["재고/발주", model.lowStockProducts.length, "문의 또는 대체 필요"],
+    ["DB 정리", model.highQualityIssues.length, "검색 정확도 개선"]
+  ];
+  flowSummary.innerHTML = flowItems.map(([label, count, note], index) => `
+    <article class="admin-process-step">
+      <span>${String(index + 1).padStart(2, "0")}</span>
+      <strong>${escapeHtml(label)}</strong>
+      <b>${number(count)}</b>
+      <small>${escapeHtml(note)}</small>
+    </article>
+  `).join("");
+
+  signupRows.innerHTML = model.pendingSignups.slice(0, 12).map((entry) => `
+    <tr>
+      <td>${escapeHtml(entry.companyName || entry.contactCompanyName || "-")}</td>
+      <td>${escapeHtml(entry.name || entry.contactName || "-")}</td>
+      <td>${escapeHtml(entry.provider || "-")}</td>
+      <td><span class="quality-badge is-mid">${escapeHtml(entry.approvalStatus || "검토중")}</span></td>
+      <td>${escapeHtml(formatDateTime(entry.submittedAt))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">승인 대기 회원이 없습니다.</td></tr>`;
+
+  orderRows.innerHTML = orderRecords.slice(0, 12).map((entry) => `
+    <tr>
+      <td>${escapeHtml(entry.companyName || "-")}</td>
+      <td>${number(entry.itemCount || 0)}개</td>
+      <td>${money.format(entry.totalQuote || 0)}</td>
+      <td><span class="quality-badge ${entry.stageKey === "waiting" ? "is-high" : entry.stageKey === "review" ? "is-mid" : "is-low"}">${escapeHtml(entry.statusLabel || "-")}</span></td>
+      <td>${escapeHtml(formatDateTime(entry.updatedAt))}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">주문/장바구니 데이터가 없습니다.</td></tr>`;
+
+  const stockRisks = model.lowStockProducts.slice(0, 6).map((product) => ({
+    type: "재고",
+    target: product.managementCode || product.name || "-",
+    detail: `${product.name || "-"} · ${formatStockQuantity(product)}`,
+    priority: "중간"
+  }));
+  const qualityRisks = model.highQualityIssues.slice(0, 6).map(({ product, issues }) => ({
+    type: "DB",
+    target: product.managementCode || product.name || "-",
+    detail: `${product.name || "-"} · ${issues.join(", ")}`,
+    priority: "높음"
+  }));
+  riskRows.innerHTML = [...qualityRisks, ...stockRisks].slice(0, 12).map((entry) => `
+    <tr>
+      <td>${escapeHtml(entry.type)}</td>
+      <td>${escapeHtml(entry.target)}</td>
+      <td>${escapeHtml(entry.detail)}</td>
+      <td><span class="quality-badge ${entry.priority === "높음" ? "is-high" : "is-mid"}">${escapeHtml(entry.priority)}</span></td>
+    </tr>
+  `).join("") || `<tr><td colspan="4">현재 표시할 운영 리스크가 없습니다.</td></tr>`;
+}
+
 function renderAdminOverview() {
   const summaryGrid = document.querySelector("#adminSummaryGrid");
   const categoryRows = document.querySelector("#adminCategoryRows");
@@ -5294,24 +5501,6 @@ function renderAdminOverview() {
   const signupRequests = Array.isArray(adminOverview?.signupRequests) ? adminOverview.signupRequests : [];
   const cartRecords = Array.isArray(adminOverview?.carts) ? adminOverview.carts : [];
   const signupRequestMap = new Map(signupRequests.map((entry) => [entry.businessNumber, entry]));
-  const tileCount = products.filter((item) => item.productType === "tile").length;
-  const sanitaryCount = products.filter((item) => item.productType === "sanitary").length;
-  const materialCount = products.filter((item) => item.productType === "material").length;
-  const lowStockCount = products.filter((item) => Number(item.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY).length;
-  const categorySummary = Array.from(products.reduce((map, product) => {
-    const key = `${PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"}__${product.kind || "-"}`;
-    const current = map.get(key) || {
-      typeLabel: PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-",
-      kind: product.kind || "-",
-      count: 0
-    };
-    current.count += 1;
-    map.set(key, current);
-    return map;
-  }, new Map()).values()).sort((a, b) => {
-    if (a.typeLabel === b.typeLabel) return a.kind.localeCompare(b.kind, "ko");
-    return a.typeLabel.localeCompare(b.typeLabel, "ko");
-  });
 
   const orderRecords = cartRecords.map((entry) => {
     const signup = signupRequestMap.get(entry.businessNumber);
@@ -5331,61 +5520,99 @@ function renderAdminOverview() {
       stageKey,
       statusLabel
     };
-  });
+  }).sort((a, b) => Date.parse(b.updatedAt || "") - Date.parse(a.updatedAt || ""));
 
-  summaryGrid.innerHTML = [
-    ["전체 상품", `${number(products.length)}개`, "현재 등록된 전체 상품 수"],
-    ["타일 상품", `${number(tileCount)}개`, "타일 및 타일 관련 상품 수"],
-    ["위생도기", `${number(sanitaryCount)}개`, "위생도기/수전/액세서리 수"],
-    ["부자재", `${number(materialCount)}개`, "부자재 상품 수"],
-    ["재고 문의", `${number(lowStockCount)}개`, "재고 30 이하 상품 수"],
-    ["가입 신청", `${number(signupRequests.length)}건`, "저장된 회원가입 신청 수"],
-    ["저장 장바구니", `${number(cartRecords.length)}건`, "업체별 저장된 장바구니 수"],
-    ["승인 기준", `${number((adminOverview?.approvalRules?.businessTypes || []).length)}개 업태`, "현재 내부 승인 기준 업태 수"]
-  ].map(([label, value, note]) => `
-    <article class="admin-summary-card">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value)}</strong>
-      <p>${escapeHtml(note)}</p>
-    </article>
-  `).join("");
+  if (currentAdminView === "operations") {
+    renderAdminOperations(signupRequests, cartRecords, orderRecords);
+  }
 
-  categoryRows.innerHTML = categorySummary.map((entry) => `
-    <tr>
-      <td>${escapeHtml(entry.typeLabel)}</td>
-      <td>${escapeHtml(entry.kind)}</td>
-      <td>${number(entry.count)}개</td>
-    </tr>
-  `).join("") || `<tr><td colspan="3">카테고리 집계 데이터가 없습니다.</td></tr>`;
+  if (currentAdminView === "products") {
+    const tileCount = products.filter((item) => item.productType === "tile").length;
+    const sanitaryCount = products.filter((item) => item.productType === "sanitary").length;
+    const materialCount = products.filter((item) => item.productType === "material").length;
+    const lowStockCount = products.filter((item) => Number(item.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY).length;
+    const categorySummary = Array.from(products.reduce((map, product) => {
+      const key = `${PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"}__${product.kind || "-"}`;
+      const current = map.get(key) || {
+        typeLabel: PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-",
+        kind: product.kind || "-",
+        count: 0
+      };
+      current.count += 1;
+      map.set(key, current);
+      return map;
+    }, new Map()).values()).sort((a, b) => {
+      if (a.typeLabel === b.typeLabel) return a.kind.localeCompare(b.kind, "ko");
+      return a.typeLabel.localeCompare(b.typeLabel, "ko");
+    });
 
-  priceRows.innerHTML = products.map((product) => `
-    <tr>
-      <td>${escapeHtml(product.managementCode || "-")}</td>
-      <td>${escapeHtml(product.name)}</td>
-      <td>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-")}</td>
-      <td>${escapeHtml(product.kind || "-")}</td>
-      <td>${escapeHtml(product.size || "-")}</td>
-      <td>${money.format(product.costPrice || 0)}</td>
-      <td>${money.format(product.retailPrice || 0)}</td>
-      <td>${money.format(product.wholesalePrice || 0)}</td>
-      <td>${number(product.stockQty || 0)}${escapeHtml(product.unit || "")}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="9">표시할 상품이 없습니다.</td></tr>`;
+    summaryGrid.innerHTML = [
+      ["전체 상품", `${number(products.length)}개`, "현재 등록된 전체 상품 수"],
+      ["타일 상품", `${number(tileCount)}개`, "타일 및 타일 관련 상품 수"],
+      ["위생도기", `${number(sanitaryCount)}개`, "위생도기/수전/액세서리 수"],
+      ["부자재", `${number(materialCount)}개`, "부자재 상품 수"],
+      ["재고 문의", `${number(lowStockCount)}개`, "재고 30 이하 상품 수"],
+      ["가입 신청", `${number(signupRequests.length)}건`, "저장된 회원가입 신청 수"],
+      ["저장 장바구니", `${number(cartRecords.length)}건`, "업체별 저장된 장바구니 수"],
+      ["승인 기준", `${number((adminOverview?.approvalRules?.businessTypes || []).length)}개 업태`, "현재 내부 승인 기준 업태 수"]
+    ].map(([label, value, note]) => `
+      <article class="admin-summary-card">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+        <p>${escapeHtml(note)}</p>
+      </article>
+    `).join("");
 
-  renderQualityDashboard();
-  renderAdminOrderFlow(orderRecords);
+    categoryRows.innerHTML = categorySummary.map((entry) => `
+      <tr>
+        <td>${escapeHtml(entry.typeLabel)}</td>
+        <td>${escapeHtml(entry.kind)}</td>
+        <td>${number(entry.count)}개</td>
+      </tr>
+    `).join("") || `<tr><td colspan="3">카테고리 집계 데이터가 없습니다.</td></tr>`;
 
-  cartRows.innerHTML = orderRecords.map((entry) => `
-    <tr>
-      <td>${escapeHtml(entry.companyName || "-")}</td>
-      <td>${escapeHtml(entry.contactName || "-")}</td>
-      <td>${escapeHtml(entry.businessNumber || "-")}</td>
-      <td>${escapeHtml((entry.itemNames || []).slice(0, 3).join(", ") || "-")}</td>
-      <td>${number(entry.itemCount || 0)}개</td>
-      <td>${escapeHtml(entry.statusLabel || "-")}</td>
-      <td>${escapeHtml(formatDateTime(entry.updatedAt))}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="6">저장된 주문/장바구니 데이터가 없습니다.</td></tr>`;
+    const visibleAdminProducts = products.slice(0, ADMIN_PRODUCT_TABLE_LIMIT);
+    priceRows.innerHTML = [
+      ...visibleAdminProducts.map((product) => `
+      <tr>
+        <td>${escapeHtml(product.managementCode || "-")}</td>
+        <td>${escapeHtml(product.name)}</td>
+        <td>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-")}</td>
+        <td>${escapeHtml(product.kind || "-")}</td>
+        <td>${escapeHtml(product.size || "-")}</td>
+        <td>${money.format(product.costPrice || 0)}</td>
+        <td>${money.format(product.retailPrice || 0)}</td>
+        <td>${money.format(product.wholesalePrice || 0)}</td>
+        <td>${number(product.stockQty || 0)}${escapeHtml(product.unit || "")}</td>
+      </tr>
+    `),
+      ...(products.length > ADMIN_PRODUCT_TABLE_LIMIT ? [`
+        <tr>
+          <td colspan="9">대량 운영 속도를 위해 전체 ${number(products.length)}개 중 ${number(ADMIN_PRODUCT_TABLE_LIMIT)}개만 우선 표시합니다.</td>
+        </tr>
+      `] : [])
+    ].join("") || `<tr><td colspan="9">표시할 상품이 없습니다.</td></tr>`;
+  }
+
+  if (currentAdminView === "quality") {
+    renderQualityDashboard();
+  }
+
+  if (currentAdminView === "orders") {
+    renderAdminOrderFlow(orderRecords);
+
+    cartRows.innerHTML = orderRecords.map((entry) => `
+      <tr>
+        <td>${escapeHtml(entry.companyName || "-")}</td>
+        <td>${escapeHtml(entry.contactName || "-")}</td>
+        <td>${escapeHtml(entry.businessNumber || "-")}</td>
+        <td>${escapeHtml((entry.itemNames || []).slice(0, 3).join(", ") || "-")}</td>
+        <td>${number(entry.itemCount || 0)}개</td>
+        <td>${escapeHtml(entry.statusLabel || "-")}</td>
+        <td>${escapeHtml(formatDateTime(entry.updatedAt))}</td>
+      </tr>
+    `).join("") || `<tr><td colspan="6">저장된 주문/장바구니 데이터가 없습니다.</td></tr>`;
+  }
 }
 
 function renderAdminOrderFlow(orderRecords) {
@@ -5414,13 +5641,17 @@ function renderAdminOrderFlow(orderRecords) {
 
 function switchAdminView(view) {
   currentAdminView = view;
+  document.querySelector("#adminOperationsTab")?.classList.toggle("active", view === "operations");
   document.querySelector("#adminProductsTab")?.classList.toggle("active", view === "products");
   document.querySelector("#adminQualityTab")?.classList.toggle("active", view === "quality");
   document.querySelector("#adminOrdersTab")?.classList.toggle("active", view === "orders");
+  document.querySelector("#adminOperationsView")?.classList.toggle("hidden", view !== "operations");
   document.querySelector("#adminProductsView")?.classList.toggle("hidden", view !== "products");
   document.querySelector("#adminQualityView")?.classList.toggle("hidden", view !== "quality");
   document.querySelector("#adminOrdersView")?.classList.toggle("hidden", view !== "orders");
+  if (["operations", "products", "orders"].includes(view)) renderAdminOverview();
   if (view === "quality") renderQualityDashboard();
+  void ensureAdminProductsForView(view);
 }
 
 function renderCartSummary() {
@@ -8157,10 +8388,8 @@ async function submitAdminLoginForm(event) {
       provider: "관리자 로그인"
     };
     saveAuthSession(authUser);
-    await hydrateAdminProducts({ render: false });
+    adminProductsHydrated = false;
     renderAuthControls();
-    syncProductFilters();
-    renderProducts();
     setText("#adminLoginStatus", `${result.user.name} 계정으로 관리자 로그인이 완료되었습니다.`);
     adminLoginForm.reset();
     switchPage("adminPage");
@@ -8192,11 +8421,12 @@ function saveAuthSession(user) {
 async function logoutUser() {
   authUser = null;
   adminOverview = null;
+  adminProductsHydrated = false;
   localStorage.removeItem("tbpAuthSession");
   if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
   await loadProducts();
   renderAuthControls();
-  renderProducts();
+  if (currentPageId === "productsPage") renderProducts();
   renderCart();
   switchPage("homePage");
 }
@@ -9618,6 +9848,8 @@ function switchPage(pageId, options = {}) {
   }
 
   if (pageId === "productsPage") {
+    syncProductFilters();
+    renderProducts();
     void ensureProductsReady();
   }
 
