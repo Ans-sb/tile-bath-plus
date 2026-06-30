@@ -666,6 +666,7 @@ function bindEvents() {
   });
   document.querySelector("#refreshAdminBtn")?.addEventListener("click", loadAdminOverview);
   document.querySelector("#adminProductsTab")?.addEventListener("click", () => switchAdminView("products"));
+  document.querySelector("#adminQualityTab")?.addEventListener("click", () => switchAdminView("quality"));
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
   document.querySelector("#tile114FetchBtn")?.addEventListener("click", fetchTile114SampleProducts);
   document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
@@ -5035,6 +5036,254 @@ function saveCurrentCartAsPastOrder() {
   renderMyPage();
 }
 
+const QUALITY_CORE_FIELDS = [
+  ["size", "규격"],
+  ["material", "재질"],
+  ["finish", "마감"],
+  ["color", "색상"],
+  ["patternCategory", "스타일"]
+];
+
+function isQualityMissingValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return true;
+  return /미확인|확인\s*필요|unknown|null|undefined/i.test(text);
+}
+
+function getProductQualityFieldValue(product, key) {
+  if (!product) return "";
+  if (key === "size") return product.size || product.sizeLabel || product.spec || product.tileSize || product.sizeThicknessLabel || "";
+  if (key === "material") return product.material || product.materialCategory || product.tileMaterial || product.bodyType || "";
+  if (key === "finish") return product.finish || product.surfaceFinish || product.finishGroup || product.finishDetail || "";
+  if (key === "color") return product.color || product.mainColor || product.subColor || product.colorName || "";
+  if (key === "patternCategory") {
+    return product.patternCategory || product.style || product.styleMain || product.style_primary || product.styleCategories?.[0] || "";
+  }
+  return product[key] || "";
+}
+
+function getQualityBrand(product) {
+  return getAdminProductBrandLabel(product) || "브랜드 미확인";
+}
+
+function hasQualityImage(product) {
+  return Boolean(getProductImage(product, [
+    "image",
+    "mainImageUrl",
+    "main_image_url",
+    "originalImage",
+    "detailImage",
+    "textureImage",
+    "closeImage"
+  ], true));
+}
+
+function getProductQualityIssues(product) {
+  const issues = [];
+  if (product?.productType === "tile") {
+    QUALITY_CORE_FIELDS.forEach(([key, label]) => {
+      if (isQualityMissingValue(getProductQualityFieldValue(product, key))) issues.push(label);
+    });
+  }
+  if (!hasQualityImage(product)) issues.push("이미지");
+  if (!Number(product?.costPrice || 0)) issues.push("원가");
+  if (!hasStockValue(product)) issues.push("재고");
+  return issues;
+}
+
+function getQualityPriority(issues, product) {
+  let score = issues.length;
+  if (product?.productType === "tile") score += 2;
+  if (issues.includes("규격")) score += 2;
+  if (issues.includes("재질")) score += 2;
+  if (issues.includes("마감")) score += 2;
+  if (issues.includes("색상")) score += 1;
+  if (issues.includes("이미지")) score += 1;
+  if (score >= 8) return "높음";
+  if (score >= 4) return "중간";
+  return "낮음";
+}
+
+function getQualityPriorityClass(priority) {
+  if (priority === "높음") return "is-high";
+  if (priority === "중간") return "is-mid";
+  return "is-low";
+}
+
+function buildQualityDashboardModel() {
+  const brandMap = new Map();
+  const missingByField = QUALITY_CORE_FIELDS.map(([, label]) => ({ label, count: 0 }));
+  const missingFieldIndex = new Map(missingByField.map((entry, index) => [entry.label, index]));
+  const issueProducts = [];
+  let tileCount = 0;
+  let tileMissingCoreCount = 0;
+  let noImageCount = 0;
+  let noCostCount = 0;
+  let noStockCount = 0;
+
+  products.forEach((product) => {
+    const brand = getQualityBrand(product);
+    const brandStat = brandMap.get(brand) || {
+      brand,
+      totalCount: 0,
+      tileCount: 0,
+      missing: Object.fromEntries(QUALITY_CORE_FIELDS.map(([, label]) => [label, 0])),
+      noImage: 0,
+      noCost: 0,
+      noStock: 0,
+      issueCount: 0
+    };
+    brandStat.totalCount += 1;
+
+    const issues = getProductQualityIssues(product);
+    if (product.productType === "tile") {
+      tileCount += 1;
+      brandStat.tileCount += 1;
+      const coreIssues = issues.filter((issue) => missingFieldIndex.has(issue));
+      if (coreIssues.length) tileMissingCoreCount += 1;
+      coreIssues.forEach((issue) => {
+        brandStat.missing[issue] += 1;
+        missingByField[missingFieldIndex.get(issue)].count += 1;
+      });
+    }
+
+    if (issues.includes("이미지")) {
+      noImageCount += 1;
+      brandStat.noImage += 1;
+    }
+    if (issues.includes("원가")) {
+      noCostCount += 1;
+      brandStat.noCost += 1;
+    }
+    if (issues.includes("재고")) {
+      noStockCount += 1;
+      brandStat.noStock += 1;
+    }
+    if (issues.length) {
+      brandStat.issueCount += 1;
+      issueProducts.push({
+        product,
+        brand,
+        issues,
+        priority: getQualityPriority(issues, product)
+      });
+    }
+    brandMap.set(brand, brandStat);
+  });
+
+  const brandStats = Array.from(brandMap.values()).map((entry) => {
+    const coreTotal = entry.tileCount * QUALITY_CORE_FIELDS.length;
+    const coreMissing = QUALITY_CORE_FIELDS.reduce((sum, [, label]) => sum + entry.missing[label], 0);
+    const completeness = coreTotal ? Math.round((1 - coreMissing / coreTotal) * 100) : 100;
+    return { ...entry, coreMissing, completeness };
+  }).sort((a, b) => {
+    if (a.completeness !== b.completeness) return a.completeness - b.completeness;
+    if (a.coreMissing !== b.coreMissing) return b.coreMissing - a.coreMissing;
+    return a.brand.localeCompare(b.brand, "ko");
+  });
+
+  issueProducts.sort((a, b) => {
+    const priorityWeight = { "높음": 3, "중간": 2, "낮음": 1 };
+    const weightDiff = (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+    if (weightDiff) return weightDiff;
+    if (a.issues.length !== b.issues.length) return b.issues.length - a.issues.length;
+    return a.brand.localeCompare(b.brand, "ko");
+  });
+
+  return {
+    totalCount: products.length,
+    tileCount,
+    tileMissingCoreCount,
+    tileCompleteness: tileCount ? Math.round((1 - tileMissingCoreCount / tileCount) * 100) : 100,
+    noImageCount,
+    noCostCount,
+    noStockCount,
+    missingByField,
+    brandStats,
+    issueProducts
+  };
+}
+
+function renderQualityMissingBadge(count, total) {
+  const tone = count ? "is-high" : "is-low";
+  const suffix = total ? ` / ${number(total)}` : "";
+  return `<span class="quality-badge ${tone}">${number(count)}${suffix}</span>`;
+}
+
+function renderQualityDashboard() {
+  const summaryGrid = document.querySelector("#qualitySummaryGrid");
+  const fieldList = document.querySelector("#qualityMissingFieldList");
+  const priorityList = document.querySelector("#qualityPriorityList");
+  const brandRows = document.querySelector("#qualityBrandRows");
+  const issueRows = document.querySelector("#qualityIssueRows");
+  if (!summaryGrid || !fieldList || !priorityList || !brandRows || !issueRows) return;
+
+  const model = buildQualityDashboardModel();
+  summaryGrid.innerHTML = [
+    ["전체 상품", `${number(model.totalCount)}개`, "현재 관리자 DB에 로드된 전체 상품"],
+    ["타일 상품", `${number(model.tileCount)}개`, "품질 점검 기준이 적용되는 타일 상품"],
+    ["타일 핵심 완성도", `${number(model.tileCompleteness)}%`, "규격·재질·마감·색상·스타일 기준"],
+    ["핵심 누락 타일", `${number(model.tileMissingCoreCount)}개`, "타일 검색 품질에 직접 영향이 있는 상품"],
+    ["이미지 누락", `${number(model.noImageCount)}개`, "이미지 검색과 상품 카드 보강 필요"],
+    ["원가 누락", `${number(model.noCostCount)}개`, "관리자 원가/마진 점검 필요"]
+  ].map(([label, value, note]) => `
+    <article class="admin-summary-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <p>${escapeHtml(note)}</p>
+    </article>
+  `).join("");
+
+  fieldList.innerHTML = model.missingByField.map((entry) => {
+    const percent = model.tileCount ? Math.round((entry.count / model.tileCount) * 100) : 0;
+    return `
+      <article class="quality-field-row">
+        <div>
+          <strong>${escapeHtml(entry.label)}</strong>
+          <span>${number(entry.count)}개 · ${number(percent)}%</span>
+        </div>
+        <div class="quality-progress" aria-label="${escapeHtml(entry.label)} 누락률 ${number(percent)}%">
+          <i style="width:${Math.min(100, percent)}%"></i>
+        </div>
+      </article>
+    `;
+  }).join("") || `<div class="empty-state compact-empty-state">누락 필드가 없습니다.</div>`;
+
+  priorityList.innerHTML = model.brandStats.slice(0, 6).map((entry) => `
+    <article class="quality-priority-card">
+      <div>
+        <strong>${escapeHtml(entry.brand)}</strong>
+        <span class="quality-badge ${entry.completeness >= 90 ? "is-low" : entry.completeness >= 70 ? "is-mid" : "is-high"}">${number(entry.completeness)}%</span>
+      </div>
+      <p>타일 ${number(entry.tileCount)}개 · 핵심 누락 ${number(entry.coreMissing)}건 · 점검 상품 ${number(entry.issueCount)}개</p>
+    </article>
+  `).join("") || `<div class="empty-state compact-empty-state">정리 우선순위 데이터가 없습니다.</div>`;
+
+  brandRows.innerHTML = model.brandStats.map((entry) => `
+    <tr>
+      <td>${escapeHtml(entry.brand)}</td>
+      <td>${number(entry.totalCount)}개</td>
+      <td>${number(entry.tileCount)}개</td>
+      <td><span class="quality-badge ${entry.completeness >= 90 ? "is-low" : entry.completeness >= 70 ? "is-mid" : "is-high"}">${number(entry.completeness)}%</span></td>
+      ${QUALITY_CORE_FIELDS.map(([, label]) => `<td>${renderQualityMissingBadge(entry.missing[label], entry.tileCount)}</td>`).join("")}
+      <td>${renderQualityMissingBadge(entry.noImage, entry.totalCount)}</td>
+      <td>${renderQualityMissingBadge(entry.noCost, entry.totalCount)}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="11">브랜드별 품질 데이터가 없습니다.</td></tr>`;
+
+  issueRows.innerHTML = model.issueProducts.slice(0, 160).map(({ product, brand, issues, priority }) => `
+    <tr>
+      <td>${escapeHtml(brand)}</td>
+      <td>${escapeHtml(product.managementCode || product.id || "-")}</td>
+      <td>${escapeHtml(product.name || "-")}</td>
+      <td>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-")}</td>
+      <td>${escapeHtml(getProductQualityFieldValue(product, "size") || "-")}</td>
+      <td class="quality-issue-list">${issues.map((issue) => `<span class="quality-badge is-high">${escapeHtml(issue)}</span>`).join(" ")}</td>
+      <td><span class="quality-badge ${getQualityPriorityClass(priority)}">${escapeHtml(priority)}</span></td>
+    </tr>
+  `).join("") || `<tr><td colspan="7">우선 검수 상품이 없습니다.</td></tr>`;
+}
+
 function renderAdminOverview() {
   const summaryGrid = document.querySelector("#adminSummaryGrid");
   const categoryRows = document.querySelector("#adminCategoryRows");
@@ -5123,6 +5372,7 @@ function renderAdminOverview() {
     </tr>
   `).join("") || `<tr><td colspan="9">표시할 상품이 없습니다.</td></tr>`;
 
+  renderQualityDashboard();
   renderAdminOrderFlow(orderRecords);
 
   cartRows.innerHTML = orderRecords.map((entry) => `
@@ -5165,9 +5415,12 @@ function renderAdminOrderFlow(orderRecords) {
 function switchAdminView(view) {
   currentAdminView = view;
   document.querySelector("#adminProductsTab")?.classList.toggle("active", view === "products");
+  document.querySelector("#adminQualityTab")?.classList.toggle("active", view === "quality");
   document.querySelector("#adminOrdersTab")?.classList.toggle("active", view === "orders");
   document.querySelector("#adminProductsView")?.classList.toggle("hidden", view !== "products");
+  document.querySelector("#adminQualityView")?.classList.toggle("hidden", view !== "quality");
   document.querySelector("#adminOrdersView")?.classList.toggle("hidden", view !== "orders");
+  if (view === "quality") renderQualityDashboard();
 }
 
 function renderCartSummary() {
