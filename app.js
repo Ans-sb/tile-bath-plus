@@ -712,6 +712,7 @@ async function loadProducts() {
     products = mergeProducts(remoteProducts, localProducts);
     serverConnection = { online: true, checked: true, failures: 0 };
     productsLoadedFromRemote = true;
+    await hydrateAdminProducts({ render: false });
     await hydrateMemberPricingProducts({ render: false });
     await loadStoredNormalizedTaxonomyProducts();
   } catch (error) {
@@ -814,6 +815,25 @@ async function hydrateApprovalRulesFromServer() {
     }
   } catch (error) {
     console.warn(error);
+  }
+}
+
+async function hydrateAdminProducts(options = {}) {
+  if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return false;
+  try {
+    const query = new URLSearchParams({
+      adminUsername: authUser.adminUsername,
+      adminToken: authUser.adminToken
+    });
+    const payload = await requestJson(`/api/admin/products?${query}`, {}, { retries: 1, timeoutMs: 30000 });
+    if (!payload?.ok || !Array.isArray(payload.products)) return false;
+    products = mergeProducts(products, payload.products);
+    syncProductFilters();
+    if (options.render) renderAll();
+    return true;
+  } catch (error) {
+    console.warn(error);
+    return false;
   }
 }
 
@@ -1616,10 +1636,33 @@ function buildProductCardHtml(product) {
         <span>색상 ${escapeHtml(displayColor)}</span>
         <span>마감 ${escapeHtml(displayFinish)}</span>
         <span>재고 ${escapeHtml(hasStockValue(product) ? formatStockQuantity(product) : "확인 필요")}</span>
+        ${renderProductCardAdminMeta(product)}
         ${renderProductCardPriceLine(product)}
       </div>
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
+  `;
+}
+
+function getAdminProductBrandLabel(product) {
+  return String([
+    product?.majorCategory,
+    product?.internalBrandCode,
+    product?.internalBrandName,
+    product?.maker,
+    product?.sourceSite,
+    product?.catalogSource,
+    product?.kind
+  ].find((value) => String(value || "").trim()) || "").trim();
+}
+
+function renderProductCardAdminMeta(product) {
+  if (!isAdminUser()) return "";
+  const brand = getAdminProductBrandLabel(product) || "브랜드 미확인";
+  const cost = Number(product?.costPrice || 0);
+  return `
+    <span class="admin-product-meta">브랜드 ${escapeHtml(brand)}</span>
+    <span class="admin-product-meta">원가 ${escapeHtml(cost ? money.format(cost) : "미등록")}</span>
   `;
 }
 
@@ -4231,7 +4274,7 @@ async function openProductDetail(id, sourceElement = null) {
       if (result?.product) {
         product = result.product;
         selectedDetailProduct = product;
-        products = mergeProducts(products, [mapPublicProductForClient(product)]);
+        products = mergeProducts(products, [isAdminUser() ? product : mapPublicProductForClient(product)]);
         renderProductDetail(product);
         setText("#detailEditStatus", "수정 가능");
       }
@@ -4256,6 +4299,7 @@ function renderProductDetail(product) {
 
   const specs = [
     ...(product.managementCode ? [["내부관리 상품코드", product.managementCode]] : []),
+    ...(isAdminUser() ? getProductDetailAdminSpecs(product) : []),
     ["대분류", PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"],
     ["종류", product.kind || "-"],
     ["품명", product.name || "-"],
@@ -4300,6 +4344,16 @@ function renderProductDetail(product) {
       </article>
     `;
   }).join("");
+}
+
+function getProductDetailAdminSpecs(product) {
+  const cost = Number(product?.costPrice || 0);
+  return [
+    ["브랜드", getAdminProductBrandLabel(product) || "-"],
+    ["원가", cost ? money.format(cost) : "미등록"],
+    ...(product?.sourceSite ? [["소스", product.sourceSite]] : []),
+    ...(product?.sourceUrl ? [["원본 상세 URL", product.sourceUrl]] : [])
+  ];
 }
 
 function renderDetailAdminEditor(product) {
@@ -4380,7 +4434,7 @@ async function saveDetailProductSpecs(event) {
       })
     }, { retries: 1, timeoutMs: 10000 });
     selectedDetailProduct = result.product || product;
-    products = mergeProducts(products, [mapPublicProductForClient(selectedDetailProduct)]);
+    products = mergeProducts(products, [isAdminUser() ? selectedDetailProduct : mapPublicProductForClient(selectedDetailProduct)]);
     syncProductFilters();
     renderProducts();
     renderProductDetail(selectedDetailProduct);
@@ -7850,7 +7904,10 @@ async function submitAdminLoginForm(event) {
       provider: "관리자 로그인"
     };
     saveAuthSession(authUser);
+    await hydrateAdminProducts({ render: false });
     renderAuthControls();
+    syncProductFilters();
+    renderProducts();
     setText("#adminLoginStatus", `${result.user.name} 계정으로 관리자 로그인이 완료되었습니다.`);
     adminLoginForm.reset();
     switchPage("adminPage");

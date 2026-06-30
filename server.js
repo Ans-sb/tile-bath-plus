@@ -217,6 +217,15 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && request.url.startsWith("/api/admin/products")) {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      sendJson(response, 200, await readAdminProducts(
+        String(url.searchParams.get("adminUsername") || ""),
+        String(url.searchParams.get("adminToken") || "")
+      ));
+      return;
+    }
+
     if (request.method === "GET" && request.url.startsWith("/api/admin/product")) {
       const url = new URL(request.url, `http://${request.headers.host}`);
       sendJson(response, 200, await readAdminProduct(
@@ -1025,6 +1034,14 @@ async function readAdminProduct(adminUsernameValue, adminTokenValue, id) {
   const product = products.find((item) => item.id === cleanId);
   if (!product) throw new Error("상품을 찾을 수 없습니다.");
   return { ok: true, product };
+}
+
+async function readAdminProducts(adminUsernameValue, adminTokenValue) {
+  assertAdminCredentials(adminUsernameValue, adminTokenValue);
+  return {
+    ok: true,
+    products: await readProducts({ cache: false })
+  };
 }
 
 async function saveAdminProduct(payload) {
