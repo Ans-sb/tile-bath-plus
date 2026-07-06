@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260706-main-slider1" />
+    <link rel="stylesheet" href="styles.css?v=20260706-reference-3d1" />
   </head>
   <body>
     <!-- build: homeheroslider3 -->
@@ -1321,6 +1321,13 @@
                 줄눈 간격(mm)
                 <input id="plannerGrout" name="plannerGrout" type="number" min="1" max="12" step="1" value="3" />
               </label>
+              <label class="wide">
+                공간 프리셋
+                <select id="plannerRoomPreset">
+                  <option value="reference-room" selected>업로드 사진 공간</option>
+                  <option value="empty-room">기본 빈 공간</option>
+                </select>
+              </label>
               <label>
                 바닥 타일
                 <select id="plannerFloorTile"></select>
@@ -2221,5 +2228,6 @@
 
     <script src="products-db.js?v=20260706-products-db1"></script>
     <script src="app.js?v=20260702-quiz-db-values1"></script>
+    <script src="planner-reference-room.js?v=20260706-reference-3d1"></script>
   </body>
 </html>

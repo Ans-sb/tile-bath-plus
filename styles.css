@@ -659,6 +659,12 @@ svg {
   min-width: 0;
 }
 
+body[data-page="plannerPage"] .planner-stage-panel {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .planner-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -820,6 +826,13 @@ svg {
   border: 1px solid rgba(35, 31, 26, 0.12);
   border-radius: 8px;
   background: #f5f1ea;
+}
+
+body[data-page="plannerPage"] .planner-canvas-mount {
+  min-height: clamp(560px, 68vh, 780px);
+  border: 0;
+  border-radius: 0;
+  background: #e9eee5;
 }
 
 .planner-canvas-mount canvas {
