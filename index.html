@@ -4,91 +4,21 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260612-image-search-paging2" />
-    <style>
-      body.customer-experience-mode .customer-entry-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 18px;
-        align-items: stretch;
-      }
-
-      body.customer-experience-mode .customer-entry-button {
-        width: 100%;
-        min-width: 0;
-      }
-
-      body.customer-experience-mode .customer-entry-button--sample {
-        grid-column: 1 / -1;
-        display: grid;
-        grid-template-columns: minmax(0, 260px) 1fr;
-        align-items: center;
-        gap: 10px 18px;
-        padding: 14px 22px;
-      }
-
-      body.customer-experience-mode .customer-entry-button--sample img {
-        height: 72px;
-      }
-
-      body.customer-experience-mode .customer-entry-button--sample span {
-        text-align: left;
-      }
-
-      @media (max-width: 720px) {
-        body.customer-experience-mode .customer-entry-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-        }
-
-        body.customer-experience-mode .customer-entry-button {
-          padding: 12px 8px;
-        }
-
-        body.customer-experience-mode .customer-entry-button img {
-          height: 62px;
-        }
-
-        body.customer-experience-mode .customer-entry-button span {
-          font-size: 12px;
-          line-height: 1.35;
-          word-break: keep-all;
-        }
-
-        body.customer-experience-mode .customer-entry-button--sample {
-          grid-template-columns: minmax(0, 140px) 1fr;
-          gap: 8px 12px;
-          padding: 12px 14px;
-        }
-
-        body.customer-experience-mode .customer-entry-button--sample img {
-          height: 46px;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="styles.css?v=20260706-mobile-home3" />
   </head>
   <body>
     <!-- build: homeheroslider3 -->
     <div class="app-shell">
-      <section class="customer-top-banner global-home-banner" aria-label="메인 상단 배너">
-        <div class="customer-top-banner-slider">
-          <div class="customer-top-banner-track">
-            <div class="customer-top-banner-slide">
-              <img src="images/branding/home-slides/slide-1.png?v=20260430-homehero2" alt="자재GO 메인 안내 슬라이드 1" />
-            </div>
-            <div class="customer-top-banner-slide">
-              <img src="images/branding/home-slides/slide-2.png?v=20260430-homehero2" alt="자재GO 메인 안내 슬라이드 2" />
-            </div>
-            <div class="customer-top-banner-slide">
-              <img src="images/branding/home-slides/slide-3.png?v=20260430-homehero2" alt="자재GO 메인 안내 슬라이드 3" />
-            </div>
-            <div class="customer-top-banner-slide">
-              <img src="images/branding/home-slides/slide-4.png?v=20260430-homehero2" alt="자재GO 메인 안내 슬라이드 4" />
-            </div>
-          </div>
-        </div>
-      </section>
       <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-logo-mark">
+            <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" />
+          </span>
+        </div>
+        <button class="topbar-search" type="button" data-page-target="taxonomyTestPage">
+          <span>어떤 자재를 찾으세요?</span>
+          <strong>검색</strong>
+        </button>
         <div class="top-actions">
           <div class="server-status-pill" id="serverStatusPill">서버 확인 중</div>
           <button class="icon-button" id="resetCartBtn" type="button" title="장바구니 비우기" aria-label="장바구니 비우기">
@@ -106,66 +36,205 @@
             <span class="auth-badge" id="authBadge"></span>
             <button class="secondary-action" id="logoutBtn" type="button">로그아웃</button>
           </div>
+          <button class="secondary-action admin-nav-button admin-console-link hidden" type="button" data-page-target="adminPage">관리자 콘솔</button>
         </div>
       </header>
 
       <nav class="app-nav" aria-label="페이지 이동">
-        <button class="active customer-nav-button" type="button" data-page-target="homePage">
-          <span class="nav-glyph">01</span>
-          <span class="nav-copy">메인</span>
-        </button>
-        <button class="customer-nav-button" type="button" data-page-target="taxonomyTestPage">
-          <span class="nav-glyph">02</span>
-          <span class="nav-copy">상품</span>
-        </button>
-        <button class="customer-nav-button" type="button" data-page-target="productsPage">
-          <span class="nav-glyph">찾기</span>
-          <span class="nav-copy">직접찾기</span>
-        </button>
-        <button class="customer-nav-button" type="button" data-page-target="cartPage">
-          <span class="nav-glyph">03</span>
-          <span class="nav-copy">장바구니 <span id="navCartCount">0</span></span>
-        </button>
-        <button class="customer-nav-button" type="button" data-page-target="myPage">
-          <span class="nav-glyph">MY</span>
-          <span class="nav-copy">마이페이지</span>
-        </button>
-        <button class="customer-nav-button" type="button" data-page-target="plannerPage">
-          <span class="nav-glyph">04</span>
-          <span class="nav-copy">3D 시공</span>
-        </button>
-        <button class="hidden admin-nav-button" type="button" data-page-target="proposalPage">
-          <span class="nav-glyph">05</span>
-          <span class="nav-copy">제안서·견적</span>
-        </button>
-        <button class="hidden admin-nav-button" type="button" data-page-target="dbPage">
-          <span class="nav-glyph">06</span>
-          <span class="nav-copy">DB 등록</span>
-        </button>
-        <button class="hidden admin-nav-button" id="adminNavBtn" type="button" data-page-target="adminPage">
-          <span class="nav-glyph">07</span>
-          <span class="nav-copy">내부관리</span>
-        </button>
-        <button class="hidden admin-nav-button" id="tile114NavBtn" type="button" data-page-target="tile114TestPage">
-          <span class="nav-glyph">08</span>
-          <span class="nav-copy">거래사이트 테스트</span>
-        </button>
+        <div class="nav-section customer-nav-group" aria-label="고객 화면">
+          <span class="nav-section-label">고객 화면</span>
+          <button class="active customer-nav-button" type="button" data-page-target="homePage">
+            <span class="nav-glyph">홈</span>
+            <span class="nav-copy">메인</span>
+          </button>
+          <button class="customer-nav-button" type="button" data-page-target="taxonomyTestPage">
+            <span class="nav-glyph">AI</span>
+            <span class="nav-copy">상품검색</span>
+          </button>
+          <button class="customer-nav-button" type="button" data-page-target="productsPage">
+            <span class="nav-glyph">목록</span>
+            <span class="nav-copy">직접찾기</span>
+          </button>
+          <button class="customer-nav-button" type="button" data-page-target="cartPage">
+            <span class="nav-glyph">담기</span>
+            <span class="nav-copy">장바구니 <span id="navCartCount">0</span></span>
+          </button>
+          <button class="customer-nav-button" type="button" data-page-target="myPage">
+            <span class="nav-glyph">MY</span>
+            <span class="nav-copy">마이페이지</span>
+          </button>
+          <button class="customer-nav-button" type="button" data-page-target="plannerPage">
+            <span class="nav-glyph">3D</span>
+            <span class="nav-copy">시공보기</span>
+          </button>
+        </div>
+        <div class="nav-section admin-nav-group" aria-label="관리자 화면">
+          <span class="nav-section-label">관리자 · 개발자</span>
+          <button class="hidden admin-nav-button" type="button" data-page-target="proposalPage">
+            <span class="nav-glyph">문서</span>
+            <span class="nav-copy">제안서·견적</span>
+          </button>
+          <button class="hidden admin-nav-button" type="button" data-page-target="dbPage">
+            <span class="nav-glyph">DB</span>
+            <span class="nav-copy">상품관리</span>
+          </button>
+          <button class="hidden admin-nav-button" id="adminNavBtn" type="button" data-page-target="adminPage">
+            <span class="nav-glyph">운영</span>
+            <span class="nav-copy">내부관리</span>
+          </button>
+          <button class="hidden admin-nav-button" id="tile114NavBtn" type="button" data-page-target="tile114TestPage">
+            <span class="nav-glyph">수집</span>
+            <span class="nav-copy">거래사이트</span>
+          </button>
+        </div>
       </nav>
 
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
         <section class="hero-panel hero-panel-shell customer-hero-panel">
           <div class="customer-home-entry">
-            <div class="customer-entry-grid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch;">
+            <section class="mobile-home-shell" aria-label="모바일 홈">
+              <div class="mobile-utility-bar">
+                <span class="mobile-utility-item">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.8 9h-3.1a16.6 16.6 0 0 0-1.2-5.1A8 8 0 0 1 18.8 11ZM12 4.1c.7 1 1.4 3.3 1.6 6.9h-3.2c.2-3.6.9-5.9 1.6-6.9ZM4.2 13h3.1c.1 1.9.5 3.7 1.2 5.1A8 8 0 0 1 4.2 13Zm3.1-2H4.2a8 8 0 0 1 4.3-5.1A16.6 16.6 0 0 0 7.3 11Zm2.1 2h5.2c-.2 3.6-.9 5.9-1.6 6.9-.7-1-1.4-3.3-1.6-6.9Zm5.1 5.1c.7-1.4 1.1-3.2 1.2-5.1h3.1a8 8 0 0 1-4.3 5.1Z"/></svg>
+                  KO
+                </span>
+                <button type="button" data-page-target="myPage">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h11v8h2.2l2-3H21v7h-2a3 3 0 0 1-6 0H9a3 3 0 0 1-6 0H1V7a2 2 0 0 1 2-2Zm0 2v8.2A3 3 0 0 1 8.8 15H12V7H3Zm13 8h1.2l.9-1.4.7-1.1h-.5l-2.3 3.5Zm-10 3.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Zm10 0a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg>
+                  우편 번호 입력
+                </button>
+                <button type="button" data-page-target="myPage">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16h-2v-2H6v2H4V4Zm2 2v10h12V6H6Zm2 2h8v2H8V8Zm0 4h8v2H8v-2Z"/></svg>
+                  매장 선택
+                </button>
+              </div>
+              <div class="mobile-brand-row">
+                <button class="mobile-brand-logo" type="button" data-page-target="homePage" aria-label="자재GO 홈">
+                  <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" />
+                </button>
+                <div class="mobile-icon-actions" aria-label="빠른 메뉴">
+                  <button type="button" data-page-target="taxonomyTestPage" aria-label="검색">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 0 1 5.1 10.5l4 4-1.4 1.4-4-4A6.5 6.5 0 1 1 10.5 4Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/></svg>
+                  </button>
+                  <button type="button" data-page-target="myPage" aria-label="마이페이지">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Zm0 2c4.4 0 8 2.4 8 5.4V21H4v-1.6c0-3 3.6-5.4 8-5.4Zm0 2c-3.1 0-5.6 1.4-5.9 3h11.8c-.3-1.6-2.8-3-5.9-3Z"/></svg>
+                  </button>
+                  <button type="button" data-page-target="myPage" aria-label="관심상품">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.1 10.6 20C5.8 15.8 2.6 13 2.6 9.5A5.1 5.1 0 0 1 7.8 4.3c1.6 0 3.1.7 4.2 1.8a5.8 5.8 0 0 1 4.2-1.8 5.1 5.1 0 0 1 5.2 5.2c0 3.5-3.2 6.3-8 10.5L12 21.1Zm0-2.7.1-.1c4.4-3.8 7.3-6.3 7.3-8.8a3.1 3.1 0 0 0-3.2-3.2c-1.5 0-2.9 1-3.4 2.3h-1.6A3.7 3.7 0 0 0 7.8 6.3a3.1 3.1 0 0 0-3.2 3.2c0 2.5 2.9 5 7.3 8.8l.1.1Z"/></svg>
+                  </button>
+                  <button type="button" data-page-target="cartPage" aria-label="장바구니">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10l1.2 4H21v10H3V8h2.8L7 4Zm1.5 2-.6 2h8.2l-.6-2h-7ZM5 10v6h14v-6H5Z"/></svg>
+                  </button>
+                  <button type="button" data-page-target="productsPage" aria-label="메뉴">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z"/></svg>
+                  </button>
+                </div>
+              </div>
+              <button class="mobile-search-pill" type="button" data-page-target="taxonomyTestPage">
+                <span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 0 1 5.1 10.5l4 4-1.4 1.4-4-4A6.5 6.5 0 1 1 10.5 4Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/></svg>
+                  검색어 입력
+                </span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l1.2 2H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.8L9 4Zm1.1 2-1.2 2H4v10h16V8h-4.9l-1.2-2h-3.8ZM12 9a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/></svg>
+              </button>
+              <div class="mobile-chip-rail" aria-label="모바일 빠른 카테고리">
+                <button type="button" data-main-category="tile"><span>자재GO</span></button>
+                <button type="button" data-main-category="sanitary"><span>바스GO</span></button>
+                <button type="button" data-page-target="samplePage"><span>샘플GO</span></button>
+                <button type="button" data-main-category="material"><span>부자재</span></button>
+              </div>
+              <div class="mobile-promo-strip">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 5v5.2l3.2 1.9-1 1.7-4.2-2.5V7h2Z"/></svg>
+                <span>오후 4시까지 주문하면 수도권 빠른 배송으로 연결됩니다.</span>
+              </div>
+              <section class="mobile-main-banner" aria-label="모바일 메인 배너">
+                <img src="images/branding/web-main-banners/main-delivery-night-20260706.png" alt="오후 4시까지 주문하면 내일 아침 배송 완료" />
+                <button type="button" aria-label="배너 일시정지">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z"/></svg>
+                </button>
+                <strong>수도권 빠른 배송</strong>
+              </section>
+              <section class="mobile-mosaic-grid" aria-label="모바일 추천 배너">
+                <button class="mobile-mosaic-card mobile-mosaic-card--wide" type="button" data-page-target="taxonomyTestPage">
+                  <img src="images/branding/web-storefront-hero-20260706.png" alt="온라인 쇼룸" />
+                  <span>온라인 쇼룸가기</span>
+                </button>
+                <button class="mobile-mosaic-card" type="button" data-page-target="samplePage">
+                  <img src="images/branding/web-mosaic-banners/sample-go-20260706-v2.png" alt="샘플GO" />
+                  <span>샘플GO</span>
+                </button>
+                <button class="mobile-mosaic-card" type="button" data-main-category="tile">
+                  <img src="images/branding/web-mosaic-banners/material-go-20260706-v2.png" alt="자재GO" />
+                  <span>자재GO</span>
+                </button>
+                <button class="mobile-mosaic-card" type="button" data-main-category="sanitary">
+                  <img src="images/branding/web-mosaic-banners/bath-go-20260706-v2.png" alt="바스GO" />
+                  <span>바스GO</span>
+                </button>
+              </section>
+            </section>
+            <section class="web-banner-mosaic" aria-label="타일앤바스플러스 웹 배너">
+              <section class="customer-top-banner global-home-banner web-legacy-banner web-mosaic-main" aria-label="기존 메인 배너">
+                <div class="customer-top-banner-slider">
+                  <div class="customer-top-banner-track">
+                    <div class="customer-top-banner-slide">
+                      <img src="images/branding/web-main-banners/main-delivery-day-20260706.png" alt="오후 2시까지 주문하면 당일 배송 완료" />
+                    </div>
+                    <div class="customer-top-banner-slide">
+                      <img src="images/branding/web-main-banners/main-render-preview-20260706.png" alt="장바구니 타일 실사 이미지 미리보기" />
+                    </div>
+                    <div class="customer-top-banner-slide">
+                      <img src="images/branding/web-main-banners/main-ai-proposal-20260706.png" alt="장바구니에서 제안서 제작" />
+                    </div>
+                    <div class="customer-top-banner-slide">
+                      <img src="images/branding/web-main-banners/main-delivery-night-20260706.png" alt="오후 4시까지 주문하면 내일 아침 배송 완료" />
+                    </div>
+                    <div class="customer-top-banner-slide">
+                      <img src="images/branding/web-main-banners/main-delivery-black-20260706.png" alt="수도권 전 지역 빠른 배송" />
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <button class="web-mosaic-card web-mosaic-card--showroom" type="button" data-page-target="taxonomyTestPage">
+                <img src="images/branding/web-storefront-hero-20260706.png" alt="타일과 욕실 자재 쇼룸" />
+                <span>온라인 쇼룸가기</span>
+              </button>
+              <button class="web-mosaic-card web-mosaic-card--sample" type="button" data-page-target="samplePage">
+                <img src="images/branding/web-mosaic-banners/sample-go-20260706-v2.png" alt="샘플GO" />
+                <span>샘플GO</span>
+              </button>
+              <button class="web-mosaic-card web-mosaic-card--material" type="button" data-main-category="tile">
+                <img src="images/branding/web-mosaic-banners/material-go-20260706-v2.png" alt="자재GO" />
+                <span>자재GO</span>
+              </button>
+              <button class="web-mosaic-card web-mosaic-card--bath" type="button" data-main-category="sanitary">
+                <img src="images/branding/web-mosaic-banners/bath-go-20260706-v2.png" alt="바스GO" />
+                <span>바스GO</span>
+              </button>
+            </section>
+            <div class="customer-home-intro">
+              <p class="eyebrow">Tile & Bath Plus</p>
+              <h2>필요한 자재를 고르고, 바로 상담 장바구니로 정리합니다.</h2>
+              <p>타일, 위생도기, 수전, 욕실 악세사리를 고객에게 필요한 정보 중심으로 간단하게 보여줍니다.</p>
+            </div>
+            <div class="web-category-rail" aria-label="빠른 카테고리">
+              <button type="button" data-main-category="tile">타일</button>
+              <button type="button" data-main-category="sanitary">위생도기</button>
+              <button type="button" data-main-category="faucet">수전금구</button>
+              <button type="button" data-main-category="accessory">욕실 악세사리</button>
+              <button type="button" data-main-category="material">부자재</button>
+              <button type="button" data-page-target="samplePage">샘플 신청</button>
+            </div>
+            <div class="customer-entry-grid">
               <button class="customer-entry-button" type="button" data-main-category="tile">
-                <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" />
+                <img src="images/branding/entry-buttons/material-go-20260706.png" alt="자재GO" />
                 <span>타일상품 보러가기</span>
               </button>
               <button class="customer-entry-button" type="button" data-main-category="sanitary">
-                <img src="images/branding/btn-bath-go.png?v=20260429-goentry2" alt="바스GO" />
+                <img src="images/branding/entry-buttons/bath-go-20260706.png" alt="바스GO" />
                 <span>위생도기 및 수전 보러가기</span>
               </button>
               <button class="customer-entry-button customer-entry-button--sample" type="button" data-page-target="samplePage">
-                <img src="images/branding/btn-sample-go.png?v=20260429-goentry2" alt="샘플GO" />
+                <img src="images/branding/entry-buttons/sample-go-20260706.png" alt="샘플GO" />
                 <span>자재샘플 신청하러가기</span>
               </button>
             </div>
@@ -677,6 +746,33 @@
               <input id="productSearch" type="search" placeholder="예: 모자이크타일, 베이지 600각 유광 재고, 양변기, 세면대" />
             </label>
           </div>
+          <section class="expert-search-panel" id="productExpertGuide" aria-live="polite">
+            <div class="expert-search-head">
+              <div>
+                <p class="eyebrow">Expert Search</p>
+                <h3>타일 전문가가 옆에서 같이 찾는 방식으로 안내합니다.</h3>
+              </div>
+              <span id="expertSearchMode">검색 전</span>
+            </div>
+            <div class="expert-search-grid">
+              <article>
+                <strong>해석된 조건</strong>
+                <div class="expert-chip-row" id="expertIntentChips">
+                  <span>자연어로 원하는 공간, 색상, 규격, 마감을 입력해보세요.</span>
+                </div>
+              </article>
+              <article>
+                <strong>전문가 코멘트</strong>
+                <p id="expertSearchComment">예: “욕실 바닥 베이지 600각 무광 논슬립”처럼 현장 조건을 말하면 필요한 조건을 먼저 고정해드립니다.</p>
+              </article>
+              <article>
+                <strong>다음에 좁혀볼 조건</strong>
+                <div class="expert-chip-row" id="expertSuggestionChips">
+                  <span>검색 후 추천 필터가 표시됩니다.</span>
+                </div>
+              </article>
+            </div>
+          </section>
           <div class="customer-list-header">
             <strong>직접찾기 상품 리스트</strong>
             <div class="product-pagination-toolbar">
@@ -1077,7 +1173,6 @@
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
-            <button class="secondary-action" type="button" data-page-target="proposalPage">프로 제안서</button>
             <button class="primary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
           </div>
         </section>
@@ -1086,7 +1181,7 @@
             <strong>선택한 자재</strong>
             <span id="cartSummary">0개 품목</span>
           </div>
-          <p class="customer-cart-note">원가는 회원 기준으로 먼저 보여주고, 실제 상담용 견적단가는 별도로 입력할 수 있습니다.</p>
+          <p class="customer-cart-note">담아둔 상품을 확인하고 수량을 정리한 뒤 상담 또는 실사 보정으로 이어갈 수 있습니다.</p>
           <div class="cart-render-entry">
             <div>
               <strong>현장 사진에 장바구니 타일을 적용해볼 수 있습니다.</strong>
@@ -1100,7 +1195,6 @@
             <button class="secondary-action" type="button" data-page-target="taxonomyTestPage">상품 더 담기</button>
             <button class="primary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
             <button class="secondary-action" type="button" data-page-target="plannerPage">3D 시공 보기</button>
-            <button class="secondary-action" type="button" data-page-target="proposalPage">프로 제안서</button>
           </div>
         </section>
       </main>
@@ -1725,6 +1819,7 @@
             <button class="tab active" id="adminOperationsTab" type="button">운영대시보드</button>
             <button class="tab" id="adminProductsTab" type="button">상품현황</button>
             <button class="tab" id="adminQualityTab" type="button">품질대시보드</button>
+            <button class="tab" id="adminSearchTrainingTab" type="button">검색엔진강화</button>
             <button class="tab" id="adminOrdersTab" type="button">주문처리현황</button>
             <button class="tab" type="button" data-page-target="tile114TestPage">거래사이트 테스트</button>
           </div>
@@ -1947,6 +2042,114 @@
           </div>
         </section>
 
+        <section class="commerce-panel admin-view hidden" id="adminSearchTrainingView">
+          <div class="section-header-inline">
+            <div>
+              <p class="eyebrow">Search Training</p>
+              <h3>검색엔진강화</h3>
+            </div>
+            <p>무작위 타일 이미지를 보고 현재 예측값이 맞는지 확인해 검색엔진 학습 데이터로 저장합니다.</p>
+          </div>
+
+          <div class="admin-summary-grid quality-summary-grid" id="searchTrainingSummaryGrid"></div>
+
+          <div class="search-training-layout">
+            <article class="search-training-image-panel">
+              <div class="search-training-image-frame">
+                <img id="searchTrainingImage" alt="검수할 타일 이미지" />
+              </div>
+              <div class="search-training-product-meta" id="searchTrainingProductMeta"></div>
+              <div class="admin-ops-actions">
+                <button class="secondary-action" id="searchTrainingPrevBtn" type="button" title="단축키: 왼쪽 방향키">이전 검수</button>
+                <button class="secondary-action" id="searchTrainingNextBtn" type="button" title="단축키: 오른쪽 방향키">다음 랜덤 이미지</button>
+                <button id="searchTrainingAgreeBtn" type="button" title="단축키: A">예측값 맞음</button>
+              </div>
+            </article>
+
+            <article class="search-training-form-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">Human Check</p>
+                  <h4>사람 기준 정답 입력</h4>
+                </div>
+              </div>
+              <div class="search-training-prediction-grid" id="searchTrainingPredictionGrid"></div>
+              <form id="searchTrainingForm" class="search-training-form">
+                <label>
+                  마감
+                  <select id="searchTrainingFinishInput"></select>
+                </label>
+                <label>
+                  색상
+                  <select id="searchTrainingColorInput"></select>
+                </label>
+                <label>
+                  스타일
+                  <select id="searchTrainingStyleInput"></select>
+                </label>
+                <label>
+                  재질
+                  <select id="searchTrainingMaterialInput"></select>
+                </label>
+                <label>
+                  패턴/형태 메모
+                  <input id="searchTrainingPatternInput" type="text" placeholder="예: 긴 브릭, 세로 골지, 잔베인, 모자이크" />
+                </label>
+                <label>
+                  추가 메모
+                  <textarea id="searchTrainingMemoInput" rows="3" placeholder="이미지를 보며 판단한 이유를 남겨주세요."></textarea>
+                </label>
+                <button type="submit" title="단축키: Ctrl+Enter">수정값 저장</button>
+              </form>
+              <div class="signup-status-bar" id="searchTrainingStatus">무작위 타일 이미지를 불러올 준비가 되었습니다.</div>
+            </article>
+          </div>
+
+          <section class="search-training-batch-panel">
+            <div class="section-header-inline compact-section-header">
+              <div>
+                <p class="eyebrow">Batch Training</p>
+                <h4>여러 이미지 빠른 교육</h4>
+              </div>
+              <p id="searchTrainingBatchPrompt">다음 중 해당되는 타일을 모두 선택하면 DB 정리와 학습 저장을 함께 진행합니다.</p>
+            </div>
+            <div class="search-training-batch-toolbar">
+              <label>
+                교육 항목
+                <select id="searchTrainingBatchType">
+                  <option value="style">스타일</option>
+                  <option value="color">색상</option>
+                </select>
+              </label>
+              <label>
+                정답 라벨
+                <select id="searchTrainingBatchLabel"></select>
+              </label>
+              <button class="secondary-action" id="searchTrainingBatchLoadBtn" type="button">다음 문제 6장</button>
+              <button class="secondary-action" id="searchTrainingBatchClearBtn" type="button">선택 해제</button>
+              <button id="searchTrainingBatchSaveBtn" type="button">저장 후 다음 문제</button>
+            </div>
+            <div class="signup-status-bar" id="searchTrainingBatchStatus">문제에 맞는 타일을 모두 클릭해서 선택하세요. 저장하면 DB와 학습 데이터가 함께 정리됩니다.</div>
+            <div class="search-training-batch-grid" id="searchTrainingBatchGrid"></div>
+          </section>
+
+          <div class="table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>시간</th>
+                  <th>상태</th>
+                  <th>상품</th>
+                  <th>예측</th>
+                  <th>정답</th>
+                  <th>메모</th>
+                </tr>
+              </thead>
+              <tbody id="searchTrainingRecentRows"></tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="commerce-panel admin-view hidden" id="adminOrdersView">
           <div class="section-header-inline">
             <div>
@@ -1998,6 +2201,6 @@
       </main>
     </div>
 
-    <script src="app.js?v=20260630-ops-dashboard1"></script>
+    <script src="app.js?v=20260702-quiz-db-values1"></script>
   </body>
 </html>
