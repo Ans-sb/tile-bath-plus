@@ -7757,6 +7757,21 @@ body.admin-experience-mode .admin-flow-column {
     background: #f3f4f6;
   }
 
+  .mobile-main-banner-slider {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .mobile-main-banner-track {
+    display: flex;
+    width: 500%;
+    animation: mobile-main-banner-slide 18s infinite;
+  }
+
+  .mobile-main-banner-slide {
+    flex: 0 0 20%;
+  }
+
   .mobile-main-banner img {
     display: block;
     width: 100%;
@@ -7801,6 +7816,27 @@ body.admin-experience-mode .admin-flow-column {
     font-weight: 900;
     line-height: 1.25;
     word-break: keep-all;
+  }
+
+  @keyframes mobile-main-banner-slide {
+    0%, 16% {
+      transform: translateX(0);
+    }
+    20%, 36% {
+      transform: translateX(-20%);
+    }
+    40%, 56% {
+      transform: translateX(-40%);
+    }
+    60%, 76% {
+      transform: translateX(-60%);
+    }
+    80%, 96% {
+      transform: translateX(-80%);
+    }
+    100% {
+      transform: translateX(0);
+    }
   }
 
   .mobile-mosaic-grid {
