@@ -12,6 +12,7 @@ const sourceName = String(cli.sourceName || cli["source-name"] || firstEnvValue(
 const idPrefix = String(cli.idPrefix || cli["id-prefix"] || firstEnvValue(`${envPrefix}_ID_PREFIX`) || inferIdPrefix(tile114LoginUrl)).trim();
 const managementPrefix = String(cli.managementPrefix || cli["management-prefix"] || firstEnvValue(`${envPrefix}_MANAGEMENT_PREFIX`) || inferManagementPrefix(idPrefix)).trim();
 const mergeExistingProducts = String(cli.merge || "true") !== "false" && String(cli.replace || "false") !== "true";
+const outputOnly = String(cli.outputOnly || cli["output-only"] || "false") === "true";
 const listMode = String(cli.listMode || cli["list-mode"] || "categories").trim().toLowerCase();
 const productsPath = path.join(root, "data", "products.json");
 const outputDir = path.join(root, "outputs", "tile114-import");
@@ -37,6 +38,11 @@ const TILE114_CATEGORIES = {
   H: "부자재",
   I: "REGNO"
 };
+const excludedCategoryCodes = new Set(
+  String(sourceName || "").toUpperCase() === "VG" || idPrefix === "verygood"
+    ? ["1", "2"]
+    : []
+);
 
 if (!tile114UserId || !tile114Password) {
   throw new Error(`${envPrefix}_USER_ID 또는 ${envPrefix}_PASSWORD가 .env에 필요합니다.`);
@@ -89,6 +95,10 @@ async function collectAllProductList(discoveredProducts) {
 
 async function collectCategoryProductList(discoveredProducts) {
   for (const [categoryCode, categoryName] of Object.entries(TILE114_CATEGORIES)) {
+    if (excludedCategoryCodes.has(categoryCode)) {
+      console.log(`[list] skip ${categoryCode} ${categoryName}`);
+      continue;
+    }
     let previousSignature = "";
     let emptyPages = 0;
     console.log(`[list] ${categoryCode} ${categoryName}`);
@@ -151,10 +161,15 @@ products.sort((a, b) => {
 });
 
 await fs.writeFile(resultPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
-const finalProducts = mergeExistingProducts
-  ? mergeProducts(await readJsonArray(productsPath), products)
-  : products;
-await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+const existingProducts = await readJsonArray(productsPath);
+const finalProducts = outputOnly
+  ? existingProducts
+  : mergeExistingProducts
+    ? mergeProducts(existingProducts, products)
+    : products;
+if (!outputOnly) {
+  await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+}
 
 console.log(JSON.stringify({
   ok: true,
@@ -162,6 +177,7 @@ console.log(JSON.stringify({
   idPrefix,
   listMode,
   mergeExistingProducts,
+  outputOnly,
   discovered: listItems.length,
   imported: products.length,
   finalProductCount: finalProducts.length,
@@ -197,7 +213,7 @@ function mapTile114ToAppProduct(item) {
   const stockQty = parseStockQty(stockText);
   const sqmPerBox = parseSquareMetersPerBox(unit);
   const pcsPerBox = parsePcsPerBox(unit);
-  const surface = inferSurface(`${modelName} ${item.memo || ""}`);
+  const surface = inferSurface(`${modelName} ${item.memo || ""}`, { modelName, categoryName, size });
   const material = inferMaterial(`${modelName} ${categoryName} ${item.memo || ""}`);
   const patternCategory = classifyPatternCategory(`${modelName} ${categoryName} ${material} ${surface} ${item.memo || ""}`);
   const color = inferColor(modelName);
@@ -271,7 +287,13 @@ function inferMaterial(source) {
   return "";
 }
 
-function inferSurface(source) {
+function inferSurface(source, context = {}) {
+  if (String(sourceName || "").toUpperCase() === "VG" || idPrefix === "verygood") {
+    if (isVgEuropeWallMaiolica(context)) return "유광";
+    const chinaWallCodeFinish = inferVgChinaWall300600CodeFinish(context);
+    if (chinaWallCodeFinish) return chinaWallCodeFinish;
+    return isVgGlossyName(source) ? "유광" : "무광";
+  }
   const text = String(source || "").toLowerCase();
   if (/논슬립|non[\s-]?slip|nsp/.test(text)) return "논슬립";
   if (/무광|matt|matte|mat\b/.test(text)) return "무광";
@@ -280,6 +302,35 @@ function inferSurface(source) {
   if (/러프|rough|ruf/.test(text)) return "러프";
   if (/폴리싱|polished/.test(text)) return "폴리싱";
   return "";
+}
+
+function isVgGlossyName(value) {
+  const text = String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s*\(\s*[※*]+\s*\)\s*$/g, "")
+    .replace(/\s*[※*]+\s*$/g, "")
+    .trim()
+    .toUpperCase();
+  return /(유광|유약|폴리싱|POLISHED|POLISHING)$/.test(text)
+    || /(?:^|[\s(/_.-])P\)?$/.test(text)
+    || /\(P\)$/.test(text);
+}
+
+function isVgEuropeWallMaiolica({ modelName, categoryName } = {}) {
+  return /(T-유럽벽|유럽벽)/.test(String(categoryName || "")) && /MAIOLICA/i.test(String(modelName || ""));
+}
+
+function inferVgChinaWall300600CodeFinish({ modelName, categoryName, size } = {}) {
+  const normalizedSize = String(size || "")
+    .replace(/[×xX]/g, "*")
+    .replace(/\s+/g, "");
+  if (normalizedSize !== "300*600" || !/(T-중국벽|중국벽)/.test(String(categoryName || ""))) return "";
+
+  const text = String(modelName || "").toUpperCase();
+  const match = text.match(/WT36([PM])\d+/);
+  if (!match) return "";
+  return match[1] === "P" ? "유광" : "무광";
 }
 
 function classifyPatternCategory(source) {

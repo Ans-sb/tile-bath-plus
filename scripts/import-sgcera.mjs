@@ -8,6 +8,7 @@ const sourceName = String(cli.sourceName || cli["source-name"] || "SG").trim();
 const idPrefix = String(cli.idPrefix || cli["id-prefix"] || "sgcera").trim();
 const managementPrefix = String(cli.managementPrefix || cli["management-prefix"] || "SG").trim();
 const mergeExistingProducts = String(cli.merge || "true") !== "false" && String(cli.replace || "false") !== "true";
+const outputOnly = String(cli.outputOnly || cli["output-only"] || "false") === "true";
 const loginUrl = firstEnvValue("SGCERA_LOGIN_URL") || "https://www.sgcera.kr/front/index.php?g_page=member&m_page=member01";
 const userId = firstEnvValue("SGCERA_USER_ID");
 const password = firstEnvValue("SGCERA_PASSWORD");
@@ -78,16 +79,22 @@ products.sort((a, b) => {
 });
 
 await fs.writeFile(resultPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
-const finalProducts = mergeExistingProducts
-  ? mergeProducts(await readJsonArray(productsPath), products)
-  : products;
-await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+const existingProducts = await readJsonArray(productsPath);
+const finalProducts = outputOnly
+  ? existingProducts
+  : mergeExistingProducts
+    ? mergeProducts(existingProducts, products)
+    : products;
+if (!outputOnly) {
+  await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+}
 
 console.log(JSON.stringify({
   ok: true,
   sourceName,
   idPrefix,
   mergeExistingProducts,
+  outputOnly,
   discovered: listItems.length,
   imported: products.length,
   finalProductCount: finalProducts.length,
@@ -146,6 +153,7 @@ function parseProductList(html, category) {
       goodsIdx,
       name,
       size,
+      listSizeLabel: size,
       thumbnailUrl,
       detailPath: href,
       sourceUrl: sessionAbsoluteUrl(href),
@@ -212,11 +220,13 @@ function parseStockRows(html) {
 
 function mapSgCeraToAppProduct(item) {
   const modelName = cleanText(item.name);
+  const listSizeLabel = cleanText(item.listSizeLabel);
   const size = normalizeSize(item.size);
   const categoryName = cleanText(item.categoryName);
-  const surface = inferSurface(`${modelName} ${size}`);
-  const material = inferMaterial(`${modelName} ${categoryName}`);
-  const patternCategory = classifyPatternCategory(`${modelName} ${categoryName} ${surface} ${material}`);
+  const sourceText = `${modelName} ${listSizeLabel} ${item.size || ""} ${categoryName} ${item.weight || ""}`;
+  const surface = inferSurface(sourceText);
+  const material = inferMaterial(sourceText);
+  const patternCategory = classifyPatternCategory(`${sourceText} ${surface} ${material}`);
   const color = inferColor(modelName);
   const image = cleanText(item.imageUrl || item.thumbnailUrl);
   const costPrice = Number(item.costPrice) || 0;
@@ -244,7 +254,7 @@ function mapSgCeraToAppProduct(item) {
     pcsPerBox,
     sqmPerBox,
     color,
-    features: [categoryName, material, surface, item.weight ? `중량 ${item.weight}` : "", item.pallet ? `PLT ${item.pallet}` : ""].filter(Boolean).join(" / "),
+    features: [categoryName, listSizeLabel && listSizeLabel !== size ? listSizeLabel : "", material, surface, item.weight ? `중량 ${item.weight}` : "", item.pallet ? `PLT ${item.pallet}` : ""].filter(Boolean).join(" / "),
     costPrice,
     retailPrice: 0,
     wholesalePrice: 0,
@@ -276,7 +286,7 @@ function mapSgCeraToAppProduct(item) {
 function inferProductType(categoryName) {
   if (/타일/.test(categoryName)) return "tile";
   if (/부자재/.test(categoryName)) return "material";
-  return "fixture";
+  return "sanitary";
 }
 
 function findLastPage(html, category) {
@@ -289,6 +299,7 @@ function findLastPage(html, category) {
 
 function inferMaterial(source) {
   const text = String(source || "").toLowerCase();
+  if (/(^|[\s\]])포\s*[\da-z]/i.test(source) || /후판.*포/i.test(source)) return "포세린";
   if (/포세린|porcelain|por\b|포\s/.test(text)) return "포세린";
   if (/자기질|바닥/.test(text)) return "자기질";
   if (/도기질|벽/.test(text)) return "도기질";
@@ -301,9 +312,11 @@ function inferMaterial(source) {
 function inferSurface(source) {
   const text = String(source || "").toLowerCase();
   if (/논슬립|non[\s-]?slip|nsp/.test(text)) return "논슬립";
+  if (/반무광|세미무광|새틴|satin|라파토|라빠또|lappato|\blap\b/.test(text)) return "반무광";
   if (/무광|matt|matte|mat\b/.test(text)) return "무광";
   if (/유광|gloss|gls/.test(text)) return "유광";
-  if (/반무광|satin|sat\b/.test(text)) return "반무광";
+  if (/\b[a-z가-힣]*\d{2,}[a-z0-9-]*m\b/i.test(source)) return "무광";
+  if (/\b[a-z가-힣]*\d{2,}[a-z0-9-]*p\b/i.test(source)) return "유광";
   if (/러프|rough|ruf/.test(text)) return "러프";
   if (/폴리싱|polished/.test(text)) return "폴리싱";
   return "";

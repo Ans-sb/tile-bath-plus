@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260706-reference-3d1" />
+    <link rel="stylesheet" href="styles.css?v=20260706-ai-3d-source1" />
   </head>
   <body>
     <!-- build: homeheroslider3 -->
@@ -678,6 +678,12 @@
             </div>
             <div class="tile-finder-actions">
               <div class="tile-finder-controls">
+                <label class="admin-only tile-finder-brand-field">
+                  브랜드
+                  <select id="tileFinderBrand">
+                    <option value="all">전체 브랜드</option>
+                  </select>
+                </label>
                 <label>
                   타일 사이즈
                   <select id="tileFinderSize">
@@ -1288,8 +1294,8 @@
       <main class="app-page page-panel customer-page planner-page" id="plannerPage">
         <section class="page-heading customer-page-heading">
           <div>
-            <p class="eyebrow">3D Construction Planner</p>
-            <h2>타일 시공 3D 공간</h2>
+            <p class="eyebrow">Photo Real Tile Renderer</p>
+            <h2>현장 사진 실사 렌더</h2>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
@@ -1302,7 +1308,7 @@
           <form class="commerce-panel planner-control-panel" id="plannerForm">
             <div class="cart-heading">
               <strong>공간 입력</strong>
-              <span id="plannerStatus">장바구니 상품을 3D 공간에 적용합니다.</span>
+              <span id="plannerStatus">현장 사진을 올리면 벽과 바닥 전체 영역을 자동으로 잡아 실사 렌더로 확인합니다.</span>
             </div>
             <div class="planner-field-grid">
               <label>
@@ -1333,8 +1339,22 @@
                 <select id="plannerFloorTile"></select>
               </label>
               <label>
+                바닥 시공 방향
+                <select id="plannerFloorOrientation">
+                  <option value="horizontal" selected>가로 시공</option>
+                  <option value="vertical">세로 시공</option>
+                </select>
+              </label>
+              <label>
                 벽 타일
                 <select id="plannerWallTile"></select>
+              </label>
+              <label>
+                벽 시공 방향
+                <select id="plannerWallOrientation">
+                  <option value="horizontal" selected>가로 시공</option>
+                  <option value="vertical">세로 시공</option>
+                </select>
               </label>
               <label class="wide">
                 현장 이미지
@@ -1343,14 +1363,14 @@
               <div class="wide planner-surface-guide">
                 <div class="planner-plan-heading">
                   <strong>실사 시공 영역</strong>
-                  <span>사진 위에 바닥과 벽 영역을 순서대로 찍으면 실사 렌더 품질이 더 좋아집니다.</span>
+                  <span>사진을 올리면 기본 영역이 자동 적용됩니다. 필요하면 벽 전체 또는 바닥 전체를 다시 선택하세요.</span>
                 </div>
                 <div class="planner-plan-canvas-wrap">
                   <canvas id="plannerSurfaceGuideCanvas" width="640" height="420" aria-label="실사 시공 영역 선택"></canvas>
                 </div>
                 <div class="planner-actions compact-actions">
-                  <button class="secondary-action active" id="plannerGuideFloorBtn" type="button">바닥 영역</button>
-                  <button class="secondary-action" id="plannerGuideWallBtn" type="button">벽 영역</button>
+                  <button class="secondary-action active" id="plannerGuideFloorBtn" type="button">바닥 전체 선택</button>
+                  <button class="secondary-action" id="plannerGuideWallBtn" type="button">벽 전체 선택</button>
                   <button class="secondary-action" id="plannerGuideClearBtn" type="button">영역 초기화</button>
                 </div>
               </div>
@@ -1376,17 +1396,17 @@
             <div class="planner-actions">
               <button class="secondary-action" id="plannerApplyCartBtn" type="button">타일 자동 적용</button>
               <button class="secondary-action" id="plannerResetCameraBtn" type="button">시점 초기화</button>
-              <button class="primary-action" id="plannerRealRenderBtn" type="button">실사 렌더 만들기</button>
+              <button class="primary-action" id="plannerRealRenderBtn" type="button">고품질 AI 실사 렌더 만들기</button>
             </div>
             <div class="planner-summary" id="plannerSummary"></div>
             <div class="planner-cart-products" id="plannerCartProducts"></div>
           </form>
 
           <section class="commerce-panel planner-stage-panel">
-            <div class="planner-stage-toolbar">
+            <div class="planner-stage-toolbar planner-graphic-preview-toolbar">
               <div>
-                <strong>3D 미리보기</strong>
-                <span>마우스로 드래그해 공간을 회전할 수 있습니다.</span>
+                  <strong>보조 3D 공간</strong>
+                  <span>치수와 타일 배치 확인용입니다. 최종 렌더는 아래 현장 사진 기준으로 생성됩니다.</span>
               </div>
               <span id="plannerSceneMeta"></span>
             </div>
@@ -1396,12 +1416,31 @@
             <div class="planner-real-render">
               <div class="planner-stage-toolbar">
                 <div>
-                  <strong>실사 렌더 결과</strong>
-                  <span>현장 이미지와 선택 타일을 기준으로 제안용 이미지를 생성합니다.</span>
+                  <strong>현장 사진 기반 실사 렌더</strong>
+                  <span>업로드한 현장 이미지를 유지하고 선택 타일만 실제 시공처럼 반영합니다.</span>
                 </div>
                 <a class="hidden" id="plannerRealRenderDownload" download="tile-bath-real-render.png">다운로드</a>
               </div>
               <div class="render-preview render-preview-large" id="plannerRealRenderPreview">실사 렌더 결과 없음</div>
+            </div>
+            <div class="planner-panorama-viewer">
+              <div class="planner-stage-toolbar">
+                <div>
+                  <strong>360 현장 보기</strong>
+                  <span>고품질 AI 실사 렌더가 완성되면 그 이미지를 기준으로 3D화해서 둘러봅니다.</span>
+                  <small class="planner-panorama-source" id="plannerPanoramaSourceLabel">실사 렌더 생성 후 3D화됩니다.</small>
+                </div>
+                <div class="planner-panorama-actions" aria-label="360 현장 보기 방향">
+                  <button class="secondary-action" type="button" data-planner-panorama-view="front">앞</button>
+                  <button class="secondary-action" type="button" data-planner-panorama-view="back">뒤</button>
+                  <button class="secondary-action" type="button" data-planner-panorama-view="ceiling">천장</button>
+                  <button class="secondary-action" type="button" data-planner-panorama-view="floor">바닥</button>
+                </div>
+              </div>
+              <div class="planner-panorama-shell" id="plannerPanoramaShell">
+                <canvas id="plannerPanoramaCanvas" width="960" height="540" aria-label="360 현장 보기"></canvas>
+                <div class="planner-panorama-empty" id="plannerPanoramaEmpty">현장 사진을 올리면 360 현장 보기가 준비됩니다.</div>
+              </div>
             </div>
           </section>
         </section>
@@ -2226,8 +2265,7 @@
       </main>
     </div>
 
-    <script src="products-db.js?v=20260706-products-db1"></script>
-    <script src="app.js?v=20260702-quiz-db-values1"></script>
-    <script src="planner-reference-room.js?v=20260706-reference-3d1"></script>
+    <script src="products-db.js?v=20260706-products-db2"></script>
+    <script src="app.js?v=20260706-render-timeout1"></script>
   </body>
 </html>

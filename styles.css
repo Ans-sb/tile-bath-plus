@@ -660,9 +660,20 @@ svg {
 }
 
 body[data-page="plannerPage"] .planner-stage-panel {
+  display: flex;
+  flex-direction: column;
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+
+body[data-page="plannerPage"] .planner-graphic-preview-toolbar,
+body[data-page="plannerPage"] .planner-canvas-mount {
+  display: none;
+}
+
+body[data-page="plannerPage"] #plannerResetCameraBtn {
+  display: none;
 }
 
 .planner-field-grid {
@@ -727,6 +738,18 @@ body[data-page="plannerPage"] .planner-stage-panel {
   line-height: 1.5;
 }
 
+.planner-panorama-source {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .planner-plan-canvas-wrap {
   overflow: hidden;
   border: 1px solid rgba(35, 31, 26, 0.12);
@@ -740,6 +763,9 @@ body[data-page="plannerPage"] .planner-stage-panel {
   width: 100%;
   height: auto;
   min-height: 220px;
+}
+
+#plannerPlanCanvas {
   cursor: crosshair;
 }
 
@@ -860,6 +886,66 @@ body[data-page="plannerPage"] .planner-canvas-mount {
   display: grid;
   gap: 12px;
   margin-top: 16px;
+}
+
+body[data-page="plannerPage"] .planner-real-render {
+  order: -1;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.planner-panorama-viewer {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.planner-panorama-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.planner-panorama-actions .secondary-action {
+  min-height: 36px;
+  padding-inline: 14px;
+}
+
+.planner-panorama-shell {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #101614;
+  aspect-ratio: 16 / 9;
+  min-height: 300px;
+}
+
+#plannerPanoramaCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  cursor: grab;
+  touch-action: none;
+}
+
+#plannerPanoramaCanvas:active {
+  cursor: grabbing;
+}
+
+.planner-panorama-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(247, 243, 236, 0.94), rgba(228, 235, 238, 0.94));
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
 }
 
 #plannerRealRenderDownload {
@@ -1620,7 +1706,7 @@ textarea:focus {
 
 .tile-finder-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   width: 100%;
 }
@@ -1814,6 +1900,11 @@ textarea:focus {
   color: var(--muted);
   font-weight: 700;
   line-height: 1.5;
+}
+
+.tile-match-card .tile-match-admin-brand {
+  color: var(--accent-strong);
+  font-weight: 900;
 }
 
 .tile-match-actions {
@@ -3816,6 +3907,7 @@ body.customer-experience-mode .taxonomy-image-results .tile-match-actions button
 }
 
 .render-preview {
+  position: relative;
   display: grid;
   place-items: center;
   min-height: 280px;
@@ -3845,6 +3937,85 @@ body.customer-experience-mode .taxonomy-image-results .tile-match-actions button
 
 .render-preview.has-image {
   cursor: zoom-in;
+}
+
+.render-preview.is-photo-preview {
+  background: #f7f3ec;
+}
+
+.render-preview.is-ai-result {
+  background: #ffffff;
+}
+
+.render-preview.is-render-loading {
+  cursor: wait;
+}
+
+.planner-render-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 28px;
+  background:
+    linear-gradient(135deg, rgba(8, 12, 18, 0.78), rgba(0, 38, 84, 0.64)),
+    rgba(0, 0, 0, 0.55);
+  color: #fff;
+  text-align: center;
+  backdrop-filter: blur(6px);
+}
+
+.planner-render-loading strong {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.planner-render-loading span {
+  max-width: 520px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.planner-render-loading small {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.planner-render-spinner {
+  width: 54px;
+  height: 54px;
+  border: 5px solid rgba(255, 255, 255, 0.26);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: planner-render-spin 0.9s linear infinite;
+}
+
+.planner-render-progress {
+  width: min(460px, 82%);
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.planner-render-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7dd3fc, #2563eb, #ffffff);
+  transition: width 0.35s ease;
+}
+
+@keyframes planner-render-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .render-preview-trigger {

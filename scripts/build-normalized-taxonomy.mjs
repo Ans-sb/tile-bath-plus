@@ -5,7 +5,14 @@ const root = process.cwd();
 const productsPath = path.join(root, "data", "products.json");
 const normalizedPath = path.join(root, "data", "products.normalized.json");
 const summaryPath = path.join(root, "data", "products.normalized.summary.json");
-const stockInquiryThresholdQty = Math.max(0, Number(process.env.STOCK_INQUIRY_THRESHOLD_QTY || process.env.MIN_PUBLIC_STOCK_QTY || 30));
+const publicStockExcludeThresholdQty = Math.max(0, Number(
+  process.env.PUBLIC_STOCK_EXCLUDE_THRESHOLD_QTY
+  || process.env.STOCK_EXCLUDE_THRESHOLD_QTY
+  || process.env.MIN_PUBLIC_STOCK_QTY
+  || 50
+) || 50);
+const publicExposeAllStockProducts = /^(1|true|yes)$/i.test(String(process.env.PUBLIC_EXPOSE_ALL_STOCK_PRODUCTS || "true"));
+const stockInquiryThresholdQty = Math.max(0, Number(process.env.STOCK_INQUIRY_THRESHOLD_QTY || 100) || 100);
 const reportDir = path.join(root, "outputs", "taxonomy-analysis");
 const reportPath = path.join(reportDir, `normalized-taxonomy-${timestampForFile(new Date())}.md`);
 const taxonomyVersion = "2026-06-06-normalization-v1";
@@ -129,7 +136,7 @@ function normalizeProductForTaxonomy(product) {
     countryOfOrigin: origin.country,
     pcsPerBox: toNumberOrNull(product.pcsPerBox),
     sqmPerBox: toNumberOrNull(product.sqmPerBox),
-    stockStatus: Number(product.stockQty || 0) > stockInquiryThresholdQty ? "재고보유" : "주문시 재고 문의",
+    stockStatus: getStockStatus(product),
     stockQty: Number(product.stockQty || 0),
     image: String(product.image || ""),
     customerSearchableText: buildSearchableText({
@@ -641,13 +648,22 @@ function inferFunctions(product, source, sizeInfo, applications) {
   if (/고하중|주차장|parking|창고|물류|heavy/.test(text)) functions.push("고하중");
   if (/방오|내오염|stain/.test(text)) functions.push("내오염");
   if (/uv/.test(text)) functions.push("UV 코팅");
-  if (Number(product.stockQty || 0) > stockInquiryThresholdQty) {
+  const quantity = Number(product.stockQty || 0);
+  if (!publicExposeAllStockProducts && quantity <= publicStockExcludeThresholdQty) {
+    functions.push("상품노출 제외");
+  } else if (quantity > stockInquiryThresholdQty) {
     functions.push("재고보유");
     functions.push("빠른출고");
   } else {
     functions.push("주문시 재고 문의");
   }
   return unique(functions);
+}
+
+function getStockStatus(product) {
+  const quantity = Number(product.stockQty || 0);
+  if (!publicExposeAllStockProducts && quantity <= publicStockExcludeThresholdQty) return "상품노출 제외";
+  return quantity > stockInquiryThresholdQty ? "재고보유" : "주문시 재고 문의";
 }
 
 function isAccessoryLikeTaxonomyText(text) {

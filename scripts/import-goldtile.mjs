@@ -9,6 +9,7 @@ const sourceName = String(cli.sourceName || cli["source-name"] || "GT").trim();
 const idPrefix = String(cli.idPrefix || cli["id-prefix"] || "goldtile").trim();
 const managementPrefix = String(cli.managementPrefix || cli["management-prefix"] || "GT").trim();
 const mergeExistingProducts = String(cli.merge || "true") !== "false" && String(cli.replace || "false") !== "true";
+const outputOnly = String(cli.outputOnly || cli["output-only"] || "false") === "true";
 const detailConcurrency = Math.max(1, Math.min(20, Number(cli.concurrency || 8) || 8));
 const requestTimeoutMs = Math.max(5000, Number(cli.timeout || cli["timeout-ms"] || 25000) || 25000);
 const loginUrl = firstEnvValue("thegold_LOGIN_URL", "THEGOLD_LOGIN_URL", "GOLDTILE_LOGIN_URL") || "https://thegoldtile.com/";
@@ -87,16 +88,22 @@ const products = listItems
   });
 
 await fs.writeFile(resultPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
-const finalProducts = mergeExistingProducts
-  ? mergeProducts(await readJsonArray(productsPath), products)
-  : products;
-await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+const existingProducts = await readJsonArray(productsPath);
+const finalProducts = outputOnly
+  ? existingProducts
+  : mergeExistingProducts
+    ? mergeProducts(existingProducts, products)
+    : products;
+if (!outputOnly) {
+  await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+}
 
 console.log(JSON.stringify({
   ok: true,
   sourceName,
   idPrefix,
   mergeExistingProducts,
+  outputOnly,
   discovered: listItems.length,
   imported: products.length,
   withImages: products.filter((product) => product.image).length,

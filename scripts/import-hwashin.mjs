@@ -1,5 +1,7 @@
 import fs from "fs/promises";
+import net from "net";
 import path from "path";
+import tls from "tls";
 
 const root = process.cwd();
 const env = await loadEnvFile(path.join(root, ".env"));
@@ -9,9 +11,11 @@ const sourceName = String(cli.sourceName || cli["source-name"] || "HS").trim();
 const idPrefix = String(cli.idPrefix || cli["id-prefix"] || "hwashin").trim();
 const managementPrefix = String(cli.managementPrefix || cli["management-prefix"] || "HS").trim();
 const mergeExistingProducts = String(cli.merge || "true") !== "false" && String(cli.replace || "false") !== "true";
+const outputOnly = String(cli.outputOnly || cli["output-only"] || "false") === "true";
 const detailConcurrency = Math.max(1, Math.min(40, Number(cli.concurrency || 25) || 25));
 const requestTimeoutMs = Math.max(5000, Number(cli.timeout || cli["timeout-ms"] || 25000) || 25000);
 const loginUrl = firstEnvValue("hwashin_LOGIN_URL", "HWASHIN_LOGIN_URL") || "https://www.myhwashin.com/front/main";
+const proxyUrl = String(cli.proxy || cli["proxy-url"] || firstEnvValue("hwashin_PROXY_URL", "HWASHIN_PROXY_URL") || "").trim();
 const userId = firstEnvValue("hwashin_USER_ID", "HWASHIN_USER_ID");
 const password = firstEnvValue("hwashin_PASSWORD", "HWASHIN_PASSWORD");
 const productsPath = path.join(root, "data", "products.json");
@@ -32,6 +36,10 @@ if (!userId || !password) {
 }
 
 await fs.mkdir(outputDir, { recursive: true });
+if (proxyUrl) {
+  const proxy = new URL(proxyUrl);
+  console.log(`[proxy] 화신세라믹 요청을 ${proxy.protocol}//${proxy.hostname}:${proxy.port || (proxy.protocol === "https:" ? "443" : "80")} 경유로 실행합니다.`);
+}
 
 const session = createHwashinSession();
 await login(session);
@@ -110,16 +118,22 @@ products.sort((a, b) => {
 });
 
 await fs.writeFile(resultPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
-const finalProducts = mergeExistingProducts
-  ? mergeProducts(await readJsonArray(productsPath), products)
-  : products;
-await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+const existingProducts = await readJsonArray(productsPath);
+const finalProducts = outputOnly
+  ? existingProducts
+  : mergeExistingProducts
+    ? mergeProducts(existingProducts, products)
+    : products;
+if (!outputOnly) {
+  await fs.writeFile(productsPath, `${JSON.stringify(finalProducts, null, 2)}\n`, "utf8");
+}
 
 console.log(JSON.stringify({
   ok: true,
   sourceName,
   idPrefix,
   mergeExistingProducts,
+  outputOnly,
   discovered: listItems.length,
   imported: products.length,
   withImages: products.filter((product) => product.image).length,
@@ -229,26 +243,17 @@ function parseProductDetail(html, item) {
   if (breadcrumb) detail.breadcrumb = breadcrumb;
 
   const tableHtml = findFirst(html, /<tbody id=["']mytbl["']>([\s\S]*?)<\/tbody>/i) || html;
-  const rowRegex = /<tr\b[^>]*>\s*<th\b[^>]*>([\s\S]*?)<\/th>\s*<td\b[^>]*>([\s\S]*?)<\/td>\s*<\/tr>/gi;
+  const rowRegex = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   let row;
   while ((row = rowRegex.exec(tableHtml))) {
-    const key = cleanHtml(row[1]).replace(/\s+/g, "");
-    const value = cleanHtml(row[2]);
-    if (!key || value === "-") continue;
-    if (key.includes("브랜드")) detail.brandName = value;
-    else if (key.includes("품번")) detail.modelName = value;
-    else if (key.includes("분류")) detail.categoryDetail = value;
-    else if (key.includes("품명")) detail.productName = value;
-    else if (key.includes("규격")) detail.size = value;
-    else if (key.includes("소재")) detail.material = value;
-    else if (key.includes("색상")) detail.color = value;
-    else if (key.includes("원산지") || key.includes("제조국")) detail.countryOfOrigin = value;
-    else if (key.includes("판매단위")) detail.saleUnit = value;
-    else if (/ea\/?box/i.test(key)) detail.eaPerBox = value;
-    else if (/pcs\/?box/i.test(key)) detail.pcsPerBox = Number(value.replace(/[^\d.]/g, "")) || value;
-    else if (/m[²2]\/?box/i.test(key) || key.includes("㎡")) detail.sqmPerBox = Number(value.replace(/[^\d.]/g, "")) || value;
-    else if (key.includes("시리즈")) detail.series = value;
-    else if (key.includes("무게")) detail.weight = value;
+    const cells = Array.from(row[1].matchAll(/<(th|td)\b[^>]*>([\s\S]*?)<\/\1>/gi))
+      .map((match) => ({ tag: match[1].toLowerCase(), text: cleanHtml(match[2]) }));
+    for (let index = 0; index < cells.length; index += 1) {
+      if (cells[index]?.tag !== "th") continue;
+      const valueCell = cells[index + 1];
+      if (valueCell?.tag !== "td") continue;
+      applyHwashinDetailField(detail, cells[index].text, valueCell.text);
+    }
   }
 
   const imageUrls = unique([
@@ -298,15 +303,52 @@ function parseStockHtml(html) {
   return detail;
 }
 
+function applyHwashinDetailField(detail, rawKey, rawValue) {
+  const key = normalizeHwashinDetailKey(rawKey);
+  const value = cleanText(rawValue);
+  if (!key || !value || value === "-") return;
+
+  if (key.includes("브랜드")) detail.brandName = value;
+  else if (key.includes("품번")) detail.modelName = value;
+  else if (key.includes("분류")) detail.categoryDetail = value;
+  else if (key.includes("품명")) detail.productName = value;
+  else if (key.includes("규격")) detail.size = value;
+  else if (key.includes("소재")) detail.material = value;
+  else if (key.includes("표면")) detail.surfaceFinish = value;
+  else if (key.includes("마감")) detail.rawFinish = value;
+  else if (key.includes("색상")) detail.color = normalizeHwashinColor(value);
+  else if (key.includes("원산지") || key.includes("제조국")) detail.countryOfOrigin = value;
+  else if (key.includes("판매단위")) detail.saleUnit = value;
+  else if (/ea\/?box/i.test(key)) detail.eaPerBox = value;
+  else if (/pcs\/?box/i.test(key)) detail.pcsPerBox = Number(value.replace(/[^\d.]/g, "")) || value;
+  else if (/m[²2]\/?box/i.test(key) || key.includes("㎡")) detail.sqmPerBox = Number(value.replace(/[^\d.]/g, "")) || value;
+  else if (key.includes("시리즈")) detail.series = value;
+  else if (key.includes("무게")) detail.weight = value;
+}
+
+function normalizeHwashinDetailKey(value) {
+  return cleanText(value)
+    .replace(/㎡/g, "m2")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function normalizeHwashinColor(value) {
+  const text = cleanText(value).replace(/\s+/g, "");
+  const normalized = text.replace(/계열$/u, "");
+  return normalized || text;
+}
+
 function mapHwashinToAppProduct(item) {
-  const modelName = cleanText(item.modelName || item.name || item.productName);
-  const name = cleanText(item.productName || item.name || modelName);
+  const modelName = firstMeaningfulText(item.modelName, item.name, item.productName);
+  const rawName = firstMeaningfulText(item.productName, item.name, modelName);
+  const name = isHwashinPlaceholderName(rawName) ? modelName : rawName;
   const categoryName = cleanText(item.categoryDetail || item.categoryName);
   const size = normalizeSize(item.size);
-  const material = cleanText(item.material) || inferMaterial(`${name} ${categoryName} ${item.sourceCategoryName}`);
-  const surface = inferSurface(`${name} ${modelName} ${categoryName} ${item.features || ""}`);
+  const material = inferHwashinMaterial({ categoryName, sourceCategoryName: item.sourceCategoryName, detailMaterial: item.material, name, size });
+  const surface = cleanText(item.surfaceFinish) || inferSurface(`${name} ${modelName} ${categoryName} ${item.productName || ""} ${item.features || ""}`);
   const patternCategory = classifyPatternCategory(`${name} ${modelName} ${categoryName} ${material} ${surface} ${item.features || ""}`);
-  const color = cleanText(item.color) || inferColor(`${name} ${modelName}`);
+  const color = normalizeHwashinColor(item.color) || inferColor(`${name} ${modelName}`);
   const costPrice = Number(item.costPrice || item.listSalePrice) || 0;
   const image = cleanText(item.imageUrl || item.thumbnailUrl);
   const sqmPerBox = item.sqmPerBox || "";
@@ -364,6 +406,18 @@ function mapHwashinToAppProduct(item) {
   };
 }
 
+function inferHwashinMaterial({ categoryName, sourceCategoryName, detailMaterial, name, size }) {
+  const categoryMaterial = inferMaterial(categoryName);
+  if (categoryMaterial) return categoryMaterial;
+  const sourceMaterial = inferMaterial(`${sourceCategoryName} ${name}`);
+  if (sourceMaterial) return sourceMaterial;
+  const detail = inferMaterial(detailMaterial);
+  if (detail) return detail;
+  const parsed = parseSizeParts(size);
+  if (Math.max(parsed.width || 0, parsed.height || 0) >= 600) return "포세린";
+  return "";
+}
+
 function inferProductType(source) {
   const text = String(source || "");
   if (/부자재|접착|본드|시멘트|줄눈|실리콘|방수/.test(text)) return "material";
@@ -388,6 +442,7 @@ function inferSurface(source) {
   const text = String(source || "").toLowerCase();
   if (/논슬립|non[\s-]?slip|nsp/.test(text)) return "논슬립";
   if (/무광|matt|matte|mat\b/.test(text)) return "무광";
+  if (/몰드|mold|커팅|cutting|rectified/.test(text)) return "무광";
   if (/유광|gloss|gls/.test(text)) return "유광";
   if (/반무광|satin|sat\b/.test(text)) return "반무광";
   if (/러프|rough|ruf/.test(text)) return "러프";
@@ -439,8 +494,25 @@ function normalizeSize(size) {
   return cleanText(size).replace(/[×x]/gi, "*").replace(/\s+/g, "");
 }
 
+function parseSizeParts(size) {
+  const match = String(size || "").replace(/[×x]/gi, "*").match(/(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)/);
+  return match ? { width: Number(match[1]), height: Number(match[2]) } : { width: 0, height: 0 };
+}
+
 function normalizeMatchText(value) {
   return String(value || "").toLowerCase().replace(/\s+/g, "").replace(/[(){}\[\]_\-·/]/g, "");
+}
+
+function firstMeaningfulText(...values) {
+  for (const value of values) {
+    const text = cleanText(value);
+    if (text && text !== "-") return text;
+  }
+  return "";
+}
+
+function isHwashinPlaceholderName(value) {
+  return /^-?\s*세트상품\s*-?$/u.test(cleanText(value));
 }
 
 function createHwashinSession() {
@@ -459,11 +531,16 @@ function createHwashinSession() {
       const headers = new Headers(options.headers || {});
       const cookie = Array.from(cookieJar.entries()).map(([key, value]) => `${key}=${value}`).join("; ");
       if (cookie) headers.set("Cookie", cookie);
-      headers.set("User-Agent", "Mozilla/5.0 TileBathPlusImporter/1.0");
+      if (!headers.has("Accept")) headers.set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+      if (!headers.has("Accept-Language")) headers.set("Accept-Language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7");
+      headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 TileBathPlusImporter/1.0");
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
       try {
-        const response = await fetch(new URL(pathValue, `${origin}/front/`), { ...options, headers, redirect: "manual", signal: controller.signal });
+        const url = new URL(pathValue, `${origin}/front/`);
+        const response = proxyUrl
+          ? await fetchViaHttpProxy(url, { ...options, headers, signal: controller.signal })
+          : await fetch(url, { ...options, headers, redirect: "manual", signal: controller.signal });
         storeCookies(response.headers, cookieJar);
         if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
           return await this.fetch(response.headers.get("location"), { method: "GET" });
@@ -521,6 +598,214 @@ function storeCookies(headers, cookieJar) {
     if (separatorIndex <= 0) continue;
     cookieJar.set(firstPart.slice(0, separatorIndex).trim(), firstPart.slice(separatorIndex + 1).trim());
   }
+}
+
+async function fetchViaHttpProxy(url, options = {}) {
+  const target = url instanceof URL ? url : new URL(url);
+  if (target.protocol !== "https:") {
+    throw new Error("화신세라믹 프록시 요청은 https URL만 지원합니다.");
+  }
+
+  const proxy = new URL(proxyUrl);
+  if (proxy.protocol !== "http:") {
+    throw new Error("HWASHIN_PROXY_URL은 http 프록시 형식만 지원합니다. 예: http://user:pass@host:port");
+  }
+
+  const proxyPort = Number(proxy.port || 80);
+  const socket = await connectSocket(proxy.hostname, proxyPort, options.signal);
+  const proxyAuth = proxy.username
+    ? `Proxy-Authorization: Basic ${Buffer.from(`${decodeURIComponent(proxy.username)}:${decodeURIComponent(proxy.password)}`).toString("base64")}\r\n`
+    : "";
+
+  const connectLines = [
+    `CONNECT ${target.hostname}:443 HTTP/1.1`,
+    `Host: ${target.hostname}:443`,
+    "Proxy-Connection: Keep-Alive"
+  ];
+  if (proxyAuth) connectLines.splice(2, 0, proxyAuth.trimEnd());
+  socket.write(`${connectLines.join("\r\n")}\r\n\r\n`);
+
+  const connectResponse = await readHeaderBlock(socket, options.signal);
+  const connectStatus = parseHttpStatus(connectResponse.headerText);
+  if (connectStatus < 200 || connectStatus >= 300) {
+    socket.destroy();
+    throw new Error(`화신세라믹 프록시 CONNECT 실패: ${connectStatus || "unknown"}`);
+  }
+
+  const secureSocket = tls.connect({ socket, servername: target.hostname });
+  await onceSecure(secureSocket, options.signal);
+
+  const method = String(options.method || "GET").toUpperCase();
+  const body = options.body ? Buffer.from(String(options.body)) : Buffer.alloc(0);
+  const headers = new Headers(options.headers || {});
+  headers.set("Host", target.hostname);
+  headers.set("Connection", "close");
+  if (body.length && !headers.has("Content-Length")) headers.set("Content-Length", String(body.length));
+
+  const headerLines = [];
+  headers.forEach((value, key) => headerLines.push(`${key}: ${value}`));
+  secureSocket.write([
+    `${method} ${target.pathname}${target.search} HTTP/1.1`,
+    ...headerLines,
+    "",
+    ""
+  ].join("\r\n"));
+  if (body.length) secureSocket.write(body);
+
+  const responseBuffer = await readAll(secureSocket, options.signal);
+  const separatorIndex = responseBuffer.indexOf("\r\n\r\n");
+  if (separatorIndex < 0) throw new Error("화신세라믹 프록시 응답 헤더를 읽지 못했습니다.");
+
+  const headerText = responseBuffer.slice(0, separatorIndex).toString("latin1");
+  const bodyBuffer = responseBuffer.slice(separatorIndex + 4);
+  const status = parseHttpStatus(headerText);
+  const responseHeaders = parseHttpHeaders(headerText);
+  const finalBody = /transfer-encoding:\s*chunked/i.test(headerText) ? decodeChunkedBody(bodyBuffer) : bodyBuffer;
+  return new Response(finalBody, { status, headers: responseHeaders });
+}
+
+function connectSocket(host, port, signal) {
+  return new Promise((resolve, reject) => {
+    const socket = net.connect(port, host);
+    const cleanup = () => {
+      socket.off("connect", onConnect);
+      socket.off("error", onError);
+      signal?.removeEventListener?.("abort", onAbort);
+    };
+    const onConnect = () => {
+      cleanup();
+      resolve(socket);
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(new Error("화신세라믹 프록시 연결 시간이 초과되었습니다."));
+    };
+    socket.once("connect", onConnect);
+    socket.once("error", onError);
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+}
+
+function onceSecure(socket, signal) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      socket.off("secureConnect", onSecure);
+      socket.off("error", onError);
+      signal?.removeEventListener?.("abort", onAbort);
+    };
+    const onSecure = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(new Error("화신세라믹 프록시 TLS 연결 시간이 초과되었습니다."));
+    };
+    socket.once("secureConnect", onSecure);
+    socket.once("error", onError);
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+}
+
+function readHeaderBlock(socket, signal) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const cleanup = () => {
+      socket.off("data", onData);
+      socket.off("error", onError);
+      signal?.removeEventListener?.("abort", onAbort);
+    };
+    const onData = (chunk) => {
+      chunks.push(chunk);
+      const buffer = Buffer.concat(chunks);
+      const separatorIndex = buffer.indexOf("\r\n\r\n");
+      if (separatorIndex >= 0) {
+        cleanup();
+        resolve({ headerText: buffer.slice(0, separatorIndex).toString("latin1") });
+      }
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(new Error("화신세라믹 프록시 응답 시간이 초과되었습니다."));
+    };
+    socket.on("data", onData);
+    socket.once("error", onError);
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+}
+
+function readAll(socket, signal) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const cleanup = () => {
+      socket.off("data", onData);
+      socket.off("end", onEnd);
+      socket.off("error", onError);
+      signal?.removeEventListener?.("abort", onAbort);
+    };
+    const onData = (chunk) => chunks.push(chunk);
+    const onEnd = () => {
+      cleanup();
+      resolve(Buffer.concat(chunks));
+    };
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.destroy();
+      reject(new Error("화신세라믹 프록시 요청 시간이 초과되었습니다."));
+    };
+    socket.on("data", onData);
+    socket.once("end", onEnd);
+    socket.once("error", onError);
+    signal?.addEventListener?.("abort", onAbort, { once: true });
+  });
+}
+
+function parseHttpStatus(headerText) {
+  return Number(String(headerText || "").match(/^HTTP\/\d(?:\.\d)?\s+(\d+)/i)?.[1] || 0);
+}
+
+function parseHttpHeaders(headerText) {
+  const headers = new Headers();
+  for (const line of String(headerText || "").split(/\r?\n/).slice(1)) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) continue;
+    headers.append(line.slice(0, separatorIndex).trim(), line.slice(separatorIndex + 1).trim());
+  }
+  return headers;
+}
+
+function decodeChunkedBody(buffer) {
+  const chunks = [];
+  let offset = 0;
+  while (offset < buffer.length) {
+    const lineEnd = buffer.indexOf("\r\n", offset);
+    if (lineEnd < 0) break;
+    const size = Number.parseInt(buffer.slice(offset, lineEnd).toString("ascii").split(";")[0], 16);
+    if (!Number.isFinite(size) || size <= 0) break;
+    const start = lineEnd + 2;
+    chunks.push(buffer.slice(start, start + size));
+    offset = start + size + 2;
+  }
+  return Buffer.concat(chunks);
 }
 
 function splitSetCookieHeader(value) {

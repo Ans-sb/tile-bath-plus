@@ -128,7 +128,9 @@ const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "til
 const IMAGE_SEARCH_RESULTS_PAGE_SIZE = 20;
 const ADMIN_PRODUCT_TABLE_LIMIT = 300;
 const UNKNOWN_TILE_SIZE_VALUE = "__unknown__";
-const STOCK_INQUIRY_THRESHOLD_QTY = 30;
+const PUBLIC_STOCK_EXCLUDE_THRESHOLD_QTY = 50;
+const PUBLIC_EXPOSE_ALL_STOCK_PRODUCTS = true;
+const STOCK_INQUIRY_THRESHOLD_QTY = 100;
 
 const money = new Intl.NumberFormat("ko-KR", {
   style: "currency",
@@ -190,12 +192,23 @@ let pendingSiteImage = "";
 let renderJobRunning = false;
 let pendingPlannerSiteImage = "";
 let pendingPlannerRealRenderImage = "";
+let pendingPlannerPhotoPreviewImage = "";
+let pendingPlannerPanoramaImage = "";
+let pendingPlannerPanoramaSource = "";
+let plannerPanoramaTexture = null;
 let plannerRealRenderRunning = false;
+let plannerRealRenderStartedAt = 0;
+let plannerRealRenderProgressTimer = null;
 let plannerSurfaceGuideMode = "floor";
 let plannerSurfaceRegions = { floor: [], wall: [] };
 let pendingPlannerPlanImage = "";
 let plannerPlanPoints = [];
 let plannerRenderTimer = null;
+let plannerPhotoPreviewTimer = null;
+let plannerPanoramaTimer = null;
+let plannerPanoramaYaw = 0.5;
+let plannerPanoramaPitch = 0;
+let plannerPanoramaDrag = null;
 let plannerThreeModulePromise = null;
 let plannerThreeState = {
   renderer: null,
@@ -246,6 +259,33 @@ const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 let currentAdminView = "operations";
 let adminProductsHydrated = false;
+let searchTrainingCurrentSample = null;
+let searchTrainingHistory = [];
+let searchTrainingHistoryIndex = -1;
+let searchTrainingStats = { total: 0, agreeCount: 0, correctedCount: 0, latest: [] };
+let searchTrainingVisitedIds = new Set();
+let searchTrainingCandidatesCache = { key: "", items: [] };
+let searchTrainingPreparedNextSample = null;
+let searchTrainingPrefetchImage = null;
+let searchTrainingBatchSamples = [];
+let searchTrainingBatchSelectedIds = new Set();
+let searchTrainingBatchVisitedIds = new Set();
+let searchTrainingBatchQuestion = { type: "style", label: "스톤" };
+const SEARCH_TRAINING_BATCH_SIZE = 6;
+const SEARCH_TRAINING_COLOR_OPTIONS = [
+  "화이트", "아이보리 / 크림", "베이지", "브라운", "그레이", "차콜 / 다크그레이",
+  "블랙", "그린", "블루", "핑크", "레드", "옐로우", "테라코타 / 오렌지", "멀티컬러", "메탈릭", "색상 미확인"
+];
+const SEARCH_TRAINING_STYLE_BATCH_OPTIONS = [
+  "스톤", "마블", "시멘트", "솔리드", "트래버틴", "테라조", "우드", "브릭", "모자이크",
+  "패턴", "핸드메이드", "입체 / 텍스처", "메탈", "글라스", "기타"
+];
+const SEARCH_TRAINING_FINISH_OPTIONS = [
+  "유광", "무광", "반무광", "폴리싱", "논슬립", "혼드", "내추럴", "엠보", "3D", "텍스쳐", "마감 미확인"
+];
+const SEARCH_TRAINING_MATERIAL_OPTIONS = [
+  "포세린", "자기질", "도기질", "세라믹", "석재 타일", "복합대리석", "시멘트 타일", "메탈", "천연석", "유리", "재질 미확인"
+];
 const DEFAULT_PROPOSAL_PPT_STATUS = "템플릿을 고르고 상품과 보정 이미지를 선택한 뒤 최종 제안서를 생성하세요.";
 const PROPOSAL_TEMPLATE_PREVIEWS = {
   "beige-black": {
@@ -342,6 +382,7 @@ function bindEvents() {
     productCurrentPage = 1;
     renderProducts();
   });
+  document.querySelector("#productExpertGuide")?.addEventListener("click", handleExpertSearchSuggestionClick);
 
   ["#taxonomyAudienceMode", "#taxonomyAxisFilter", "#taxonomyBrandFilter", "#taxonomyOriginFilter", "#taxonomyApplicationFilter", "#taxonomyColorFilter", "#taxonomyStyleFilter", "#taxonomyFinishFilter", "#taxonomySizeFilter", "#taxonomyPriceFilter", "#taxonomyStockFilter"].forEach((selector) => {
     document.querySelector(selector)?.addEventListener("input", () => {
@@ -440,6 +481,11 @@ function bindEvents() {
   });
   document.querySelector("#tileFinderSearchBtn")?.addEventListener("click", handleTileFinderSearch);
   document.querySelector("#tileFinderFile")?.addEventListener("change", handleTileFinderFileChange);
+  document.querySelector("#tileFinderBrand")?.addEventListener("change", () => {
+    if (!isAdminUser() || !tileFinderMatches.length) return;
+    tileFinderResultsPage = 1;
+    renderTileFinderResults(tileFinderMatches);
+  });
   document.querySelector("#tileFinderResults")?.addEventListener("click", (event) => {
     if (shouldSuppressImageSearchClick()) {
       event.preventDefault();
@@ -587,12 +633,26 @@ function bindEvents() {
   document.querySelector("#imagePreviewBackdrop").addEventListener("click", closeImagePreview);
   document.querySelector("#closeTilePickerBtn").addEventListener("click", closeRenderSurfacePicker);
   document.querySelector("#tilePickerBackdrop").addEventListener("click", closeRenderSurfacePicker);
-  document.querySelector("#plannerForm")?.addEventListener("input", renderPlannerWorkspace);
-  document.querySelector("#plannerForm")?.addEventListener("change", renderPlannerWorkspace);
+  document.querySelector("#plannerForm")?.addEventListener("input", () => {
+    resetPlannerPhotoRenderResults();
+    renderPlannerWorkspace();
+  });
+  document.querySelector("#plannerForm")?.addEventListener("change", () => {
+    resetPlannerPhotoRenderResults();
+    renderPlannerWorkspace();
+  });
   document.querySelector("#plannerSiteImage")?.addEventListener("change", async (event) => {
     pendingPlannerSiteImage = await readImageFile(event.target.files[0], 1400);
-    plannerSurfaceRegions = { floor: [], wall: [] };
+    plannerSurfaceRegions = pendingPlannerSiteImage ? createPlannerDefaultSurfaceRegions() : { floor: [], wall: [] };
     pendingPlannerRealRenderImage = "";
+    pendingPlannerPhotoPreviewImage = "";
+    if (pendingPlannerSiteImage) {
+      autoSelectPlannerCartTiles();
+      const tiles = getPlannerCartTiles();
+      setText("#plannerStatus", tiles.length
+        ? "현장 사진 기준으로 벽/바닥 전체 영역과 장바구니 타일을 자동 적용했습니다."
+        : "현장 사진 기준으로 벽/바닥 전체 영역을 자동 선택했습니다. 적용할 타일을 먼저 장바구니에 담아주세요.");
+    }
     renderPlannerWorkspace();
   });
   document.querySelector("#plannerPlanImage")?.addEventListener("change", async (event) => {
@@ -608,11 +668,12 @@ function bindEvents() {
   });
   document.querySelector("#plannerPlanCanvas")?.addEventListener("click", handlePlannerPlanCanvasClick);
   document.querySelector("#plannerSurfaceGuideCanvas")?.addEventListener("click", handlePlannerSurfaceGuideCanvasClick);
-  document.querySelector("#plannerGuideFloorBtn")?.addEventListener("click", () => setPlannerSurfaceGuideMode("floor"));
-  document.querySelector("#plannerGuideWallBtn")?.addEventListener("click", () => setPlannerSurfaceGuideMode("wall"));
+  document.querySelector("#plannerGuideFloorBtn")?.addEventListener("click", () => selectPlannerWholeSurface("floor"));
+  document.querySelector("#plannerGuideWallBtn")?.addEventListener("click", () => selectPlannerWholeSurface("wall"));
   document.querySelector("#plannerGuideClearBtn")?.addEventListener("click", () => {
     plannerSurfaceRegions = { floor: [], wall: [] };
     pendingPlannerRealRenderImage = "";
+    pendingPlannerPhotoPreviewImage = "";
     setText("#plannerStatus", "실사 시공 영역을 초기화했습니다.");
     renderPlannerWorkspace();
   });
@@ -638,6 +699,13 @@ function bindEvents() {
   });
   document.querySelector("#plannerRealRenderBtn")?.addEventListener("click", generatePlannerRealRender);
   document.querySelector("#plannerRealRenderPreview")?.addEventListener("click", openPlannerRealRenderPreview);
+  document.querySelector("#plannerPanoramaCanvas")?.addEventListener("pointerdown", startPlannerPanoramaDrag);
+  document.addEventListener("pointermove", movePlannerPanoramaDrag);
+  document.addEventListener("pointerup", endPlannerPanoramaDrag);
+  document.querySelector("#plannerPanoramaCanvas")?.addEventListener("wheel", handlePlannerPanoramaWheel, { passive: false });
+  document.querySelectorAll("[data-planner-panorama-view]").forEach((button) => {
+    button.addEventListener("click", () => setPlannerPanoramaView(button.dataset.plannerPanoramaView));
+  });
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
     if (selectedProductId) addToCart(selectedProductId);
@@ -673,7 +741,24 @@ function bindEvents() {
   document.querySelector("#adminOperationsTab")?.addEventListener("click", () => switchAdminView("operations"));
   document.querySelector("#adminProductsTab")?.addEventListener("click", () => switchAdminView("products"));
   document.querySelector("#adminQualityTab")?.addEventListener("click", () => switchAdminView("quality"));
+  document.querySelector("#adminSearchTrainingTab")?.addEventListener("click", () => switchAdminView("searchTraining"));
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
+  document.querySelector("#searchTrainingPrevBtn")?.addEventListener("click", goToPreviousSearchTrainingSample);
+  document.querySelector("#searchTrainingNextBtn")?.addEventListener("click", goToNextSearchTrainingSample);
+  document.querySelector("#searchTrainingAgreeBtn")?.addEventListener("click", () => saveSearchTrainingFeedback("agree"));
+  document.querySelector("#searchTrainingForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveSearchTrainingFeedback("corrected");
+  });
+  document.querySelector("#searchTrainingBatchType")?.addEventListener("change", () => {
+    startSearchTrainingBatchQuestion({ keepType: true });
+  });
+  document.querySelector("#searchTrainingBatchLabel")?.addEventListener("change", renderSearchTrainingBatchPrompt);
+  document.querySelector("#searchTrainingBatchLoadBtn")?.addEventListener("click", () => startSearchTrainingBatchQuestion({ keepType: true }));
+  document.querySelector("#searchTrainingBatchClearBtn")?.addEventListener("click", clearSearchTrainingBatchSelection);
+  document.querySelector("#searchTrainingBatchSaveBtn")?.addEventListener("click", saveSearchTrainingBatchFeedback);
+  document.querySelector("#searchTrainingBatchGrid")?.addEventListener("click", handleSearchTrainingBatchGridClick);
+  document.addEventListener("keydown", handleSearchTrainingKeyboardShortcuts);
   document.querySelector("#adminPage")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-admin-view-target]");
     if (button) switchAdminView(button.dataset.adminViewTarget);
@@ -713,7 +798,10 @@ function bindEvents() {
 async function loadProducts() {
   const localProducts = loadLocalProducts();
   const bundledProducts = Array.isArray(window.PRODUCTS_DB) ? window.PRODUCTS_DB : [];
-  products = mergeProducts(bundledProducts, localProducts);
+  products = mergeProducts(
+    mapProductsForCurrentAudience(bundledProducts),
+    mapProductsForCurrentAudience(localProducts)
+  );
   productsLoadedFromRemote = false;
   if (currentPageId === "productsPage") {
     syncProductFilters();
@@ -722,7 +810,10 @@ async function loadProducts() {
 
   try {
     const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 30000 });
-    products = mergeProducts(remoteProducts, localProducts);
+    products = mergeProducts(
+      mapProductsForCurrentAudience(remoteProducts),
+      mapProductsForCurrentAudience(localProducts)
+    );
     serverConnection = { online: true, checked: true, failures: 0 };
     productsLoadedFromRemote = true;
     if (shouldHydrateAdminProductsForCurrentView()) {
@@ -735,7 +826,10 @@ async function loadProducts() {
   } catch (error) {
     console.warn(error);
     serverConnection = { ...serverConnection, online: false, checked: true, failures: (serverConnection.failures || 0) + 1 };
-    products = mergeProducts(bundledProducts, localProducts);
+    products = mergeProducts(
+      mapProductsForCurrentAudience(bundledProducts),
+      mapProductsForCurrentAudience(localProducts)
+    );
     if (["productsPage", "taxonomyTestPage"].includes(currentPageId)) {
       await loadStoredNormalizedTaxonomyProducts();
     }
@@ -759,11 +853,15 @@ async function hydrateMemberPricingProducts(options = {}) {
   if (!authUser?.businessNumber || !authUser?.memberToken || authUser?.approvalStatus !== "승인") return false;
 
   try {
-    const url = `/api/member/products?businessNumber=${encodeURIComponent(authUser.businessNumber)}&memberToken=${encodeURIComponent(authUser.memberToken)}`;
-    const payload = await requestJson(url, {}, { retries: 1, timeoutMs: 30000 });
+    const payload = await requestJson("/api/member/products", {
+      headers: getMemberProductAuthHeaders()
+    }, { retries: 1, timeoutMs: 30000 });
     if (!payload?.ok || !Array.isArray(payload.products)) return false;
     const localProducts = loadLocalProducts();
-    products = mergeProducts(payload.products.map(mapPublicProductForClient), localProducts);
+    products = mergeProducts(
+      payload.products.map(mapPublicProductForClient),
+      mapProductsForCurrentAudience(localProducts)
+    );
     authUser = {
       ...authUser,
       approvalStatus: payload.user?.approvalStatus || authUser.approvalStatus,
@@ -781,9 +879,23 @@ async function hydrateMemberPricingProducts(options = {}) {
   }
 }
 
+function mapProductsForCurrentAudience(rows) {
+  if (!Array.isArray(rows)) return [];
+  if (isAdminUser()) return rows;
+  return rows
+    .filter(isClientVisibleStockProduct)
+    .map(mapPublicProductForClient);
+}
+
+function isClientVisibleStockProduct(product) {
+  if (PUBLIC_EXPOSE_ALL_STOCK_PRODUCTS) return true;
+  return Number(product?.stockQty || product?.stock_qty || product?.stock || 0) > PUBLIC_STOCK_EXCLUDE_THRESHOLD_QTY;
+}
+
 async function loadStoredNormalizedTaxonomyProducts() {
   try {
-    const response = await fetch(`/api/local/normalized-taxonomy?v=${Date.now()}`, { cache: "no-store" });
+    const view = isAdminUser() ? "admin" : "customer";
+    const response = await fetch(`/api/local/normalized-taxonomy?view=${encodeURIComponent(view)}&v=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error("정규화 파일을 불러오지 못했습니다.");
     const payload = await response.json();
     storedNormalizedTaxonomyProducts = Array.isArray(payload) ? payload : [];
@@ -844,11 +956,9 @@ async function hydrateApprovalRulesFromServer() {
 async function hydrateAdminProducts(options = {}) {
   if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return false;
   try {
-    const query = new URLSearchParams({
-      adminUsername: authUser.adminUsername,
-      adminToken: authUser.adminToken
-    });
-    const payload = await requestJson(`/api/admin/products?${query}`, {}, { retries: 1, timeoutMs: 30000 });
+    const payload = await requestJson("/api/admin/products", {
+      headers: getAdminAuthHeaders()
+    }, { retries: 1, timeoutMs: 30000 });
     if (!payload?.ok || !Array.isArray(payload.products)) return false;
     products = mergeProducts(products, payload.products);
     adminProductsHydrated = true;
@@ -863,18 +973,19 @@ async function hydrateAdminProducts(options = {}) {
 
 function shouldHydrateAdminProductsForCurrentView() {
   if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return false;
-  if (currentPageId === "adminPage") return ["products", "quality"].includes(currentAdminView);
+  if (currentPageId === "adminPage") return ["products", "quality", "searchTraining"].includes(currentAdminView);
   return currentPageId === "productsPage" || currentPageId === "productDetailPage";
 }
 
 async function ensureAdminProductsForView(view) {
-  if (!["products", "quality"].includes(view) || adminProductsHydrated) return;
+  if (!["products", "quality", "searchTraining"].includes(view) || adminProductsHydrated) return;
   if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return;
   setText("#adminStatus", "관리자 상품 원가/브랜드 정보를 불러오는 중입니다...");
   const ok = await hydrateAdminProducts({ render: false });
   if (ok) {
     if (view === "products") renderAdminOverview();
     if (view === "quality") renderQualityDashboard();
+    if (view === "searchTraining") renderSearchTrainingView();
     setText("#adminStatus", "관리자 상품 원가/브랜드 정보가 반영되었습니다.");
   }
 }
@@ -1235,8 +1346,9 @@ function getProductDirectColorValues(product) {
   if (!product) return [];
   if (product.productType === "tile") {
     const item = getNormalizedTaxonomyProductForProduct(product);
+    const productColor = normalizeDirectProductFilterValue(product.color);
     const normalizedColor = normalizeDirectProductFilterValue(item?.mainColor);
-    return unique([normalizedColor || normalizeDirectProductFilterValue(product.color)].filter(Boolean));
+    return unique([productColor || normalizedColor].filter(Boolean));
   }
   return unique([product.color].map(normalizeDirectProductFilterValue).filter(Boolean));
 }
@@ -1288,6 +1400,31 @@ function getProductDisplayFinish(product) {
   return getProductDirectFinishValues(product)[0] || product.finish || product.surface || product.option || "미확인";
 }
 
+function getProductAdminBrandLabel(product) {
+  return [
+    product?.maker,
+    product?.sourceCategoryName,
+    product?.catalogSource,
+    product?.sourceSite
+  ].map(normalizeDirectProductFilterValue).find(Boolean) || "";
+}
+
+function syncTileFinderBrandFilter() {
+  const brandFilter = document.querySelector("#tileFinderBrand");
+  if (!brandFilter) return;
+  if (!isAdminUser()) {
+    brandFilter.innerHTML = `<option value="all">전체 브랜드</option>`;
+    brandFilter.value = "all";
+    return;
+  }
+  const previousBrand = isAdminUser() ? brandFilter.value || "all" : "all";
+  const brands = sortDirectProductFilterValues(products
+    .filter((product) => product.productType === "tile")
+    .map(getProductAdminBrandLabel)
+    .filter(Boolean));
+  fillProductFilterSelect(brandFilter, brands, previousBrand, "전체 브랜드");
+}
+
 function syncProductFilters(config = {}) {
   invalidateProductPageCache();
   const type = document.querySelector("#mainCategoryFilter")?.value || "all";
@@ -1334,6 +1471,7 @@ function syncProductFilters(config = {}) {
   fillProductFilterSelect(sizeFilter, sizes, previousSize);
   fillProductFilterSelect(finishFilter, finishes, previousFinish);
   fillProductFilterSelect(colorFilter, colors, previousColor);
+  syncTileFinderBrandFilter();
 }
 
 function renderAll() {
@@ -1446,6 +1584,7 @@ function renderProposalTemplatePreview() {
 }
 
 function renderProducts() {
+  syncTileFinderBrandFilter();
   const { totalPages } = getProductPageState();
   productCurrentPage = Math.min(Math.max(productCurrentPage, 1), totalPages);
   commitProductPageView(productCurrentPage);
@@ -1601,7 +1740,7 @@ function getProductPageHtml(page) {
   const normalizedPage = Math.min(Math.max(Number(page) || 1, 1), state.totalPages);
   if (state.pageHtmlCache.has(normalizedPage)) return state.pageHtmlCache.get(normalizedPage);
   const pageProducts = getProductPageProducts(normalizedPage, state);
-  const html = buildProductPageCardsHtml(pageProducts, state.keyword);
+  const html = buildProductPageCardsHtml(pageProducts, state);
   state.pageHtmlCache.set(normalizedPage, html);
   return html;
 }
@@ -1624,6 +1763,7 @@ function commitProductPageView(page) {
   } else {
     updateProductListStatus("상품 데이터를 아직 불러오지 못했습니다.");
   }
+  renderProductExpertGuide(state);
   renderProductPagination(state.filtered.length, state.pageSize, state.totalPages);
   scheduleProductPageWarmup(normalizedPage);
 }
@@ -1675,14 +1815,15 @@ function renderProductPageList(pageHtml, currentPage, totalPages) {
   productList.innerHTML = pageHtml;
 }
 
-function buildProductPageCardsHtml(pageProducts, keyword = "") {
-  return pageProducts.map((product) => buildProductCardHtml(product)).join("")
-    || `<div class="empty-state">${keyword ? "품명 검색 결과가 없습니다." : "새 상품 리스트 업데이트 준비 중입니다."}</div>`;
+function buildProductPageCardsHtml(pageProducts, state = getProductPageState()) {
+  return pageProducts.map((product) => buildProductCardHtml(product, state)).join("")
+    || `<div class="empty-state">${state.keyword ? "품명 검색 결과가 없습니다." : "새 상품 리스트 업데이트 준비 중입니다."}</div>`;
 }
 
-function buildProductCardHtml(product) {
+function buildProductCardHtml(product, state = null) {
   const displayColor = getProductDisplayColor(product);
   const displayFinish = getProductDisplayFinish(product);
+  const expertReasons = getProductExpertReasons(product, state);
   return `
     <article class="product-card">
       <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
@@ -1696,10 +1837,156 @@ function buildProductCardHtml(product) {
         <span>재고 ${escapeHtml(hasStockValue(product) ? formatStockQuantity(product) : "확인 필요")}</span>
         ${renderProductCardAdminMeta(product)}
         ${renderProductCardPriceLine(product)}
+        ${expertReasons.length ? `<small class="expert-product-reasons">${expertReasons.map(escapeHtml).join(" · ")}</small>` : ""}
       </div>
       <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
   `;
+}
+
+function renderProductExpertGuide(state = getProductPageState()) {
+  const panel = document.querySelector("#productExpertGuide");
+  if (!panel) return;
+  const mode = document.querySelector("#expertSearchMode");
+  const intentWrap = document.querySelector("#expertIntentChips");
+  const comment = document.querySelector("#expertSearchComment");
+  const suggestionWrap = document.querySelector("#expertSuggestionChips");
+  const hasKeyword = Boolean(state.keyword);
+  const hasNaturalIntent = state.naturalIntent?.active && hasActiveTaxonomyIntentCriteria(state.naturalIntent);
+  const hasFilter = state.activeFilters > 0;
+  if (mode) mode.textContent = hasNaturalIntent ? "전문가 검색 중" : hasFilter ? "조건 탐색 중" : "검색 전";
+  if (intentWrap) {
+    const chips = getProductExpertIntentChips(state);
+    intentWrap.innerHTML = chips.length
+      ? chips.map((chip) => `<span>${escapeHtml(chip)}</span>`).join("")
+      : `<span>공간, 용도, 색상, 스타일, 규격, 마감을 자연어로 입력해보세요.</span>`;
+  }
+  if (comment) comment.textContent = getProductExpertComment(state);
+  if (suggestionWrap) {
+    const suggestions = getProductExpertSuggestions(state);
+    suggestionWrap.innerHTML = suggestions.length
+      ? suggestions.map((item) => `
+        <button type="button" data-expert-filter="${escapeHtml(item.filter)}" data-expert-value="${escapeHtml(item.value)}">
+          ${escapeHtml(item.label)} <small>${number(item.count)}</small>
+        </button>
+      `).join("")
+      : `<span>${hasKeyword || hasFilter ? "더 좁힐 조건이 부족합니다. 검색어를 조금 넓혀보세요." : "검색하면 색상, 마감, 규격, 스타일 추천 버튼이 나타납니다."}</span>`;
+  }
+}
+
+function getProductExpertIntentChips(state) {
+  const chips = [];
+  const add = (label, value) => {
+    const text = String(value || "").trim();
+    if (text && text !== "all") chips.push(`${label} ${text}`);
+  };
+  add("대분류", PRODUCT_TYPE_LABELS[state.type] || state.type);
+  add("종류", state.option);
+  add("스타일", state.patternCategory);
+  add("규격", state.size);
+  add("마감", state.finish);
+  add("색상", state.color);
+  if (state.naturalIntent?.active) {
+    getTaxonomyIntentChipEntries(state.naturalIntent).slice(0, 10).forEach((entry) => add(entry.label, entry.value));
+  }
+  return unique(chips).slice(0, 14);
+}
+
+function getProductExpertComment(state) {
+  const total = state.filtered.length;
+  const tileCount = state.filtered.filter((product) => product.productType === "tile").length;
+  const stocked = state.filtered.filter((product) => Number(product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY).length;
+  if (!state.keyword && state.activeFilters === 0) {
+    return "원하는 현장 조건을 말하듯 입력하면 색상, 마감, 규격, 스타일을 해석해서 후보를 좁혀드립니다.";
+  }
+  if (!total) {
+    return "현재 조건은 너무 좁습니다. 사이즈나 마감 중 하나를 넓히거나, 색상 표현을 아이보리/베이지처럼 비슷한 말로 바꿔보세요.";
+  }
+  if (state.naturalIntent?.active && state.naturalIntent?.sizes?.length) {
+    return `규격 조건을 먼저 고정하고 ${number(total)}개 후보를 찾았습니다. 이 중 타일 ${number(tileCount)}개, 바로 재고 확인 가능한 상품은 ${number(stocked)}개입니다.`;
+  }
+  if (state.naturalIntent?.active && state.naturalIntent?.finishes?.length) {
+    return `마감 조건을 우선 반영해 ${number(total)}개 후보를 정리했습니다. 색상이나 스타일을 한 번 더 누르면 더 정확해집니다.`;
+  }
+  return `${number(total)}개 후보를 찾았습니다. 타일은 ${number(tileCount)}개이며, 재고가 충분한 상품을 우선 검토하는 흐름이 좋습니다.`;
+}
+
+function getProductExpertSuggestions(state) {
+  if (!state.filtered.length) return [];
+  const groups = [
+    { filter: "color", label: "색상", selector: "#colorFilter", values: getProductDirectColorValues, intentValues: state.naturalIntent?.colors || [] },
+    { filter: "finish", label: "마감", selector: "#finishFilter", values: getProductDirectFinishValues, intentValues: state.naturalIntent?.finishes || [] },
+    { filter: "size", label: "규격", selector: "#sizeFilter", values: (product) => [product.size].filter(Boolean), intentValues: state.naturalIntent?.sizes || [] },
+    { filter: "patternCategory", label: "스타일", selector: "#patternCategoryFilter", values: getProductDirectTileCategories, intentValues: state.naturalIntent?.styles || [] }
+  ];
+  const suggestions = [];
+  for (const group of groups) {
+    const current = document.querySelector(group.selector)?.value || "all";
+    if (current !== "all") continue;
+    const counts = new Map();
+    for (const product of state.filtered) {
+      for (const value of group.values(product)) {
+        const clean = String(value || "").trim();
+        if (!clean || clean === "all" || /미확인|확인 필요/.test(clean)) continue;
+        if (productExpertValueAlreadyInIntent(clean, group.intentValues)) continue;
+        counts.set(clean, (counts.get(clean) || 0) + 1);
+      }
+    }
+    [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko", { numeric: true }))
+      .slice(0, 3)
+      .forEach(([value, count]) => {
+        suggestions.push({ filter: group.filter, value, label: `${group.label} ${value}`, count });
+      });
+  }
+  return suggestions.slice(0, 10);
+}
+
+function productExpertValueAlreadyInIntent(value, intentValues = []) {
+  const normalizedValue = normalizeProductExpertCompareValue(value);
+  return (intentValues || []).some((intentValue) => normalizeProductExpertCompareValue(intentValue) === normalizedValue);
+}
+
+function normalizeProductExpertCompareValue(value) {
+  return normalizeTaxonomySearch(String(value || "").replace(/[×＊*]/g, "x"));
+}
+
+function handleExpertSearchSuggestionClick(event) {
+  const button = event.target.closest("[data-expert-filter][data-expert-value]");
+  if (!button) return;
+  const selectorByFilter = {
+    color: "#colorFilter",
+    finish: "#finishFilter",
+    size: "#sizeFilter",
+    patternCategory: "#patternCategoryFilter"
+  };
+  const selector = selectorByFilter[button.dataset.expertFilter];
+  const control = selector ? document.querySelector(selector) : null;
+  if (!control) return;
+  const value = button.dataset.expertValue || "all";
+  if (![...control.options].some((option) => option.value === value)) return;
+  control.value = value;
+  if (button.dataset.expertFilter === "patternCategory") syncProductFilters();
+  productCurrentPage = 1;
+  renderProducts();
+  document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function getProductExpertReasons(product, state) {
+  if (!state || (!state.keyword && state.activeFilters === 0)) return [];
+  const reasons = [];
+  const normalized = product.productType === "tile" ? getNormalizedTaxonomyProductForProduct(product) : null;
+  if (state.size !== "all" && product.size === state.size) reasons.push(`규격 ${product.size}`);
+  if (state.finish !== "all" && getProductDirectFinishValues(product).includes(state.finish)) reasons.push(`마감 ${state.finish}`);
+  if (state.color !== "all" && getProductDirectColorValues(product).includes(state.color)) reasons.push(`색상 ${state.color}`);
+  if (state.patternCategory !== "all" && getProductDirectTileCategories(product).includes(state.patternCategory)) reasons.push(`스타일 ${state.patternCategory}`);
+  if (normalized && state.naturalIntent?.active) {
+    if (state.naturalIntent.colors?.some((value) => taxonomyHasAny([normalized.mainColor, normalized.subColor, normalized.accentColor], [value]))) reasons.push("색상 의도 일치");
+    if (state.naturalIntent.styles?.some((value) => taxonomyHasAny(normalized.styleCategories, [value]))) reasons.push("디자인 의도 일치");
+    if (state.naturalIntent.sizes?.some((value) => taxonomySizeMatches(normalized, value))) reasons.push("규격 의도 일치");
+  }
+  if (Number(product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY) reasons.push("재고 확인 가능");
+  return unique(reasons).slice(0, 3);
 }
 
 function getAdminProductBrandLabel(product) {
@@ -2020,6 +2307,11 @@ function mapStoredNormalizedTaxonomyProducts() {
       ].filter(Boolean).join(" "), surfaceFinish, item.surfaceTexture, Boolean(item.antiSlip));
       const priceRange = getTaxonomyPriceRange(product);
       const stockStatus = Number(item.stockQty || product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY ? "재고 있음" : "주문시 재고 문의";
+      const directStyle = normalizeDirectProductFilterValue(product.patternCategory);
+      const styleCategories = TILE_STYLE_OPTION_SET.has(directStyle)
+        ? [directStyle]
+        : normalizeTaxonomyArray(item.styleCategories, "스타일 미확인");
+      const mainColor = normalizeDirectProductFilterValue(product.color) || item.mainColor || "색상 미확인";
       return {
         id: item.productId,
         product,
@@ -2051,13 +2343,13 @@ function mapStoredNormalizedTaxonomyProducts() {
         surfaceTexture: item.surfaceTexture || "",
         antiSlip: Boolean(item.antiSlip),
         slipRating: item.slipRating || "",
-        mainColor: item.mainColor || "색상 미확인",
+        mainColor,
         subColor: item.subColor || "",
         accentColor: Array.isArray(item.accentColors) ? item.accentColors.join(", ") : item.accentColors || "",
         patternDetail: item.patternDetail || "",
         moodTags: normalizeTaxonomyArray(item.moodTags, ""),
         searchKeywords: normalizeTaxonomyArray(item.searchKeywords, ""),
-        styleCategories: normalizeTaxonomyArray(item.styleCategories, "스타일 미확인"),
+        styleCategories,
         applicationCategories: normalizeTaxonomyArray(item.applicationCategories, "용도 미확인"),
         spaceCategories: normalizeTaxonomyArray(item.spaceCategories, "공간 미확인"),
         functionCategories: normalizeTaxonomyArray(item.functionCategories, ""),
@@ -2338,6 +2630,14 @@ function normalizeTaxonomyProductSizeLabel(value) {
   return `${Number(match[1])}x${Number(match[2])}`;
 }
 
+function taxonomySizeMatches(item, expectedSize) {
+  const expected = normalizeTaxonomyProductSizeLabel(expectedSize);
+  if (!expected) return false;
+  const size = normalizeTaxonomyProductSizeLabel(item?.sizeLabel);
+  const sizeThickness = normalizeTaxonomySearch(item?.sizeThicknessLabel || "");
+  return size === expected || sizeThickness.startsWith(expected);
+}
+
 function renderTaxonomyTestPage() {
   const list = document.querySelector("#taxonomyCollectionList");
   if (!list) return;
@@ -2587,7 +2887,7 @@ function passesTaxonomySearchHardRules(item, intent, audience) {
   if (intent.stockRequired && Number(item.product.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY) return false;
   if (intent.stockEmpty && Number(item.product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY) return false;
   if (intent.internalBrands?.length && audience === "admin" && !intent.internalBrands.includes(item.internalBrandCode)) return false;
-  if (intent.sizes?.length && !intent.sizes.some((value) => item.sizeLabel === value || item.sizeThicknessLabel?.startsWith(value))) return false;
+  if (intent.sizes?.length && !intent.sizes.some((value) => taxonomySizeMatches(item, value))) return false;
   if (intent.origins?.length && !taxonomyHasAny([item.originRegion, item.originCountry], intent.origins)) return false;
   if (intent.colors?.length && !taxonomyHasAny([item.mainColor, item.subColor, item.accentColor], intent.colors)) return false;
   if (intent.finishes?.length && !taxonomyHasAny([item.finishGroup, item.finishDetail, item.finishPath, item.surfaceFinish], intent.finishes)) return false;
@@ -2670,7 +2970,7 @@ function scoreTaxonomySearchIntent(item, intent, searchText = item.searchText, a
   score += scoreExactList(intent.moods, item.moodTags, 10);
   score += scoreExactList(intent.specialTypes, item.functionCategories, 24);
   if (intent.antiSlipRequired && item.antiSlip) score += 18;
-  if (intent.sizes?.length && intent.sizes.some((value) => item.sizeLabel === value || item.sizeThicknessLabel?.startsWith(value))) score += 42;
+  if (intent.sizes?.length && intent.sizes.some((value) => taxonomySizeMatches(item, value))) score += 42;
   if (intent.internalBrands?.length && audience === "admin" && intent.internalBrands.includes(item.internalBrandCode)) score += 28;
   const tokenScore = scoreTaxonomyTokenGroups(intent.tokenGroups, searchText);
   score += tokenScore;
@@ -3183,7 +3483,6 @@ function getTaxonomySortPrice(product) {
     || product?.gradeAPrice
     || product?.gradeBPrice
     || product?.gradeCPrice
-    || product?.costPrice
     || 0
   );
 }
@@ -3235,6 +3534,17 @@ function normalizeProductForTaxonomy(product) {
     product.color,
     product.sourceCategoryName,
     product.maker
+  ].filter(Boolean).join(" ");
+  const customerSource = [
+    product.name,
+    product.modelName,
+    product.option,
+    product.features,
+    product.material,
+    product.patternCategory,
+    product.finish,
+    product.surface,
+    product.color
   ].filter(Boolean).join(" ");
   const sizeInfo = parseTaxonomySize(product.size || product.name || source);
   const directSurfaceFinish = normalizeDirectTaxonomySurface(product.finish || product.surface);
@@ -3295,8 +3605,7 @@ function normalizeProductForTaxonomy(product) {
     || normalized.applicationCategories.includes("용도 미확인")
     || normalized.styleCategories.includes("스타일 미확인");
   normalized.searchText = normalizeTaxonomySearch([
-    source,
-    normalized.brand,
+    customerSource,
     normalized.collectionName,
     normalized.sizeLabel,
     normalized.sizeLabel.replace("x", "*"),
@@ -3321,6 +3630,7 @@ function normalizeProductForTaxonomy(product) {
     normalized.internalBrandCode,
     normalized.internalBrandName,
     normalized.supplierName,
+    source,
     normalized.searchText
   ].filter(Boolean).join(" "));
   return normalized;
@@ -3625,7 +3935,7 @@ function matchesTaxonomySearchIntent(item, intent, searchText = item.searchText,
   if (intent.stockRequired && Number(item.product.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY) return false;
   if (intent.stockEmpty && Number(item.product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY) return false;
   if (intent.internalBrands?.length && audience === "admin" && !intent.internalBrands.includes(item.internalBrandCode)) return false;
-  if (intent.sizes?.length && !intent.sizes.some((value) => item.sizeLabel === value || item.sizeThicknessLabel?.startsWith(value))) return false;
+  if (intent.sizes?.length && !intent.sizes.some((value) => taxonomySizeMatches(item, value))) return false;
   if (isTaxonomyMosaicIntent(intent) && !isTaxonomyMosaicItem(item, searchText)) return false;
 
   if (!intent.tokenGroups?.length) return true;
@@ -4196,6 +4506,8 @@ async function handleTileFinderSearch() {
   const size = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "" : sizeSelection;
   const sizeLabel = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "사이즈 모름" : size;
   const finish = document.querySelector("#tileFinderFinish")?.value || "";
+  const selectedBrand = isAdminUser() ? document.querySelector("#tileFinderBrand")?.value || "all" : "all";
+  const brandLabel = selectedBrand && selectedBrand !== "all" ? selectedBrand : "";
 
   if (!tileFinderImageDataUrl) {
     if (status) status.textContent = "먼저 타일 사진을 업로드해주세요.";
@@ -4218,20 +4530,24 @@ async function handleTileFinderSearch() {
     tags.innerHTML = [
       `사진 ${tileFinderImageFileName || "업로드됨"}`,
       `사이즈 ${sizeLabel}`,
-      `표면 ${finish}`
-    ].map((item) => `<span>${escapeHtml(item)}</span>`).join("");
+      `표면 ${finish}`,
+      brandLabel ? `브랜드 ${brandLabel}` : ""
+    ].filter(Boolean).map((item) => `<span>${escapeHtml(item)}</span>`).join("");
   }
 
-  if (status) status.textContent = `${sizeLabel} · ${finish} 조건으로 이미지 색상과 패턴이 가장 비슷한 상품을 찾는 중입니다.`;
+  if (status) status.textContent = `${[sizeLabel, finish, brandLabel].filter(Boolean).join(" · ")} 조건으로 이미지 색상과 패턴이 가장 비슷한 상품을 찾는 중입니다.`;
   try {
     const payload = await requestJson("/api/tile-match", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: isAdminUser()
+        ? getAdminAuthHeaders({ "Content-Type": "application/json" })
+        : { "Content-Type": "application/json" },
       body: JSON.stringify({
         imageDataUrl: tileFinderImageDataUrl,
         size,
         sizeUnknown: sizeSelection === UNKNOWN_TILE_SIZE_VALUE,
         finish,
+        brand: brandLabel,
         searchMode: "strict",
         allSimilar: true
       })
@@ -4239,12 +4555,14 @@ async function handleTileFinderSearch() {
 
     tileFinderMatches = payload.matches || [];
     tileFinderResultsPage = 1;
-    products = mergeProducts(products, tileFinderMatches.map(mapPublicProductForClient));
+    products = mergeProducts(products, tileFinderMatches.map((product) => (
+      isAdminUser() ? product : mapPublicProductForClient(product)
+    )));
     renderTileFinderAnalysis(payload.analysis || {});
     renderTileFinderResults(tileFinderMatches);
     if (status) status.textContent = tileFinderMatches.length
-      ? `${sizeLabel} · ${finish} 조건에서 이미지와 유사한 상품 ${tileFinderMatches.length}개를 찾았습니다.`
-      : `${sizeLabel} · ${finish} 조건의 유사 타일을 찾지 못했습니다. 다른 사진으로 다시 시도하거나 DB 마감 값을 점검해주세요.`;
+      ? `${[sizeLabel, finish, brandLabel].filter(Boolean).join(" · ")} 조건에서 이미지와 유사한 상품 ${tileFinderMatches.length}개를 찾았습니다.`
+      : `${[sizeLabel, finish, brandLabel].filter(Boolean).join(" · ")} 조건의 유사 타일을 찾지 못했습니다. 다른 사진으로 다시 시도하거나 DB 마감 값을 점검해주세요.`;
   } catch (error) {
     if (status) status.textContent = error.message || "타일찾기 분석에 실패했습니다.";
   }
@@ -4253,10 +4571,13 @@ async function handleTileFinderSearch() {
 function renderTileFinderAnalysis(analysis) {
   const tags = document.querySelector("#tileFinderTags");
   if (!tags) return;
+  const selectedBrand = isAdminUser() ? document.querySelector("#tileFinderBrand")?.value || "all" : "all";
+  const brandLabel = selectedBrand && selectedBrand !== "all" ? selectedBrand : "";
   const values = [
     analysis.requestedSize ? `사이즈 ${analysis.requestedSize}` : "",
     analysis.sizeUnknown ? "사이즈 모름" : "",
     analysis.requestedFinish ? `표면조건 ${analysis.requestedFinish}` : "",
+    brandLabel ? `브랜드 ${brandLabel}` : "",
     ...(analysis.colors || []).map((item) => `색상 ${item}`),
     ...(analysis.patterns || []).map((item) => `패턴 ${item}`),
     ...(analysis.shapes || []).map((item) => `형태 ${item}`),
@@ -4286,6 +4607,7 @@ function renderTileFinderResults(matches, options = {}) {
         ${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb-empty">이미지 없음</div>`}
       </button>
       <strong>${escapeHtml(product.name)}</strong>
+      ${isAdminUser() ? `<span class="tile-match-admin-brand">브랜드 ${escapeHtml(getProductAdminBrandLabel(product) || "-")}</span>` : ""}
       <span>${escapeHtml(product.size || "-")} · ${escapeHtml(product.patternCategory || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
       <span>재고 ${escapeHtml(formatStockQuantity(product))}</span>
       <small>${escapeHtml((product.matchReasons || []).join(" · ") || "유사 후보")}</small>
@@ -4328,7 +4650,9 @@ async function openProductDetail(id, sourceElement = null) {
   if (authUser?.role === "admin" && authUser.adminUsername && authUser.adminToken) {
     setText("#detailEditStatus", "관리자 상세정보 불러오는 중");
     try {
-      const result = await requestJson(`/api/admin/product?id=${encodeURIComponent(id)}&adminUsername=${encodeURIComponent(authUser.adminUsername)}&adminToken=${encodeURIComponent(authUser.adminToken)}`, {}, { retries: 1, timeoutMs: 8000 });
+      const result = await requestJson(`/api/admin/product?id=${encodeURIComponent(id)}`, {
+        headers: getAdminAuthHeaders()
+      }, { retries: 1, timeoutMs: 8000 });
       if (result?.product) {
         product = result.product;
         selectedDetailProduct = product;
@@ -4503,7 +4827,8 @@ async function saveDetailProductSpecs(event) {
 }
 
 function mapPublicProductForClient(product) {
-  return {
+  const canIncludeMemberPrices = Boolean(product?.memberPriceVisible) || hasMemberPriceAccess();
+  return stripCustomerSensitiveProductFields({
     id: product.id,
     productType: product.productType,
     kind: product.kind,
@@ -4516,16 +4841,15 @@ function mapPublicProductForClient(product) {
     color: product.color,
     features: product.features,
     finish: product.finish,
-    maker: product.maker,
     unit: product.unit,
     option: product.option,
     priceSortRank: product.priceSortRank,
-    retailPrice: product.retailPrice,
-    wholesalePrice: product.wholesalePrice,
-    gradeAPrice: product.gradeAPrice,
-    gradeBPrice: product.gradeBPrice,
-    gradeCPrice: product.gradeCPrice,
-    memberPriceVisible: product.memberPriceVisible,
+    retailPrice: canIncludeMemberPrices ? product.retailPrice : undefined,
+    wholesalePrice: canIncludeMemberPrices ? product.wholesalePrice : undefined,
+    gradeAPrice: canIncludeMemberPrices ? product.gradeAPrice : undefined,
+    gradeBPrice: canIncludeMemberPrices ? product.gradeBPrice : undefined,
+    gradeCPrice: canIncludeMemberPrices ? product.gradeCPrice : undefined,
+    memberPriceVisible: canIncludeMemberPrices ? product.memberPriceVisible : undefined,
     stockQty: product.stockQty,
     stockText: product.stockText,
     matchScore: product.matchScore,
@@ -4537,7 +4861,50 @@ function mapPublicProductForClient(product) {
     daylightImage: product.daylightImage,
     fluorescentImage: product.fluorescentImage,
     sceneImage: product.sceneImage
-  };
+  });
+}
+
+const CUSTOMER_SENSITIVE_PRODUCT_FIELDS = new Set([
+  "brand",
+  "brandCode",
+  "brandName",
+  "internalBrandId",
+  "internalBrandCode",
+  "internalBrandName",
+  "isCustomerBrandVisible",
+  "maker",
+  "manufacturer",
+  "supplier",
+  "supplierCode",
+  "supplierName",
+  "sourceSite",
+  "sourceUrl",
+  "sourceProductId",
+  "sourceCategoryCode",
+  "sourceCategoryName",
+  "catalogSource",
+  "cost",
+  "costPrice",
+  "cost_price",
+  "purchasePrice",
+  "purchase_price",
+  "margin",
+  "marginGrade",
+  "qualityGrade",
+  "adminSearchableText",
+  "adminSearchText",
+  "internalMemo",
+  "internalNote"
+]);
+
+function stripCustomerSensitiveProductFields(product) {
+  const safe = {};
+  for (const [key, value] of Object.entries(product || {})) {
+    if (CUSTOMER_SENSITIVE_PRODUCT_FIELDS.has(key)) continue;
+    if (value === undefined) continue;
+    safe[key] = value;
+  }
+  return safe;
 }
 
 function hasMemberPriceAccess(user = authUser) {
@@ -5341,6 +5708,634 @@ function renderQualityDashboard() {
   `).join("") || `<tr><td colspan="7">우선 검수 상품이 없습니다.</td></tr>`;
 }
 
+function renderSearchTrainingView() {
+  prepareTaxonomyProducts();
+  if (!searchTrainingCurrentSample) renderSearchTrainingRandomSample(false);
+  else renderSearchTrainingSample(searchTrainingCurrentSample);
+  renderSearchTrainingBatchControls();
+  if (!searchTrainingBatchSamples.length) startSearchTrainingBatchQuestion({ keepType: true });
+  else renderSearchTrainingBatchGrid();
+  renderSearchTrainingStats();
+  renderSearchTrainingRecentRows();
+  prepareSearchTrainingNextSample();
+  void loadSearchTrainingStats();
+}
+
+function getSearchTrainingCandidates() {
+  prepareTaxonomyProducts();
+  const cacheKey = [
+    normalizedTaxonomySourceKey,
+    normalizedTaxonomyProducts.length,
+    products.length,
+    products[0]?.id || "",
+    products[products.length - 1]?.id || "",
+    adminProductsHydrated ? "admin" : "public"
+  ].join(":");
+  if (searchTrainingCandidatesCache.key === cacheKey && Array.isArray(searchTrainingCandidatesCache.items)) {
+    return searchTrainingCandidatesCache.items;
+  }
+  searchTrainingPreparedNextSample = null;
+  const productById = new Map(products.map((entry) => [entry.id, entry]));
+  const candidates = normalizedTaxonomyProducts
+    .filter((item) => item?.product?.productType === "tile" || item?.productType === "tile" || item?.mainCategory === "tile")
+    .map((item) => {
+      const product = item.product || productById.get(item.id) || productById.get(item.productId);
+      if (!product) return null;
+      const image = getProductImage(product, [
+        "image",
+        "mainImageUrl",
+        "main_image_url",
+        "imageUrl",
+        "thumbnail",
+        "textureImage",
+        "detailImage",
+        "originalImage",
+        "closeImage"
+      ], true);
+      if (!image) return null;
+      return { item, product, image };
+    })
+    .filter(Boolean);
+  searchTrainingCandidatesCache = { key: cacheKey, items: candidates };
+  return candidates;
+}
+
+function renderSearchTrainingRandomSample(force = false) {
+  const candidates = getSearchTrainingCandidates();
+  if (!candidates.length) {
+    searchTrainingCurrentSample = null;
+    updateSearchTrainingNavigationButtons();
+    setText("#searchTrainingStatus", "이미지가 있는 타일 상품을 찾지 못했습니다.");
+    return;
+  }
+  if (force || !searchTrainingCurrentSample) {
+    const sample = searchTrainingPreparedNextSample || buildRandomSearchTrainingSample(candidates);
+    searchTrainingPreparedNextSample = null;
+    if (!sample) {
+      setText("#searchTrainingStatus", "검수할 타일 이미지를 준비하지 못했습니다.");
+      updateSearchTrainingNavigationButtons();
+      return;
+    }
+    setSearchTrainingCurrentSample(sample, { addToHistory: true });
+    return;
+  }
+  renderSearchTrainingSample(searchTrainingCurrentSample);
+  prepareSearchTrainingNextSample();
+}
+
+function buildRandomSearchTrainingSample(candidates = getSearchTrainingCandidates()) {
+  if (!Array.isArray(candidates) || !candidates.length) return null;
+  const unseen = candidates.filter((entry) => !searchTrainingVisitedIds.has(entry.product.id));
+  const pool = unseen.length ? unseen : candidates;
+  if (!unseen.length) searchTrainingVisitedIds = new Set();
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+  if (!picked) return null;
+  searchTrainingVisitedIds.add(picked.product.id);
+  return buildSearchTrainingSample(picked);
+}
+
+function prepareSearchTrainingNextSample() {
+  if (searchTrainingPreparedNextSample) return;
+  window.setTimeout(() => {
+    if (searchTrainingPreparedNextSample) return;
+    const sample = buildRandomSearchTrainingSample();
+    if (!sample) return;
+    searchTrainingPreparedNextSample = sample;
+    if (sample.image && typeof Image !== "undefined") {
+      searchTrainingPrefetchImage = new Image();
+      searchTrainingPrefetchImage.src = sample.image;
+    }
+  }, 0);
+}
+
+function renderSearchTrainingBatchControls() {
+  const type = searchTrainingBatchQuestion.type || document.querySelector("#searchTrainingBatchType")?.value || "style";
+  const typeSelect = document.querySelector("#searchTrainingBatchType");
+  if (typeSelect) typeSelect.value = type;
+  const labelSelect = document.querySelector("#searchTrainingBatchLabel");
+  if (!labelSelect) return;
+  const previousValue = searchTrainingBatchQuestion.label || labelSelect.value;
+  const options = unique([previousValue, ...(type === "color" ? SEARCH_TRAINING_COLOR_OPTIONS : SEARCH_TRAINING_STYLE_BATCH_OPTIONS)].filter(Boolean));
+  labelSelect.innerHTML = options.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+  labelSelect.value = options.includes(previousValue) ? previousValue : options[0] || "";
+  searchTrainingBatchQuestion = { type, label: labelSelect.value };
+  renderSearchTrainingBatchPrompt();
+}
+
+function renderSearchTrainingBatchPrompt() {
+  const type = document.querySelector("#searchTrainingBatchType")?.value || searchTrainingBatchQuestion.type || "style";
+  const label = document.querySelector("#searchTrainingBatchLabel")?.value || searchTrainingBatchQuestion.label || "";
+  searchTrainingBatchQuestion = { type, label };
+  const typeLabel = type === "color" ? "색상" : "스타일";
+  setText("#searchTrainingBatchPrompt", label
+    ? `다음 중 ${formatSearchTrainingQuizLabel(type, label)} 타일은? 해당되는 사진을 모두 선택하세요.`
+    : "다음 중 해당되는 타일을 모두 선택하면 DB 정리와 학습 저장을 함께 진행합니다.");
+}
+
+function startSearchTrainingBatchQuestion(options = {}) {
+  const type = options.keepType
+    ? document.querySelector("#searchTrainingBatchType")?.value || searchTrainingBatchQuestion.type || "style"
+    : Math.random() > 0.78 ? "color" : "style";
+  searchTrainingBatchSamples = buildSearchTrainingBatchSamples(SEARCH_TRAINING_BATCH_SIZE);
+  const label = pickSearchTrainingBatchLabelFromSamples(searchTrainingBatchSamples, type, searchTrainingBatchQuestion.label)
+    || pickSearchTrainingBatchLabel(type, searchTrainingBatchQuestion.label);
+  searchTrainingBatchQuestion = { type, label };
+  renderSearchTrainingBatchControls();
+  searchTrainingBatchSelectedIds = new Set();
+  renderSearchTrainingBatchGrid();
+}
+
+function pickSearchTrainingBatchLabel(type = "style", previousLabel = "") {
+  const options = (type === "color" ? SEARCH_TRAINING_COLOR_OPTIONS : SEARCH_TRAINING_STYLE_BATCH_OPTIONS)
+    .filter((value) => value && !/미확인|기타/.test(value));
+  const pool = options.length > 1 ? options.filter((value) => value !== previousLabel) : options;
+  return pool[Math.floor(Math.random() * pool.length)] || options[0] || "";
+}
+
+function pickSearchTrainingBatchLabelFromSamples(samples = [], type = "style", previousLabel = "") {
+  const counts = new Map();
+  for (const sample of samples) {
+    for (const value of getSearchTrainingBatchDbLabels(sample, type)) {
+      const label = normalizeSearchTrainingBatchLabel(type, value);
+      if (!label || /미확인|확인\s*필요|기타/.test(label)) continue;
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+  }
+  const entries = [...counts.entries()]
+    .filter(([label]) => label !== previousLabel || counts.size === 1)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko"));
+  if (!entries.length && counts.size) {
+    return [...counts.keys()][Math.floor(Math.random() * counts.size)] || "";
+  }
+  if (!entries.length) return "";
+  const topCount = entries[0][1];
+  const topPool = entries.filter(([, count]) => count === topCount);
+  return topPool[Math.floor(Math.random() * topPool.length)]?.[0] || entries[0][0] || "";
+}
+
+function getSearchTrainingBatchDbLabels(sample, type = "style") {
+  if (!sample) return [];
+  if (type === "color") {
+    return [
+      sample.product?.color,
+      sample.item?.mainColor,
+      sample.predicted?.color
+    ];
+  }
+  return [
+    sample.product?.patternCategory,
+    sample.item?.stylePrimary,
+    ...(Array.isArray(sample.item?.styleCategories) ? sample.item.styleCategories : []),
+    sample.predicted?.style,
+    ...getProductDirectTileCategories(sample.product)
+  ];
+}
+
+function normalizeSearchTrainingBatchLabel(type, value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const compact = normalizeSearchText(raw);
+  if (!compact || /미확인|확인필요|unknown/.test(compact)) return "";
+  if (type === "color") {
+    if (/아이보리|크림|ivory|cream|offwhite/.test(compact)) return "아이보리 / 크림";
+    if (/다크그레이|차콜|charcoal|darkgray|darkgrey/.test(compact)) return "차콜 / 다크그레이";
+    if (/테라코타|오렌지|terracotta|orange/.test(compact)) return "테라코타 / 오렌지";
+    if (/화이트|white/.test(compact)) return "화이트";
+    if (/베이지|beige/.test(compact)) return "베이지";
+    if (/브라운|brown/.test(compact)) return "브라운";
+    if (/그레이|회색|gray|grey/.test(compact)) return "그레이";
+    if (/블랙|black/.test(compact)) return "블랙";
+    if (/그린|green/.test(compact)) return "그린";
+    if (/블루|blue/.test(compact)) return "블루";
+    if (/핑크|pink/.test(compact)) return "핑크";
+    if (/레드|red/.test(compact)) return "레드";
+    if (/옐로우|노랑|yellow/.test(compact)) return "옐로우";
+    if (/메탈|metal/.test(compact)) return "메탈릭";
+    if (/멀티|multi/.test(compact)) return "멀티컬러";
+    return raw;
+  }
+  if (/마블|marble|대리석|칼라카타|카라라|베인/.test(compact)) return "마블";
+  if (/트래버틴|트라버틴|travertine/.test(compact)) return "트래버틴";
+  if (/스톤|stone|석재|라임스톤|슬레이트|현무|자연석/.test(compact)) return "스톤";
+  if (/시멘트|cement|콘크리트|concrete|몰탈|모르타르/.test(compact)) return compact.includes("콘크리트") ? "콘크리트" : "시멘트";
+  if (/테라조|terrazzo|칩|chip|입자/.test(compact)) return "테라조";
+  if (/우드|wood|쪽마루|오크|월넛|티크|나뭇결/.test(compact)) return "우드";
+  if (/솔리드|solid|무지|단색|민자/.test(compact)) return "솔리드";
+  if (/브릭|벽돌|brick|서브웨이|subway/.test(compact)) return "브릭";
+  if (/핸드메이드|젤리지|수공예/.test(compact)) return "핸드메이드";
+  if (/입체|텍스처|텍스쳐|3d|양각|골지|리브드/.test(compact)) return "입체";
+  if (/모자이크|mosaic/.test(compact)) return "모자이크";
+  if (/패턴|pattern|데코|체크|플라워|지오메트릭/.test(compact)) return "패턴";
+  return raw.replace(/룩$/, "");
+}
+
+function formatSearchTrainingQuizLabel(type, label) {
+  if (type === "color") return `${label} 계열`;
+  if (["스톤", "마블", "시멘트", "트래버틴", "테라조", "우드", "핸드메이드"].includes(label)) return `${label}룩`;
+  return label;
+}
+
+function buildSearchTrainingBatchSamples(count = SEARCH_TRAINING_BATCH_SIZE) {
+  const candidates = getSearchTrainingCandidates();
+  if (!candidates.length) return [];
+  let pool = candidates.filter((entry) => !searchTrainingBatchVisitedIds.has(entry.product.id));
+  if (pool.length < count) {
+    searchTrainingBatchVisitedIds = new Set();
+    pool = candidates;
+  }
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  const picked = shuffled.slice(0, count);
+  picked.forEach((entry) => searchTrainingBatchVisitedIds.add(entry.product.id));
+  return picked.map((entry) => buildSearchTrainingSample(entry));
+}
+
+function renderSearchTrainingBatchGrid() {
+  renderSearchTrainingBatchPrompt();
+  renderSearchTrainingBatchControls();
+  const grid = document.querySelector("#searchTrainingBatchGrid");
+  if (!grid) return;
+  if (!searchTrainingBatchSamples.length) {
+    grid.innerHTML = `<div class="empty-state">이미지가 있는 타일 상품을 찾지 못했습니다.</div>`;
+    setText("#searchTrainingBatchStatus", "교육할 이미지가 없습니다.");
+    return;
+  }
+  grid.innerHTML = searchTrainingBatchSamples.map((sample) => {
+    const selected = searchTrainingBatchSelectedIds.has(sample.product.id);
+    const savedLabels = Array.isArray(sample.batchSavedLabels) ? sample.batchSavedLabels : [];
+    return `
+      <button class="search-training-batch-card ${selected ? "is-selected" : ""}" type="button" data-batch-sample-id="${escapeHtml(sample.product.id)}">
+        <span class="search-training-batch-check">${selected ? "선택됨" : "선택"}</span>
+        <img src="${escapeHtml(sample.image)}" alt="${escapeHtml(sample.product.name || "타일 이미지")}" loading="lazy" />
+        <strong>${escapeHtml(sample.product.name || "상품명 미확인")}</strong>
+        <small>${escapeHtml(sample.predicted.color || "-")} · ${escapeHtml(sample.predicted.style || "-")}</small>
+        ${savedLabels.length ? `<em>${savedLabels.map(escapeHtml).join(" / ")}</em>` : ""}
+      </button>
+    `;
+  }).join("");
+  const { type, label } = searchTrainingBatchQuestion;
+  setText("#searchTrainingBatchStatus", `${formatSearchTrainingQuizLabel(type, label)} 문제: 현재 6장 DB 값 기준으로 출제했습니다. ${number(searchTrainingBatchSelectedIds.size)}장을 선택했습니다. 저장하면 DB ${type === "color" ? "색상" : "스타일"}도 함께 업데이트됩니다.`);
+}
+
+function handleSearchTrainingBatchGridClick(event) {
+  const card = event.target.closest("[data-batch-sample-id]");
+  if (!card) return;
+  const id = card.dataset.batchSampleId || "";
+  if (!id) return;
+  if (searchTrainingBatchSelectedIds.has(id)) searchTrainingBatchSelectedIds.delete(id);
+  else searchTrainingBatchSelectedIds.add(id);
+  renderSearchTrainingBatchGrid();
+}
+
+function clearSearchTrainingBatchSelection() {
+  searchTrainingBatchSelectedIds = new Set();
+  renderSearchTrainingBatchGrid();
+}
+
+function setSearchTrainingCurrentSample(sample, options = {}) {
+  searchTrainingCurrentSample = sample;
+  if (options.addToHistory) {
+    if (searchTrainingHistoryIndex < searchTrainingHistory.length - 1) {
+      searchTrainingHistory = searchTrainingHistory.slice(0, searchTrainingHistoryIndex + 1);
+    }
+    searchTrainingHistory.push(sample);
+    if (searchTrainingHistory.length > 80) searchTrainingHistory.shift();
+    searchTrainingHistoryIndex = searchTrainingHistory.length - 1;
+  }
+  renderSearchTrainingSample(sample);
+  updateSearchTrainingNavigationButtons();
+  if (options.addToHistory) prepareSearchTrainingNextSample();
+}
+
+function goToPreviousSearchTrainingSample() {
+  if (searchTrainingHistoryIndex <= 0) {
+    setText("#searchTrainingStatus", "이전 검수 이미지가 없습니다.");
+    updateSearchTrainingNavigationButtons();
+    return;
+  }
+  searchTrainingHistoryIndex -= 1;
+  searchTrainingCurrentSample = searchTrainingHistory[searchTrainingHistoryIndex];
+  renderSearchTrainingSample(searchTrainingCurrentSample);
+  updateSearchTrainingNavigationButtons();
+  setText("#searchTrainingStatus", "이전에 검수한 이미지와 저장했던 수정값을 다시 불러왔습니다. 고친 뒤 다시 저장할 수 있습니다.");
+}
+
+function goToNextSearchTrainingSample() {
+  if (searchTrainingHistoryIndex >= 0 && searchTrainingHistoryIndex < searchTrainingHistory.length - 1) {
+    searchTrainingHistoryIndex += 1;
+    searchTrainingCurrentSample = searchTrainingHistory[searchTrainingHistoryIndex];
+    renderSearchTrainingSample(searchTrainingCurrentSample);
+    updateSearchTrainingNavigationButtons();
+    return;
+  }
+  renderSearchTrainingRandomSample(true);
+}
+
+function updateSearchTrainingNavigationButtons() {
+  const prevButton = document.querySelector("#searchTrainingPrevBtn");
+  const nextButton = document.querySelector("#searchTrainingNextBtn");
+  if (prevButton) prevButton.disabled = searchTrainingHistoryIndex <= 0;
+  if (nextButton) {
+    const hasForwardHistory = searchTrainingHistoryIndex >= 0 && searchTrainingHistoryIndex < searchTrainingHistory.length - 1;
+    nextButton.textContent = hasForwardHistory ? "다음 검수" : "다음 랜덤 이미지";
+  }
+}
+
+function handleSearchTrainingKeyboardShortcuts(event) {
+  if (currentPageId !== "adminPage" || currentAdminView !== "searchTraining") return;
+  const tagName = event.target?.tagName || "";
+  const isTyping = ["INPUT", "TEXTAREA", "SELECT"].includes(tagName);
+  if (isTyping && !(event.ctrlKey && event.key === "Enter")) return;
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    goToPreviousSearchTrainingSample();
+    return;
+  }
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    goToNextSearchTrainingSample();
+    return;
+  }
+  if (!isTyping && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    saveSearchTrainingFeedback("agree");
+    return;
+  }
+  if (event.ctrlKey && event.key === "Enter") {
+    event.preventDefault();
+    saveSearchTrainingFeedback("corrected");
+  }
+}
+
+function buildSearchTrainingSample({ item, product, image }) {
+  const directStyles = getProductDirectTileCategories(product);
+  const predicted = {
+    finish: firstKnownValue([item.finishGroup, item.finishDetail, getProductDisplayFinish(product)], "마감 미확인"),
+    color: firstKnownValue([item.mainColor, getProductDisplayColor(product)], "색상 미확인"),
+    style: firstKnownValue([directStyles[0], item.styleCategories?.[0], item.stylePrimary, product.patternCategory], "스타일 미확인"),
+    material: firstKnownValue([item.materialCategory, product.material], "재질 미확인"),
+    size: firstKnownValue([item.sizeLabel, product.size], "규격 미확인"),
+    origin: firstKnownValue([item.originRegion, product.countryOfOrigin], "원산지 미확인"),
+    pattern: firstKnownValue([item.patternDetail, directStyles[1]], ""),
+    texture: firstKnownValue([item.surfaceTexture, item.finishDetail], "")
+  };
+  return { item, product, image, predicted };
+}
+
+function renderSearchTrainingSample(sample) {
+  if (!sample) return;
+  const image = document.querySelector("#searchTrainingImage");
+  if (image) {
+    image.src = sample.image;
+    image.alt = `${sample.product.name || "타일"} 이미지`;
+  }
+  const meta = document.querySelector("#searchTrainingProductMeta");
+  if (meta) {
+    meta.innerHTML = [
+      `<strong>${escapeHtml(sample.product.name || "상품명 미확인")}</strong>`,
+      `<span>코드 ${escapeHtml(sample.product.managementCode || sample.product.id || "-")}</span>`,
+      `<span>브랜드 ${escapeHtml(getAdminProductBrandLabel(sample.product) || "-")}</span>`,
+      `<span>규격 ${escapeHtml(sample.predicted.size || "-")} · 재고 ${escapeHtml(hasStockValue(sample.product) ? formatStockQuantity(sample.product) : "확인 필요")}</span>`
+    ].join("");
+  }
+  renderSearchTrainingPrediction(sample.predicted);
+  const correctionSeed = sample.lastCorrected || sample.predicted;
+  fillSearchTrainingInputs(correctionSeed, sample.lastMemo || "");
+  updateSearchTrainingNavigationButtons();
+  setText("#searchTrainingStatus", sample.lastCorrected
+    ? "이전에 저장한 수정값을 불러왔습니다. 필요하면 다시 고쳐 저장하세요."
+    : "이미지를 보고 예측값이 맞으면 바로 저장하고, 다르면 오른쪽에서 고쳐 저장하세요.");
+}
+
+function renderSearchTrainingPrediction(predicted) {
+  const wrap = document.querySelector("#searchTrainingPredictionGrid");
+  if (!wrap) return;
+  const rows = [
+    ["마감", predicted.finish],
+    ["색상", predicted.color],
+    ["스타일", predicted.style],
+    ["재질", predicted.material],
+    ["규격", predicted.size],
+    ["원산지", predicted.origin],
+    ["패턴", predicted.pattern],
+    ["질감", predicted.texture]
+  ];
+  wrap.innerHTML = rows.map(([label, value]) => `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value || "-")}</strong>
+    </div>
+  `).join("");
+}
+
+function fillSearchTrainingInputs(predicted, memo = "") {
+  fillTrainingSelect("#searchTrainingFinishInput", SEARCH_TRAINING_FINISH_OPTIONS, predicted.finish);
+  fillTrainingSelect("#searchTrainingColorInput", SEARCH_TRAINING_COLOR_OPTIONS, predicted.color);
+  fillTrainingSelect("#searchTrainingStyleInput", [...TILE_STYLE_OPTIONS, "모자이크", "글라스", "메탈", "스타일 미확인"], predicted.style);
+  fillTrainingSelect("#searchTrainingMaterialInput", SEARCH_TRAINING_MATERIAL_OPTIONS, predicted.material);
+  const patternInput = document.querySelector("#searchTrainingPatternInput");
+  const memoInput = document.querySelector("#searchTrainingMemoInput");
+  if (patternInput) patternInput.value = predicted.pattern || "";
+  if (memoInput) memoInput.value = memo;
+}
+
+function fillTrainingSelect(selector, options, selectedValue) {
+  const select = document.querySelector(selector);
+  if (!select) return;
+  const values = unique([selectedValue, ...options].filter(Boolean));
+  select.innerHTML = values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("");
+  select.value = selectedValue || values[0] || "";
+}
+
+function firstKnownValue(values, fallback = "") {
+  return (Array.isArray(values) ? values : [values])
+    .map((value) => String(value || "").trim())
+    .find((value) => value && !/미확인|확인\s*필요/i.test(value)) || fallback;
+}
+
+async function loadSearchTrainingStats() {
+  if (!isAdminUser()) return;
+  try {
+    const payload = await requestJson("/api/admin/search-training/stats", {
+      headers: getAdminAuthHeaders()
+    }, { retries: 1, timeoutMs: 10000 });
+    if (payload?.ok) {
+      searchTrainingStats = payload.stats || searchTrainingStats;
+      renderSearchTrainingStats();
+      renderSearchTrainingRecentRows();
+    }
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+async function saveSearchTrainingFeedback(status) {
+  if (!searchTrainingCurrentSample) {
+    setText("#searchTrainingStatus", "먼저 검수할 타일 이미지를 불러와주세요.");
+    return;
+  }
+  const predicted = searchTrainingCurrentSample.predicted;
+  const corrected = status === "agree" ? { ...predicted } : {
+    ...predicted,
+    finish: document.querySelector("#searchTrainingFinishInput")?.value || predicted.finish,
+    color: document.querySelector("#searchTrainingColorInput")?.value || predicted.color,
+    style: document.querySelector("#searchTrainingStyleInput")?.value || predicted.style,
+    material: document.querySelector("#searchTrainingMaterialInput")?.value || predicted.material,
+    pattern: document.querySelector("#searchTrainingPatternInput")?.value || predicted.pattern
+  };
+  const memo = document.querySelector("#searchTrainingMemoInput")?.value || "";
+  setText("#searchTrainingStatus", "학습 피드백을 저장하는 중입니다...");
+  try {
+    const payload = await requestJson("/api/admin/search-training/feedback", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAdminAuthHeaders()
+      },
+      body: JSON.stringify({
+        status,
+        product: {
+          id: searchTrainingCurrentSample.product.id,
+          managementCode: searchTrainingCurrentSample.product.managementCode,
+          productName: searchTrainingCurrentSample.product.name,
+          brand: getAdminProductBrandLabel(searchTrainingCurrentSample.product),
+          image: searchTrainingCurrentSample.image
+        },
+        predicted,
+        corrected,
+        memo
+      })
+    }, { retries: 1, timeoutMs: 10000 });
+    if (payload?.ok) {
+      searchTrainingCurrentSample.lastCorrected = { ...corrected };
+      searchTrainingCurrentSample.lastStatus = status;
+      searchTrainingCurrentSample.lastMemo = memo;
+      searchTrainingCurrentSample.lastSavedAt = new Date().toISOString();
+      if (searchTrainingHistoryIndex >= 0) {
+        searchTrainingHistory[searchTrainingHistoryIndex] = searchTrainingCurrentSample;
+      }
+      searchTrainingStats = payload.stats || searchTrainingStats;
+      renderSearchTrainingStats();
+      renderSearchTrainingRecentRows();
+      setText("#searchTrainingStatus", status === "agree" ? "맞음 피드백을 저장했습니다. 다음 이미지를 불러옵니다." : "수정 피드백을 저장했습니다. 다음 이미지를 불러옵니다.");
+      renderSearchTrainingRandomSample(true);
+    }
+  } catch (error) {
+    setText("#searchTrainingStatus", error.message || "학습 피드백 저장에 실패했습니다.");
+  }
+}
+
+async function saveSearchTrainingBatchFeedback() {
+  const type = document.querySelector("#searchTrainingBatchType")?.value || searchTrainingBatchQuestion.type || "style";
+  const label = document.querySelector("#searchTrainingBatchLabel")?.value || searchTrainingBatchQuestion.label || "";
+  const selectedSamples = searchTrainingBatchSamples.filter((sample) => searchTrainingBatchSelectedIds.has(sample.product.id));
+  if (!selectedSamples.length) {
+    setText("#searchTrainingBatchStatus", "선택한 사진이 없습니다. 해당되는 상품이 없으면 '다음 문제'를 눌러 건너뛰세요.");
+    return;
+  }
+  const field = type === "color" ? "color" : "style";
+  const productField = type === "color" ? "color" : "patternCategory";
+  const typeLabel = type === "color" ? "색상" : "스타일";
+  const entries = selectedSamples.map((sample) => {
+    const corrected = {
+      ...sample.predicted,
+      [field]: label
+    };
+    return {
+      status: "corrected",
+      product: {
+        id: sample.product.id,
+        managementCode: sample.product.managementCode,
+        productName: sample.product.name,
+        brand: getAdminProductBrandLabel(sample.product),
+        image: sample.image
+      },
+      predicted: sample.predicted,
+      corrected,
+      updateProduct: {
+        id: sample.product.id,
+        field: productField,
+        value: label
+      },
+      memo: `퀴즈형 ${typeLabel} 교육 및 DB 정리: ${label}`
+    };
+  });
+  setText("#searchTrainingBatchStatus", `${number(entries.length)}건의 ${label} ${typeLabel} 값을 DB와 학습 데이터에 저장하는 중입니다...`);
+  try {
+    const payload = await requestJson("/api/admin/search-training/batch-feedback", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAdminAuthHeaders()
+      },
+      body: JSON.stringify({ entries, applyToDb: true })
+    }, { retries: 1, timeoutMs: 30000 });
+    if (payload?.ok) {
+      selectedSamples.forEach((sample) => {
+        const savedLabel = `${typeLabel}: ${label}`;
+        sample.batchSavedLabels = unique([...(sample.batchSavedLabels || []), savedLabel]);
+        sample.product[productField] = label;
+        const productIndex = products.findIndex((product) => product.id === sample.product.id);
+        if (productIndex >= 0) products[productIndex] = { ...products[productIndex], [productField]: label };
+      });
+      searchTrainingBatchSelectedIds = new Set();
+      searchTrainingCandidatesCache = { key: "", items: [] };
+      normalizedTaxonomySourceKey = "";
+      searchTrainingStats = payload.stats || searchTrainingStats;
+      renderSearchTrainingStats();
+      renderSearchTrainingRecentRows();
+      setText("#searchTrainingBatchStatus", `${number(payload.applied?.updated || payload.count || entries.length)}건 DB 업데이트와 학습 저장 완료. 다음 문제를 불러옵니다.`);
+      window.setTimeout(() => startSearchTrainingBatchQuestion({ keepType: true }), 450);
+    }
+  } catch (error) {
+    setText("#searchTrainingBatchStatus", error.message || "일괄 학습 저장에 실패했습니다.");
+  }
+}
+
+function renderSearchTrainingStats() {
+  const grid = document.querySelector("#searchTrainingSummaryGrid");
+  if (!grid) return;
+  const candidates = getSearchTrainingCandidates();
+  const stats = searchTrainingStats || {};
+  grid.innerHTML = [
+    ["검수 가능 이미지", `${number(candidates.length)}개`, "이미지가 등록된 타일 상품"],
+    ["누적 피드백", `${number(stats.total || 0)}건`, "사람 기준으로 저장된 학습 데이터"],
+    ["예측 맞음", `${number(stats.agreeCount || 0)}건`, "현재 검색엔진 판단이 맞았던 사례"],
+    ["수정 필요", `${number(stats.correctedCount || 0)}건`, "색상·마감·스타일을 사람이 고친 사례"]
+  ].map(([label, value, note]) => `
+    <article class="admin-summary-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <p>${escapeHtml(note)}</p>
+    </article>
+  `).join("");
+}
+
+function renderSearchTrainingRecentRows() {
+  const rows = document.querySelector("#searchTrainingRecentRows");
+  if (!rows) return;
+  const latest = Array.isArray(searchTrainingStats?.latest) ? searchTrainingStats.latest : [];
+  rows.innerHTML = latest.map((entry) => `
+    <tr>
+      <td>${escapeHtml(formatDateTime(entry.createdAt))}</td>
+      <td><span class="quality-badge ${entry.status === "agree" ? "is-low" : "is-mid"}">${entry.status === "agree" ? "맞음" : "수정"}</span></td>
+      <td>${escapeHtml(entry.product?.productName || "-")}</td>
+      <td>${escapeHtml(formatTrainingLabels(entry.predicted))}</td>
+      <td>${escapeHtml(formatTrainingLabels(entry.corrected))}</td>
+      <td>${escapeHtml(entry.memo || "-")}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">아직 저장된 학습 피드백이 없습니다.</td></tr>`;
+}
+
+function formatTrainingLabels(labels = {}) {
+  return [
+    labels.finish,
+    labels.color,
+    labels.style,
+    labels.material
+  ].filter(Boolean).join(" · ") || "-";
+}
+
 function isRecentAdminDate(value, dayWindow = 1) {
   const time = Date.parse(value || "");
   if (!Number.isFinite(time)) return false;
@@ -5428,7 +6423,7 @@ function renderAdminOperations(signupRequests, cartRecords, orderRecords) {
   taskList.innerHTML = [
     renderAdminTaskItem("회원 승인", `${number(model.pendingSignups.length)}건`, "신규 사업자 가입 승인/보류 처리", model.pendingSignups.length ? "danger" : "stable", "orders"),
     renderAdminTaskItem("주문 접수", `${number(model.waitingOrders.length)}건`, "견적 확인 후 주문 확정 처리", model.waitingOrders.length ? "warning" : "stable", "orders"),
-    renderAdminTaskItem("재고 문의", `${number(model.lowStockProducts.length)}개`, "30 이하 상품 문의 안내/대체품 추천", model.lowStockProducts.length ? "warning" : "stable", "products"),
+    renderAdminTaskItem("재고 문의", `${number(model.lowStockProducts.length)}개`, `${STOCK_INQUIRY_THRESHOLD_QTY} 이하 상품 문의 안내/대체품 추천`, model.lowStockProducts.length ? "warning" : "stable", "products"),
     renderAdminTaskItem("DB 품질", `${number(model.highQualityIssues.length)}건`, "규격·재질·마감·이미지 누락 우선 정리", model.highQualityIssues.length ? "danger" : "stable", "quality")
   ].join("");
 
@@ -5551,7 +6546,7 @@ function renderAdminOverview() {
       ["타일 상품", `${number(tileCount)}개`, "타일 및 타일 관련 상품 수"],
       ["위생도기", `${number(sanitaryCount)}개`, "위생도기/수전/액세서리 수"],
       ["부자재", `${number(materialCount)}개`, "부자재 상품 수"],
-      ["재고 문의", `${number(lowStockCount)}개`, "재고 30 이하 상품 수"],
+      ["재고 문의", `${number(lowStockCount)}개`, `재고 ${STOCK_INQUIRY_THRESHOLD_QTY} 이하 상품 수`],
       ["가입 신청", `${number(signupRequests.length)}건`, "저장된 회원가입 신청 수"],
       ["저장 장바구니", `${number(cartRecords.length)}건`, "업체별 저장된 장바구니 수"],
       ["승인 기준", `${number((adminOverview?.approvalRules?.businessTypes || []).length)}개 업태`, "현재 내부 승인 기준 업태 수"]
@@ -5644,13 +6639,16 @@ function switchAdminView(view) {
   document.querySelector("#adminOperationsTab")?.classList.toggle("active", view === "operations");
   document.querySelector("#adminProductsTab")?.classList.toggle("active", view === "products");
   document.querySelector("#adminQualityTab")?.classList.toggle("active", view === "quality");
+  document.querySelector("#adminSearchTrainingTab")?.classList.toggle("active", view === "searchTraining");
   document.querySelector("#adminOrdersTab")?.classList.toggle("active", view === "orders");
   document.querySelector("#adminOperationsView")?.classList.toggle("hidden", view !== "operations");
   document.querySelector("#adminProductsView")?.classList.toggle("hidden", view !== "products");
   document.querySelector("#adminQualityView")?.classList.toggle("hidden", view !== "quality");
+  document.querySelector("#adminSearchTrainingView")?.classList.toggle("hidden", view !== "searchTraining");
   document.querySelector("#adminOrdersView")?.classList.toggle("hidden", view !== "orders");
   if (["operations", "products", "orders"].includes(view)) renderAdminOverview();
   if (view === "quality") renderQualityDashboard();
+  if (view === "searchTraining") renderSearchTrainingView();
   void ensureAdminProductsForView(view);
 }
 
@@ -6278,6 +7276,7 @@ function handleServerReconnectCheck() {
 async function requestJson(url, options = {}, config = {}) {
   const retries = Number(config.retries ?? 0);
   const timeoutMs = Number(config.timeoutMs ?? 8000);
+  const timeoutMessage = config.timeoutMessage || `요청 시간이 ${Math.round(timeoutMs / 1000)}초를 초과했습니다.`;
 
   let lastError = null;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -6300,7 +7299,9 @@ async function requestJson(url, options = {}, config = {}) {
 
       return payload;
     } catch (error) {
-      lastError = error;
+      lastError = (error?.name === "AbortError" || error?.message === "timeout")
+        ? new Error(timeoutMessage)
+        : error;
       if (attempt < retries) {
         await delay(500 * (attempt + 1));
         continue;
@@ -6311,6 +7312,22 @@ async function requestJson(url, options = {}, config = {}) {
   }
 
   throw lastError || new Error("request failed");
+}
+
+function getAdminAuthHeaders(extraHeaders = {}) {
+  return {
+    ...extraHeaders,
+    "X-Admin-Username": authUser?.adminUsername || "",
+    "X-Admin-Token": authUser?.adminToken || ""
+  };
+}
+
+function getMemberProductAuthHeaders(extraHeaders = {}) {
+  return {
+    ...extraHeaders,
+    "X-Business-Number": authUser?.businessNumber || "",
+    "X-Member-Token": authUser?.memberToken || ""
+  };
 }
 
 function delay(ms) {
@@ -6674,15 +7691,22 @@ async function imageUrlToDataUrl(url) {
   if (!url) return "";
   if (url.startsWith("data:")) return url;
 
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("\uD0C0\uC77C \uC774\uBBF8\uC9C0\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
-  const blob = await response.blob();
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("\uC774\uBBF8\uC9C0 \uB370\uC774\uD130 \uBCC0\uD658\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."));
-    reader.readAsDataURL(blob);
-  });
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("\uD0C0\uC77C \uC774\uBBF8\uC9C0\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
+    const blob = await response.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("\uC774\uBBF8\uC9C0 \uB370\uC774\uD130 \uBCC0\uD658\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."));
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    const payload = await requestJson(`/api/image-data-url?url=${encodeURIComponent(url)}`, {}, { retries: 1, timeoutMs: 30000 });
+    const imageDataUrl = String(payload?.imageDataUrl || "");
+    if (!imageDataUrl) throw new Error("\uD0C0\uC77C \uC774\uBBF8\uC9C0\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
+    return imageDataUrl;
+  }
 }
 
 async function generateRenderPreview() {
@@ -8448,6 +9472,7 @@ function renderAuthControls() {
   });
   adminNavBtn?.classList.toggle("hidden", !isAdmin);
   tile114NavBtn?.classList.toggle("hidden", !isAdmin);
+  syncTileFinderBrandFilter();
 
   if (isLoggedIn) {
     const company = authUser.companyName || "사업자 인증 대기";
@@ -8834,9 +9859,7 @@ function renderPlannerWorkspace() {
   const tiles = getPlannerCartTiles();
   syncPlannerTileSelect(floorSelect, tiles, "바닥 타일 선택");
   syncPlannerTileSelect(wallSelect, tiles, "벽 타일 선택");
-  if (!floorSelect.value && tiles[0]) floorSelect.value = tiles[0].id;
-  if (!wallSelect.value && tiles[1]) wallSelect.value = tiles[1].id;
-  if (!wallSelect.value && tiles[0]) wallSelect.value = tiles[0].id;
+  autoSelectPlannerCartTiles({ onlyEmpty: true });
 
   const config = readPlannerConfig();
   const footprint = getPlannerFootprint(config);
@@ -8848,24 +9871,20 @@ function renderPlannerWorkspace() {
     `<div><span>바닥 면적</span><strong>${number(floorArea)}㎡</strong></div>`,
     `<div><span>벽 면적</span><strong>${number(wallArea)}㎡</strong></div>`,
     `<div><span>줄눈</span><strong>${number(config.grout)}mm</strong></div>`,
-    `<div><span>${footprint.usesPlan ? "도면점" : "표현 방식"}</span><strong>${footprint.usesPlan ? `${plannerPlanPoints.length}개` : "빈 공간"}</strong></div>`
+    `<div><span>시공 방향</span><strong>바닥 ${config.floorOrientation === "vertical" ? "세로" : "가로"} · 벽 ${config.wallOrientation === "vertical" ? "세로" : "가로"}</strong></div>`
   ].join("");
 
-  cartProducts.innerHTML = '<div class="planner-empty-note">3D 미리보기는 아무것도 배치하지 않은 빈 공간으로 표시합니다. 바닥과 벽 타일만 확인할 수 있습니다.</div>';
+  cartProducts.innerHTML = '<div class="planner-empty-note">현장 이미지를 올리면 벽과 바닥 전체 영역이 자동 선택되고, 선택 타일이 사진 기준으로 적용됩니다. 그래픽 3D 모델 렌더는 사용하지 않습니다.</div>';
 
   if (realRenderButton) {
     realRenderButton.disabled = plannerRealRenderRunning;
-    realRenderButton.textContent = plannerRealRenderRunning ? "실사 렌더 생성 중..." : "실사 렌더 만들기";
+    realRenderButton.textContent = plannerRealRenderRunning ? "고품질 AI 실사 렌더 생성 중..." : "고품질 AI 실사 렌더 만들기";
   }
-  if (realRenderPreview) {
-    realRenderPreview.innerHTML = pendingPlannerRealRenderImage
-      ? `<img src="${escapeHtml(pendingPlannerRealRenderImage)}" alt="실사 렌더 결과 이미지" />`
-      : "실사 렌더 결과 없음";
-    realRenderPreview.classList.toggle("has-image", Boolean(pendingPlannerRealRenderImage));
-  }
+  updatePlannerRealRenderPreviewDisplay();
   if (realRenderDownload) {
-    if (pendingPlannerRealRenderImage) {
-      realRenderDownload.href = pendingPlannerRealRenderImage;
+    const downloadableImage = pendingPlannerRealRenderImage || pendingPlannerPhotoPreviewImage;
+    if (downloadableImage) {
+      realRenderDownload.href = downloadableImage;
       realRenderDownload.classList.remove("hidden");
     } else {
       realRenderDownload.classList.add("hidden");
@@ -8879,7 +9898,20 @@ function renderPlannerWorkspace() {
     meta.textContent = `${floorTile?.name || "바닥 타일 없음"} / ${wallTile?.name || "벽 타일 없음"}`;
   }
 
-  schedulePlannerRender();
+  renderPlannerGraphicPreviewDisabled();
+  schedulePlannerPhotoPreviewRender();
+  schedulePlannerPanoramaRender();
+}
+
+function isPlannerGraphic3DEnabled() {
+  return false;
+}
+
+function renderPlannerGraphicPreviewDisabled() {
+  if (plannerThreeState.renderer || plannerThreeState.animationId) disposePlannerScene();
+  const mount = document.querySelector("#plannerCanvasMount");
+  if (!mount) return;
+  mount.innerHTML = '<div class="planner-canvas-empty">그래픽 3D 미리보기는 사용하지 않습니다. 현장 사진 기반 실사 렌더를 기준으로 확인해주세요.</div>';
 }
 
 function syncPlannerTileSelect(select, tiles, placeholder) {
@@ -8894,6 +9926,28 @@ function getPlannerCartTiles() {
   return cart.filter((entry) => entry.productType === "tile");
 }
 
+function findPlannerDefaultTileForSurface(tiles, surface, otherTile = null) {
+  if (!tiles.length) return null;
+  const surfacePattern = surface === "wall" ? /벽|wall/i : /바닥|floor/i;
+  const matched = tiles.find((tile) => surfacePattern.test(`${tile.kind || ""} ${tile.name || ""} ${tile.option || ""}`));
+  if (matched) return matched;
+  if (surface === "wall" && otherTile) return tiles.find((tile) => tile.id !== otherTile.id) || otherTile;
+  return tiles[0];
+}
+
+function autoSelectPlannerCartTiles(options = {}) {
+  const tiles = getPlannerCartTiles();
+  const floorSelect = document.querySelector("#plannerFloorTile");
+  const wallSelect = document.querySelector("#plannerWallTile");
+  if (!floorSelect || !wallSelect || !tiles.length) return false;
+  const onlyEmpty = options.onlyEmpty !== false;
+  const floorTile = findPlannerDefaultTileForSurface(tiles, "floor");
+  const wallTile = findPlannerDefaultTileForSurface(tiles, "wall", floorTile);
+  if (floorTile && (!onlyEmpty || !floorSelect.value)) floorSelect.value = floorTile.id;
+  if (wallTile && (!onlyEmpty || !wallSelect.value)) wallSelect.value = wallTile.id;
+  return Boolean((floorTile && floorSelect.value) || (wallTile && wallSelect.value));
+}
+
 function getPlannerSanitaryItems() {
   return cart.filter((entry) => {
     if (entry.productType === "tile" || entry.productType === "material") return false;
@@ -8906,10 +9960,17 @@ function readPlannerConfig() {
     width: clampNumber(document.querySelector("#plannerWidth")?.value, 2.4, 1, 12),
     depth: clampNumber(document.querySelector("#plannerDepth")?.value, 1.8, 1, 12),
     height: clampNumber(document.querySelector("#plannerHeight")?.value, 2.3, 1.8, 4),
-    grout: clampNumber(document.querySelector("#plannerGrout")?.value, 3, 1, 12)
+    grout: clampNumber(document.querySelector("#plannerGrout")?.value, 3, 1, 12),
+    floorOrientation: readPlannerTileOrientation("floor"),
+    wallOrientation: readPlannerTileOrientation("wall")
   };
   config.footprint = getPlannerFootprint(config);
   return config;
+}
+
+function readPlannerTileOrientation(surface) {
+  const selector = surface === "wall" ? "#plannerWallOrientation" : "#plannerFloorOrientation";
+  return document.querySelector(selector)?.value === "vertical" ? "vertical" : "horizontal";
 }
 
 function clampNumber(value, fallback, min, max) {
@@ -8932,6 +9993,38 @@ function setPlannerSurfaceGuideMode(mode) {
   renderPlannerSurfaceGuide();
 }
 
+function createPlannerDefaultSurfaceRegions() {
+  return {
+    wall: [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 1, y: 0.62 },
+      { x: 0, y: 0.62 }
+    ],
+    floor: [
+      { x: 0.06, y: 0.58 },
+      { x: 0.94, y: 0.58 },
+      { x: 1, y: 1 },
+      { x: 0, y: 1 }
+    ]
+  };
+}
+
+function selectPlannerWholeSurface(surface) {
+  if (!pendingPlannerSiteImage) {
+    setText("#plannerStatus", "먼저 현장 이미지를 올려주세요.");
+    return;
+  }
+  plannerSurfaceGuideMode = surface === "wall" ? "wall" : "floor";
+  const defaults = createPlannerDefaultSurfaceRegions();
+  plannerSurfaceRegions[plannerSurfaceGuideMode] = defaults[plannerSurfaceGuideMode];
+  pendingPlannerRealRenderImage = "";
+  pendingPlannerPhotoPreviewImage = "";
+  const label = plannerSurfaceGuideMode === "wall" ? "벽 전체" : "바닥 전체";
+  setText("#plannerStatus", `${label} 영역을 자동 선택했습니다.`);
+  renderPlannerWorkspace();
+}
+
 function renderPlannerSurfaceGuide() {
   const canvas = document.querySelector("#plannerSurfaceGuideCanvas");
   if (!canvas) return;
@@ -8951,9 +10044,9 @@ function renderPlannerSurfaceGuide() {
     context.fillStyle = "#7b7469";
     context.font = "700 18px sans-serif";
     context.textAlign = "center";
-    context.fillText("현장 이미지를 올리면 시공 영역을 찍을 수 있습니다.", canvas.width / 2, canvas.height / 2 - 10);
+    context.fillText("현장 이미지를 올리면 시공 영역이 자동 선택됩니다.", canvas.width / 2, canvas.height / 2 - 10);
     context.font = "500 13px sans-serif";
-    context.fillText("바닥 영역과 벽 영역을 각각 3점 이상 선택해주세요.", canvas.width / 2, canvas.height / 2 + 18);
+    context.fillText("필요하면 바닥 전체 선택 또는 벽 전체 선택을 누르세요.", canvas.width / 2, canvas.height / 2 + 18);
     return;
   }
 
@@ -9001,18 +10094,6 @@ function drawPlannerSurfaceRegion(context, canvas, surface, color, label) {
   context.fill();
   context.stroke();
 
-  points.forEach((point, index) => {
-    context.fillStyle = color;
-    context.beginPath();
-    context.arc(point.x, point.y, 8, 0, Math.PI * 2);
-    context.fill();
-    context.fillStyle = "#ffffff";
-    context.font = "700 11px sans-serif";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(String(index + 1), point.x, point.y + 0.5);
-  });
-
   if (points.length >= 3) {
     const center = points.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), { x: 0, y: 0 });
     center.x /= points.length;
@@ -9026,25 +10107,8 @@ function drawPlannerSurfaceRegion(context, canvas, surface, color, label) {
 }
 
 function handlePlannerSurfaceGuideCanvasClick(event) {
-  if (!pendingPlannerSiteImage) {
-    setText("#plannerStatus", "먼저 현장 이미지를 올려주세요.");
-    return;
-  }
-  const canvas = event.currentTarget;
-  const rect = canvas.getBoundingClientRect();
-  const frame = getPlannerSurfaceGuideFrame(canvas);
-  const canvasX = (event.clientX - rect.left) * (canvas.width / rect.width);
-  const canvasY = (event.clientY - rect.top) * (canvas.height / rect.height);
-  const x = (canvasX - frame.left) / frame.width;
-  const y = (canvasY - frame.top) / frame.height;
-  if (x < 0 || x > 1 || y < 0 || y > 1) return;
-  const points = plannerSurfaceRegions[plannerSurfaceGuideMode] || [];
-  plannerSurfaceRegions[plannerSurfaceGuideMode] = points.length >= 12 ? [{ x, y }] : [...points, { x, y }];
-  pendingPlannerRealRenderImage = "";
-  renderPlannerSurfaceGuide();
-  const label = plannerSurfaceGuideMode === "wall" ? "벽" : "바닥";
-  setText("#plannerStatus", `${label} 영역 ${plannerSurfaceRegions[plannerSurfaceGuideMode].length}점을 선택했습니다.`);
-  renderPlannerWorkspace();
+  if (!pendingPlannerSiteImage) setText("#plannerStatus", "먼저 현장 이미지를 올려주세요.");
+  else setText("#plannerStatus", "점 선택 없이 바닥 전체 선택 또는 벽 전체 선택 버튼으로 영역을 적용합니다.");
 }
 
 function getPlannerSurfaceGuideFrame(canvas) {
@@ -9223,14 +10287,519 @@ function polygonPerimeter(points) {
 
 function applyCartToPlanner() {
   const tiles = getPlannerCartTiles();
-  const floorTile = tiles.find((tile) => /바닥|floor/i.test(`${tile.kind || ""} ${tile.name || ""}`)) || tiles[0] || null;
-  const wallTile = tiles.find((tile) => /벽|wall/i.test(`${tile.kind || ""} ${tile.name || ""}`)) || tiles.find((tile) => tile.id !== floorTile?.id) || floorTile;
-  const floorSelect = document.querySelector("#plannerFloorTile");
-  const wallSelect = document.querySelector("#plannerWallTile");
-  if (floorSelect && floorTile) floorSelect.value = floorTile.id;
-  if (wallSelect && wallTile) wallSelect.value = wallTile.id;
-  setText("#plannerStatus", tiles.length ? "장바구니 타일을 빈 3D 공간에 적용했습니다." : "먼저 장바구니에 타일을 담아주세요.");
+  autoSelectPlannerCartTiles({ onlyEmpty: false });
+  resetPlannerPhotoRenderResults();
+  setText("#plannerStatus", tiles.length ? "장바구니 타일을 현장 사진 기반 렌더에 적용했습니다." : "먼저 장바구니에 타일을 담아주세요.");
   renderPlannerWorkspace();
+}
+
+function resetPlannerPhotoRenderResults() {
+  if (plannerRealRenderRunning) return;
+  pendingPlannerRealRenderImage = "";
+  pendingPlannerPhotoPreviewImage = "";
+  pendingPlannerPanoramaSource = "";
+  pendingPlannerPanoramaImage = "";
+  plannerPanoramaTexture = null;
+}
+
+function updatePlannerRealRenderPreviewDisplay() {
+  const realRenderPreview = document.querySelector("#plannerRealRenderPreview");
+  if (!realRenderPreview) return;
+  const image = pendingPlannerRealRenderImage || pendingPlannerPhotoPreviewImage;
+  if (image) {
+    const label = pendingPlannerRealRenderImage ? "AI 실사 렌더 결과 이미지" : "현장 사진 기반 타일 투영 미리보기";
+    realRenderPreview.innerHTML = `<img src="${escapeHtml(image)}" alt="${escapeHtml(label)}" />`;
+  } else if (pendingPlannerSiteImage) {
+    realRenderPreview.innerHTML = "현장 사진에 자동 선택된 벽/바닥 전체 영역 기준으로 사진 기반 미리보기가 표시됩니다.";
+  } else {
+    realRenderPreview.innerHTML = "현장 이미지를 올리면 사진 기반 렌더 미리보기가 표시됩니다.";
+  }
+  realRenderPreview.classList.toggle("has-image", Boolean(image));
+  realRenderPreview.classList.toggle("is-ai-result", Boolean(pendingPlannerRealRenderImage));
+  realRenderPreview.classList.toggle("is-photo-preview", Boolean(!pendingPlannerRealRenderImage && pendingPlannerPhotoPreviewImage));
+  realRenderPreview.classList.toggle("is-render-loading", Boolean(plannerRealRenderRunning));
+  if (plannerRealRenderRunning) {
+    realRenderPreview.insertAdjacentHTML("beforeend", buildPlannerRenderLoadingOverlayHtml());
+  }
+  schedulePlannerPanoramaRender();
+}
+
+function buildPlannerRenderLoadingOverlayHtml() {
+  const elapsedSeconds = plannerRealRenderStartedAt
+    ? Math.max(0, Math.floor((Date.now() - plannerRealRenderStartedAt) / 1000))
+    : 0;
+  const stage = getPlannerRenderLoadingStage(elapsedSeconds);
+  const progress = Math.min(96, Math.max(8, Math.round((elapsedSeconds / 240) * 100)));
+  return `
+    <div class="planner-render-loading" role="status" aria-live="polite">
+      <div class="planner-render-spinner" aria-hidden="true"></div>
+      <strong>고품질 AI 실사 렌더 생성 중</strong>
+      <span>${escapeHtml(stage)}</span>
+      <small>평균 소요시간 약 90~180초 · 최대 5분까지 대기 · 현재 ${number(elapsedSeconds)}초 경과</small>
+      <div class="planner-render-progress" aria-hidden="true">
+        <i style="width: ${progress}%"></i>
+      </div>
+    </div>
+  `;
+}
+
+function getPlannerRenderLoadingStage(elapsedSeconds) {
+  if (elapsedSeconds < 12) return "현장 사진과 시공 영역을 분석하고 있습니다.";
+  if (elapsedSeconds < 32) return "타일 규격, 줄눈, 가로/세로 시공 방향을 맞추는 중입니다.";
+  if (elapsedSeconds < 68) return "조명, 그림자, 질감을 실제 시공 사진처럼 보정하고 있습니다.";
+  if (elapsedSeconds < 105) return "문, 창문, 가구를 보존하면서 타일 마감을 정리하고 있습니다.";
+  if (elapsedSeconds < 180) return "고해상도 결과 이미지를 마무리하고 있습니다. 고품질 렌더는 시간이 더 걸릴 수 있습니다.";
+  return "서버가 아직 AI 응답을 기다리고 있습니다. 5분을 넘기면 자동으로 오류를 표시합니다.";
+}
+
+function startPlannerRenderLoadingTimer() {
+  stopPlannerRenderLoadingTimer();
+  plannerRealRenderStartedAt = Date.now();
+  updatePlannerRealRenderPreviewDisplay();
+  plannerRealRenderProgressTimer = window.setInterval(() => {
+    updatePlannerRealRenderPreviewDisplay();
+  }, 1000);
+}
+
+function stopPlannerRenderLoadingTimer() {
+  if (plannerRealRenderProgressTimer) window.clearInterval(plannerRealRenderProgressTimer);
+  plannerRealRenderProgressTimer = null;
+  plannerRealRenderStartedAt = 0;
+}
+
+function schedulePlannerPhotoPreviewRender() {
+  if (plannerPhotoPreviewTimer) window.clearTimeout(plannerPhotoPreviewTimer);
+  if (currentPageId !== "plannerPage" || !pendingPlannerSiteImage || pendingPlannerRealRenderImage) return;
+  plannerPhotoPreviewTimer = window.setTimeout(() => {
+    updatePlannerPhotoPreviewRender().catch((error) => {
+      console.warn(error);
+    });
+  }, 120);
+}
+
+async function updatePlannerPhotoPreviewRender() {
+  const previewImage = await createPlannerPhotoMaterialPreviewDataUrl();
+  if (!previewImage || pendingPlannerRealRenderImage) return;
+  pendingPlannerPhotoPreviewImage = previewImage;
+  updatePlannerRealRenderPreviewDisplay();
+  schedulePlannerPanoramaRender();
+}
+
+function getPlannerPanoramaSourceImage() {
+  return pendingPlannerRealRenderImage || pendingPlannerPhotoPreviewImage || pendingPlannerSiteImage || "";
+}
+
+function getPlannerPanoramaSourceMode() {
+  if (pendingPlannerRealRenderImage) return "ai-render";
+  if (pendingPlannerPhotoPreviewImage) return "draft-preview";
+  if (pendingPlannerSiteImage) return "site-photo";
+  return "empty";
+}
+
+function updatePlannerPanoramaSourceLabel() {
+  const label = document.querySelector("#plannerPanoramaSourceLabel");
+  if (!label) return;
+  const mode = getPlannerPanoramaSourceMode();
+  if (mode === "ai-render") {
+    label.textContent = "현재 3D 보기 기준: 고품질 AI 실사 렌더";
+  } else if (mode === "draft-preview") {
+    label.textContent = "현재 3D 보기 기준: 임시 타일 미리보기";
+  } else if (mode === "site-photo") {
+    label.textContent = "현재 3D 보기 기준: 원본 현장 사진";
+  } else {
+    label.textContent = "실사 렌더 생성 후 3D화됩니다.";
+  }
+}
+
+function schedulePlannerPanoramaRender() {
+  if (plannerPanoramaTimer) window.clearTimeout(plannerPanoramaTimer);
+  const canvas = document.querySelector("#plannerPanoramaCanvas");
+  const empty = document.querySelector("#plannerPanoramaEmpty");
+  const source = getPlannerPanoramaSourceImage();
+  const sourceMode = getPlannerPanoramaSourceMode();
+  updatePlannerPanoramaSourceLabel();
+  if (!canvas || !empty) return;
+  if (!source) {
+    pendingPlannerPanoramaImage = "";
+    pendingPlannerPanoramaSource = "";
+    plannerPanoramaTexture = null;
+    empty.textContent = "고품질 AI 실사 렌더를 만들면 그 결과 이미지 기준으로 3D 현장 보기가 준비됩니다.";
+    empty.classList.remove("hidden");
+    clearPlannerPanoramaCanvas();
+    return;
+  }
+  if (source === pendingPlannerPanoramaSource && plannerPanoramaTexture) {
+    empty.classList.add("hidden");
+    renderPlannerPanoramaViewport();
+    return;
+  }
+  empty.textContent = sourceMode === "ai-render"
+    ? "고품질 AI 실사 렌더 기반 3D 현장 보기를 만드는 중입니다."
+    : "임시 3D 현장 보기를 준비하고 있습니다. 고품질 AI 실사 렌더가 완성되면 다시 3D화됩니다.";
+  empty.classList.remove("hidden");
+  plannerPanoramaTimer = window.setTimeout(() => {
+    updatePlannerPanoramaRender(source).catch((error) => {
+      console.warn(error);
+      const currentEmpty = document.querySelector("#plannerPanoramaEmpty");
+      if (currentEmpty) {
+        currentEmpty.textContent = "360 현장 보기를 만들지 못했습니다.";
+        currentEmpty.classList.remove("hidden");
+      }
+    });
+  }, 160);
+}
+
+async function updatePlannerPanoramaRender(source) {
+  const panoramaImage = await createPlannerPseudoPanoramaDataUrl(source);
+  if (!panoramaImage || source !== getPlannerPanoramaSourceImage()) return;
+  pendingPlannerPanoramaSource = source;
+  pendingPlannerPanoramaImage = panoramaImage;
+  plannerPanoramaTexture = await loadImageFromUrl(panoramaImage);
+  document.querySelector("#plannerPanoramaEmpty")?.classList.add("hidden");
+  renderPlannerPanoramaViewport();
+}
+
+async function createPlannerPseudoPanoramaDataUrl(source) {
+  const image = await loadImageFromUrl(source);
+  if (!image) return "";
+  const canvas = document.createElement("canvas");
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const context = canvas.getContext("2d");
+  const segmentWidth = canvas.width / 4;
+
+  context.fillStyle = "#111816";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.save();
+  context.filter = "blur(18px) saturate(1.1)";
+  drawPlannerImageCover(context, image, -120, -90, canvas.width + 240, canvas.height + 180, false);
+  context.restore();
+
+  for (let index = 0; index < 4; index += 1) {
+    context.save();
+    context.globalAlpha = index === 2 ? 0.96 : 0.72;
+    drawPlannerImageCover(context, image, index * segmentWidth, 0, segmentWidth, canvas.height, index % 2 === 1);
+    context.restore();
+  }
+
+  context.save();
+  context.globalAlpha = 0.98;
+  drawPlannerImageCover(context, image, segmentWidth * 1.5, 0, segmentWidth, canvas.height, false);
+  context.restore();
+
+  const ceilingGradient = context.createLinearGradient(0, 0, 0, canvas.height * 0.34);
+  ceilingGradient.addColorStop(0, "rgba(245,248,244,0.84)");
+  ceilingGradient.addColorStop(1, "rgba(245,248,244,0)");
+  context.fillStyle = ceilingGradient;
+  context.fillRect(0, 0, canvas.width, canvas.height * 0.34);
+
+  const floorGradient = context.createLinearGradient(0, canvas.height * 0.58, 0, canvas.height);
+  floorGradient.addColorStop(0, "rgba(255,255,255,0)");
+  floorGradient.addColorStop(1, "rgba(0,0,0,0.24)");
+  context.fillStyle = floorGradient;
+  context.fillRect(0, canvas.height * 0.58, canvas.width, canvas.height * 0.42);
+
+  context.fillStyle = "rgba(0,0,0,0.12)";
+  context.fillRect(0, 0, segmentWidth * 0.55, canvas.height);
+  context.fillRect(canvas.width - segmentWidth * 0.55, 0, segmentWidth * 0.55, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.88);
+}
+
+function drawPlannerImageCover(context, image, x, y, width, height, flipX = false) {
+  const imageRatio = image.width / Math.max(image.height, 1);
+  const frameRatio = width / Math.max(height, 1);
+  let sourceWidth = image.width;
+  let sourceHeight = image.height;
+  let sourceX = 0;
+  let sourceY = 0;
+  if (imageRatio > frameRatio) {
+    sourceWidth = image.height * frameRatio;
+    sourceX = (image.width - sourceWidth) / 2;
+  } else {
+    sourceHeight = image.width / frameRatio;
+    sourceY = (image.height - sourceHeight) / 2;
+  }
+  context.save();
+  context.beginPath();
+  context.rect(x, y, width, height);
+  context.clip();
+  if (flipX) {
+    context.translate(x + width, y);
+    context.scale(-1, 1);
+    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, width, height);
+  } else {
+    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+  }
+  context.restore();
+}
+
+function clearPlannerPanoramaCanvas() {
+  const canvas = document.querySelector("#plannerPanoramaCanvas");
+  if (!canvas) return;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, "#f7f3ec");
+  gradient.addColorStop(1, "#e7edf0");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function renderPlannerPanoramaViewport() {
+  const canvas = document.querySelector("#plannerPanoramaCanvas");
+  const texture = plannerPanoramaTexture;
+  if (!canvas || !texture) {
+    clearPlannerPanoramaCanvas();
+    return;
+  }
+  const context = canvas.getContext("2d");
+  const sourceWidth = texture.width;
+  const sourceHeight = texture.height;
+  const viewWidth = sourceWidth * 0.28;
+  const viewHeight = sourceHeight * 0.48;
+  const normalizedYaw = ((plannerPanoramaYaw % 1) + 1) % 1;
+  const centerX = normalizedYaw * sourceWidth;
+  const centerY = clampNumber(sourceHeight * (0.5 + plannerPanoramaPitch * 0.28), sourceHeight / 2, viewHeight / 2, sourceHeight - viewHeight / 2);
+  const sourceY = Math.max(0, Math.min(sourceHeight - viewHeight, centerY - viewHeight / 2));
+  let sourceX = centerX - viewWidth / 2;
+  sourceX = ((sourceX % sourceWidth) + sourceWidth) % sourceWidth;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  let drawn = 0;
+  let readX = sourceX;
+  while (drawn < viewWidth - 0.5) {
+    const part = Math.min(viewWidth - drawn, sourceWidth - readX);
+    context.drawImage(
+      texture,
+      readX,
+      sourceY,
+      part,
+      viewHeight,
+      (drawn / viewWidth) * canvas.width,
+      0,
+      (part / viewWidth) * canvas.width,
+      canvas.height
+    );
+    drawn += part;
+    readX = 0;
+  }
+
+  const vignette = context.createRadialGradient(canvas.width / 2, canvas.height / 2, canvas.width * 0.18, canvas.width / 2, canvas.height / 2, canvas.width * 0.68);
+  vignette.addColorStop(0, "rgba(255,255,255,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.28)");
+  context.fillStyle = vignette;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  context.fillStyle = "rgba(0,0,0,0.5)";
+  context.fillRect(18, canvas.height - 48, 310, 30);
+  context.fillStyle = "#fff";
+  context.font = "800 14px sans-serif";
+  context.textAlign = "left";
+  context.textBaseline = "middle";
+  context.fillText(`${getPlannerPanoramaViewLabel()} · ${getPlannerPanoramaSourceShortLabel()}`, 32, canvas.height - 33);
+}
+
+function getPlannerPanoramaSourceShortLabel() {
+  const mode = getPlannerPanoramaSourceMode();
+  if (mode === "ai-render") return "AI 실사 렌더 기반";
+  if (mode === "draft-preview") return "임시 미리보기 기반";
+  if (mode === "site-photo") return "원본 사진 기반";
+  return "대기";
+}
+
+function getPlannerPanoramaViewLabel() {
+  if (plannerPanoramaPitch < -0.65) return "천장 방향";
+  if (plannerPanoramaPitch > 0.65) return "바닥 방향";
+  const yaw = ((plannerPanoramaYaw % 1) + 1) % 1;
+  if (yaw > 0.375 && yaw <= 0.625) return "정면 방향";
+  if (yaw > 0.875 || yaw <= 0.125) return "후면 방향";
+  return yaw <= 0.375 ? "좌측 방향" : "우측 방향";
+}
+
+function startPlannerPanoramaDrag(event) {
+  if (!plannerPanoramaTexture) return;
+  plannerPanoramaDrag = { x: event.clientX, y: event.clientY, yaw: plannerPanoramaYaw, pitch: plannerPanoramaPitch };
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+}
+
+function movePlannerPanoramaDrag(event) {
+  if (!plannerPanoramaDrag) return;
+  const canvas = document.querySelector("#plannerPanoramaCanvas");
+  if (!canvas) return;
+  plannerPanoramaYaw = plannerPanoramaDrag.yaw - (event.clientX - plannerPanoramaDrag.x) / Math.max(canvas.clientWidth, 1) * 0.42;
+  plannerPanoramaPitch = Math.max(-1, Math.min(1, plannerPanoramaDrag.pitch + (event.clientY - plannerPanoramaDrag.y) / Math.max(canvas.clientHeight, 1) * 1.4));
+  renderPlannerPanoramaViewport();
+}
+
+function endPlannerPanoramaDrag() {
+  plannerPanoramaDrag = null;
+}
+
+function handlePlannerPanoramaWheel(event) {
+  if (!plannerPanoramaTexture) return;
+  event.preventDefault();
+  plannerPanoramaPitch = Math.max(-1, Math.min(1, plannerPanoramaPitch + event.deltaY / 900));
+  renderPlannerPanoramaViewport();
+}
+
+function setPlannerPanoramaView(view) {
+  if (view === "back") plannerPanoramaYaw = 0;
+  else if (view === "ceiling") plannerPanoramaPitch = -1;
+  else if (view === "floor") plannerPanoramaPitch = 1;
+  else {
+    plannerPanoramaYaw = 0.5;
+    plannerPanoramaPitch = 0;
+  }
+  if (view === "back") plannerPanoramaPitch = 0;
+  renderPlannerPanoramaViewport();
+}
+
+async function createPlannerPhotoMaterialPreviewDataUrl() {
+  if (!pendingPlannerSiteImage) return "";
+  const siteImage = await loadImageFromUrl(pendingPlannerSiteImage);
+  if (!siteImage) return "";
+  const canvas = document.createElement("canvas");
+  canvas.width = 1400;
+  canvas.height = Math.max(780, Math.round((siteImage.height / siteImage.width) * canvas.width));
+  const context = canvas.getContext("2d");
+  context.drawImage(siteImage, 0, 0, canvas.width, canvas.height);
+
+  const config = readPlannerConfig();
+  const surfaces = [
+    { surface: "floor", tile: getPlannerSelectedTile("floor"), opacity: 0.78 },
+    { surface: "wall", tile: getPlannerSelectedTile("wall"), opacity: 0.68 }
+  ];
+  for (const entry of surfaces) {
+    const points = plannerSurfaceRegions[entry.surface] || [];
+    if (!entry.tile?.image || points.length < 3) continue;
+    let tileImageDataUrl = "";
+    try {
+      tileImageDataUrl = await imageUrlToDataUrl(entry.tile.image);
+    } catch (error) {
+      console.warn(error);
+      continue;
+    }
+    const tileImage = await loadImageFromUrl(tileImageDataUrl);
+    if (!tileImage) continue;
+    const scaledPoints = points.map((point) => ({
+      x: point.x * canvas.width,
+      y: point.y * canvas.height
+    }));
+    const tilePattern = createPlannerPhotoTilePattern(
+      tileImage,
+      entry.tile,
+      entry.surface,
+      config,
+      getCanvasPolygonBounds(scaledPoints, canvas.width, canvas.height)
+    );
+    drawPlannerPhotoTileSurface(context, siteImage, canvas, scaledPoints, tilePattern, entry.surface, entry.opacity);
+  }
+
+  return canvas.toDataURL("image/jpeg", 0.9);
+}
+
+function createPlannerPhotoTilePattern(tileImage, tile, surface, config, surfaceBounds) {
+  const tileSize = parseTileDimensionsMeters(tile?.size, surface, getPlannerSurfaceOrientation(config, surface));
+  const canvas = document.createElement("canvas");
+  const scale = getPlannerPhotoSurfaceScale(surface, config, surfaceBounds);
+  const cellWidth = Math.max(18, Math.min(900, Math.round(tileSize.width * scale.x)));
+  const cellHeight = Math.max(18, Math.min(900, Math.round(tileSize.height * scale.y)));
+  canvas.width = cellWidth * 3;
+  canvas.height = cellHeight * 3;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#e7e1d6";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  const grout = Math.max(1, Math.min(18, Math.round((Number(config.grout) || 3) / 1000 * ((scale.x + scale.y) / 2))));
+  for (let y = 0; y < canvas.height; y += cellHeight) {
+    for (let x = 0; x < canvas.width; x += cellWidth) {
+      context.drawImage(tileImage, x + grout, y + grout, Math.max(cellWidth - grout * 2, 1), Math.max(cellHeight - grout * 2, 1));
+      context.strokeStyle = "rgba(246,241,232,0.78)";
+      context.lineWidth = grout;
+      context.strokeRect(x + grout / 2, y + grout / 2, cellWidth - grout, cellHeight - grout);
+      context.fillStyle = "rgba(255,255,255,0.08)";
+      context.fillRect(x + grout, y + grout, Math.max(cellWidth - grout * 2, 1), 1.2);
+    }
+  }
+  return canvas;
+}
+
+function getPlannerPhotoSurfaceScale(surface, config, bounds) {
+  const realWidth = Math.max(Number(config.width) || 2.4, 0.1);
+  const realHeight = surface === "floor"
+    ? Math.max(Number(config.depth) || 1.8, 0.1)
+    : Math.max(Number(config.height) || 2.3, 0.1);
+  return {
+    x: Math.max(Number(bounds?.width) || 1, 1) / realWidth,
+    y: Math.max(Number(bounds?.height) || 1, 1) / realHeight
+  };
+}
+
+function drawPlannerPhotoTileSurface(context, siteImage, canvas, points, tilePattern, surface, opacity) {
+  const bounds = getCanvasPolygonBounds(points, canvas.width, canvas.height);
+  context.save();
+  clipCanvasPolygon(context, points);
+  context.globalAlpha = opacity;
+  const pattern = context.createPattern(tilePattern, "repeat");
+  const angle = surface === "floor" && points.length >= 2
+    ? Math.atan2(points[1].y - points[0].y, points[1].x - points[0].x)
+    : 0;
+  context.translate(bounds.left, bounds.top);
+  context.rotate(angle * 0.18);
+  context.fillStyle = pattern;
+  context.fillRect(-bounds.width, -bounds.height, bounds.width * 3, bounds.height * 3);
+  context.restore();
+
+  context.save();
+  clipCanvasPolygon(context, points);
+  context.globalCompositeOperation = "multiply";
+  context.globalAlpha = surface === "floor" ? 0.38 : 0.3;
+  context.drawImage(siteImage, 0, 0, canvas.width, canvas.height);
+  context.restore();
+
+  context.save();
+  clipCanvasPolygon(context, points);
+  context.globalAlpha = surface === "floor" ? 0.16 : 0.11;
+  const gradient = context.createLinearGradient(bounds.left, bounds.top, bounds.right, bounds.bottom);
+  gradient.addColorStop(0, "rgba(255,255,255,0.34)");
+  gradient.addColorStop(0.58, "rgba(255,255,255,0.02)");
+  gradient.addColorStop(1, "rgba(0,0,0,0.22)");
+  context.fillStyle = gradient;
+  context.fillRect(bounds.left, bounds.top, bounds.width, bounds.height);
+  context.restore();
+
+  context.save();
+  context.strokeStyle = surface === "floor" ? "rgba(20,28,25,0.2)" : "rgba(18,24,32,0.16)";
+  context.lineWidth = Math.max(2, Math.round(canvas.width * 0.002));
+  clipCanvasPolygon(context, points);
+  context.stroke();
+  context.restore();
+}
+
+function clipCanvasPolygon(context, points) {
+  context.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) context.moveTo(point.x, point.y);
+    else context.lineTo(point.x, point.y);
+  });
+  context.closePath();
+  context.clip();
+}
+
+function getCanvasPolygonBounds(points, width, height) {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const left = Math.max(0, Math.min(...xs));
+  const top = Math.max(0, Math.min(...ys));
+  const right = Math.min(width, Math.max(...xs));
+  const bottom = Math.min(height, Math.max(...ys));
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: Math.max(right - left, 1),
+    height: Math.max(bottom - top, 1)
+  };
 }
 
 async function generatePlannerRealRender() {
@@ -9256,17 +10825,20 @@ async function generatePlannerRealRender() {
 
   plannerRealRenderRunning = true;
   pendingPlannerRealRenderImage = "";
+  startPlannerRenderLoadingTimer();
   renderPlannerWorkspace();
-  setText("#plannerStatus", "공간 사진과 선택 타일로 실사 렌더를 생성하고 있습니다...");
+  setText("#plannerStatus", "현장 사진, 타일 규격, 시공 방향, 배치 미리보기를 기준으로 고품질 AI 실사 렌더를 생성하고 있습니다...");
 
   try {
     const config = readPlannerConfig();
     const guideImageDataUrl = await createPlannerSurfaceGuideImageDataUrl();
+    const compositionImageDataUrl = await createPlannerPhotoMaterialPreviewDataUrl();
     const surfaces = await Promise.all(selectedTiles.map(async ({ surface, tile }) => ({
       surface,
       tileName: tile.name,
       tileSize: tile.size || "",
       tileFinish: tile.finish || "",
+      tileOrientation: getPlannerSurfaceOrientation(config, surface) === "vertical" ? "vertical" : "horizontal",
       tileImageDataUrl: await imageUrlToDataUrl(tile.image)
     })));
     const payload = await requestJson("/api/render", {
@@ -9275,6 +10847,8 @@ async function generatePlannerRealRender() {
       body: JSON.stringify({
         siteImageDataUrl: pendingPlannerSiteImage,
         guideImageDataUrl,
+        compositionImageDataUrl,
+        qualityMode: "premium-photoreal",
         surfaces,
         pointMemo: "",
         roomContext: {
@@ -9283,19 +10857,33 @@ async function generatePlannerRealRender() {
           depthMeters: config.depth,
           heightMeters: config.height,
           groutMillimeters: config.grout,
+          floorOrientation: config.floorOrientation,
+          wallOrientation: config.wallOrientation,
           footprintType: config.footprint?.usesPlan ? "uploaded floor plan outline" : "rectangular dimensions"
         }
       })
-    }, { timeoutMs: 180000 });
+    }, {
+      timeoutMs: 330000,
+      timeoutMessage: "고품질 AI 실사 렌더 응답이 지연되고 있습니다. 이미지 용량을 줄이거나 잠시 후 다시 시도해주세요."
+    });
     pendingPlannerRealRenderImage = String(payload?.imageDataUrl || "");
     if (!pendingPlannerRealRenderImage) throw new Error("실사 렌더 결과 이미지를 받지 못했습니다.");
-    setText("#plannerStatus", "실사 렌더가 생성되었습니다.");
+    pendingPlannerPanoramaSource = "";
+    pendingPlannerPanoramaImage = "";
+    plannerPanoramaTexture = null;
+    plannerPanoramaYaw = 0.5;
+    plannerPanoramaPitch = 0;
+    setText("#plannerStatus", "실사 렌더가 생성되었습니다. 이제 AI 실사 렌더 결과를 기준으로 3D 현장 보기를 만듭니다.");
     renderPlannerWorkspace();
-    document.querySelector("#plannerRealRenderPreview")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    schedulePlannerPanoramaRender();
+    window.setTimeout(() => {
+      document.querySelector("#plannerPanoramaShell")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 260);
   } catch (error) {
     setText("#plannerStatus", error?.message || "실사 렌더 생성 중 오류가 발생했습니다.");
   } finally {
     plannerRealRenderRunning = false;
+    stopPlannerRenderLoadingTimer();
     renderPlannerWorkspace();
   }
 }
@@ -9363,6 +10951,10 @@ function openPlannerRealRenderPreview() {
 }
 
 function schedulePlannerRender() {
+  if (!isPlannerGraphic3DEnabled()) {
+    renderPlannerGraphicPreviewDisabled();
+    return;
+  }
   if (currentPageId !== "plannerPage") return;
   if (plannerRenderTimer) window.clearTimeout(plannerRenderTimer);
   plannerRenderTimer = window.setTimeout(() => {
@@ -9477,7 +11069,7 @@ async function createPlannerTileTexture(THREE, tile, grout, surface, config) {
     }
   }
 
-  const tileSize = parseTileDimensionsMeters(tile?.size, surface);
+  const tileSize = parseTileDimensionsMeters(tile?.size, surface, getPlannerSurfaceOrientation(config, surface));
   const cellsX = Math.max(2, Math.round(3 / tileSize.width));
   const cellsY = Math.max(2, Math.round(3 / tileSize.height));
   const stepX = canvas.width / cellsX;
@@ -9519,17 +11111,24 @@ async function createPlannerTileTexture(THREE, tile, grout, surface, config) {
   return texture;
 }
 
-function parseTileDimensionsMeters(size, surface = "floor") {
+function getPlannerSurfaceOrientation(config, surface) {
+  return surface === "wall" ? config?.wallOrientation : config?.floorOrientation;
+}
+
+function parseTileDimensionsMeters(size, surface = "floor", orientation = "horizontal") {
   const matches = String(size || "").match(/(\d{2,4})\D+(\d{2,4})/);
-  if (!matches) {
-    return surface === "floor"
+  const dimensions = !matches
+    ? (surface === "floor"
       ? { width: 0.6, height: 0.6 }
-      : { width: 0.3, height: 0.6 };
-  }
-  return {
+      : { width: 0.3, height: 0.6 })
+    : {
     width: Math.max(Number(matches[1]) / 1000, 0.05),
     height: Math.max(Number(matches[2]) / 1000, 0.05)
   };
+  if (orientation === "vertical" && Math.abs(dimensions.width - dimensions.height) > 0.001) {
+    return { width: dimensions.height, height: dimensions.width };
+  }
+  return dimensions;
 }
 
 function addPlannerRoom(THREE, scene, config, floorTexture, wallTexture) {
@@ -10003,7 +11602,9 @@ async function loadAdminOverview() {
 
   setText("#adminStatus", "내부관리자 정보를 불러오는 중입니다...");
   try {
-    adminOverview = await requestJson(`/api/admin/overview?adminUsername=${encodeURIComponent(authUser.adminUsername)}&adminToken=${encodeURIComponent(authUser.adminToken)}`, {}, { retries: 1, timeoutMs: 8000 });
+    adminOverview = await requestJson("/api/admin/overview", {
+      headers: getAdminAuthHeaders()
+    }, { retries: 1, timeoutMs: 8000 });
     renderAdminOverview();
     setText("#adminStatus", `${authUser.name} 관리자 페이지 정보가 업데이트되었습니다.`);
   } catch (error) {
@@ -10029,12 +11630,12 @@ async function fetchTile114SampleProducts() {
 
   try {
     const query = new URLSearchParams({
-      adminUsername: authUser.adminUsername,
-      adminToken: authUser.adminToken,
       category,
       limit: String(limit)
     });
-    const result = await requestJson(`/api/admin/tile114-sample?${query}`, {}, { retries: 1, timeoutMs: 60000 });
+    const result = await requestJson(`/api/admin/tile114-sample?${query}`, {
+      headers: getAdminAuthHeaders()
+    }, { retries: 1, timeoutMs: 60000 });
     renderTile114SampleGrid(result.products || []);
     setText("#tile114Status", `${result.categoryName || category} 카테고리에서 ${number(result.count || 0)}개 샘플을 가져왔습니다.`);
   } catch (error) {

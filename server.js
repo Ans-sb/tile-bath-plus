@@ -14,6 +14,7 @@ const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 const productsPath = path.join(root, "data", "products.json");
 const normalizedTaxonomyPath = path.join(root, "data", "products.normalized.json");
+const searchTrainingFeedbackPath = path.join(root, "data", "search-training-feedback.jsonl");
 const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
 const bodyLimit = 80 * 1024 * 1024;
 const proposalOutputDir = path.join(root, "outputs", "proposals");
@@ -25,6 +26,7 @@ const startedAt = new Date();
 const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
 const openAiImageModel = String(process.env.OPENAI_IMAGE_MODEL || "gpt-image-1").trim();
 const openAiVisionModel = String(process.env.OPENAI_VISION_MODEL || "gpt-4o-mini").trim();
+const openAiRenderTimeoutMs = Math.max(60000, Number(process.env.OPENAI_RENDER_TIMEOUT_MS || 300000) || 300000);
 const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const supabaseSecretKey = String(
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -61,7 +63,14 @@ let publicProductsJsonCache = { expiresAt: 0, json: "" };
 const tileImageSignatureCache = new Map();
 const tileImageSignatureLimit = Math.max(24, Number(process.env.TILE_IMAGE_SIGNATURE_CACHE_LIMIT || 2500));
 const tileVisualCompareLimit = Math.max(40, Number(process.env.TILE_VISUAL_COMPARE_LIMIT || 240));
-const stockInquiryThresholdQty = Math.max(0, Number(process.env.STOCK_INQUIRY_THRESHOLD_QTY || process.env.MIN_PUBLIC_STOCK_QTY || 30));
+const publicStockExcludeThresholdQty = Math.max(0, Number(
+  process.env.PUBLIC_STOCK_EXCLUDE_THRESHOLD_QTY
+  || process.env.STOCK_EXCLUDE_THRESHOLD_QTY
+  || process.env.MIN_PUBLIC_STOCK_QTY
+  || 50
+) || 50);
+const publicExposeAllStockProducts = /^(1|true|yes)$/i.test(String(process.env.PUBLIC_EXPOSE_ALL_STOCK_PRODUCTS || "true"));
+const stockInquiryThresholdQty = Math.max(0, Number(process.env.STOCK_INQUIRY_THRESHOLD_QTY || 100) || 100);
 const defaultApprovalRules = {
   businessTypes: [
     "인테리어",
@@ -168,10 +177,10 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && request.url.startsWith("/api/member/products")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
+      const memberCredentials = readMemberProductCredentialsFromRequest(request);
       const member = await verifyMemberProductAccess(
-        String(url.searchParams.get("businessNumber") || ""),
-        String(url.searchParams.get("memberToken") || "")
+        memberCredentials.businessNumber,
+        memberCredentials.memberToken
       );
       if (areProductsHiddenFromStorefront()) {
         sendJson(response, 200, { ok: true, user: member, products: [] });
@@ -218,21 +227,45 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && request.url.startsWith("/api/admin/products")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
+      const adminCredentials = readAdminCredentialsFromRequest(request);
       sendJson(response, 200, await readAdminProducts(
-        String(url.searchParams.get("adminUsername") || ""),
-        String(url.searchParams.get("adminToken") || "")
+        adminCredentials.adminUsername,
+        adminCredentials.adminToken
       ));
       return;
     }
 
     if (request.method === "GET" && request.url.startsWith("/api/admin/product")) {
       const url = new URL(request.url, `http://${request.headers.host}`);
+      const adminCredentials = readAdminCredentialsFromRequest(request);
       sendJson(response, 200, await readAdminProduct(
-        String(url.searchParams.get("adminUsername") || ""),
-        String(url.searchParams.get("adminToken") || ""),
+        adminCredentials.adminUsername,
+        adminCredentials.adminToken,
         String(url.searchParams.get("id") || "")
       ));
+      return;
+    }
+
+    if (request.method === "GET" && request.url.startsWith("/api/admin/search-training/stats")) {
+      const adminCredentials = readAdminCredentialsFromRequest(request);
+      assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+      sendJson(response, 200, { ok: true, stats: await readSearchTrainingStats() });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/admin/search-training/feedback") {
+      const adminCredentials = readAdminCredentialsFromRequest(request);
+      assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, await appendSearchTrainingFeedback(payload, adminCredentials.adminUsername));
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/admin/search-training/batch-feedback") {
+      const adminCredentials = readAdminCredentialsFromRequest(request);
+      assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+      const payload = JSON.parse(await readRequestBody(request));
+      sendJson(response, 200, await appendSearchTrainingFeedbackBatch(payload, adminCredentials.adminUsername));
       return;
     }
 
@@ -284,22 +317,33 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && request.url.startsWith("/api/admin/overview")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
+      const adminCredentials = readAdminCredentialsFromRequest(request);
       sendJson(response, 200, await readAdminOverview(
-        String(url.searchParams.get("adminUsername") || url.searchParams.get("businessNumber") || ""),
-        String(url.searchParams.get("adminToken") || "")
+        adminCredentials.adminUsername,
+        adminCredentials.adminToken
       ));
       return;
     }
 
     if (request.method === "GET" && request.url.startsWith("/api/admin/tile114-sample")) {
       const url = new URL(request.url, `http://${request.headers.host}`);
+      const adminCredentials = readAdminCredentialsFromRequest(request);
       sendJson(response, 200, await readTile114SampleProducts(
-        String(url.searchParams.get("adminUsername") || ""),
-        String(url.searchParams.get("adminToken") || ""),
+        adminCredentials.adminUsername,
+        adminCredentials.adminToken,
         String(url.searchParams.get("category") || "5"),
         Number(url.searchParams.get("limit") || 5)
       ));
+      return;
+    }
+
+    if (request.method === "GET" && request.url.startsWith("/api/image-data-url")) {
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      const imageUrl = String(url.searchParams.get("url") || "").trim();
+      sendJson(response, 200, {
+        ok: true,
+        imageDataUrl: await readRemoteImageDataUrl(imageUrl)
+      });
       return;
     }
 
@@ -311,7 +355,8 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && request.url === "/api/tile-match") {
       const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await findSimilarTilesByImage(payload));
+      const adminContext = readOptionalAdminContextFromRequest(request);
+      sendJson(response, 200, await findSimilarTilesByImage(payload, adminContext));
       return;
     }
 
@@ -417,7 +462,7 @@ async function getPublicProductsJson() {
 }
 
 function isPublicCatalogProduct(product) {
-  return !isExcludedVerygoodProduct(product);
+  return !isExcludedVerygoodProduct(product) && !isExcludedLowStockPublicProduct(product);
 }
 
 function getProductStockQty(product) {
@@ -427,6 +472,10 @@ function getProductStockQty(product) {
 
 function hasOrderableStock(product) {
   return getProductStockQty(product) > stockInquiryThresholdQty;
+}
+
+function isExcludedLowStockPublicProduct(product) {
+  return !publicExposeAllStockProducts && getProductStockQty(product) <= publicStockExcludeThresholdQty;
 }
 
 function isExcludedVerygoodProduct(product) {
@@ -777,7 +826,7 @@ function mapSupabaseProductToApp(row) {
 
 function mapPublicProduct(product) {
   const customerProduct = normalizeCustomerProductClassification(product);
-  return {
+  return stripCustomerSensitiveProductFields({
     id: String(customerProduct.id || "").trim(),
     productType: String(customerProduct.productType || "").trim(),
     kind: getPublicProductGroup(customerProduct),
@@ -803,7 +852,49 @@ function mapPublicProduct(product) {
     daylightImage: String(customerProduct.daylightImage || "").trim(),
     fluorescentImage: String(customerProduct.fluorescentImage || "").trim(),
     sceneImage: String(customerProduct.sceneImage || "").trim()
-  };
+  });
+}
+
+const CUSTOMER_SENSITIVE_PRODUCT_FIELDS = new Set([
+  "brand",
+  "brandCode",
+  "brandName",
+  "internalBrandId",
+  "internalBrandCode",
+  "internalBrandName",
+  "isCustomerBrandVisible",
+  "maker",
+  "manufacturer",
+  "supplier",
+  "supplierCode",
+  "supplierName",
+  "sourceSite",
+  "sourceUrl",
+  "sourceProductId",
+  "sourceCategoryCode",
+  "sourceCategoryName",
+  "catalogSource",
+  "cost",
+  "costPrice",
+  "cost_price",
+  "purchasePrice",
+  "purchase_price",
+  "margin",
+  "marginGrade",
+  "qualityGrade",
+  "adminSearchableText",
+  "adminSearchText",
+  "internalMemo",
+  "internalNote"
+]);
+
+function stripCustomerSensitiveProductFields(product) {
+  const safe = {};
+  for (const [key, value] of Object.entries(product || {})) {
+    if (CUSTOMER_SENSITIVE_PRODUCT_FIELDS.has(key)) continue;
+    safe[key] = value;
+  }
+  return safe;
 }
 
 function normalizeCustomerProductClassification(product) {
@@ -878,7 +969,6 @@ function getPublicPriceSortRank(product) {
     || product?.gradeAPrice
     || product?.gradeBPrice
     || product?.gradeCPrice
-    || product?.costPrice
     || 0
   );
   if (!price) return 0;
@@ -896,6 +986,19 @@ function mapMemberProduct(product) {
     gradeBPrice: toBlankableNumber(product.gradeBPrice),
     gradeCPrice: toBlankableNumber(product.gradeCPrice),
     memberPriceVisible: true
+  };
+}
+
+function mapAdminTileMatchProduct(product) {
+  return {
+    ...mapMemberProduct(product),
+    maker: String(product.maker || "").trim(),
+    sourceSite: String(product.sourceSite || "").trim(),
+    sourceUrl: String(product.sourceUrl || "").trim(),
+    sourceProductId: String(product.sourceProductId || "").trim(),
+    sourceCategoryName: String(product.sourceCategoryName || "").trim(),
+    catalogSource: String(product.catalogSource || "").trim(),
+    costPrice: Number(product.costPrice) || 0
   };
 }
 
@@ -1017,12 +1120,40 @@ function safeEqualText(left, right) {
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+function readAdminCredentialsFromRequest(request) {
+  const authorization = String(request.headers.authorization || "").trim();
+  const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
+  return {
+    adminUsername: String(request.headers["x-admin-username"] || "").trim(),
+    adminToken: String(request.headers["x-admin-token"] || bearerToken || "").trim()
+  };
+}
+
+function readOptionalAdminContextFromRequest(request) {
+  const credentials = readAdminCredentialsFromRequest(request);
+  if (!credentials.adminUsername && !credentials.adminToken) return { isAdmin: false };
+  const adminUsernameValue = assertAdminCredentials(credentials.adminUsername, credentials.adminToken);
+  return {
+    isAdmin: true,
+    adminUsername: adminUsernameValue
+  };
+}
+
+function readMemberProductCredentialsFromRequest(request) {
+  const authorization = String(request.headers.authorization || "").trim();
+  const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
+  return {
+    businessNumber: String(request.headers["x-business-number"] || "").trim(),
+    memberToken: String(request.headers["x-member-token"] || bearerToken || "").trim()
+  };
+}
+
 function assertAdminCredentials(value, token) {
   const clean = String(value || "").trim();
-  if (!clean) throw new Error("관리자 아이디가 필요합니다.");
-  if (!adminPassword) throw new Error("관리자 계정이 아직 설정되지 않았습니다.");
-  if (clean !== adminUsername) throw new Error("관리자 계정이 일치하지 않습니다.");
-  if (!safeEqualText(token, createAdminToken())) throw new Error("관리자 로그인이 다시 필요합니다.");
+  if (!clean) throw createHttpError(403, "관리자 아이디가 필요합니다.");
+  if (!adminPassword) throw createHttpError(503, "관리자 계정이 아직 설정되지 않았습니다.");
+  if (clean !== adminUsername) throw createHttpError(403, "관리자 계정이 일치하지 않습니다.");
+  if (!safeEqualText(token, createAdminToken())) throw createHttpError(403, "관리자 로그인이 다시 필요합니다.");
   return clean;
 }
 
@@ -1055,11 +1186,184 @@ async function saveAdminProduct(payload) {
   };
 }
 
+async function appendSearchTrainingFeedback(payload, reviewer) {
+  const entry = sanitizeSearchTrainingFeedback(payload, reviewer);
+  await fs.promises.mkdir(path.dirname(searchTrainingFeedbackPath), { recursive: true });
+  await fs.promises.appendFile(searchTrainingFeedbackPath, `${JSON.stringify(entry)}\n`, "utf8");
+  return {
+    ok: true,
+    feedback: entry,
+    stats: await readSearchTrainingStats()
+  };
+}
+
+async function appendSearchTrainingFeedbackBatch(payload, reviewer) {
+  const rawEntries = Array.isArray(payload?.entries) ? payload.entries.slice(0, 120) : [];
+  const entries = rawEntries
+    .map((entry) => sanitizeSearchTrainingFeedback(entry, reviewer))
+    .filter((entry) => entry.product.id || entry.product.productName);
+  if (!entries.length) {
+    return {
+      ok: false,
+      count: 0,
+      stats: await readSearchTrainingStats(),
+      message: "저장할 학습 데이터가 없습니다."
+    };
+  }
+  const applied = payload?.applyToDb ? await applySearchTrainingFeedbackToProducts(entries) : { updated: 0, skipped: entries.length };
+  await fs.promises.mkdir(path.dirname(searchTrainingFeedbackPath), { recursive: true });
+  await fs.promises.appendFile(
+    searchTrainingFeedbackPath,
+    `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+    "utf8"
+  );
+  return {
+    ok: true,
+    count: entries.length,
+    applied,
+    stats: await readSearchTrainingStats()
+  };
+}
+
+function sanitizeSearchTrainingFeedback(payload, reviewer) {
+  const status = String(payload?.status || "corrected").trim() === "agree" ? "agree" : "corrected";
+  return {
+    createdAt: new Date().toISOString(),
+    reviewer: String(reviewer || "").slice(0, 80),
+    status,
+    product: sanitizeTrainingProduct(payload?.product || {}),
+    predicted: sanitizeTrainingLabels(payload?.predicted || {}),
+    corrected: sanitizeTrainingLabels(payload?.corrected || {}),
+    updateProduct: sanitizeTrainingProductUpdate(payload?.updateProduct || {}),
+    memo: String(payload?.memo || "").trim().slice(0, 500)
+  };
+}
+
+async function applySearchTrainingFeedbackToProducts(entries) {
+  const allowedFields = new Set(["patternCategory", "color"]);
+  const products = await readProducts({ cache: false });
+  let updated = 0;
+  let skipped = 0;
+  const now = new Date().toISOString();
+
+  for (const entry of entries) {
+    const productId = entry.updateProduct.id || entry.product.id;
+    const field = entry.updateProduct.field;
+    const value = entry.updateProduct.value;
+    if (!productId || !allowedFields.has(field) || !value || /미확인/.test(value)) {
+      skipped += 1;
+      continue;
+    }
+    const index = products.findIndex((product) => product.id === productId);
+    if (index < 0 || products[index].productType !== "tile") {
+      skipped += 1;
+      continue;
+    }
+    if (String(products[index][field] || "").trim() === value) {
+      skipped += 1;
+      continue;
+    }
+    products[index] = {
+      ...products[index],
+      [field]: value,
+      aiTrainingUpdatedAt: now
+    };
+    updated += 1;
+  }
+
+  if (updated > 0) {
+    await fs.promises.writeFile(productsPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
+    invalidateProductsReadCache();
+    setCachedProducts(products, "file");
+
+    let syncError = "";
+    if (hasSupabaseConfig()) {
+      try {
+        for (const product of products.filter((item) => item.aiTrainingUpdatedAt === now)) {
+          await upsertProductToSupabase(product);
+        }
+        invalidateProductsReadCache();
+      } catch (error) {
+        syncError = error?.message || "Supabase 동기화 실패";
+        console.warn("[search-training] Supabase sync skipped:", syncError);
+      }
+    }
+
+    return { updated, skipped, syncError };
+  }
+
+  return { updated, skipped };
+}
+
+function sanitizeTrainingProductUpdate(update) {
+  const field = String(update?.field || "").trim();
+  const allowedFields = new Set(["patternCategory", "color"]);
+  return {
+    id: String(update?.id || "").slice(0, 100),
+    field: allowedFields.has(field) ? field : "",
+    value: String(update?.value || "").trim().slice(0, 80)
+  };
+}
+
+function sanitizeTrainingProduct(product) {
+  return {
+    id: String(product?.id || "").slice(0, 100),
+    managementCode: String(product?.managementCode || "").slice(0, 100),
+    productName: String(product?.productName || product?.name || "").slice(0, 220),
+    brand: String(product?.brand || product?.internalBrandCode || product?.kind || "").slice(0, 100),
+    image: String(product?.image || "").slice(0, 1000)
+  };
+}
+
+function sanitizeTrainingLabels(value) {
+  return {
+    finish: String(value?.finish || "").slice(0, 80),
+    color: String(value?.color || "").slice(0, 80),
+    style: String(value?.style || "").slice(0, 80),
+    material: String(value?.material || "").slice(0, 80),
+    size: String(value?.size || "").slice(0, 80),
+    origin: String(value?.origin || "").slice(0, 80),
+    pattern: String(value?.pattern || "").slice(0, 120),
+    texture: String(value?.texture || "").slice(0, 120)
+  };
+}
+
+async function readSearchTrainingStats() {
+  try {
+    const content = await fs.promises.readFile(searchTrainingFeedbackPath, "utf8");
+    const entries = content.split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+    const agreeCount = entries.filter((entry) => entry.status === "agree").length;
+    const correctedCount = entries.filter((entry) => entry.status === "corrected").length;
+    const latest = entries.slice(-8).reverse();
+    return {
+      total: entries.length,
+      agreeCount,
+      correctedCount,
+      latest
+    };
+  } catch {
+    return {
+      total: 0,
+      agreeCount: 0,
+      correctedCount: 0,
+      latest: []
+    };
+  }
+}
+
 function shouldBlockStaticPath(pathname) {
   const normalized = pathname.replace(/\\/g, "/").replace(/^\/+/, "").toLowerCase();
   if (!normalized || normalized === "index.html") return false;
   if (normalized.startsWith(".")) return true;
-  if (normalized === "products-db.js") return true;
   if (normalized === "catalog-data.js") return true;
   if (normalized.startsWith("outputs/proposals/") && normalized.endsWith(".pptx")) return false;
   return [
@@ -1076,11 +1380,11 @@ function shouldBlockStaticPath(pathname) {
 async function readLocalNormalizedTaxonomy(view = "admin") {
   try {
     const rows = JSON.parse(await fs.promises.readFile(normalizedTaxonomyPath, "utf8"));
-    const publicRows = Array.isArray(rows) ? rows.filter(isPublicCatalogProduct) : [];
+    const allRows = Array.isArray(rows) ? rows : [];
     if (String(view).toLowerCase() === "customer") {
-      return publicRows.map(stripInternalBrandFromNormalizedProduct);
+      return allRows.filter(isPublicCatalogProduct).map(stripInternalBrandFromNormalizedProduct);
     }
-    return publicRows;
+    return allRows;
   } catch {
     return [];
   }
@@ -1238,13 +1542,18 @@ function stripInternalBrandFromNormalizedProduct(item) {
     brand,
     isCustomerBrandVisible,
     adminSearchableText,
+    adminSearchText,
     searchKeywords,
+    costPrice,
+    purchasePrice,
+    marginGrade,
+    qualityGrade,
     ...safe
   } = item || {};
-  return {
+  return stripCustomerSensitiveProductFields({
     ...safe,
     customerSearchableText: String(item?.customerSearchableText || "")
-  };
+  });
 }
 
 function isLocalRequest(request) {
@@ -1269,8 +1578,11 @@ async function readApprovalRules() {
     });
     rows = await requestSupabase(`/rest/v1/approval_settings?${query.toString()}`);
   } catch (error) {
-    if (!isMissingSupabaseTableError(error, "approval_settings")) throw error;
-    return { ...cloneApprovalRules(defaultApprovalRules), source: "missing-default" };
+    if (isMissingSupabaseTableError(error, "approval_settings")) {
+      return { ...cloneApprovalRules(defaultApprovalRules), source: "missing-default" };
+    }
+    console.warn("[approval-rules] Supabase read failed; using local defaults.", error.message);
+    return { ...cloneApprovalRules(defaultApprovalRules), source: "supabase-fallback-default" };
   }
   const row = Array.isArray(rows) ? rows[0] : null;
   return {
@@ -2667,6 +2979,8 @@ async function generateRenderPreview(payload) {
 
   const siteImageDataUrl = String(payload.siteImageDataUrl || "").trim();
   const guideImageDataUrl = String(payload.guideImageDataUrl || "").trim();
+  const compositionImageDataUrl = String(payload.compositionImageDataUrl || "").trim();
+  const qualityMode = String(payload.qualityMode || "").trim();
   const pointMemo = String(payload.pointMemo || "").trim();
   const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
   const roomContext = payload.roomContext && typeof payload.roomContext === "object" ? payload.roomContext : null;
@@ -2681,6 +2995,7 @@ async function generateRenderPreview(payload) {
       tileName: String(entry?.tileName || `tile-${index + 1}`).trim(),
       tileSize: String(entry?.tileSize || "").trim(),
       tileFinish: String(entry?.tileFinish || "").trim(),
+      tileOrientation: String(entry?.tileOrientation || "").trim(),
       tileImageDataUrl: String(entry?.tileImageDataUrl || "").trim()
     }))
     .filter((entry) => entry.tileImageDataUrl);
@@ -2690,10 +3005,15 @@ async function generateRenderPreview(payload) {
   }
 
   const hasGuideImage = guideImageDataUrl.startsWith("data:");
-  const referenceStartNumber = hasGuideImage ? 3 : 2;
+  const hasCompositionImage = compositionImageDataUrl.startsWith("data:");
+  let nextImageNumber = 2;
   const guideInstruction = hasGuideImage
-    ? "Use the second image as a user-marked surface guide. Green marked area means floor tile target. Blue marked area means wall tile target. The marks are only guidance and must not appear in the final result."
+    ? `Use image ${nextImageNumber++} as a user-marked surface guide. Green marked area means floor tile target. Blue marked area means wall tile target. The marks are only guidance and must not appear in the final result.`
     : "";
+  const compositionInstruction = hasCompositionImage
+    ? `Use image ${nextImageNumber++} as a rough tile layout and scale preview only. It is not the final visual quality target. Use it to understand approximate grout spacing, tile count, module orientation, and target plane coverage, then replace its flat overlay look with a photorealistic installation.`
+    : "";
+  const referenceStartNumber = nextImageNumber;
   const referenceInstructions = normalizedSurfaces.map((entry, index) => {
     const referenceNumber = referenceStartNumber + index;
     const surfaceInstruction = entry.surface === "wall"
@@ -2703,14 +3023,27 @@ async function generateRenderPreview(payload) {
         : "Apply this tile only to the floor surfaces.";
     const sizeInstruction = buildRenderSizeInstruction(entry.tileSize, entry.surface);
 
-    return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Prioritize the tile's visible design identity above all else: match the tone variation, veining flow, stone character, pattern rhythm, print character, surface texture depth, micro-contrast, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, and module size${entry.tileSize ? ` (${entry.tileSize})` : ""} as closely as possible. The tile pattern and texture are critical and must stay recognizable in the final image. Do not invent a different tile look, do not simplify or blur the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction}`;
+    const orientationInstruction = entry.tileOrientation === "vertical"
+      ? "Install rectangular tile modules in vertical orientation, swapping the long side direction accordingly."
+      : entry.tileOrientation === "horizontal"
+        ? "Install rectangular tile modules in horizontal orientation."
+        : "";
+
+    return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Prioritize the tile's visible design identity above all else: match the tone variation, veining flow, stone character, pattern rhythm, print character, surface texture depth, micro-contrast, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, module size${entry.tileSize ? ` (${entry.tileSize})` : ""}, and installation orientation${entry.tileOrientation ? ` (${entry.tileOrientation})` : ""} as closely as possible. ${orientationInstruction} The tile pattern and texture are critical and must stay recognizable in the final image. Do not invent a different tile look, do not simplify or blur the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction}`;
   }).join(" ");
   const roomContextInstruction = buildRenderRoomContextInstruction(roomContext);
+  const premiumInstruction = qualityMode === "premium-photoreal"
+    ? "Quality target: premium architectural after-photo realism comparable to a professional interior renovation portfolio photo. The final should have crisp material detail, correct perspective, realistic grout depth, subtle bevels, natural light falloff, contact shadows, ambient occlusion, and believable phone/camera lens behavior while preserving the exact original site geometry."
+    : "";
 
   const prompt = [
     "Create a photorealistic real-world site photo edit, not a CGI render.",
     "Use the first image as the original site photo.",
+    "The final image must be derived from the uploaded site photo. Do not create a separate showroom, synthetic 3D room, isometric view, architectural visualization, or clean CGI replacement scene.",
+    "Keep the original camera position and phone-photo realism. The result should look like the same site photographed after tile installation, not like a graphic mockup.",
+    premiumInstruction,
     guideInstruction,
+    compositionInstruction,
     roomContextInstruction,
     referenceInstructions,
     "Replace only the existing finish material on the selected planes. Preserve the original site photo structure, camera angle, lens distortion, perspective, room proportions, horizontal and vertical lines, and all non-target surfaces.",
@@ -2739,17 +3072,36 @@ async function generateRenderPreview(payload) {
   if (hasGuideImage) {
     form.append("image[]", dataUrlToBlob(guideImageDataUrl), "surface-guide.png");
   }
+  if (hasCompositionImage) {
+    form.append("image[]", dataUrlToBlob(compositionImageDataUrl), "tile-layout-preview.png");
+  }
   normalizedSurfaces.forEach((entry) => {
     form.append("image[]", dataUrlToBlob(entry.tileImageDataUrl), `${sanitizeFileName(entry.tileName || "tile")}.png`);
   });
 
-  const response = await fetch("https://api.openai.com/v1/images/edits", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openAiApiKey}`
-    },
-    body: form
-  });
+  const renderStartedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), openAiRenderTimeoutMs);
+  console.log(`[render] OpenAI image edit started. surfaces=${normalizedSurfaces.length}, guide=${hasGuideImage}, composition=${hasCompositionImage}, timeoutMs=${openAiRenderTimeoutMs}`);
+  let response;
+  try {
+    response = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openAiApiKey}`
+      },
+      body: form,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(`고품질 AI 실사 렌더가 ${Math.round(openAiRenderTimeoutMs / 1000)}초 안에 완료되지 않았습니다. 현장 사진이나 타일 이미지를 조금 줄인 뒤 다시 시도해주세요.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    console.log(`[render] OpenAI image edit finished waiting in ${Math.round((Date.now() - renderStartedAt) / 1000)}s`);
+  }
 
   const payloadText = await response.text();
   let result = null;
@@ -2774,15 +3126,17 @@ async function generateRenderPreview(payload) {
   };
 }
 
-async function findSimilarTilesByImage(payload) {
+async function findSimilarTilesByImage(payload, context = {}) {
   if (!openAiApiKey) {
     throw new Error("OPENAI_API_KEY가 설정되어 있어야 사진으로 타일을 찾을 수 있습니다.");
   }
 
+  const isAdmin = Boolean(context?.isAdmin);
   const imageDataUrl = String(payload?.imageDataUrl || "").trim();
   const requestedSize = normalizeTileSize(String(payload?.size || "").trim());
   const sizeUnknown = /^(1|true|yes)$/i.test(String(payload?.sizeUnknown || "").trim());
   const requestedFinish = String(payload?.finish || "").trim();
+  const requestedBrand = isAdmin ? normalizeTileFinderBrandFilter(payload?.brand) : "";
   const searchMode = String(payload?.searchMode || "").trim() === "global" ? "global" : "strict";
   const allSimilar = payload?.allSimilar !== false;
   const limit = allSimilar
@@ -2797,11 +3151,13 @@ async function findSimilarTilesByImage(payload) {
     requestedSize,
     sizeUnknown,
     requestedFinish,
+    requestedBrand,
     searchMode
   };
   const baseProducts = (await readProducts()).filter((product) => (
     isTileFinderTileCandidate(product)
     && product.image
+    && (!requestedBrand || productMatchesTileFinderBrand(product, requestedBrand))
     && (searchMode === "global" || productMatchesTileFinderBase(product, analysis))
   ));
   const products = baseProducts;
@@ -2830,7 +3186,7 @@ async function findSimilarTilesByImage(payload) {
     .sort((left, right) => right.score - left.score || String(left.product.name || "").localeCompare(String(right.product.name || ""), "ko"))
     .slice(0, limit)
     .map((entry) => ({
-      ...mapPublicProduct(entry.product),
+      ...(isAdmin ? mapAdminTileMatchProduct(entry.product) : mapPublicProduct(entry.product)),
       matchScore: Math.min(99, Math.max(1, Math.round(entry.score))),
       matchReasons: entry.reasons.slice(0, 4)
     }));
@@ -2838,6 +3194,7 @@ async function findSimilarTilesByImage(payload) {
   await appendTileImageSearchLog({
     requestedSize,
     requestedFinish,
+    requestedBrand,
     searchMode,
     analysis,
     resultCount: matches.length,
@@ -3274,6 +3631,26 @@ function productMatchesTileFinderBase(product, analysis) {
   }
 
   return true;
+}
+
+function normalizeTileFinderBrandFilter(value) {
+  const text = normalizeMatchText(value);
+  if (!text || text === "all" || text === "전체" || text === "전체브랜드") return "";
+  return text;
+}
+
+function getTileFinderBrandTexts(product) {
+  return [
+    product?.maker,
+    product?.sourceCategoryName,
+    product?.catalogSource,
+    product?.sourceSite
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+}
+
+function productMatchesTileFinderBrand(product, normalizedBrand) {
+  if (!normalizedBrand) return true;
+  return getTileFinderBrandTexts(product).some((value) => normalizeMatchText(value) === normalizedBrand);
 }
 
 function isTileFinderTileCandidate(product) {
@@ -3917,10 +4294,14 @@ function buildRenderRoomContextInstruction(roomContext) {
   const height = Number(roomContext.heightMeters) || 0;
   const grout = Number(roomContext.groutMillimeters) || 0;
   const footprintType = String(roomContext.footprintType || "").trim();
+  const floorOrientation = String(roomContext.floorOrientation || "").trim();
+  const wallOrientation = String(roomContext.wallOrientation || "").trim();
   const parts = [];
   if (width && depth) parts.push(`floor size about ${width}m by ${depth}m`);
   if (height) parts.push(`wall height about ${height}m`);
   if (grout) parts.push(`grout joint about ${grout}mm`);
+  if (floorOrientation) parts.push(`floor tile orientation: ${floorOrientation}`);
+  if (wallOrientation) parts.push(`wall tile orientation: ${wallOrientation}`);
   if (footprintType) parts.push(`space layout source: ${footprintType}`);
   if (!parts.length) return "";
   return `Use these room measurements as scale guidance for perspective and tile module density: ${parts.join(", ")}.`;
