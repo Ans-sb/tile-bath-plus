@@ -6649,8 +6649,11 @@ body.customer-experience-mode .customer-nav-group {
 }
 
 body.customer-experience-mode .admin-nav-group,
-body.customer-experience-mode .nav-section-label,
-body.customer-experience-mode .admin-only {
+body.customer-experience-mode .nav-section-label {
+  display: none !important;
+}
+
+body.customer-experience-mode:not(.admin-authenticated) .admin-only {
   display: none !important;
 }
 

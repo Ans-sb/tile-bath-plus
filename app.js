@@ -367,12 +367,12 @@ function bindEvents() {
     });
   });
 
-  ["#mainCategoryFilter", "#sizeFilter", "#optionFilter", "#patternCategoryFilter", "#finishFilter", "#colorFilter", "#productSearch"].forEach((selector) => {
+  ["#mainCategoryFilter", "#productBrandFilter", "#sizeFilter", "#optionFilter", "#patternCategoryFilter", "#finishFilter", "#colorFilter", "#productSearch"].forEach((selector) => {
     const control = document.querySelector(selector);
     if (!control) return;
     control.addEventListener("input", () => {
       if (selector === "#mainCategoryFilter") syncProductFilters({ resetSubFilters: true });
-      if (selector === "#optionFilter" || selector === "#patternCategoryFilter") syncProductFilters();
+      if (selector === "#productBrandFilter" || selector === "#optionFilter" || selector === "#patternCategoryFilter") syncProductFilters();
       productCurrentPage = 1;
       renderProducts();
     });
@@ -1402,9 +1402,8 @@ function getProductDisplayFinish(product) {
 
 function getProductAdminBrandLabel(product) {
   return [
-    product?.maker,
-    product?.sourceCategoryName,
     product?.catalogSource,
+    product?.maker,
     product?.sourceSite
   ].map(normalizeDirectProductFilterValue).find(Boolean) || "";
 }
@@ -1425,16 +1424,37 @@ function syncTileFinderBrandFilter() {
   fillProductFilterSelect(brandFilter, brands, previousBrand, "전체 브랜드");
 }
 
+function syncProductBrandFilter(scopeProducts, previousBrand = "all") {
+  const brandFilter = document.querySelector("#productBrandFilter");
+  if (!brandFilter) return "all";
+  if (!isAdminUser()) {
+    brandFilter.innerHTML = `<option value="all">전체</option>`;
+    brandFilter.value = "all";
+    return "all";
+  }
+  const brands = sortDirectProductFilterValues(scopeProducts
+    .map(getProductAdminBrandLabel)
+    .filter(Boolean));
+  return fillProductFilterSelect(brandFilter, brands, previousBrand, "전체");
+}
+
+function productMatchesAdminBrandFilter(product, selectedBrand) {
+  if (!isAdminUser() || !selectedBrand || selectedBrand === "all") return true;
+  return getProductAdminBrandLabel(product) === selectedBrand;
+}
+
 function syncProductFilters(config = {}) {
   invalidateProductPageCache();
   const type = document.querySelector("#mainCategoryFilter")?.value || "all";
   const kindFilter = document.querySelector("#kindFilter");
   const sizeFilter = document.querySelector("#sizeFilter");
+  const brandFilter = document.querySelector("#productBrandFilter");
   const optionFilter = document.querySelector("#optionFilter");
   const tileFeatureFilter = document.querySelector("#tileFeatureFilter");
   const patternCategoryFilter = document.querySelector("#patternCategoryFilter");
   const finishFilter = document.querySelector("#finishFilter");
   const colorFilter = document.querySelector("#colorFilter");
+  const previousBrand = config.resetSubFilters ? "all" : brandFilter?.value || "all";
   const previousSize = config.resetSubFilters ? "all" : sizeFilter?.value || "all";
   const previousOption = config.resetSubFilters ? "all" : optionFilter?.value || "all";
   const previousPatternCategory = config.resetSubFilters ? "all" : patternCategoryFilter?.value || "all";
@@ -1443,16 +1463,18 @@ function syncProductFilters(config = {}) {
   if (config.resetSubFilters && tileFeatureFilter) tileFeatureFilter.value = "all";
 
   const filteredByType = type === "all" ? products : products.filter((product) => product.productType === type);
+  const selectedBrand = syncProductBrandFilter(filteredByType, previousBrand);
+  const filteredByBrand = filteredByType.filter((product) => productMatchesAdminBrandFilter(product, selectedBrand));
   if (kindFilter) {
     kindFilter.innerHTML = `<option value="all">전체</option>`;
     kindFilter.value = "all";
   }
 
-  const nonTileOptions = sortDirectProductFilterValues(filteredByType
+  const nonTileOptions = sortDirectProductFilterValues(filteredByBrand
     .filter((product) => product.productType !== "tile")
     .flatMap((product) => [product.option, product.kind])
     .filter(Boolean));
-  const rawOptions = sortDirectProductFilterValues(filteredByType.map((product) => product.option).filter(Boolean));
+  const rawOptions = sortDirectProductFilterValues(filteredByBrand.map((product) => product.option).filter(Boolean));
   const preserveOptionOrder = type === "tile" || type === "all";
   const options = type === "tile"
     ? TILE_DIRECT_KIND_OPTIONS
@@ -1460,10 +1482,10 @@ function syncProductFilters(config = {}) {
       ? unique([...TILE_DIRECT_KIND_OPTIONS, ...nonTileOptions])
       : rawOptions;
   const selectedOption = fillProductFilterSelect(optionFilter, options, previousOption, "전체", { preserveOrder: preserveOptionOrder });
-  const filteredByOption = filteredByType.filter((product) => productMatchesDirectOptionFilter(product, selectedOption));
+  const filteredByOption = filteredByBrand.filter((product) => productMatchesDirectOptionFilter(product, selectedOption));
   const patternCategories = sortDirectTileStyleValues(filteredByOption.flatMap(getProductDirectTileCategories));
   const selectedPatternCategory = fillProductFilterSelect(patternCategoryFilter, patternCategories, previousPatternCategory, "전체", { preserveOrder: true });
-  const filteredForSize = getDirectProductSizeScope(filteredByType, selectedOption, selectedPatternCategory);
+  const filteredForSize = getDirectProductSizeScope(filteredByBrand, selectedOption, selectedPatternCategory);
   const sizes = getDirectProductSizes(filteredForSize);
   const finishes = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectFinishValues));
   const colors = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectColorValues));
@@ -1601,6 +1623,7 @@ function invalidateProductPageCache() {
 
 function getProductFilterSnapshot() {
   const type = document.querySelector("#mainCategoryFilter")?.value || "all";
+  const brand = isAdminUser() ? document.querySelector("#productBrandFilter")?.value || "all" : "all";
   const kind = document.querySelector("#kindFilter")?.value || "all";
   const size = document.querySelector("#sizeFilter")?.value || "all";
   const option = document.querySelector("#optionFilter")?.value || "all";
@@ -1613,6 +1636,7 @@ function getProductFilterSnapshot() {
   const naturalIntent = keyword ? parseTaxonomyNaturalSearch(keyword, "customer") : null;
   return {
     type,
+    brand,
     kind,
     size,
     option,
@@ -1659,6 +1683,7 @@ function getProductPageState() {
       : 0;
     const keywordMatched = !snapshot.normalizedKeyword || searchable.includes(snapshot.normalizedKeyword) || naturalScore > 0;
     const passed = (snapshot.type === "all" || product.productType === snapshot.type)
+      && productMatchesAdminBrandFilter(product, snapshot.brand)
       && (snapshot.size === "all" || product.size === snapshot.size)
       && productMatchesDirectOptionFilter(product, snapshot.option)
       && (snapshot.tileFeature === "all" || matchesTileFeatureFilter(product, snapshot.tileFeature))
@@ -1682,6 +1707,7 @@ function getProductPageState() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const activeFilters = [
     snapshot.type !== "all",
+    isAdminUser() && snapshot.brand !== "all",
     snapshot.size !== "all",
     snapshot.option !== "all",
     snapshot.tileFeature !== "all",
@@ -2497,6 +2523,7 @@ function getTaxonomyAudienceMode() {
 }
 
 function syncTaxonomyAudienceControls() {
+  ensureTaxonomyAdminAudienceDefault();
   const isAdmin = getTaxonomyAudienceMode() === "admin";
   document.querySelector("#taxonomyAudienceField")?.classList.toggle("hidden", !isAdminUser());
   document.querySelector("#taxonomyAxisField")?.classList.toggle("hidden", !isAdminUser());
@@ -2509,6 +2536,18 @@ function syncTaxonomyAudienceControls() {
   const brandAxisOption = axisFilter?.querySelector('option[value="internalBrandCode"]');
   if (brandAxisOption) brandAxisOption.hidden = !isAdmin;
   if (!isAdmin && axisFilter?.value === "internalBrandCode") axisFilter.value = "originRegion";
+}
+
+function ensureTaxonomyAdminAudienceDefault() {
+  const audienceMode = document.querySelector("#taxonomyAudienceMode");
+  if (!audienceMode) return;
+  if (!isAdminUser()) {
+    audienceMode.dataset.adminDefaultApplied = "";
+    return;
+  }
+  if (audienceMode.dataset.adminDefaultApplied === "true") return;
+  audienceMode.value = "admin";
+  audienceMode.dataset.adminDefaultApplied = "true";
 }
 
 function fillTaxonomySelect(selector, values, allLabel) {
@@ -9473,6 +9512,15 @@ function renderAuthControls() {
   adminNavBtn?.classList.toggle("hidden", !isAdmin);
   tile114NavBtn?.classList.toggle("hidden", !isAdmin);
   syncTileFinderBrandFilter();
+  syncProductBrandFilter(products);
+  if (currentPageId === "productsPage") {
+    syncProductFilters();
+    renderProducts();
+  }
+  if (currentPageId === "taxonomyTestPage") {
+    syncTaxonomyFilters();
+    renderTaxonomyTestPage();
+  }
 
   if (isLoggedIn) {
     const company = authUser.companyName || "사업자 인증 대기";
