@@ -10,13 +10,20 @@
   "scripts": {
     "start": "node scripts/prepare-runtime.cjs && node server.js",
     "code:products": "node scripts/apply-management-codes.mjs",
+    "products:public": "node scripts/build-public-products-db.mjs",
     "taxonomy:normalize": "node scripts/build-normalized-taxonomy.mjs",
     "finish:update": "node scripts/update-missing-finishes-from-source.mjs",
+    "finish:rules": "node scripts/apply-tile-finish-rules.mjs",
     "db:enrich": "node scripts/enrich-missing-product-fields.mjs",
     "taxonomy:simulate": "node scripts/simulate-taxonomy-search.mjs",
     "search:simulate": "node scripts/simulate-tile-search-engine.mjs",
+    "images:index": "node scripts/build-product-image-index.mjs",
     "stock:refresh": "node scripts/daily-stock-refresh.mjs",
     "audit:architecture": "node scripts/audit-platform-architecture.mjs",
-    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/prepare-runtime.cjs && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node --check scripts/apply-management-codes.mjs && node --check scripts/import-tile114-verygood.mjs && node --check scripts/reconcile-vg-products-from-source.mjs && node --check scripts/audit-vg-accuracy-from-source.mjs && node --check scripts/apply-vg-accuracy-audit-corrections.mjs && node --check scripts/import-sgcera.mjs && node --check scripts/import-hwashin.mjs && node --check scripts/import-goldtile.mjs && node --check scripts/daily-stock-refresh.mjs && node --check scripts/build-normalized-taxonomy.mjs && node --check scripts/update-missing-finishes-from-source.mjs && node --check scripts/enrich-missing-product-fields.mjs && node --check scripts/tile-search-engine.mjs && node --check scripts/simulate-tile-search-engine.mjs && node --check scripts/audit-platform-architecture.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8'))\""
+    "audit:customer-db": "node scripts/audit-customer-order-db.mjs",
+    "audit:security": "node scripts/audit-security-hardening.mjs",
+    "search:simulate:expert": "node scripts/simulate-expert-search-1000.mjs",
+    "search:simulate:aggregate": "node scripts/aggregate-search-simulation-batches.mjs",
+    "check": "node --check app.js && node --check catalog-data.js && node --check server.js && node --check scripts/prepare-runtime.cjs && node --check scripts/build-proposal-deck.mjs && node --check scripts/sync-products-to-supabase.mjs && node --check scripts/build-public-products-db.mjs && node --check scripts/audit-security-hardening.mjs && node --check scripts/apply-management-codes.mjs && node --check scripts/import-tile114-verygood.mjs && node --check scripts/reconcile-vg-products-from-source.mjs && node --check scripts/audit-vg-accuracy-from-source.mjs && node --check scripts/apply-vg-accuracy-audit-corrections.mjs && node --check scripts/import-sgcera.mjs && node --check scripts/import-hwashin.mjs && node --check scripts/import-goldtile.mjs && node --check scripts/build-product-image-index.mjs && node --check scripts/daily-stock-refresh.mjs && node --check scripts/build-normalized-taxonomy.mjs && node --check scripts/update-missing-finishes-from-source.mjs && node --check scripts/apply-tile-finish-rules.mjs && node --check scripts/enrich-missing-product-fields.mjs && node --check scripts/tile-search-engine.mjs && node --check scripts/simulate-tile-search-engine.mjs && node --check scripts/audit-platform-architecture.mjs && node --check scripts/audit-customer-order-db.mjs && node -e \"JSON.parse(require('fs').readFileSync('data/products.json','utf8')); JSON.parse(require('fs').readFileSync('data/tile-brand-rules.json','utf8')); JSON.parse(require('fs').readFileSync('data/product-images.json','utf8'))\""
   }
 }

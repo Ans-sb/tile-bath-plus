@@ -28,16 +28,28 @@ const TILE_STYLE_OPTIONS = [
   "스톤",
   "시멘트",
   "트래버틴",
+  "라임스톤",
+  "슬레이트",
   "콘크리트",
   "테라조",
   "우드",
   "솔리드",
   "패턴",
+  "데코",
   "브릭",
+  "서브웨이",
+  "모자이크",
+  "육각",
+  "라인",
   "입체",
-  "핸드메이드"
+  "핸드메이드",
+  "메탈",
+  "글라스"
 ];
 const TILE_STYLE_OPTION_SET = new Set(TILE_STYLE_OPTIONS);
+const TILE_FINDER_COLOR_OPTIONS = ["화이트", "아이보리", "베이지", "브라운", "그레이", "차콜", "블랙", "그린", "블루", "핑크", "레드", "옐로우", "테라코타", "멀티"];
+const TILE_FINDER_PATTERN_PRESENCE_OPTIONS = ["있음", "없음"];
+const TILE_FINDER_FINISH_OPTIONS = ["무광", "유광"];
 const SANITARY_KINDS = ["양변기", "비데", "소변기", "세면기", "욕조", "위생도기"];
 const FAUCET_KINDS = ["수전 금구", "세면수전", "샤워수전", "주방수전", "해바라기샤워"];
 const ACCESSORY_KINDS = ["악세사리", "욕실장", "거울", "수건걸이", "휴지걸이", "선반", "유가"];
@@ -126,8 +138,10 @@ const DEFAULT_APPROVAL_RULES = {
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
 const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "tile114TestPage"]);
 const IMAGE_SEARCH_RESULTS_PAGE_SIZE = 20;
+const TILE_FINDER_RESULTS_PAGE_SIZE = 10;
 const ADMIN_PRODUCT_TABLE_LIMIT = 300;
 const UNKNOWN_TILE_SIZE_VALUE = "__unknown__";
+const CUSTOM_TILE_SIZE_VALUE = "__custom__";
 const PUBLIC_STOCK_EXCLUDE_THRESHOLD_QTY = 50;
 const PUBLIC_EXPOSE_ALL_STOCK_PRODUCTS = true;
 const STOCK_INQUIRY_THRESHOLD_QTY = 100;
@@ -165,14 +179,17 @@ const TAXONOMY_PAGE_SIZE = 10;
 const VISIBLE_TAXONOMY_RESULT_FACET_KEYS = new Set(["mainColor", "finishGroup", "sizeLabel", "styleCategories"]);
 let tileFinderImageDataUrl = "";
 let tileFinderImageFileName = "";
+let tileFinderEditableAnalysis = createEmptyTileFinderEditableAnalysis();
 let taxonomyImageSearchDataUrl = "";
 let taxonomyImageSearchFileName = "";
 let tileFinderMatches = [];
 let tileFinderResultsPage = 1;
+let tileFinderResultFilters = createEmptyTileFinderResultFilters();
 let taxonomyImageMatches = [];
 let taxonomyImageResultsPage = 1;
 let suppressImageSearchClickUntil = 0;
 let cart = loadCart();
+let remoteOrders = [];
 let proposalProductSelectionIds = new Set();
 let proposalRenderSelectionIds = new Set();
 let proposalSelectionsInitialized = false;
@@ -190,6 +207,9 @@ let renderSurfaceSelections = {
 let pendingRenderResultImage = "";
 let pendingSiteImage = "";
 let renderJobRunning = false;
+let renderCompareSliderValue = 50;
+let lastRenderFeedbackCode = "";
+const renderImageDataUrlCache = new Map();
 let pendingPlannerSiteImage = "";
 let pendingPlannerRealRenderImage = "";
 let pendingPlannerPhotoPreviewImage = "";
@@ -201,6 +221,37 @@ let plannerRealRenderStartedAt = 0;
 let plannerRealRenderProgressTimer = null;
 let plannerSurfaceGuideMode = "floor";
 let plannerSurfaceRegions = { floor: [], wall: [] };
+
+const RENDER_ROOM_TYPES = {
+  auto: "자동 분석",
+  bathroom: "욕실 / 화장실",
+  living: "거실",
+  kitchen: "주방",
+  exterior: "외벽 / 외부",
+  commercial: "상업공간"
+};
+
+const RENDER_INTERIOR_STYLES = {
+  "natural-modern": "내추럴 모던",
+  "mid-century": "미드센추리",
+  minimal: "미니멀",
+  hotel: "호텔식",
+  "warm-premium": "웜톤 고급",
+  industrial: "인더스트리얼",
+  nordic: "북유럽",
+  zen: "재패니즈 / 젠",
+  classic: "클래식"
+};
+
+const RENDER_FEEDBACK_OPTIONS = {
+  good: "좋음",
+  graphic: "그래픽 같음",
+  tile_mismatch: "타일 다름",
+  grout_issue: "줄눈 이상",
+  room_changed: "공간 바뀜",
+  color_issue: "색감 이상",
+  regenerate: "다시 생성 필요"
+};
 let pendingPlannerPlanImage = "";
 let plannerPlanPoints = [];
 let plannerRenderTimer = null;
@@ -241,7 +292,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage"]);
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
 let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };
@@ -259,6 +310,84 @@ const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 let currentAdminView = "operations";
 let adminProductsHydrated = false;
+let adminLaunchRenderedTasks = new Map();
+const LAUNCH_PLAN_START_DATE = "2026-07-15";
+const LAUNCH_PLAN_TARGET_DATE = "2026-08-31";
+const LAUNCH_PLAN_PHASES = [
+  {
+    id: "db-structure",
+    start: "2026-07-15",
+    end: "2026-07-21",
+    title: "DB 수동 정리",
+    goal: "상품 DB는 대표자가 수동으로 1차 정리한 뒤 반영합니다.",
+    skipped: true,
+    tasks: [
+      { id: "category-map", label: "대분류 기준 확정", detail: "타일·위생도기·수전금구·욕실장·악세사리·부자재 분리", view: "quality" },
+      { id: "tile-fields", label: "타일 필수값 점검", detail: "규격·재질·마감·색상·스타일 미확인 상품 정리", view: "quality" },
+      { id: "open-sku", label: "오픈 상품군 선정", detail: "정확도 높은 상품부터 우선 노출할 후보를 추립니다.", view: "products" }
+    ]
+  },
+  {
+    id: "auth-pricing",
+    start: "2026-07-15",
+    end: "2026-07-28",
+    title: "회원·가격·보안 정리",
+    goal: "간편가입, 사업자 인증, 등급별 가격 공개 흐름을 검증합니다.",
+    tasks: [
+      { id: "oauth-flow", label: "간편가입 검증", detail: "구글·카카오 로그인 후 로그인 상태 전환을 확인", view: "orders" },
+      { id: "business-approval", label: "사업자 승인 흐름 점검", detail: "사업자등록증·명함 업로드 후 등급 반영 확인", view: "orders" },
+      { id: "admin-price-hide", label: "권한별 가격 노출 확인", detail: "고객은 원가·브랜드 비노출, 관리자는 내부 정보 확인", view: "products" }
+    ]
+  },
+  {
+    id: "search-order",
+    start: "2026-07-29",
+    end: "2026-08-04",
+    title: "검색·상품·장바구니 고도화",
+    goal: "자연어·이미지·필터 검색과 장바구니 주문 흐름을 오픈 수준으로 맞춥니다.",
+    tasks: [
+      { id: "natural-search", label: "자연어 검색 테스트", detail: "현장 표현으로 검색해 조건 칩과 결과 정렬 검수", view: "products" },
+      { id: "image-search", label: "이미지 검색 테스트", detail: "규격·마감 절대조건과 이미지 유사도 결과 확인", view: "searchTraining" },
+      { id: "cart-proposal", label: "장바구니·제안서 점검", detail: "수량·박스 계산·제안서 다운로드 흐름 확인", view: "orders" }
+    ]
+  },
+  {
+    id: "internal-beta",
+    start: "2026-08-05",
+    end: "2026-08-11",
+    title: "내부 베타",
+    goal: "실제 운영자가 매일 주문·검색·DB 품질 업무를 반복 테스트합니다.",
+    tasks: [
+      { id: "daily-order-drill", label: "주문 처리 리허설", detail: "가입 승인부터 장바구니 주문 접수까지 끝까지 처리", view: "orders" },
+      { id: "quality-drill", label: "품질 대시보드 처리", detail: "고위험 누락값을 우선 수정하고 재검색 확인", view: "quality" },
+      { id: "search-feedback", label: "검색 학습 피드백", detail: "6장 훈련 방식으로 색상·스타일 판단 데이터 축적", view: "searchTraining" }
+    ]
+  },
+  {
+    id: "limited-open",
+    start: "2026-08-12",
+    end: "2026-08-18",
+    title: "제한 오픈",
+    goal: "소수 거래처에게 공개하고 실제 문의·주문 데이터를 받습니다.",
+    tasks: [
+      { id: "invite-members", label: "초기 거래처 초대", detail: "인증 사업자 회원 가입과 가격 공개를 확인", view: "orders" },
+      { id: "real-search-log", label: "실사용 검색어 기록", detail: "못 찾은 검색어와 대체 추천 실패 사례를 모읍니다.", view: "searchTraining" },
+      { id: "support-response", label: "상담 응대 기준 정리", detail: "재고 문의·대체품·납기 안내 템플릿을 점검", view: "orders" }
+    ]
+  },
+  {
+    id: "final-open",
+    start: "2026-08-19",
+    end: "2026-08-31",
+    title: "최종 오픈 준비",
+    goal: "공지·운영·장애 대응 기준을 갖추고 8월 오픈 상태로 마감합니다.",
+    tasks: [
+      { id: "release-check", label: "릴리즈 체크", detail: "로컬·온라인 기능 차이, 로그인, 검색, 주문 흐름 점검", view: "quality" },
+      { id: "marketing-ready", label: "홍보 준비", detail: "초기 안내문, 거래처 초대 메시지, 서비스 소개 정리", view: "products" },
+      { id: "ops-handbook", label: "운영 매뉴얼 정리", detail: "매일 처리할 관리자 업무와 예외 대응 기준 문서화", view: "orders" }
+    ]
+  }
+];
 let searchTrainingCurrentSample = null;
 let searchTrainingHistory = [];
 let searchTrainingHistoryIndex = -1;
@@ -325,6 +454,7 @@ async function init() {
   await refreshServerConnection();
   startServerConnectionWatcher();
   await hydrateCartFromServer();
+  await hydrateOrdersFromServer();
   renderAll();
   if (currentPageId === "adminPage") {
     loadAdminOverview();
@@ -481,6 +611,13 @@ function bindEvents() {
   });
   document.querySelector("#tileFinderSearchBtn")?.addEventListener("click", handleTileFinderSearch);
   document.querySelector("#tileFinderFile")?.addEventListener("change", handleTileFinderFileChange);
+  document.querySelector("#tileFinderSize")?.addEventListener("change", syncTileFinderCustomSizeInput);
+  document.querySelector("#tileFinderSizeCustom")?.addEventListener("input", () => {
+    const status = document.querySelector("#tileFinderStatus");
+    if (status && document.querySelector("#tileFinderSize")?.value === CUSTOM_TILE_SIZE_VALUE) {
+      status.textContent = "직접입력 사이즈 예: 600*600, 300x600 처럼 가로x세로로 입력하세요.";
+    }
+  });
   document.querySelector("#tileFinderBrand")?.addEventListener("change", () => {
     if (!isAdminUser() || !tileFinderMatches.length) return;
     tileFinderResultsPage = 1;
@@ -507,6 +644,9 @@ function bindEvents() {
     const detailButton = event.target.closest("[data-view-product]");
     if (detailButton) openProductDetail(detailButton.dataset.viewProduct, detailButton);
   });
+  document.querySelector("#tileFinderResultFilters")?.addEventListener("click", handleTileFinderResultFilterClick);
+  document.querySelector("#tileFinderResultFilters")?.addEventListener("change", handleTileFinderResultFilterChange);
+  document.querySelector("#tileFinderAnalysisPanel")?.addEventListener("click", handleTileFinderAnalysisPanelClick);
   bindImageSearchSwipeNavigation("#taxonomyImageResults", "taxonomy");
   bindImageSearchSwipeNavigation("#tileFinderResults", "tileFinder");
 
@@ -609,9 +749,16 @@ function bindEvents() {
   });
 
   document.querySelector("#renderSiteImage").addEventListener("change", async (event) => {
-    pendingSiteImage = await readImageFile(event.target.files[0], 1400);
+    pendingSiteImage = await readImageFile(event.target.files[0], 1100, 0.88);
+    pendingRenderResultImage = "";
+    renderCompareSliderValue = 50;
+    lastRenderFeedbackCode = "";
     renderRenderWorkspace();
   });
+
+  document.querySelector("#renderRoomType")?.addEventListener("change", renderRenderWorkspace);
+  document.querySelector("#renderInteriorStyle")?.addEventListener("change", renderRenderWorkspace);
+  document.querySelector("#renderStyleMemo")?.addEventListener("input", renderRenderWorkspace);
 
   getRenderSurfaceKeys().forEach((surface) => {
     const selectButton = document.querySelector(`#render${surface.charAt(0).toUpperCase() + surface.slice(1)}TileButton`);
@@ -628,7 +775,12 @@ function bindEvents() {
   document.querySelector("#renderWallTilePreview").addEventListener("click", () => openImagePreview("surface", "wall"));
   document.querySelector("#renderFloorTilePreview").addEventListener("click", () => openImagePreview("surface", "floor"));
   document.querySelector("#renderPointTilePreview").addEventListener("click", () => openImagePreview("surface", "point"));
-  document.querySelector("#renderResultPreview").addEventListener("click", openRenderResultPreview);
+  document.querySelector("#renderResultPreview").addEventListener("click", (event) => {
+    if (event.target.closest("#renderCompareSlider")) return;
+    openRenderResultPreview();
+  });
+  document.querySelector("#renderResultPreview").addEventListener("input", handleRenderCompareSliderInput);
+  document.querySelector("#renderFeedbackPanel")?.addEventListener("click", handleRenderFeedbackClick);
   document.querySelector("#closeImagePreviewBtn").addEventListener("click", closeImagePreview);
   document.querySelector("#imagePreviewBackdrop").addEventListener("click", closeImagePreview);
   document.querySelector("#closeTilePickerBtn").addEventListener("click", closeRenderSurfacePicker);
@@ -743,6 +895,9 @@ function bindEvents() {
   document.querySelector("#adminQualityTab")?.addEventListener("click", () => switchAdminView("quality"));
   document.querySelector("#adminSearchTrainingTab")?.addEventListener("click", () => switchAdminView("searchTraining"));
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
+  document.querySelector("#adminLaunchTodoList")?.addEventListener("change", handleAdminLaunchTodoToggle);
+  document.querySelector("#adminLaunchTodoList")?.addEventListener("click", handleAdminLaunchExecuteClick);
+  document.querySelector("#adminLaunchResetBtn")?.addEventListener("click", resetAdminLaunchTodos);
   document.querySelector("#searchTrainingPrevBtn")?.addEventListener("click", goToPreviousSearchTrainingSample);
   document.querySelector("#searchTrainingNextBtn")?.addEventListener("click", goToNextSearchTrainingSample);
   document.querySelector("#searchTrainingAgreeBtn")?.addEventListener("click", () => saveSearchTrainingFeedback("agree"));
@@ -763,6 +918,7 @@ function bindEvents() {
     const button = event.target.closest("[data-admin-view-target]");
     if (button) switchAdminView(button.dataset.adminViewTarget);
   });
+  document.querySelector("#adminPage")?.addEventListener("click", handleAdminOperationsActionClick);
   document.querySelector("#tile114FetchBtn")?.addEventListener("click", fetchTile114SampleProducts);
   document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
   document.querySelector("#saveCurrentOrderBtn")?.addEventListener("click", saveCurrentCartAsPastOrder);
@@ -994,7 +1150,9 @@ async function hydrateCartFromServer(options = {}) {
   if (!authUser?.businessNumber) return;
 
   try {
-    const remoteCart = await requestJson(`/api/cart?businessNumber=${encodeURIComponent(authUser.businessNumber)}`, {}, { retries: 1, timeoutMs: 5000 });
+    const remoteCart = await requestJson(`/api/cart?businessNumber=${encodeURIComponent(authUser.businessNumber)}`, {
+      headers: getMemberProductAuthHeaders()
+    }, { retries: 1, timeoutMs: 5000 });
     const remoteItems = Array.isArray(remoteCart.items) ? remoteCart.items : [];
     cart = options.mergeLocal ? mergeCartCollections(remoteItems, cart) : remoteItems;
     saveCartToLocalOnly();
@@ -1500,6 +1658,9 @@ function renderAll() {
   if (currentPageId === "productsPage") {
     renderProducts();
   }
+  if (currentPageId === "aiTileFinderPage") {
+    syncTileFinderBrandFilter();
+  }
   if (currentPageId === "taxonomyTestPage") {
     prepareTaxonomyProducts();
     syncTaxonomyFilters();
@@ -1622,32 +1783,12 @@ function invalidateProductPageCache() {
 }
 
 function getProductFilterSnapshot() {
-  const type = document.querySelector("#mainCategoryFilter")?.value || "all";
-  const brand = isAdminUser() ? document.querySelector("#productBrandFilter")?.value || "all" : "all";
-  const kind = document.querySelector("#kindFilter")?.value || "all";
-  const size = document.querySelector("#sizeFilter")?.value || "all";
-  const option = document.querySelector("#optionFilter")?.value || "all";
-  const tileFeature = document.querySelector("#tileFeatureFilter")?.value || "all";
-  const patternCategory = document.querySelector("#patternCategoryFilter")?.value || "all";
-  const finish = document.querySelector("#finishFilter")?.value || "all";
-  const color = document.querySelector("#colorFilter")?.value || "all";
-  const keyword = document.querySelector("#productSearch")?.value.trim().toLowerCase() || "";
-  const normalizedKeyword = normalizeSearchText(keyword);
-  const naturalIntent = keyword ? parseTaxonomyNaturalSearch(keyword, "customer") : null;
-  return {
-    type,
-    brand,
-    kind,
-    size,
-    option,
-    tileFeature,
-    patternCategory,
-    finish,
-    color,
-    keyword,
-    normalizedKeyword,
-    naturalIntent
-  };
+  return window.TbpProductFilters.readProductFilterSnapshot({
+    documentRef: document,
+    isAdmin: isAdminUser(),
+    normalizeSearchText,
+    parseNaturalSearch: parseTaxonomyNaturalSearch
+  });
 }
 
 function getProductPriceCacheKey() {
@@ -1673,49 +1814,30 @@ function getProductPageState() {
   });
   if (productPageStateCache?.key === cacheKey) return productPageStateCache.state;
 
-  const scoredProducts = products.map((product) => {
-    const searchable = getProductSearchableText(product);
-    const normalizedProduct = snapshot.naturalIntent?.active && product.productType === "tile"
-      ? getNormalizedTaxonomyProductForProduct(product)
-      : null;
-    const naturalScore = normalizedProduct
-      ? scoreProductPageNaturalSearch(normalizedProduct, snapshot.naturalIntent)
-      : 0;
-    const keywordMatched = !snapshot.normalizedKeyword || searchable.includes(snapshot.normalizedKeyword) || naturalScore > 0;
-    const passed = (snapshot.type === "all" || product.productType === snapshot.type)
-      && productMatchesAdminBrandFilter(product, snapshot.brand)
-      && (snapshot.size === "all" || product.size === snapshot.size)
-      && productMatchesDirectOptionFilter(product, snapshot.option)
-      && (snapshot.tileFeature === "all" || matchesTileFeatureFilter(product, snapshot.tileFeature))
-      && productMatchesDirectFilter(product, snapshot.patternCategory, getProductDirectTileCategories)
-      && productMatchesDirectFilter(product, snapshot.finish, getProductDirectFinishValues)
-      && productMatchesDirectFilter(product, snapshot.color, getProductDirectColorValues)
-      && keywordMatched;
-    if (!passed) return null;
-    return { product, naturalScore };
-  }).filter(Boolean);
-
-  const hasNaturalSearch = snapshot.naturalIntent?.active && hasActiveTaxonomyIntentCriteria(snapshot.naturalIntent);
-  const filtered = scoredProducts
-    .sort((left, right) => {
-      if (hasNaturalSearch && left.naturalScore !== right.naturalScore) return right.naturalScore - left.naturalScore;
-      return compareProductsForDisplay(left.product, right.product);
-    })
-    .map((entry) => entry.product);
+  const filtered = window.TbpProductPageState.filterProductsForPage({
+    products,
+    snapshot,
+    callbacks: {
+      getProductSearchableText,
+      getNormalizedTaxonomyProductForProduct,
+      scoreProductPageNaturalSearch,
+      productMatchesAdminBrandFilter,
+      productMatchesDirectOptionFilter,
+      matchesTileFeatureFilter,
+      productMatchesDirectFilter,
+      getProductDirectTileCategories,
+      getProductDirectFinishValues,
+      getProductDirectColorValues,
+      hasActiveTaxonomyIntentCriteria,
+      compareProductsForDisplay
+    }
+  });
 
   const pageSize = getProductPageSize();
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const activeFilters = [
-    snapshot.type !== "all",
-    isAdminUser() && snapshot.brand !== "all",
-    snapshot.size !== "all",
-    snapshot.option !== "all",
-    snapshot.tileFeature !== "all",
-    snapshot.patternCategory !== "all",
-    snapshot.finish !== "all",
-    snapshot.color !== "all",
-    Boolean(snapshot.keyword)
-  ].filter(Boolean).length;
+  const activeFilters = window.TbpProductPageState.countActiveProductFilters(snapshot, {
+    isAdmin: isAdminUser()
+  });
   const state = {
     ...snapshot,
     filtered,
@@ -1731,18 +1853,7 @@ function getProductPageState() {
 function getProductSearchableText(product) {
   if (!product || typeof product !== "object") return "";
   if (productSearchTextCache.has(product)) return productSearchTextCache.get(product);
-  const text = normalizeSearchText([
-    product.managementCode,
-    product.name,
-    product.size,
-    product.color,
-    product.material,
-    product.surface,
-    product.patternCategory,
-    product.finish,
-    product.option,
-    product.features
-  ].filter(Boolean).join(" "));
+  const text = window.TbpProductSearchText.buildProductSearchableText(product, normalizeSearchText);
   productSearchTextCache.set(product, text);
   return text;
 }
@@ -1842,32 +1953,32 @@ function renderProductPageList(pageHtml, currentPage, totalPages) {
 }
 
 function buildProductPageCardsHtml(pageProducts, state = getProductPageState()) {
-  return pageProducts.map((product) => buildProductCardHtml(product, state)).join("")
-    || `<div class="empty-state">${state.keyword ? "품명 검색 결과가 없습니다." : "새 상품 리스트 업데이트 준비 중입니다."}</div>`;
+  return window.TbpProductCards.buildProductPageCardsHtml({
+    pageProducts,
+    state,
+    callbacks: getProductCardCallbacks()
+  });
 }
 
 function buildProductCardHtml(product, state = null) {
-  const displayColor = getProductDisplayColor(product);
-  const displayFinish = getProductDisplayFinish(product);
-  const expertReasons = getProductExpertReasons(product, state);
-  return `
-    <article class="product-card">
-      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
-        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" fetchpriority="low" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
-      </button>
-      <div>
-        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
-        <span>사이즈 ${escapeHtml(product.size || "미확인")}</span>
-        <span>색상 ${escapeHtml(displayColor)}</span>
-        <span>마감 ${escapeHtml(displayFinish)}</span>
-        <span>재고 ${escapeHtml(hasStockValue(product) ? formatStockQuantity(product) : "확인 필요")}</span>
-        ${renderProductCardAdminMeta(product)}
-        ${renderProductCardPriceLine(product)}
-        ${expertReasons.length ? `<small class="expert-product-reasons">${expertReasons.map(escapeHtml).join(" · ")}</small>` : ""}
-      </div>
-      <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
-    </article>
-  `;
+  return window.TbpProductCards.buildProductCardHtml({
+    product,
+    state,
+    callbacks: getProductCardCallbacks()
+  });
+}
+
+function getProductCardCallbacks() {
+  return {
+    escapeHtml,
+    getProductDisplayColor,
+    getProductDisplayFinish,
+    getProductExpertReasons,
+    hasStockValue,
+    formatStockQuantity,
+    renderProductCardAdminMeta,
+    renderProductCardPriceLine
+  };
 }
 
 function renderProductExpertGuide(state = getProductPageState()) {
@@ -4250,9 +4361,13 @@ async function handleTileFinderFileChange(event) {
     results.classList.add("hidden");
     results.innerHTML = "";
   }
+  hideTileFinderResultFilters();
   if (tags) tags.innerHTML = "";
   tileFinderMatches = [];
   tileFinderResultsPage = 1;
+  tileFinderResultFilters = createEmptyTileFinderResultFilters();
+  tileFinderEditableAnalysis = createEmptyTileFinderEditableAnalysis();
+  hideTileFinderAnalysisPanel();
 
   const imageDataUrl = await readImageFile(file, 1200, 0.82);
   if (!imageDataUrl) {
@@ -4357,6 +4472,7 @@ async function runTaxonomyImageSearch() {
     results.classList.add("hidden");
     results.innerHTML = "";
   }
+  hideTileFinderResultFilters();
   if (tags) {
     tags.innerHTML = [
       taxonomyImageSearchFileName ? `사진 ${taxonomyImageSearchFileName}` : "사진 업로드됨",
@@ -4380,7 +4496,7 @@ async function runTaxonomyImageSearch() {
         searchMode: "strict",
         allSimilar: true
       })
-    }, { retries: 0, timeoutMs: 60000 });
+    }, { retries: 0, timeoutMs: 120000 });
 
     taxonomyImageMatches = payload.matches || [];
     taxonomyImageResultsPage = 1;
@@ -4516,7 +4632,7 @@ function moveTaxonomyImageResultsPage(delta) {
 }
 
 function moveTileFinderResultsPage(delta) {
-  const totalPages = getImageSearchTotalPages(tileFinderMatches);
+  const totalPages = getImageSearchTotalPages(tileFinderMatches, TILE_FINDER_RESULTS_PAGE_SIZE);
   if (totalPages <= 1) return false;
   const nextPage = Math.min(Math.max(tileFinderResultsPage + delta, 1), totalPages);
   if (nextPage === tileFinderResultsPage) return false;
@@ -4525,8 +4641,8 @@ function moveTileFinderResultsPage(delta) {
   return true;
 }
 
-function getImageSearchTotalPages(matches) {
-  return Math.max(1, Math.ceil((matches || []).length / IMAGE_SEARCH_RESULTS_PAGE_SIZE));
+function getImageSearchTotalPages(matches, pageSize = IMAGE_SEARCH_RESULTS_PAGE_SIZE) {
+  return Math.max(1, Math.ceil((matches || []).length / pageSize));
 }
 
 function suppressImageSearchClickBriefly() {
@@ -4537,27 +4653,54 @@ function shouldSuppressImageSearchClick() {
   return Date.now() < suppressImageSearchClickUntil;
 }
 
+function syncTileFinderCustomSizeInput() {
+  const sizeSelect = document.querySelector("#tileFinderSize");
+  const customInput = document.querySelector("#tileFinderSizeCustom");
+  if (!sizeSelect || !customInput) return;
+  const isCustom = sizeSelect.value === CUSTOM_TILE_SIZE_VALUE;
+  customInput.classList.toggle("hidden", !isCustom);
+  customInput.disabled = !isCustom;
+  if (isCustom) {
+    customInput.focus();
+    const status = document.querySelector("#tileFinderStatus");
+    if (status) status.textContent = "직접입력 사이즈 예: 600*600, 300x600 처럼 가로x세로로 입력하세요.";
+  }
+}
+
 async function handleTileFinderSearch() {
   const status = document.querySelector("#tileFinderStatus");
   const results = document.querySelector("#tileFinderResults");
   const tags = document.querySelector("#tileFinderTags");
   const sizeSelection = document.querySelector("#tileFinderSize")?.value || "";
-  const size = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "" : sizeSelection;
+  const customSize = document.querySelector("#tileFinderSizeCustom")?.value.trim() || "";
+  const isCustomSize = sizeSelection === CUSTOM_TILE_SIZE_VALUE;
+  const size = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "" : (isCustomSize ? customSize : sizeSelection);
   const sizeLabel = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "사이즈 모름" : size;
   const finish = document.querySelector("#tileFinderFinish")?.value || "";
-  const selectedBrand = isAdminUser() ? document.querySelector("#tileFinderBrand")?.value || "all" : "all";
-  const brandLabel = selectedBrand && selectedBrand !== "all" ? selectedBrand : "";
+  const application = document.querySelector("#tileFinderApplication")?.value || "";
+  const applicationLabel = getTileFinderApplicationLabel(application);
+  if (tileFinderEditableAnalysis.finish && tileFinderEditableAnalysis.finish !== finish) {
+    tileFinderEditableAnalysis.finish = finish;
+  }
 
   if (!tileFinderImageDataUrl) {
     if (status) status.textContent = "먼저 타일 사진을 업로드해주세요.";
     return;
   }
   if (!sizeSelection) {
-    if (status) status.textContent = "사이즈를 모르면 '사이즈 모름'을 선택해주세요.";
+    if (status) status.textContent = "사이즈를 선택하거나 '직접입력' 또는 '사이즈 모름'을 선택해주세요.";
+    return;
+  }
+  if (isCustomSize && !customSize) {
+    if (status) status.textContent = "직접입력 사이즈를 적어주세요. 예: 600*600, 300x600";
     return;
   }
   if (!finish) {
     if (status) status.textContent = "같은 마감 타일만 찾기 위해 표면을 선택해주세요.";
+    return;
+  }
+  if (!application) {
+    if (status) status.textContent = "바닥에 사용할지, 벽에 사용할지 선택해주세요.";
     return;
   }
 
@@ -4570,11 +4713,12 @@ async function handleTileFinderSearch() {
       `사진 ${tileFinderImageFileName || "업로드됨"}`,
       `사이즈 ${sizeLabel}`,
       `표면 ${finish}`,
-      brandLabel ? `브랜드 ${brandLabel}` : ""
+      `사용 위치 ${applicationLabel}`
     ].filter(Boolean).map((item) => `<span>${escapeHtml(item)}</span>`).join("");
   }
 
-  if (status) status.textContent = `${[sizeLabel, finish, brandLabel].filter(Boolean).join(" · ")} 조건으로 이미지 색상과 패턴이 가장 비슷한 상품을 찾는 중입니다.`;
+  const conditionLabel = [sizeLabel, finish, applicationLabel].filter(Boolean).join(" · ");
+  if (status) status.textContent = `${conditionLabel} 조건으로 이미지 색상과 패턴이 가장 비슷한 상품을 찾는 중입니다.`;
   try {
     const payload = await requestJson("/api/tile-match", {
       method: "POST",
@@ -4586,7 +4730,8 @@ async function handleTileFinderSearch() {
         size,
         sizeUnknown: sizeSelection === UNKNOWN_TILE_SIZE_VALUE,
         finish,
-        brand: brandLabel,
+        application,
+        analysisOverrides: buildTileFinderAnalysisOverrides(),
         searchMode: "strict",
         allSimilar: true
       })
@@ -4594,81 +4739,604 @@ async function handleTileFinderSearch() {
 
     tileFinderMatches = payload.matches || [];
     tileFinderResultsPage = 1;
+    tileFinderResultFilters = createEmptyTileFinderResultFilters();
     products = mergeProducts(products, tileFinderMatches.map((product) => (
       isAdminUser() ? product : mapPublicProductForClient(product)
     )));
     renderTileFinderAnalysis(payload.analysis || {});
     renderTileFinderResults(tileFinderMatches);
     if (status) status.textContent = tileFinderMatches.length
-      ? `${[sizeLabel, finish, brandLabel].filter(Boolean).join(" · ")} 조건에서 이미지와 유사한 상품 ${tileFinderMatches.length}개를 찾았습니다.`
-      : `${[sizeLabel, finish, brandLabel].filter(Boolean).join(" · ")} 조건의 유사 타일을 찾지 못했습니다. 다른 사진으로 다시 시도하거나 DB 마감 값을 점검해주세요.`;
+      ? `${conditionLabel} 조건에서 이미지와 유사한 상품 ${tileFinderMatches.length}개를 찾았습니다.`
+      : `${conditionLabel} 조건의 유사 타일을 찾지 못했습니다. 다른 사진으로 다시 시도하거나 DB 마감/사용 위치 값을 점검해주세요.`;
   } catch (error) {
     if (status) status.textContent = error.message || "타일찾기 분석에 실패했습니다.";
   }
 }
 
+function getTileFinderApplicationLabel(value) {
+  if (value === "floor") return "바닥";
+  if (value === "wall") return "벽";
+  return "";
+}
+
 function renderTileFinderAnalysis(analysis) {
   const tags = document.querySelector("#tileFinderTags");
   if (!tags) return;
-  const selectedBrand = isAdminUser() ? document.querySelector("#tileFinderBrand")?.value || "all" : "all";
-  const brandLabel = selectedBrand && selectedBrand !== "all" ? selectedBrand : "";
+  tileFinderEditableAnalysis = mergeTileFinderEditableAnalysis(analysis, tileFinderEditableAnalysis);
   const values = [
     analysis.requestedSize ? `사이즈 ${analysis.requestedSize}` : "",
     analysis.sizeUnknown ? "사이즈 모름" : "",
-    analysis.requestedFinish ? `표면조건 ${analysis.requestedFinish}` : "",
-    brandLabel ? `브랜드 ${brandLabel}` : "",
-    ...(analysis.colors || []).map((item) => `색상 ${item}`),
-    ...(analysis.patterns || []).map((item) => `패턴 ${item}`),
+    tileFinderEditableAnalysis.finish ? `표면조건 ${tileFinderEditableAnalysis.finish}` : (analysis.requestedFinish ? `표면조건 ${analysis.requestedFinish}` : ""),
+    analysis.requestedApplication ? `사용 위치 ${getTileFinderApplicationLabel(analysis.requestedApplication) || analysis.requestedApplication}` : "",
+    tileFinderEditableAnalysis.color ? `대표색 ${tileFinderEditableAnalysis.color}` : "",
+    tileFinderEditableAnalysis.secondaryColor ? `보조색 ${tileFinderEditableAnalysis.secondaryColor}` : "",
+    tileFinderEditableAnalysis.style ? `스타일 ${tileFinderEditableAnalysis.style}` : "",
+    tileFinderEditableAnalysis.patternPresence ? `무늬 ${tileFinderEditableAnalysis.patternPresence}` : "",
+    ...(analysis.colors || []).filter((item) => item !== tileFinderEditableAnalysis.color).slice(0, 2).map((item) => `보조색 ${item}`),
+    ...(analysis.patterns || []).filter((item) => item !== tileFinderEditableAnalysis.style).slice(0, 2).map((item) => `보조패턴 ${item}`),
     ...(analysis.shapes || []).map((item) => `형태 ${item}`),
     ...(analysis.motifs || []).map((item) => `무늬 ${item}`)
   ].filter(Boolean);
   tags.innerHTML = values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
     || `<span>분석값 없음</span>`;
+  renderTileFinderAnalysisPanel();
+}
+
+function createEmptyTileFinderEditableAnalysis() {
+  return {
+    color: "",
+    secondaryColor: "",
+    style: "",
+    patternPresence: "",
+    finish: ""
+  };
+}
+
+function mergeTileFinderEditableAnalysis(analysis = {}, current = createEmptyTileFinderEditableAnalysis()) {
+  const requestedFinish = document.querySelector("#tileFinderFinish")?.value || analysis.requestedFinish || "";
+  return {
+    color: current.color || inferTileFinderColor(analysis),
+    secondaryColor: current.secondaryColor || inferTileFinderSecondaryColor(analysis, current.color || inferTileFinderColor(analysis)),
+    style: current.style || inferTileFinderStyle(analysis),
+    patternPresence: current.patternPresence || inferTileFinderPatternPresence(analysis),
+    finish: current.finish || requestedFinish || inferTileFinderFinish(analysis)
+  };
+}
+
+function inferTileFinderColor(analysis = {}) {
+  const source = [...(analysis.colors || []), ...(analysis.keywords || [])].join(" ");
+  const aliases = [
+    ["아이보리", /아이보리|크림|오프화이트/],
+    ["화이트", /화이트|흰색|백색/],
+    ["베이지", /베이지|샌드|크림/],
+    ["브라운", /브라운|갈색|우드|나무/],
+    ["그레이", /그레이|회색|실버/],
+    ["차콜", /차콜|다크그레이|먹색/],
+    ["블랙", /블랙|검정|흑색/],
+    ["그린", /그린|녹색/],
+    ["블루", /블루|파랑|청색/],
+    ["핑크", /핑크|분홍/],
+    ["레드", /레드|빨강|적색/],
+    ["옐로우", /옐로우|노랑|황색/],
+    ["테라코타", /테라코타|오렌지|주황/],
+    ["멀티", /멀티|혼합|컬러풀/]
+  ];
+  return aliases.find(([, pattern]) => pattern.test(source))?.[0] || "";
+}
+
+function inferTileFinderSecondaryColor(analysis = {}, primaryColor = "") {
+  const colors = (analysis.colors || []).map((item) => inferTileFinderColor({ colors: [item] })).filter(Boolean);
+  return colors.find((item) => item && item !== primaryColor) || "";
+}
+
+function inferTileFinderStyle(analysis = {}) {
+  const source = [
+    ...(analysis.patterns || []),
+    ...(analysis.motifs || []),
+    ...(analysis.shapes || []),
+    ...(analysis.keywords || []),
+    analysis.material,
+    analysis.summary
+  ].join(" ");
+  const aliases = [
+    ["트래버틴", /트래버틴|travertine/],
+    ["라임스톤", /라임스톤|limestone/],
+    ["슬레이트", /슬레이트|slate/],
+    ["콘크리트", /콘크리트|시멘트|cement|concrete/],
+    ["마블", /마블|대리석|베인|vein|marble/],
+    ["스톤", /스톤|석재|돌|stone/],
+    ["테라조", /테라조|terrazzo|입자/],
+    ["우드", /우드|나뭇결|wood/],
+    ["솔리드", /솔리드|단색|무지/],
+    ["모자이크", /모자이크|mosaic/],
+    ["서브웨이", /서브웨이|subway/],
+    ["브릭", /브릭|서브웨이|벽돌/],
+    ["육각", /육각|헥사|hex/],
+    ["라인", /라인|선형|줄무늬|세로|가로|stripe|linear|line/],
+    ["입체", /입체|3d|골지|웨이브|텍스처/],
+    ["데코", /데코|장식|art|decor/],
+    ["패턴", /패턴|기하학|반복|데코/],
+    ["메탈", /메탈|metal|스테인리스/],
+    ["글라스", /글라스|유리|glass/],
+    ["시멘트", /시멘트|cement/]
+  ];
+  return aliases.find(([, pattern]) => pattern.test(source))?.[0] || "";
+}
+
+function inferTileFinderPatternPresence(analysis = {}) {
+  const source = [
+    analysis.patternScale,
+    analysis.patternFlow,
+    analysis.summary,
+    ...(analysis.patterns || []),
+    ...(analysis.motifs || [])
+  ].join(" ");
+  if (/무지|무늬없|무늬 없음|단색|솔리드|solid|plain/.test(source)) return "없음";
+  if (/마블|스톤|테라조|우드|패턴|모자이크|브릭|베인|결|입자|점박이|기하학|라인|나뭇결|pattern|vein|grain/.test(source)) return "있음";
+  return "";
+}
+
+function inferTileFinderFinish(analysis = {}) {
+  const source = [analysis.surface, analysis.summary, ...(analysis.keywords || [])].join(" ");
+  if (/유광|폴리싱|광택|gloss|polished/.test(source)) return "유광";
+  if (/무광|매트|matte|matt/.test(source)) return "무광";
+  return "";
+}
+
+function renderTileFinderAnalysisPanel() {
+  const panel = document.querySelector("#tileFinderAnalysisPanel");
+  if (!panel) return;
+  const hasAny = Object.values(tileFinderEditableAnalysis).some(Boolean);
+  panel.classList.toggle("hidden", !hasAny);
+  if (!hasAny) {
+    panel.innerHTML = "";
+    return;
+  }
+  const rows = [
+    { key: "color", label: "대표색", value: tileFinderEditableAnalysis.color, options: TILE_FINDER_COLOR_OPTIONS },
+    { key: "secondaryColor", label: "보조색", value: tileFinderEditableAnalysis.secondaryColor, options: ["없음", ...TILE_FINDER_COLOR_OPTIONS] },
+    { key: "style", label: "스타일", value: tileFinderEditableAnalysis.style, options: TILE_STYLE_OPTIONS },
+    { key: "patternPresence", label: "무늬", value: tileFinderEditableAnalysis.patternPresence, options: TILE_FINDER_PATTERN_PRESENCE_OPTIONS },
+    { key: "finish", label: "표면", value: tileFinderEditableAnalysis.finish, options: TILE_FINDER_FINISH_OPTIONS }
+  ];
+  panel.innerHTML = `
+    <div class="tile-finder-analysis-heading">
+      <div>
+        <strong>AI 분석 결과 보정</strong>
+        <span>사진을 보고 추정한 기준입니다. 다르면 바로 바꾼 뒤 다시 찾으세요.</span>
+      </div>
+      <button class="secondary-action" type="button" data-tile-finder-analysis-retry>이 기준으로 다시 찾기</button>
+    </div>
+    <div class="tile-finder-analysis-grid">
+      ${rows.map((row) => `
+        <div class="tile-finder-analysis-row">
+          <span>${escapeHtml(row.label)}</span>
+          <div class="tile-finder-analysis-chips">
+            ${row.options.map((option) => `
+              <button class="${option === row.value ? "active" : ""}" type="button" data-tile-finder-analysis-field="${escapeHtml(row.key)}" data-tile-finder-analysis-value="${escapeHtml(option)}">
+                ${escapeHtml(option)}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function hideTileFinderAnalysisPanel() {
+  const panel = document.querySelector("#tileFinderAnalysisPanel");
+  if (!panel) return;
+  panel.classList.add("hidden");
+  panel.innerHTML = "";
+}
+
+function handleTileFinderAnalysisPanelClick(event) {
+  const retryButton = event.target.closest("[data-tile-finder-analysis-retry]");
+  if (retryButton) {
+    handleTileFinderSearch();
+    return;
+  }
+  const button = event.target.closest("[data-tile-finder-analysis-field]");
+  if (!button) return;
+  const field = button.dataset.tileFinderAnalysisField || "";
+  const value = button.dataset.tileFinderAnalysisValue || "";
+  if (!Object.prototype.hasOwnProperty.call(tileFinderEditableAnalysis, field)) return;
+  tileFinderEditableAnalysis[field] = field === "secondaryColor" && value === "없음" ? "" : value;
+  if (field === "finish") {
+    const finishSelect = document.querySelector("#tileFinderFinish");
+    if (finishSelect) finishSelect.value = value;
+  }
+  renderTileFinderAnalysisPanel();
+  const status = document.querySelector("#tileFinderStatus");
+  if (status) status.textContent = "분석 기준을 수정했습니다. '이 기준으로 다시 찾기'를 누르면 보정값이 반영됩니다.";
+}
+
+function buildTileFinderAnalysisOverrides() {
+  return {
+    color: tileFinderEditableAnalysis.color,
+    secondaryColor: tileFinderEditableAnalysis.secondaryColor,
+    style: tileFinderEditableAnalysis.style,
+    patternPresence: tileFinderEditableAnalysis.patternPresence,
+    finish: tileFinderEditableAnalysis.finish
+  };
+}
+
+function createEmptyTileFinderResultFilters() {
+  return {
+    includeStyles: [],
+    excludeStyles: [],
+    includeColors: [],
+    excludeColors: [],
+    priceSort: "match",
+    maxPrice: "",
+    minStock: ""
+  };
+}
+
+function hideTileFinderResultFilters() {
+  const filters = document.querySelector("#tileFinderResultFilters");
+  if (!filters) return;
+  filters.classList.add("hidden");
+  filters.innerHTML = "";
+}
+
+function handleTileFinderResultFilterClick(event) {
+  const clearButton = event.target.closest("[data-tile-finder-filter-clear]");
+  if (clearButton) {
+    const scope = clearButton.dataset.tileFinderFilterClear || "all";
+    if (scope === "all") tileFinderResultFilters = createEmptyTileFinderResultFilters();
+    if (scope === "style") {
+      tileFinderResultFilters.includeStyles = [];
+      tileFinderResultFilters.excludeStyles = [];
+    }
+    if (scope === "color") {
+      tileFinderResultFilters.includeColors = [];
+      tileFinderResultFilters.excludeColors = [];
+    }
+    if (scope === "price") {
+      tileFinderResultFilters.priceSort = "match";
+      tileFinderResultFilters.maxPrice = "";
+    }
+    if (scope === "stock") {
+      tileFinderResultFilters.minStock = "";
+    }
+    tileFinderResultsPage = 1;
+    renderTileFinderResults(tileFinderMatches);
+    return;
+  }
+
+  const chip = event.target.closest("[data-tile-finder-filter-chip]");
+  if (!chip) return;
+  cycleTileFinderFilterValue(chip.dataset.filterKind, chip.dataset.filterValue);
+  tileFinderResultsPage = 1;
+  renderTileFinderResults(tileFinderMatches);
+}
+
+function handleTileFinderResultFilterChange(event) {
+  const target = event.target;
+  if (!target) return;
+  if (target.id === "tileFinderPriceSort") {
+    tileFinderResultFilters.priceSort = target.value || "match";
+  } else if (target.id === "tileFinderMaxPrice") {
+    tileFinderResultFilters.maxPrice = target.value || "";
+  } else if (target.id === "tileFinderMinStock") {
+    tileFinderResultFilters.minStock = target.value || "";
+  } else {
+    return;
+  }
+  tileFinderResultsPage = 1;
+  renderTileFinderResults(tileFinderMatches);
+}
+
+function cycleTileFinderFilterValue(kind, value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return;
+  const includeKey = kind === "color" ? "includeColors" : "includeStyles";
+  const excludeKey = kind === "color" ? "excludeColors" : "excludeStyles";
+  const includes = new Set(tileFinderResultFilters[includeKey] || []);
+  const excludes = new Set(tileFinderResultFilters[excludeKey] || []);
+
+  if (!includes.has(normalized) && !excludes.has(normalized)) {
+    includes.add(normalized);
+  } else if (includes.has(normalized)) {
+    includes.delete(normalized);
+    excludes.add(normalized);
+  } else {
+    excludes.delete(normalized);
+  }
+
+  tileFinderResultFilters[includeKey] = [...includes];
+  tileFinderResultFilters[excludeKey] = [...excludes];
+}
+
+function applyTileFinderResultFilters(matches) {
+  const rawMatches = Array.isArray(matches) ? matches : [];
+  const includeStyles = new Set(tileFinderResultFilters.includeStyles || []);
+  const excludeStyles = new Set(tileFinderResultFilters.excludeStyles || []);
+  const includeColors = new Set(tileFinderResultFilters.includeColors || []);
+  const excludeColors = new Set(tileFinderResultFilters.excludeColors || []);
+  const maxPrice = parseTileFinderPriceInput(tileFinderResultFilters.maxPrice);
+  const minStock = parseTileFinderStockInput(tileFinderResultFilters.minStock);
+  const indexed = rawMatches.map((product, index) => ({ product, index }));
+  let filtered = indexed.filter(({ product }) => {
+    const style = getTileFinderStyleValue(product);
+    const color = getTileFinderColorValue(product);
+    if (includeStyles.size && !includeStyles.has(style)) return false;
+    if (excludeStyles.has(style)) return false;
+    if (includeColors.size && !includeColors.has(color)) return false;
+    if (excludeColors.has(color)) return false;
+    if (maxPrice > 0) {
+      const price = getTileFinderComparablePrice(product);
+      if (!price || price > maxPrice) return false;
+    }
+    if (minStock > 0 && getTileFinderStockQuantity(product) < minStock) return false;
+    return true;
+  });
+
+  if (tileFinderResultFilters.priceSort === "priceAsc" || tileFinderResultFilters.priceSort === "priceDesc") {
+    const direction = tileFinderResultFilters.priceSort === "priceAsc" ? 1 : -1;
+    filtered = filtered.sort((left, right) => {
+      const leftPrice = getTileFinderComparablePrice(left.product);
+      const rightPrice = getTileFinderComparablePrice(right.product);
+      if (Boolean(leftPrice) !== Boolean(rightPrice)) return leftPrice ? -1 : 1;
+      if (leftPrice !== rightPrice) return (leftPrice - rightPrice) * direction;
+      return left.index - right.index;
+    });
+  }
+
+  return filtered.map((entry) => entry.product);
+}
+
+function renderTileFinderResultFilters(rawMatches, filteredMatches) {
+  const container = document.querySelector("#tileFinderResultFilters");
+  if (!container) return;
+  if (!rawMatches.length) {
+    hideTileFinderResultFilters();
+    return;
+  }
+  container.classList.remove("hidden");
+  const styleFacets = getTileFinderFacetCounts(rawMatches, getTileFinderStyleValue);
+  const colorFacets = getTileFinderFacetCounts(rawMatches, getTileFinderColorValue);
+  container.innerHTML = `
+    <div class="tile-finder-filter-head">
+      <div>
+        <strong>결과 필터</strong>
+        <span>검색 결과 ${number(rawMatches.length)}개 중 ${number(filteredMatches.length)}개 표시</span>
+      </div>
+      <button class="secondary-action" type="button" data-tile-finder-filter-clear="all">전체 해제</button>
+    </div>
+    <div class="tile-finder-price-filter">
+      <label>
+        금액 정렬
+        <select id="tileFinderPriceSort">
+          <option value="match"${tileFinderResultFilters.priceSort === "match" ? " selected" : ""}>유사도순</option>
+          <option value="priceAsc"${tileFinderResultFilters.priceSort === "priceAsc" ? " selected" : ""}>낮은순</option>
+          <option value="priceDesc"${tileFinderResultFilters.priceSort === "priceDesc" ? " selected" : ""}>높은순</option>
+        </select>
+      </label>
+      <label>
+        얼마 이하
+        <input id="tileFinderMaxPrice" type="text" inputmode="numeric" placeholder="예: 30000" value="${escapeHtml(tileFinderResultFilters.maxPrice || "")}" />
+      </label>
+      <button class="secondary-action" type="button" data-tile-finder-filter-clear="price">금액 해제</button>
+    </div>
+    <div class="tile-finder-stock-filter">
+      <label>
+        예상 필요재고
+        <input id="tileFinderMinStock" type="text" inputmode="numeric" placeholder="예: 120" value="${escapeHtml(tileFinderResultFilters.minStock || "")}" />
+      </label>
+      <span>입력한 수량 이상 보유한 상품만 표시합니다.</span>
+      <button class="secondary-action" type="button" data-tile-finder-filter-clear="stock">재고 해제</button>
+    </div>
+    ${renderTileFinderFacetFilter("style", "스타일", styleFacets)}
+    ${renderTileFinderFacetFilter("color", "색상", colorFacets)}
+  `;
+}
+
+function renderTileFinderFacetFilter(kind, label, facets) {
+  const clearScope = kind === "color" ? "color" : "style";
+  return `
+    <div class="tile-finder-facet-filter">
+      <div class="tile-finder-facet-title">
+        <strong>${escapeHtml(label)}</strong>
+        <span>칩 클릭: 원함 → 제외 → 해제</span>
+        <button class="secondary-action" type="button" data-tile-finder-filter-clear="${escapeHtml(clearScope)}">${escapeHtml(label)} 해제</button>
+      </div>
+      <div class="tile-finder-filter-chips">
+        ${facets.map(({ value, count }) => renderTileFinderFilterChip(kind, value, count)).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderTileFinderFilterChip(kind, value, count) {
+  const includeValues = kind === "color" ? tileFinderResultFilters.includeColors : tileFinderResultFilters.includeStyles;
+  const excludeValues = kind === "color" ? tileFinderResultFilters.excludeColors : tileFinderResultFilters.excludeStyles;
+  const isInclude = (includeValues || []).includes(value);
+  const isExclude = (excludeValues || []).includes(value);
+  const stateClass = isInclude ? " is-include" : isExclude ? " is-exclude" : "";
+  const stateText = isInclude ? "원함" : isExclude ? "제외" : `${number(count)}개`;
+  return `<button class="tile-finder-filter-chip${stateClass}" type="button" data-tile-finder-filter-chip data-filter-kind="${escapeHtml(kind)}" data-filter-value="${escapeHtml(value)}">
+    <span>${escapeHtml(value)}</span>
+    <small>${escapeHtml(stateText)}</small>
+  </button>`;
+}
+
+function getTileFinderFacetCounts(matches, getter) {
+  const counts = new Map();
+  for (const product of matches || []) {
+    const value = getter(product);
+    if (!value) continue;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((left, right) => right.count - left.count || String(left.value).localeCompare(String(right.value), "ko"));
+}
+
+function getTileFinderStyleValue(product) {
+  return normalizeDirectProductFilterValue(product?.patternCategory)
+    || normalizeDirectProductFilterValue(product?.style)
+    || normalizeDirectProductFilterValue(product?.option)
+    || "스타일 미확인";
+}
+
+function getTileFinderColorValue(product) {
+  return getProductDisplayColor(product) || "색상 미확인";
+}
+
+function parseTileFinderPriceInput(value) {
+  return Number(String(value || "").replace(/[^\d]/g, "")) || 0;
+}
+
+function parseTileFinderStockInput(value) {
+  return Math.max(0, Number(String(value || "").replace(/[^\d]/g, "")) || 0);
+}
+
+function getTileFinderStockQuantity(product) {
+  if (isHsBrandProduct(product)) return 0;
+  const value = Number(product?.stockQty);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function getTileFinderComparablePrice(product) {
+  const memberPrice = getMemberBaseUnitPrice(product);
+  if (memberPrice) return memberPrice;
+  const rawPrice = Number(
+    product?.retailPrice
+    || product?.wholesalePrice
+    || product?.gradeAPrice
+    || product?.gradeBPrice
+    || product?.gradeCPrice
+    || 0
+  );
+  if (rawPrice) return rawPrice;
+  return getTileFinderPriceBandUpper(product?.priceSortRank);
+}
+
+function getTileFinderPriceBandUpper(rank) {
+  const bands = [5000, 10000, 15000, 20000, 30000, 50000, 80000, 120000, 200000, 500000, 1000000];
+  const index = Number(rank || 0) - 1;
+  return index >= 0 && index < bands.length ? bands[index] : 0;
+}
+
+function getTileFinderPriceBandLabel(rank) {
+  const price = getTileFinderPriceBandUpper(rank);
+  return price ? `${money.format(price)} 이하` : "";
+}
+
+function renderTileFinderPriceLine(product) {
+  if (hasMemberPriceAccess()) return renderProductCardPriceLine(product);
+  const band = getTileFinderPriceBandLabel(product?.priceSortRank);
+  return `<span>${escapeHtml(band ? `금액대 ${band}` : "가격 협의")}</span>`;
 }
 
 function renderTileFinderResults(matches, options = {}) {
   const results = document.querySelector("#tileFinderResults");
   if (!results) return;
   if (!options.preservePage) tileFinderResultsPage = 1;
-  const totalPages = Math.max(1, Math.ceil(matches.length / IMAGE_SEARCH_RESULTS_PAGE_SIZE));
+  const rawMatches = Array.isArray(matches) ? matches : [];
+  const visibleMatches = applyTileFinderResultFilters(rawMatches);
+  renderTileFinderResultFilters(rawMatches, visibleMatches);
+  const totalPages = Math.max(1, Math.ceil(visibleMatches.length / TILE_FINDER_RESULTS_PAGE_SIZE));
   tileFinderResultsPage = Math.min(Math.max(tileFinderResultsPage, 1), totalPages);
-  const startIndex = (tileFinderResultsPage - 1) * IMAGE_SEARCH_RESULTS_PAGE_SIZE;
-  const pageMatches = matches.slice(startIndex, startIndex + IMAGE_SEARCH_RESULTS_PAGE_SIZE);
-  results.classList.toggle("hidden", !matches.length);
-  results.innerHTML = matches.length ? [
+  const startIndex = (tileFinderResultsPage - 1) * TILE_FINDER_RESULTS_PAGE_SIZE;
+  const pageMatches = visibleMatches.slice(startIndex, startIndex + TILE_FINDER_RESULTS_PAGE_SIZE);
+  const pageGroups = groupTileFinderPageMatches(pageMatches, visibleMatches);
+  results.classList.toggle("hidden", !rawMatches.length);
+  results.innerHTML = rawMatches.length ? [
     `<div class="taxonomy-image-results-heading">
       <strong>이미지 유사 결과</strong>
-      <span>총 ${number(matches.length)}개 · ${number(tileFinderResultsPage)}/${number(totalPages)}페이지 · 20개씩 표시</span>
+      <span>총 ${number(rawMatches.length)}개 · 표시 ${number(visibleMatches.length)}개 · ${number(tileFinderResultsPage)}/${number(totalPages)}페이지 · 10개씩 표시</span>
     </div>`,
-    ...pageMatches.map((product) => `
-    <article class="tile-match-card">
+    ...(pageMatches.length ? pageGroups.map((group) => `
+    <section class="tile-finder-result-group">
+      <div class="tile-finder-result-group-title">
+        <strong>${escapeHtml(group.label)}</strong>
+        <span>${escapeHtml(group.summary)}</span>
+      </div>
+      ${group.items.map((entry) => {
+        const product = entry.product;
+        return `
+    <article class="tile-match-card" data-tile-finder-group="${escapeHtml(group.key)}">
       <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
         ${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb-empty">이미지 없음</div>`}
       </button>
       <strong>${escapeHtml(product.name)}</strong>
-      ${isAdminUser() ? `<span class="tile-match-admin-brand">브랜드 ${escapeHtml(getProductAdminBrandLabel(product) || "-")}</span>` : ""}
-      <span>${escapeHtml(product.size || "-")} · ${escapeHtml(product.patternCategory || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
+      <span>${escapeHtml(product.size || "-")} · ${escapeHtml(getTileFinderStyleValue(product))} · ${escapeHtml(getTileFinderColorValue(product))}</span>
+      <span>${escapeHtml(product.finish || product.option || "-")}</span>
+      ${renderTileFinderPriceLine(product)}
       <span>재고 ${escapeHtml(formatStockQuantity(product))}</span>
-      <small>${escapeHtml((product.matchReasons || []).join(" · ") || "유사 후보")}</small>
+      <small>${escapeHtml(getTileFinderHumanReason(product, entry.index, group.key))}</small>
       <span class="tile-match-score">유사도 ${number(product.matchScore || 0)}</span>
       <div class="tile-match-actions">
         <button class="secondary-action" type="button" data-view-product="${escapeHtml(product.id)}">상세</button>
         <button class="primary-action" type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
       </div>
-    </article>
-  `),
+    </article>`;
+      }).join("")}
+    </section>
+  `) : [`<div class="empty-state">선택한 스타일/색상/금액 조건에 맞는 결과가 없습니다.</div>`]),
     renderImageSearchPagination(tileFinderResultsPage, totalPages, "tileFinder")
   ].join("") : "";
 }
 
+function groupTileFinderPageMatches(pageMatches, allVisibleMatches) {
+  const priceValues = allVisibleMatches.map(getTileFinderComparablePrice).filter(Boolean).sort((a, b) => a - b);
+  const lowPriceCutoff = priceValues.length ? priceValues[Math.max(0, Math.floor(priceValues.length * 0.35) - 1)] : 0;
+  const grouped = [
+    { key: "best", label: "가장 유사", summary: "사진과 가까운 후보", items: [] },
+    { key: "value", label: "저가 대체", summary: "가격 부담을 낮춘 후보", items: [] },
+    { key: "stock", label: "재고 여유", summary: "수량 확보가 쉬운 후보", items: [] },
+    { key: "more", label: "추가 후보", summary: "같은 조건의 다른 후보", items: [] }
+  ];
+  pageMatches.forEach((product, index) => {
+    const globalIndex = allVisibleMatches.findIndex((item) => String(item.id) === String(product.id));
+    const price = getTileFinderComparablePrice(product);
+    const stock = getTileFinderStockQuantity(product);
+    const matchScore = Number(product.matchScore || 0);
+    let key = "more";
+    if (globalIndex >= 0 && globalIndex < 4 || matchScore >= 96) key = "best";
+    else if (price && lowPriceCutoff && price <= lowPriceCutoff) key = "value";
+    else if (stock > STOCK_INQUIRY_THRESHOLD_QTY) key = "stock";
+    grouped.find((group) => group.key === key)?.items.push({ product, index: globalIndex >= 0 ? globalIndex : index });
+  });
+  return grouped.filter((group) => group.items.length);
+}
+
+function getTileFinderHumanReason(product, index = 0, groupKey = "more") {
+  const reasons = (product.matchReasons || []).join(" ");
+  if (groupKey === "value") return "비슷한 저가 후보입니다.";
+  if (groupKey === "stock") return "재고 여유가 있습니다.";
+  if (/상세이미지 일치|이미지유사도 9\d|이미지유사도 100/.test(reasons) || index === 0) return "사진과 가장 가깝습니다.";
+  if (/색상|색상이미지/.test(reasons)) return "색상이 비슷합니다.";
+  if (/패턴|무늬|형태/.test(reasons)) return "느낌이 비슷합니다.";
+  if (/사이즈일치|표면일치/.test(reasons)) return "조건에 맞는 후보입니다.";
+  return "비슷한 후보입니다.";
+}
+
 function hasStockValue(product) {
+  if (isHsBrandProduct(product)) return true;
   return product && product.stockQty !== undefined && product.stockQty !== null && product.stockQty !== "";
 }
 
 function formatStockQuantity(product) {
+  if (isHsBrandProduct(product)) return "문의";
   const value = Number(product?.stockQty);
   if (!Number.isFinite(value)) return "주문시 재고 문의";
   return value > STOCK_INQUIRY_THRESHOLD_QTY ? number(value) : "주문시 재고 문의";
+}
+
+function isHsBrandProduct(product) {
+  return String(product?.id || "").startsWith("hwashin-")
+    || /^HS$/i.test(String(product?.catalogSource || product?.catalog_source || "").trim())
+    || /myhwashin|화신/i.test(String(product?.sourceSite || product?.source_site || "").trim());
+}
+
+function getProductStockText(product) {
+  if (isHsBrandProduct(product)) return "";
+  return String(product?.stockText || "").trim();
 }
 
 async function openProductDetail(id, sourceElement = null) {
@@ -4707,74 +5375,35 @@ async function openProductDetail(id, sourceElement = null) {
 
 function renderProductDetail(product) {
   selectedDetailProduct = product;
-  setText("#detailProductTitle", product.name || "상품 상세");
-  const primaryImage = getProductImage(product, ["image", "originalImage", "liveImage", "closeImage"], true);
-
-  document.querySelector("#detailMainMedia").innerHTML = primaryImage
-    ? `
-      <button class="detail-image-preview-trigger detail-main-preview-trigger" type="button" data-preview-image="${escapeHtml(primaryImage)}" data-preview-title="${escapeHtml(product.name || "제품")} 대표 이미지">
-        <img src="${escapeHtml(primaryImage)}" alt="${escapeHtml(product.name)} 대표 이미지" />
-      </button>
-    `
-    : `<div class="detail-main-placeholder">이미지 준비중</div>`;
-
-  const specs = [
-    ...(product.managementCode ? [["내부관리 상품코드", product.managementCode]] : []),
-    ...(isAdminUser() ? getProductDetailAdminSpecs(product) : []),
-    ["대분류", PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"],
-    ["종류", product.kind || "-"],
-    ["품명", product.name || "-"],
-    ["규격", product.size || "-"],
-    ["패턴 카테고리", product.patternCategory || "-"],
-    ["제조사", product.maker || "-"],
-    ["단위", product.unit || "-"],
-    ["유광/무광", product.finish || "-"],
-    ["옵션", product.option || "-"],
-    ...getProductDetailPriceSpecs(product),
-    ...(hasStockValue(product) ? [["재고량", formatStockQuantity(product)]] : []),
-    ...(product.stockText ? [["재고 위치", product.stockText]] : []),
-    ["카탈로그", product.catalogSource || "-"],
-    ["카탈로그 페이지", product.catalogPage ? `${product.catalogPage}P` : "-"]
-  ];
-
-  document.querySelector("#detailSpecGrid").innerHTML = specs.map(([label, value]) => `
-    <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
-  `).join("");
+  const detailView = window.TbpProductDetail.buildProductDetailView({
+    product,
+    callbacks: getProductDetailCallbacks()
+  });
+  setText("#detailProductTitle", detailView.title);
+  document.querySelector("#detailMainMedia").innerHTML = detailView.mainMediaHtml;
+  document.querySelector("#detailSpecGrid").innerHTML = detailView.specGridHtml;
 
   renderDetailAdminEditor(product);
-
-  const gallerySlots = [
-    ["제품 원장 실사 이미지", ["originalImage", "liveImage", "rawImage", "fieldImage", "image"], true],
-    ["클로즈 이미지", ["closeImage", "closeupImage", "zoomImage"], false],
-    ["디테일 이미지", ["detailImage", "textureImage", "surfaceImage"], false],
-    ["자연광 이미지", ["daylightImage", "naturalLightImage"], false],
-    ["형광등 이미지", ["fluorescentImage", "lampImage", "indoorLightImage"], false],
-    ["연출 이미지", ["sceneImage", "stagedImage", "lifestyleImage", "renderImage"], false]
-  ];
-
-  document.querySelector("#detailGalleryGrid").innerHTML = gallerySlots.map(([label, keys, allowPrimary]) => {
-    const image = getProductImage(product, keys, allowPrimary);
-    return `
-      <article class="detail-image-card">
-        <strong>${escapeHtml(label)}</strong>
-        ${image ? `
-          <button class="detail-image-preview-trigger" type="button" data-preview-image="${escapeHtml(image)}" data-preview-title="${escapeHtml(product.name || "제품")} ${escapeHtml(label)}">
-            <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)} ${escapeHtml(label)}" loading="lazy" />
-          </button>
-        ` : `<div class="detail-image-empty">이미지 준비중</div>`}
-      </article>
-    `;
-  }).join("");
+  document.querySelector("#detailGalleryGrid").innerHTML = detailView.galleryHtml;
 }
 
 function getProductDetailAdminSpecs(product) {
-  const cost = Number(product?.costPrice || 0);
-  return [
-    ["브랜드", getAdminProductBrandLabel(product) || "-"],
-    ["원가", cost ? money.format(cost) : "미등록"],
-    ...(product?.sourceSite ? [["소스", product.sourceSite]] : []),
-    ...(product?.sourceUrl ? [["원본 상세 URL", product.sourceUrl]] : [])
-  ];
+  return window.TbpProductDetail.buildAdminSpecs(product, getProductDetailCallbacks());
+}
+
+function getProductDetailCallbacks() {
+  return {
+    escapeHtml,
+    money,
+    isAdmin: isAdminUser(),
+    productTypeLabels: PRODUCT_TYPE_LABELS,
+    getProductImage,
+    getProductDetailPriceSpecs,
+    getAdminProductBrandLabel,
+    hasStockValue,
+    formatStockQuantity,
+    getProductStockText
+  };
 }
 
 function renderDetailAdminEditor(product) {
@@ -4866,84 +5495,15 @@ async function saveDetailProductSpecs(event) {
 }
 
 function mapPublicProductForClient(product) {
-  const canIncludeMemberPrices = Boolean(product?.memberPriceVisible) || hasMemberPriceAccess();
-  return stripCustomerSensitiveProductFields({
-    id: product.id,
-    productType: product.productType,
-    kind: product.kind,
-    name: product.name,
-    size: product.size,
-    modelName: product.modelName,
-    material: product.material,
-    surface: product.surface,
-    patternCategory: product.patternCategory,
-    color: product.color,
-    features: product.features,
-    finish: product.finish,
-    unit: product.unit,
-    option: product.option,
-    priceSortRank: product.priceSortRank,
-    retailPrice: canIncludeMemberPrices ? product.retailPrice : undefined,
-    wholesalePrice: canIncludeMemberPrices ? product.wholesalePrice : undefined,
-    gradeAPrice: canIncludeMemberPrices ? product.gradeAPrice : undefined,
-    gradeBPrice: canIncludeMemberPrices ? product.gradeBPrice : undefined,
-    gradeCPrice: canIncludeMemberPrices ? product.gradeCPrice : undefined,
-    memberPriceVisible: canIncludeMemberPrices ? product.memberPriceVisible : undefined,
-    stockQty: product.stockQty,
-    stockText: product.stockText,
-    matchScore: product.matchScore,
-    matchReasons: product.matchReasons,
-    image: product.image,
-    originalImage: product.originalImage,
-    closeImage: product.closeImage,
-    detailImage: product.detailImage,
-    daylightImage: product.daylightImage,
-    fluorescentImage: product.fluorescentImage,
-    sceneImage: product.sceneImage
+  return window.TbpProductDto.mapPublicProductForClient(product, {
+    includeMemberPrices: Boolean(product?.memberPriceVisible) || hasMemberPriceAccess()
   });
 }
 
-const CUSTOMER_SENSITIVE_PRODUCT_FIELDS = new Set([
-  "brand",
-  "brandCode",
-  "brandName",
-  "internalBrandId",
-  "internalBrandCode",
-  "internalBrandName",
-  "isCustomerBrandVisible",
-  "maker",
-  "manufacturer",
-  "supplier",
-  "supplierCode",
-  "supplierName",
-  "sourceSite",
-  "sourceUrl",
-  "sourceProductId",
-  "sourceCategoryCode",
-  "sourceCategoryName",
-  "catalogSource",
-  "cost",
-  "costPrice",
-  "cost_price",
-  "purchasePrice",
-  "purchase_price",
-  "margin",
-  "marginGrade",
-  "qualityGrade",
-  "adminSearchableText",
-  "adminSearchText",
-  "internalMemo",
-  "internalNote"
-]);
+const CUSTOMER_SENSITIVE_PRODUCT_FIELDS = window.TbpProductDto.CUSTOMER_SENSITIVE_PRODUCT_FIELDS;
 
 function stripCustomerSensitiveProductFields(product) {
-  const safe = {};
-  for (const [key, value] of Object.entries(product || {})) {
-    if (CUSTOMER_SENSITIVE_PRODUCT_FIELDS.has(key)) continue;
-    if (value === undefined) continue;
-    safe[key] = value;
-  }
-  return safe;
+  return window.TbpProductDto.stripCustomerSensitiveProductFields(product);
 }
 
 function hasMemberPriceAccess(user = authUser) {
@@ -5089,22 +5649,10 @@ function getMemberBasePriceCaption(user = authUser) {
 }
 
 function renderCartMemberPriceReadout(item) {
-  if (!hasMemberPriceAccess()) {
-    return `
-      <div class="cart-price-readout price-locked-readout" aria-label="가격 승인 필요">
-        <span>가격</span>
-        <strong>승인 필요</strong>
-        <small>${escapeHtml(getPriceLockedMessage())}</small>
-      </div>
-    `;
-  }
-  return `
-    <div class="cart-price-readout" aria-label="회원 기준 가격">
-      <span>회원 기준가</span>
-      <strong>${money.format(getMemberBaseUnitPrice(item))}</strong>
-      <small>${escapeHtml(getMemberBasePriceCaption())}</small>
-    </div>
-  `;
+  return window.TbpCartRendering.renderCartMemberPriceReadout({
+    item,
+    callbacks: getCartRenderingCallbacks()
+  });
 }
 
 function renderCart() {
@@ -5129,6 +5677,47 @@ function loadPastOrders(user = authUser) {
 
 function savePastOrders(orders, user = authUser) {
   localStorage.setItem(getOrderHistoryStorageKey(user), JSON.stringify(Array.isArray(orders) ? orders : []));
+}
+
+function normalizeOrderHistoryRow(order) {
+  return {
+    orderNumber: order?.orderNumber || order?.order_number || "",
+    createdAt: order?.createdAt || order?.created_at || order?.updatedAt || order?.updated_at || new Date().toISOString(),
+    updatedAt: order?.updatedAt || order?.updated_at || order?.createdAt || order?.created_at || "",
+    status: order?.status || order?.statusLabel || order?.order_status || "접수대기",
+    totalQuote: Number(order?.totalQuote || order?.total_quote || 0),
+    items: Array.isArray(order?.items) ? order.items : []
+  };
+}
+
+function mergeOrderHistory(localOrders = [], serverOrders = []) {
+  const map = new Map();
+  [...serverOrders, ...localOrders].forEach((order) => {
+    const normalized = normalizeOrderHistoryRow(order);
+    const key = normalized.orderNumber || `${normalized.createdAt}:${normalized.totalQuote}`;
+    map.set(key, normalized);
+  });
+  return Array.from(map.values())
+    .sort((a, b) => Date.parse(b.createdAt || b.updatedAt || "") - Date.parse(a.createdAt || a.updatedAt || ""));
+}
+
+async function hydrateOrdersFromServer() {
+  if (!authUser?.businessNumber || !authUser?.memberToken || authUser?.approvalStatus !== "승인") {
+    remoteOrders = [];
+    return false;
+  }
+  try {
+    const query = new URLSearchParams({ businessNumber: authUser.businessNumber });
+    const payload = await requestJson(`/api/orders?${query}`, {
+      headers: getMemberProductAuthHeaders()
+    }, { retries: 1, timeoutMs: 8000 });
+    remoteOrders = Array.isArray(payload?.orders) ? payload.orders.map(normalizeOrderHistoryRow) : [];
+    return true;
+  } catch (error) {
+    console.warn(error);
+    remoteOrders = [];
+    return false;
+  }
 }
 
 function getClientManagementStorageKey(user = authUser) {
@@ -5281,7 +5870,7 @@ function renderMemberHomeBoard() {
   board.classList.toggle("hidden", !showBoard);
   if (!showBoard) return;
 
-  const pastOrders = loadPastOrders();
+  const pastOrders = mergeOrderHistory(loadPastOrders(), remoteOrders);
   const returnOrders = loadReturnOrders();
   const currentOrderCount = cart.length ? 1 : 0;
   const totalOrderCount = pastOrders.length + currentOrderCount;
@@ -5320,7 +5909,7 @@ function renderMyPage() {
   }
 
   const totalQuote = getCartQuoteTotal(cart);
-  const pastOrders = loadPastOrders();
+  const pastOrders = mergeOrderHistory(loadPastOrders(), remoteOrders);
   profile.innerHTML = `
     <div class="my-profile-card">
       <div>
@@ -5465,10 +6054,11 @@ function renderPastOrderCard(order) {
           <span>${escapeHtml(formatDateTime(order.createdAt))}</span>
           <strong>${escapeHtml(order.orderNumber || "-")}</strong>
         </div>
-        <div>
-          <span>${number(items.length)}개 품목</span>
-          <strong>${money.format(Number(order.totalQuote || 0))}</strong>
-        </div>
+      <div>
+        <span>${number(items.length)}개 품목</span>
+        <strong>${money.format(Number(order.totalQuote || 0))}</strong>
+        <em>${escapeHtml(order.status || "접수대기")}</em>
+      </div>
       </div>
       <div class="my-order-list compact-my-order-list">
         ${renderMyOrderItems(items.slice(0, 4), "저장된 상품이 없습니다.")}
@@ -5477,24 +6067,52 @@ function renderPastOrderCard(order) {
   `;
 }
 
-function saveCurrentCartAsPastOrder() {
+async function saveCurrentCartAsPastOrder() {
   if (!authUser) {
     switchPage("loginPage");
+    return;
+  }
+  if (!hasMemberPriceAccess()) {
+    setText("#loginStatus", "사업자등록증 승인 후 주문 접수가 가능합니다.");
+    renderMyPage();
     return;
   }
   if (!cart.length) {
     renderMyPage();
     return;
   }
-  const orders = loadPastOrders();
   const createdAt = new Date().toISOString();
-  const order = {
-    orderNumber: `TBP-${createdAt.slice(0, 10).replaceAll("-", "")}-${String(orders.length + 1).padStart(3, "0")}`,
+  const existingOrders = loadPastOrders();
+  let order = {
+    orderNumber: `TBP-${createdAt.slice(0, 10).replaceAll("-", "")}-${String(existingOrders.length + 1).padStart(3, "0")}`,
     createdAt,
+    status: "접수대기",
     totalQuote: getCartQuoteTotal(cart),
     items: cart.map((item) => ({ ...item }))
   };
-  savePastOrders([order, ...orders].slice(0, 50));
+  try {
+    const payload = await requestJson("/api/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getMemberProductAuthHeaders()
+      },
+      body: JSON.stringify({
+        businessNumber: authUser.businessNumber,
+        companyName: authUser.companyName || "",
+        contactName: authUser.name || "",
+        items: cart,
+        status: "접수대기"
+      })
+    }, { retries: 1, timeoutMs: 10000 });
+    if (payload?.order) {
+      order = normalizeOrderHistoryRow(payload.order);
+      remoteOrders = mergeOrderHistory([order], remoteOrders);
+    }
+  } catch (error) {
+    console.warn(error);
+  }
+  savePastOrders([order, ...existingOrders].slice(0, 50));
   renderMemberHomeBoard();
   renderMyPage();
 }
@@ -6425,6 +7043,362 @@ function renderAdminTaskItem(label, value, note, tone, viewTarget) {
   `;
 }
 
+function getLocalDateKey(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function getAdminLaunchTodoStorageKey(dateKey = getLocalDateKey()) {
+  return `tbpAdminLaunchTodos:${dateKey}`;
+}
+
+function loadAdminLaunchTodoState(dateKey = getLocalDateKey()) {
+  try {
+    const raw = localStorage.getItem(getAdminLaunchTodoStorageKey(dateKey));
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    console.warn("Failed to load launch todo state", error);
+    return {};
+  }
+}
+
+function saveAdminLaunchTodoState(dateKey, state) {
+  try {
+    localStorage.setItem(getAdminLaunchTodoStorageKey(dateKey), JSON.stringify(state || {}));
+  } catch (error) {
+    console.warn("Failed to save launch todo state", error);
+  }
+}
+
+function getAdminLaunchPhase(dateKey = getLocalDateKey()) {
+  const activePhases = LAUNCH_PLAN_PHASES.filter((phase) => !phase.skipped);
+  return activePhases.find((phase) => phase.start <= dateKey && dateKey <= phase.end)
+    || (dateKey < activePhases[0].start ? activePhases[0] : activePhases[activePhases.length - 1]);
+}
+
+function getDateDistanceInDays(fromDateKey, toDateKey) {
+  const from = Date.parse(`${fromDateKey}T00:00:00`);
+  const to = Date.parse(`${toDateKey}T00:00:00`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.round((to - from) / 86400000);
+}
+
+function getAdminLaunchProgress(dateKey = getLocalDateKey()) {
+  const totalDays = Math.max(1, getDateDistanceInDays(LAUNCH_PLAN_START_DATE, LAUNCH_PLAN_TARGET_DATE));
+  const elapsedDays = Math.min(Math.max(0, getDateDistanceInDays(LAUNCH_PLAN_START_DATE, dateKey)), totalDays);
+  return Math.round((elapsedDays / totalDays) * 100);
+}
+
+function buildAdminLaunchDailyTasks(model, phase) {
+  const isDbManualReview = LAUNCH_PLAN_PHASES.some((entry) => entry.id === "db-structure" && entry.skipped);
+  const dailyTasks = [
+    {
+      id: "daily-member-order",
+      label: "회원 승인·주문 접수 확인",
+      detail: `승인대기 ${number(model.pendingSignups.length)}건, 주문접수 ${number(model.waitingOrders.length)}건을 확인합니다.`,
+      view: "orders",
+      priority: model.pendingSignups.length || model.waitingOrders.length ? "높음" : "보통"
+    },
+    {
+      id: "daily-search-note",
+      label: "검색 실패·대체품 메모",
+      detail: "오늘 나온 검색 실패어, 이미지검색 오답, 대체품 후보를 기록합니다.",
+      view: "searchTraining",
+      priority: "보통"
+    }
+  ];
+  if (!isDbManualReview) {
+    dailyTasks.unshift({
+      id: "daily-quality-risk",
+      label: "DB 고위험 항목 확인",
+      detail: `오늘 품질 리스크 ${number(model.highQualityIssues.length)}건을 먼저 확인합니다.`,
+      view: "quality",
+      priority: model.highQualityIssues.length ? "높음" : "보통"
+    });
+  }
+
+  return [
+    ...dailyTasks,
+    ...phase.tasks.map((task) => ({
+      ...task,
+      id: `${phase.id}:${task.id}`,
+      priority: "단계"
+    }))
+  ];
+}
+
+function renderAdminLaunchPlan(model) {
+  const phaseSummary = document.querySelector("#adminLaunchPhaseSummary");
+  const progressBar = document.querySelector("#adminLaunchProgressBar");
+  const todoList = document.querySelector("#adminLaunchTodoList");
+  const timeline = document.querySelector("#adminLaunchTimeline");
+  if (!phaseSummary || !progressBar || !todoList || !timeline) return;
+
+  const todayKey = getLocalDateKey();
+  const phase = getAdminLaunchPhase(todayKey);
+  const progress = getAdminLaunchProgress(todayKey);
+  const dDay = getDateDistanceInDays(todayKey, LAUNCH_PLAN_TARGET_DATE);
+  const state = loadAdminLaunchTodoState(todayKey);
+  const tasks = buildAdminLaunchDailyTasks(model, phase);
+  const completedCount = tasks.filter((task) => state[task.id]).length;
+  adminLaunchRenderedTasks = new Map(tasks.map((task) => [task.id, task]));
+
+  phaseSummary.innerHTML = `
+    <div>
+      <span>오늘 ${escapeHtml(todayKey)}</span>
+      <strong>${escapeHtml(phase.title)}</strong>
+      <p>${escapeHtml(phase.goal)}</p>
+    </div>
+    <div>
+      <span>8월 오픈까지</span>
+      <strong>${dDay >= 0 ? `D-${number(dDay)}` : "오픈 이후"}</strong>
+      <p>일정 진행률 ${number(progress)}% · 오늘 완료 ${number(completedCount)}/${number(tasks.length)}</p>
+    </div>
+  `;
+  progressBar.style.width = `${progress}%`;
+
+  todoList.innerHTML = tasks.map((task) => {
+    const checked = Boolean(state[task.id]);
+    return `
+      <article class="admin-launch-todo ${checked ? "is-done" : ""}">
+        <label>
+          <input type="checkbox" data-launch-todo-id="${escapeHtml(task.id)}" ${checked ? "checked" : ""} />
+          <span>
+            <small>${escapeHtml(task.priority)}</small>
+            <strong>${escapeHtml(task.label)}</strong>
+            <em>${escapeHtml(task.detail)}</em>
+          </span>
+        </label>
+        <div class="admin-launch-todo-actions">
+          <button class="secondary-action" type="button" data-admin-view-target="${escapeHtml(task.view || "operations")}">보기</button>
+          <button class="primary-action" type="button" data-launch-execute-id="${escapeHtml(task.id)}">실행요청</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  timeline.innerHTML = LAUNCH_PLAN_PHASES.map((entry, index) => {
+    const isCurrent = entry.id === phase.id;
+    const isPast = entry.end < todayKey;
+    const isSkipped = Boolean(entry.skipped);
+    return `
+      <article class="admin-launch-phase ${isCurrent ? "is-current" : ""} ${isPast ? "is-done" : ""} ${isSkipped ? "is-skipped" : ""}">
+        <span>${String(index + 1).padStart(2, "0")}</span>
+        <div>
+          <strong>${escapeHtml(entry.title)}${isSkipped ? " · 건너뜀" : ""}</strong>
+          <small>${escapeHtml(entry.start)} ~ ${escapeHtml(entry.end)}</small>
+          <p>${escapeHtml(entry.goal)}</p>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function setAdminLaunchRequestStatus(message, tone = "") {
+  const status = document.querySelector("#adminLaunchRequestStatus");
+  if (status) {
+    status.textContent = message;
+    status.classList.toggle("is-success", tone === "success");
+    status.classList.toggle("is-error", tone === "error");
+  }
+  setText("#adminStatus", message);
+}
+
+function handleAdminLaunchTodoToggle(event) {
+  const checkbox = event.target.closest("[data-launch-todo-id]");
+  if (!checkbox) return;
+  const todayKey = getLocalDateKey();
+  const state = loadAdminLaunchTodoState(todayKey);
+  state[checkbox.dataset.launchTodoId] = Boolean(checkbox.checked);
+  saveAdminLaunchTodoState(todayKey, state);
+  const signupRequests = Array.isArray(adminOverview?.signupRequests) ? adminOverview.signupRequests : [];
+  const cartRecords = Array.isArray(adminOverview?.carts) ? adminOverview.carts : [];
+  const submittedOrders = Array.isArray(adminOverview?.orders) ? adminOverview.orders : [];
+  const orderRecords = buildAdminOrderRecords(signupRequests, cartRecords, submittedOrders);
+  renderAdminLaunchPlan(buildAdminOperationsModel(signupRequests, cartRecords, orderRecords));
+}
+
+async function handleAdminLaunchExecuteClick(event) {
+  const button = event.target.closest("[data-launch-execute-id]");
+  if (!button) return;
+  const taskId = button.dataset.launchExecuteId;
+  const task = adminLaunchRenderedTasks.get(taskId);
+  if (!task) {
+    setAdminLaunchRequestStatus("실행 요청할 업무 정보를 찾지 못했습니다. 새로고침 후 다시 시도해주세요.", "error");
+    return;
+  }
+  const todayKey = getLocalDateKey();
+  const state = loadAdminLaunchTodoState(todayKey);
+  if (!state[taskId]) {
+    state[taskId] = true;
+    saveAdminLaunchTodoState(todayKey, state);
+    const checkbox = document.querySelector(`[data-launch-todo-id="${cssEscape(taskId)}"]`);
+    if (checkbox) checkbox.checked = true;
+    button.closest(".admin-launch-todo")?.classList.add("is-done");
+  }
+  if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) {
+    setAdminLaunchRequestStatus("관리자 로그인 후 실행 요청을 등록할 수 있습니다.", "error");
+    return;
+  }
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "요청중";
+  setAdminLaunchRequestStatus(`${task.label} 실행 요청을 등록하는 중입니다...`);
+  try {
+    const payload = await requestJson("/api/admin/action-request", {
+      method: "POST",
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        source: "admin-launch-todo",
+        taskId,
+        label: task.label,
+        detail: task.detail,
+        priority: task.priority,
+        view: task.view,
+        dateKey: todayKey,
+        checked: true
+      })
+    }, { timeoutMs: 12000 });
+    setAdminLaunchRequestStatus(`작업 요청이 등록되었습니다. 요청번호 ${payload.request?.id || "-"} · 제가 확인해서 이어서 처리할 수 있습니다.`, "success");
+  } catch (error) {
+    setAdminLaunchRequestStatus(error.message || "작업 요청 등록에 실패했습니다.", "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+async function handleAdminOperationsActionClick(event) {
+  const signupButton = event.target.closest("[data-admin-signup-status]");
+  if (signupButton) {
+    await updateAdminSignupStatus(signupButton);
+    return;
+  }
+  const orderButton = event.target.closest("[data-admin-order-status]");
+  if (orderButton) {
+    await updateAdminOrderStatus(orderButton);
+  }
+}
+
+async function updateAdminSignupStatus(button) {
+  if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) {
+    setText("#adminStatus", "관리자 로그인 후 회원 승인 처리를 할 수 있습니다.");
+    return;
+  }
+  const businessNumber = String(button.dataset.businessNumber || "").trim();
+  const approvalStatus = String(button.dataset.adminSignupStatus || "").trim();
+  if (!businessNumber || !approvalStatus) {
+    setText("#adminStatus", "처리할 회원 정보를 찾지 못했습니다.");
+    return;
+  }
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "처리중";
+  setText("#adminStatus", `${businessNumber} 회원 상태를 ${approvalStatus}으로 변경하는 중입니다...`);
+  try {
+    await requestJson("/api/admin/signup-request/status", {
+      method: "POST",
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ businessNumber, approvalStatus })
+    }, { timeoutMs: 12000 });
+    setText("#adminStatus", `${businessNumber} 회원 상태를 ${approvalStatus}으로 변경했습니다.`);
+    await loadAdminOverview();
+  } catch (error) {
+    setText("#adminStatus", error.message || "회원 승인 처리에 실패했습니다.");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+async function updateAdminOrderStatus(button) {
+  if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) {
+    setText("#adminStatus", "관리자 로그인 후 주문 상태를 변경할 수 있습니다.");
+    return;
+  }
+  const orderNumber = String(button.dataset.orderNumber || "").trim();
+  const status = String(button.dataset.adminOrderStatus || "").trim();
+  if (!orderNumber || !status) {
+    setText("#adminStatus", "처리할 주문 정보를 찾지 못했습니다.");
+    return;
+  }
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "처리중";
+  setText("#adminStatus", `${orderNumber} 주문 상태를 ${status}으로 변경하는 중입니다...`);
+  try {
+    await requestJson("/api/admin/order/status", {
+      method: "POST",
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ orderNumber, status })
+    }, { timeoutMs: 12000 });
+    setText("#adminStatus", `${orderNumber} 주문 상태를 ${status}으로 변경했습니다.`);
+    await loadAdminOverview();
+  } catch (error) {
+    setText("#adminStatus", error.message || "주문 상태 변경에 실패했습니다.");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+function resetAdminLaunchTodos() {
+  const todayKey = getLocalDateKey();
+  saveAdminLaunchTodoState(todayKey, {});
+  const signupRequests = Array.isArray(adminOverview?.signupRequests) ? adminOverview.signupRequests : [];
+  const cartRecords = Array.isArray(adminOverview?.carts) ? adminOverview.carts : [];
+  const submittedOrders = Array.isArray(adminOverview?.orders) ? adminOverview.orders : [];
+  const orderRecords = buildAdminOrderRecords(signupRequests, cartRecords, submittedOrders);
+  renderAdminLaunchPlan(buildAdminOperationsModel(signupRequests, cartRecords, orderRecords));
+}
+
+function getOrderStageFromStatus(status) {
+  const text = String(status || "").trim();
+  if (["완료", "취소"].includes(text)) return "done";
+  return "waiting";
+}
+
+function buildAdminOrderRecords(signupRequests, cartRecords, submittedOrders = []) {
+  const signupRequestMap = new Map(signupRequests.map((entry) => [entry.businessNumber, entry]));
+  const orderRows = (Array.isArray(submittedOrders) ? submittedOrders : []).map((entry) => {
+    const signup = signupRequestMap.get(entry.businessNumber);
+    const statusLabel = entry.statusLabel || entry.status || "접수대기";
+    return {
+      ...entry,
+      itemNames: Array.isArray(entry.items) ? entry.items.map((item) => item.name).filter(Boolean) : entry.itemNames || [],
+      contactName: entry.contactName || signup?.name || "-",
+      sourceType: "order",
+      stageKey: signup && signup.approvalStatus !== "승인" ? "review" : getOrderStageFromStatus(statusLabel),
+      statusLabel
+    };
+  });
+  const orderBusinessNumbers = new Set(orderRows.map((entry) => entry.businessNumber).filter(Boolean));
+  const cartRows = cartRecords.filter((entry) => !orderBusinessNumbers.has(entry.businessNumber)).map((entry) => {
+    const signup = signupRequestMap.get(entry.businessNumber);
+    let stageKey = "waiting";
+    let statusLabel = "주문 접수 대기";
+    if (signup && signup.approvalStatus !== "승인") {
+      stageKey = "review";
+      statusLabel = "가입 검토중";
+    } else if (!entry.itemCount || !entry.totalQuote) {
+      stageKey = "selecting";
+      statusLabel = "상품 선택중";
+    }
+
+    return {
+      ...entry,
+      contactName: signup?.name || "-",
+      sourceType: "cart",
+      stageKey,
+      statusLabel
+    };
+  });
+  return [...orderRows, ...cartRows]
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || ""));
+}
+
 function renderAdminOperations(signupRequests, cartRecords, orderRecords) {
   const headline = document.querySelector("#adminOpsHeadline");
   const subline = document.querySelector("#adminOpsSubline");
@@ -6466,6 +7440,8 @@ function renderAdminOperations(signupRequests, cartRecords, orderRecords) {
     renderAdminTaskItem("DB 품질", `${number(model.highQualityIssues.length)}건`, "규격·재질·마감·이미지 누락 우선 정리", model.highQualityIssues.length ? "danger" : "stable", "quality")
   ].join("");
 
+  renderAdminLaunchPlan(model);
+
   const flowItems = [
     ["회원가입", signupRequests.length, "가입 신청 누적"],
     ["사업자 승인", model.approvedMembers.length, "가격 공개 가능"],
@@ -6490,18 +7466,19 @@ function renderAdminOperations(signupRequests, cartRecords, orderRecords) {
       <td>${escapeHtml(entry.provider || "-")}</td>
       <td><span class="quality-badge is-mid">${escapeHtml(entry.approvalStatus || "검토중")}</span></td>
       <td>${escapeHtml(formatDateTime(entry.submittedAt))}</td>
+      <td>
+        <div class="admin-inline-actions">
+          <button class="secondary-action compact-action" type="button" data-admin-signup-status="승인" data-business-number="${escapeHtml(entry.businessNumber || "")}">승인</button>
+          <button class="secondary-action compact-action" type="button" data-admin-signup-status="보류" data-business-number="${escapeHtml(entry.businessNumber || "")}">보류</button>
+        </div>
+      </td>
     </tr>
-  `).join("") || `<tr><td colspan="5">승인 대기 회원이 없습니다.</td></tr>`;
+  `).join("") || `<tr><td colspan="6">승인 대기 회원이 없습니다.</td></tr>`;
 
-  orderRows.innerHTML = orderRecords.slice(0, 12).map((entry) => `
-    <tr>
-      <td>${escapeHtml(entry.companyName || "-")}</td>
-      <td>${number(entry.itemCount || 0)}개</td>
-      <td>${money.format(entry.totalQuote || 0)}</td>
-      <td><span class="quality-badge ${entry.stageKey === "waiting" ? "is-high" : entry.stageKey === "review" ? "is-mid" : "is-low"}">${escapeHtml(entry.statusLabel || "-")}</span></td>
-      <td>${escapeHtml(formatDateTime(entry.updatedAt))}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="5">주문/장바구니 데이터가 없습니다.</td></tr>`;
+  orderRows.innerHTML = window.TbpAdminOrders.buildOperationOrderRowsHtml({
+    orderRecords,
+    callbacks: getAdminOrdersCallbacks()
+  });
 
   const stockRisks = model.lowStockProducts.slice(0, 6).map((product) => ({
     type: "재고",
@@ -6534,98 +7511,26 @@ function renderAdminOverview() {
 
   const signupRequests = Array.isArray(adminOverview?.signupRequests) ? adminOverview.signupRequests : [];
   const cartRecords = Array.isArray(adminOverview?.carts) ? adminOverview.carts : [];
-  const signupRequestMap = new Map(signupRequests.map((entry) => [entry.businessNumber, entry]));
-
-  const orderRecords = cartRecords.map((entry) => {
-    const signup = signupRequestMap.get(entry.businessNumber);
-    let stageKey = "waiting";
-    let statusLabel = "주문 접수 대기";
-    if (signup && signup.approvalStatus !== "승인") {
-      stageKey = "review";
-      statusLabel = "가입 검토중";
-    } else if (!entry.itemCount || !entry.totalQuote) {
-      stageKey = "selecting";
-      statusLabel = "상품 선택중";
-    }
-
-    return {
-      ...entry,
-      contactName: signup?.name || "-",
-      stageKey,
-      statusLabel
-    };
-  }).sort((a, b) => Date.parse(b.updatedAt || "") - Date.parse(a.updatedAt || ""));
+  const submittedOrders = Array.isArray(adminOverview?.orders) ? adminOverview.orders : [];
+  const orderRecords = buildAdminOrderRecords(signupRequests, cartRecords, submittedOrders);
 
   if (currentAdminView === "operations") {
     renderAdminOperations(signupRequests, cartRecords, orderRecords);
   }
 
   if (currentAdminView === "products") {
-    const tileCount = products.filter((item) => item.productType === "tile").length;
-    const sanitaryCount = products.filter((item) => item.productType === "sanitary").length;
-    const materialCount = products.filter((item) => item.productType === "material").length;
-    const lowStockCount = products.filter((item) => Number(item.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY).length;
-    const categorySummary = Array.from(products.reduce((map, product) => {
-      const key = `${PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-"}__${product.kind || "-"}`;
-      const current = map.get(key) || {
-        typeLabel: PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-",
-        kind: product.kind || "-",
-        count: 0
-      };
-      current.count += 1;
-      map.set(key, current);
-      return map;
-    }, new Map()).values()).sort((a, b) => {
-      if (a.typeLabel === b.typeLabel) return a.kind.localeCompare(b.kind, "ko");
-      return a.typeLabel.localeCompare(b.typeLabel, "ko");
+    const html = window.TbpAdminProductsOverview.buildAdminProductsOverview({
+      products,
+      signupRequests,
+      cartRecords,
+      approvalRules: adminOverview?.approvalRules || {},
+      tableLimit: ADMIN_PRODUCT_TABLE_LIMIT,
+      stockInquiryThresholdQty: STOCK_INQUIRY_THRESHOLD_QTY,
+      callbacks: getAdminProductsOverviewCallbacks()
     });
-
-    summaryGrid.innerHTML = [
-      ["전체 상품", `${number(products.length)}개`, "현재 등록된 전체 상품 수"],
-      ["타일 상품", `${number(tileCount)}개`, "타일 및 타일 관련 상품 수"],
-      ["위생도기", `${number(sanitaryCount)}개`, "위생도기/수전/액세서리 수"],
-      ["부자재", `${number(materialCount)}개`, "부자재 상품 수"],
-      ["재고 문의", `${number(lowStockCount)}개`, `재고 ${STOCK_INQUIRY_THRESHOLD_QTY} 이하 상품 수`],
-      ["가입 신청", `${number(signupRequests.length)}건`, "저장된 회원가입 신청 수"],
-      ["저장 장바구니", `${number(cartRecords.length)}건`, "업체별 저장된 장바구니 수"],
-      ["승인 기준", `${number((adminOverview?.approvalRules?.businessTypes || []).length)}개 업태`, "현재 내부 승인 기준 업태 수"]
-    ].map(([label, value, note]) => `
-      <article class="admin-summary-card">
-        <span>${escapeHtml(label)}</span>
-        <strong>${escapeHtml(value)}</strong>
-        <p>${escapeHtml(note)}</p>
-      </article>
-    `).join("");
-
-    categoryRows.innerHTML = categorySummary.map((entry) => `
-      <tr>
-        <td>${escapeHtml(entry.typeLabel)}</td>
-        <td>${escapeHtml(entry.kind)}</td>
-        <td>${number(entry.count)}개</td>
-      </tr>
-    `).join("") || `<tr><td colspan="3">카테고리 집계 데이터가 없습니다.</td></tr>`;
-
-    const visibleAdminProducts = products.slice(0, ADMIN_PRODUCT_TABLE_LIMIT);
-    priceRows.innerHTML = [
-      ...visibleAdminProducts.map((product) => `
-      <tr>
-        <td>${escapeHtml(product.managementCode || "-")}</td>
-        <td>${escapeHtml(product.name)}</td>
-        <td>${escapeHtml(PRODUCT_TYPE_LABELS[product.productType] || product.productType || "-")}</td>
-        <td>${escapeHtml(product.kind || "-")}</td>
-        <td>${escapeHtml(product.size || "-")}</td>
-        <td>${money.format(product.costPrice || 0)}</td>
-        <td>${money.format(product.retailPrice || 0)}</td>
-        <td>${money.format(product.wholesalePrice || 0)}</td>
-        <td>${number(product.stockQty || 0)}${escapeHtml(product.unit || "")}</td>
-      </tr>
-    `),
-      ...(products.length > ADMIN_PRODUCT_TABLE_LIMIT ? [`
-        <tr>
-          <td colspan="9">대량 운영 속도를 위해 전체 ${number(products.length)}개 중 ${number(ADMIN_PRODUCT_TABLE_LIMIT)}개만 우선 표시합니다.</td>
-        </tr>
-      `] : [])
-    ].join("") || `<tr><td colspan="9">표시할 상품이 없습니다.</td></tr>`;
+    summaryGrid.innerHTML = html.summaryHtml;
+    categoryRows.innerHTML = html.categoryRowsHtml;
+    priceRows.innerHTML = html.priceRowsHtml;
   }
 
   if (currentAdminView === "quality") {
@@ -6634,19 +7539,30 @@ function renderAdminOverview() {
 
   if (currentAdminView === "orders") {
     renderAdminOrderFlow(orderRecords);
-
-    cartRows.innerHTML = orderRecords.map((entry) => `
-      <tr>
-        <td>${escapeHtml(entry.companyName || "-")}</td>
-        <td>${escapeHtml(entry.contactName || "-")}</td>
-        <td>${escapeHtml(entry.businessNumber || "-")}</td>
-        <td>${escapeHtml((entry.itemNames || []).slice(0, 3).join(", ") || "-")}</td>
-        <td>${number(entry.itemCount || 0)}개</td>
-        <td>${escapeHtml(entry.statusLabel || "-")}</td>
-        <td>${escapeHtml(formatDateTime(entry.updatedAt))}</td>
-      </tr>
-    `).join("") || `<tr><td colspan="6">저장된 주문/장바구니 데이터가 없습니다.</td></tr>`;
+    cartRows.innerHTML = window.TbpAdminOrders.buildAdminCartRowsHtml({
+      orderRecords,
+      callbacks: getAdminOrdersCallbacks()
+    });
   }
+}
+
+function getAdminProductsOverviewCallbacks() {
+  return {
+    escapeHtml,
+    number,
+    money,
+    productTypeLabels: PRODUCT_TYPE_LABELS,
+    formatStockQuantity
+  };
+}
+
+function getAdminOrdersCallbacks() {
+  return {
+    escapeHtml,
+    number,
+    money,
+    formatDateTime
+  };
 }
 
 function renderAdminOrderFlow(orderRecords) {
@@ -6657,19 +7573,16 @@ function renderAdminOrderFlow(orderRecords) {
   ];
 
   stages.forEach(([stageKey, listSelector, countSelector]) => {
-    const items = orderRecords.filter((entry) => entry.stageKey === stageKey);
     const list = document.querySelector(listSelector);
     const count = document.querySelector(countSelector);
     if (!list || !count) return;
-    count.textContent = String(items.length);
-    list.innerHTML = items.map((entry) => `
-      <article class="admin-flow-card">
-        <strong>${escapeHtml(entry.companyName || "-")}</strong>
-        <span>${escapeHtml(entry.businessNumber || "-")}</span>
-        <span>${number(entry.itemCount || 0)}개 품목 · ${money.format(entry.totalQuote || 0)}</span>
-        <span>${escapeHtml(formatDateTime(entry.updatedAt))}</span>
-      </article>
-    `).join("") || `<div class="empty-state compact-empty-state">해당 단계의 업체가 없습니다.</div>`;
+    const rendered = window.TbpAdminOrders.buildAdminFlowCardsHtml({
+      orderRecords,
+      stageKey,
+      callbacks: getAdminOrdersCallbacks()
+    });
+    count.textContent = String(rendered.count);
+    list.innerHTML = rendered.html;
   });
 }
 
@@ -6836,114 +7749,46 @@ function openProposalRenderWorkspace() {
   openRenderForCartItem(firstSelected.id);
 }
 
-function getPositiveNumber(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
 function formatMeasureNumber(value, maximumFractionDigits = 2) {
   return new Intl.NumberFormat("ko-KR", { maximumFractionDigits }).format(Number(value) || 0);
 }
 
-function extractFirstPositiveNumber(source, patterns) {
-  const text = String(source || "");
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    const value = getPositiveNumber(match?.[1]);
-    if (value) return value;
-  }
-  return 0;
-}
-
 function getTileBoxMetrics(item) {
-  const sourceText = [item?.unit, item?.features, item?.material, item?.name, item?.modelName].filter(Boolean).join(" ");
-  return {
-    pcsPerBox: getPositiveNumber(item?.pcsPerBox) || extractFirstPositiveNumber(sourceText, [
-      /들이\s*\(?\s*([0-9]+(?:\.[0-9]+)?)\s*\)?/i,
-      /([0-9]+(?:\.[0-9]+)?)\s*(?:pcs|장)\s*\/?\s*box/i,
-      /box\s*\/\s*들이\s*\(?\s*([0-9]+(?:\.[0-9]+)?)\s*\)?/i
-    ]),
-    sqmPerBox: getPositiveNumber(item?.sqmPerBox) || extractFirstPositiveNumber(sourceText, [
-      /([0-9]+(?:\.[0-9]+)?)\s*(?:㎡|m2|m²)\s*\/?\s*box/i,
-      /box\s*\/.*?([0-9]+(?:\.[0-9]+)?)\s*(?:㎡|m2|m²)/i,
-      /\/\s*([0-9]+(?:\.[0-9]+)?)\s*(?:㎡|m2|m²)/i
-    ])
-  };
+  return window.TbpCartTileMetrics.getTileBoxMetrics(item);
 }
 
 function getCartTileMeasureState(item) {
-  const { pcsPerBox, sqmPerBox } = getTileBoxMetrics(item);
-  const boxQty = getPositiveNumber(item?.qty);
-  return {
-    pcsPerBox,
-    sqmPerBox,
-    boxQty,
-    estimatedSqm: sqmPerBox ? boxQty * sqmPerBox : 0,
-    estimatedPieces: pcsPerBox ? Math.ceil(boxQty * pcsPerBox) : 0
-  };
+  return window.TbpCartTileMetrics.getCartTileMeasureState(item);
 }
 
 function getCartTileMeasurePanel(item) {
-  if (item.productType !== "tile") return "";
-
-  const measure = getCartTileMeasureState(item);
-  if (!measure.pcsPerBox && !measure.sqmPerBox) {
-    return `
-      <div class="cart-tile-calculator cart-tile-calculator-empty">
-        <strong>박스 계산 정보 없음</strong>
-        <span>이 타일은 박스당 ㎡ 또는 낱장 정보가 없어 수량만 직접 입력할 수 있습니다.</span>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="cart-tile-calculator">
-      <div class="cart-tile-calculator-meta">
-        <strong>타일 수량 계산</strong>
-        <span>
-          ${measure.sqmPerBox ? `1BOX ${formatMeasureNumber(measure.sqmPerBox)}㎡` : "㎡ 정보 없음"}
-          ${measure.pcsPerBox ? ` · ${number(measure.pcsPerBox)}장` : " · 낱장 정보 없음"}
-        </span>
-      </div>
-      <label>
-        필요 ㎡
-        <input type="number" min="0" step="0.01" placeholder="예: 3.2" data-cart-sqm="${escapeHtml(item.id)}" />
-      </label>
-      <label>
-        낱장
-        <input type="number" min="0" step="1" placeholder="예: 9" data-cart-pieces="${escapeHtml(item.id)}" />
-      </label>
-      <div class="cart-tile-calculator-result">
-        <span>현재 계산</span>
-        <strong data-cart-box-result="${escapeHtml(item.id)}">${number(measure.boxQty)}BOX</strong>
-        <small data-cart-measure-result="${escapeHtml(item.id)}">${measure.estimatedSqm ? `${formatMeasureNumber(measure.estimatedSqm)}㎡` : "-㎡"}${measure.estimatedPieces ? ` · 약 ${number(measure.estimatedPieces)}장` : ""}</small>
-      </div>
-    </div>
-  `;
+  return window.TbpCartRendering.getCartTileMeasurePanel({
+    item,
+    callbacks: getCartRenderingCallbacks()
+  });
 }
 
 function renderCartList() {
-  document.querySelector("#cartList").innerHTML = cart.map((item) => `
-    <article class="cart-item">
-      <div class="cart-item-main">
-        ${item.image
-          ? `<img class="cart-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />`
-          : `<div class="cart-item-image cart-item-image-empty">이미지 없음</div>`}
-        <div class="cart-item-copy">
-          <strong>${escapeHtml(item.name)}</strong>
-          <span>${escapeHtml(PRODUCT_TYPE_LABELS[item.productType])} · ${escapeHtml(item.kind)} · ${escapeHtml(item.size || "-")} · ${escapeHtml(item.option || item.finish || "-")}</span>
-          <span class="cost-only">재고 ${number(item.stockQty)}${escapeHtml(item.unit)}</span>
-        </div>
-      </div>
-      <div class="cart-controls">
-        <label>${item.productType === "tile" ? "박스 수량" : "수량"}<input type="number" min="0.1" step="0.1" value="${item.qty}" data-cart-qty="${escapeHtml(item.id)}" /></label>
-        ${renderCartMemberPriceReadout(item)}
-        <label>견적단가<input type="number" min="0" step="100" value="${item.quotePrice}" data-cart-price="${escapeHtml(item.id)}" /></label>
-        <button type="button" data-remove-product="${escapeHtml(item.id)}">삭제</button>
-      </div>
-      ${getCartTileMeasurePanel(item)}
-    </article>
-  `).join("") || `<div class="empty-state">장바구니가 비어 있습니다.</div>`;
+  document.querySelector("#cartList").innerHTML = window.TbpCartRendering.buildCartListHtml({
+    items: cart,
+    callbacks: getCartRenderingCallbacks()
+  });
+}
+
+function getCartRenderingCallbacks() {
+  return {
+    escapeHtml,
+    number,
+    money,
+    productTypeLabels: PRODUCT_TYPE_LABELS,
+    hasMemberPriceAccess,
+    getPriceLockedMessage,
+    getMemberBaseUnitPrice,
+    getMemberBasePriceCaption,
+    getCartTileMeasureState,
+    formatMeasureNumber,
+    formatStockQuantity
+  };
 }
 
 function renderDocuments() {
@@ -7557,6 +8402,117 @@ function selectRenderPrimaryTile(tileId) {
   renderRenderWorkspace();
 }
 
+function getRenderRoomTypeLabel(value) {
+  return RENDER_ROOM_TYPES[value] || RENDER_ROOM_TYPES.auto;
+}
+
+function getRenderInteriorStyleLabel(value) {
+  return RENDER_INTERIOR_STYLES[value] || RENDER_INTERIOR_STYLES["natural-modern"];
+}
+
+function getSelectedRenderRoomContext() {
+  const roomType = document.querySelector("#renderRoomType")?.value || "auto";
+  const interiorStyle = document.querySelector("#renderInteriorStyle")?.value || "natural-modern";
+  const styleMemo = document.querySelector("#renderStyleMemo")?.value.trim() || "";
+  const selectedSurfaceLabels = getRenderSurfaceKeys()
+    .filter((surface) => getRenderSurfaceSelection(surface).tileId)
+    .map(getRenderSurfaceLabel);
+
+  return {
+    roomType,
+    roomTypeLabel: getRenderRoomTypeLabel(roomType),
+    autoDetect: roomType === "auto",
+    interiorStyle,
+    interiorStyleLabel: getRenderInteriorStyleLabel(interiorStyle),
+    styleMemo,
+    selectedSurfaces: selectedSurfaceLabels
+  };
+}
+
+function renderRenderRoomAnalysis() {
+  const target = document.querySelector("#renderRoomAnalysis");
+  if (!target) return;
+  const context = getSelectedRenderRoomContext();
+  const surfaceText = context.selectedSurfaces.length
+    ? `적용면: ${context.selectedSurfaces.join(", ")}`
+    : "적용면을 선택하면 보정 정확도가 높아집니다.";
+  const roomText = context.autoDetect
+    ? "공간은 업로드한 현장 사진을 기준으로 AI가 자동 판별합니다."
+    : `${context.roomTypeLabel} 기준으로 공간을 고정합니다.`;
+  const memoText = context.styleMemo ? `메모: ${context.styleMemo}` : "";
+  target.textContent = [roomText, `방향: ${context.interiorStyleLabel}`, surfaceText, memoText].filter(Boolean).join(" · ");
+}
+
+function buildRenderComparisonHtml() {
+  const value = Math.max(0, Math.min(100, Number(renderCompareSliderValue) || 50));
+  return `
+    <div class="render-before-after" style="--compare: ${value}%">
+      <img class="render-before-image" src="${escapeHtml(pendingSiteImage)}" alt="원본 현장 사진" />
+      <div class="render-after-layer">
+        <img class="render-after-image" src="${escapeHtml(pendingRenderResultImage)}" alt="보정 결과 이미지" />
+      </div>
+      <span class="render-compare-label render-compare-label-before">원본</span>
+      <span class="render-compare-label render-compare-label-after">보정</span>
+      <span class="render-compare-divider" aria-hidden="true"></span>
+    </div>
+    <input class="render-compare-range" id="renderCompareSlider" type="range" min="0" max="100" value="${value}" aria-label="원본과 보정 결과 비교" />
+  `;
+}
+
+function handleRenderCompareSliderInput(event) {
+  const slider = event.target.closest("#renderCompareSlider");
+  if (!slider) return;
+  event.stopPropagation();
+  renderCompareSliderValue = Math.max(0, Math.min(100, Number(slider.value) || 50));
+  updateRenderCompareSlider();
+}
+
+function updateRenderCompareSlider() {
+  const preview = document.querySelector("#renderResultPreview");
+  const compare = preview?.querySelector(".render-before-after");
+  const slider = preview?.querySelector("#renderCompareSlider");
+  if (!compare) return;
+  const value = Math.max(0, Math.min(100, Number(renderCompareSliderValue) || 50));
+  compare.style.setProperty("--compare", `${value}%`);
+  if (slider && Number(slider.value) !== value) slider.value = String(value);
+}
+
+function getImageDataUrlExtension(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:image\/([a-z0-9.+-]+);/i);
+  const type = match ? match[1].toLowerCase() : "";
+  if (type === "jpeg" || type === "jpg") return "jpg";
+  if (type === "webp") return "webp";
+  return "png";
+}
+
+function renderRenderFeedbackPanel() {
+  const panel = document.querySelector("#renderFeedbackPanel");
+  if (!panel) return;
+  const visible = Boolean(pendingRenderResultImage);
+  panel.classList.toggle("hidden", !visible);
+  panel.querySelectorAll("[data-render-feedback]").forEach((button) => {
+    const code = button.dataset.renderFeedback || "";
+    button.disabled = !visible || renderJobRunning;
+    button.classList.toggle("active", code === lastRenderFeedbackCode);
+  });
+}
+
+function renderRenderLoadingOverlay() {
+  const overlay = document.querySelector("#renderLoadingOverlay");
+  if (!overlay) return;
+  const title = document.querySelector("#renderLoadingTitle");
+  const text = document.querySelector("#renderLoadingText");
+  const context = getSelectedRenderRoomContext();
+  overlay.classList.toggle("hidden", !renderJobRunning);
+  overlay.setAttribute("aria-hidden", renderJobRunning ? "false" : "true");
+  if (title) title.textContent = renderJobRunning ? "실사 보정 중" : "실사 보정";
+  if (text) {
+    text.textContent = renderJobRunning
+      ? `${context.roomTypeLabel} · ${context.interiorStyleLabel} 방향으로 현장 사진과 타일 이미지를 맞춰보고 있습니다.`
+      : "현장 사진과 선택한 타일을 분석해 보정 이미지를 만듭니다.";
+  }
+}
+
 function renderRenderWorkspace() {
   ensureRenderSelection();
   const tileList = document.querySelector("#renderCartTileList");
@@ -7579,6 +8535,9 @@ function renderRenderWorkspace() {
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   const cartTiles = getRenderableCartTiles();
 
+  renderRenderRoomAnalysis();
+  renderRenderLoadingOverlay();
+  renderRenderFeedbackPanel();
   generateButton.disabled = renderJobRunning;
   saveButton.disabled = !item || !pendingRenderResultImage;
   sitePreviewTrigger.disabled = !pendingSiteImage;
@@ -7599,7 +8558,8 @@ function renderRenderWorkspace() {
     wallPreview.classList.remove("has-image");
     floorPreview.classList.remove("has-image");
     pointPreview.classList.remove("has-image");
-    resultPreview.classList.remove("has-image");
+    resultPreview.classList.remove("has-image", "has-comparison");
+    document.querySelector("#renderFeedbackPanel")?.classList.add("hidden");
     wallSummary.textContent = "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4";
     floorSummary.textContent = "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4";
     pointSummary.textContent = "\uC120\uD0DD\uD55C \uD0C0\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4";
@@ -7612,7 +8572,9 @@ function renderRenderWorkspace() {
     ? '<img src="' + escapeHtml(pendingSiteImage) + '" alt="\uD604\uC7A5 \uC0AC\uC9C4 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
   resultPreview.innerHTML = pendingRenderResultImage
-    ? '<img src="' + escapeHtml(pendingRenderResultImage) + '" alt="\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30" />'
+    ? pendingSiteImage
+      ? buildRenderComparisonHtml()
+      : '<img src="' + escapeHtml(pendingRenderResultImage) + '" alt="\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30" />'
     : "\uBBF8\uB9AC\uBCF4\uAE30 \uC5C6\uC74C";
 
   getRenderSurfaceKeys().forEach((surface) => {
@@ -7630,8 +8592,12 @@ function renderRenderWorkspace() {
 
   sitePreview.classList.toggle("has-image", Boolean(pendingSiteImage));
   resultPreview.classList.toggle("has-image", Boolean(pendingRenderResultImage));
+  resultPreview.classList.toggle("has-comparison", Boolean(pendingRenderResultImage && pendingSiteImage));
+  updateRenderCompareSlider();
+  renderRenderFeedbackPanel();
   if (pendingRenderResultImage) {
     downloadLink.href = pendingRenderResultImage;
+    downloadLink.download = `render-result.${getImageDataUrlExtension(pendingRenderResultImage)}`;
     downloadLink.classList.remove("hidden");
   } else {
     downloadLink.classList.add("hidden");
@@ -7726,25 +8692,142 @@ function closeImagePreview() {
   modalTitle.textContent = "\uC774\uBBF8\uC9C0 \uBBF8\uB9AC\uBCF4\uAE30";
 }
 
+function rememberRenderImageDataUrl(cacheKey, dataUrl) {
+  if (!cacheKey || !dataUrl) return dataUrl;
+  renderImageDataUrlCache.set(cacheKey, dataUrl);
+  while (renderImageDataUrlCache.size > 80) {
+    const firstKey = renderImageDataUrlCache.keys().next().value;
+    renderImageDataUrlCache.delete(firstKey);
+  }
+  return dataUrl;
+}
+
+async function resizeRenderReferenceDataUrl(dataUrl, maxWidth = 1000, quality = 0.88) {
+  if (!dataUrl || !/^data:image\//i.test(dataUrl)) return dataUrl;
+  return await new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(1, maxWidth / Math.max(image.width || 1, image.height || 1));
+      if (scale >= 1 && /^data:image\/jpe?g/i.test(dataUrl)) {
+        resolve(dataUrl);
+        return;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    image.onerror = () => resolve(dataUrl);
+    image.src = dataUrl;
+  });
+}
+
 async function imageUrlToDataUrl(url) {
   if (!url) return "";
   if (url.startsWith("data:")) return url;
+  if (renderImageDataUrlCache.has(url)) return renderImageDataUrlCache.get(url);
 
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error("\uD0C0\uC77C \uC774\uBBF8\uC9C0\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
     const blob = await response.blob();
-    return await new Promise((resolve, reject) => {
+    const rawDataUrl = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
       reader.onerror = () => reject(new Error("\uC774\uBBF8\uC9C0 \uB370\uC774\uD130 \uBCC0\uD658\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."));
       reader.readAsDataURL(blob);
     });
+    const optimizedDataUrl = await resizeRenderReferenceDataUrl(rawDataUrl);
+    return rememberRenderImageDataUrl(url, optimizedDataUrl);
   } catch {
     const payload = await requestJson(`/api/image-data-url?url=${encodeURIComponent(url)}`, {}, { retries: 1, timeoutMs: 30000 });
     const imageDataUrl = String(payload?.imageDataUrl || "");
     if (!imageDataUrl) throw new Error("\uD0C0\uC77C \uC774\uBBF8\uC9C0\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
-    return imageDataUrl;
+    const optimizedDataUrl = await resizeRenderReferenceDataUrl(imageDataUrl);
+    return rememberRenderImageDataUrl(url, optimizedDataUrl);
+  }
+}
+
+function buildRenderFeedbackPayload(code) {
+  const item = cart.find((entry) => entry.id === selectedRenderCartId);
+  const selectedSurfaces = getSelectedRenderSurfaces();
+  return {
+    code,
+    label: RENDER_FEEDBACK_OPTIONS[code] || code,
+    memo: document.querySelector("#renderFeedbackMemo")?.value.trim() || "",
+    roomContext: getSelectedRenderRoomContext(),
+    cartItem: item ? {
+      id: item.id,
+      managementCode: item.managementCode || "",
+      productType: item.productType || "",
+      kind: item.kind || "",
+      name: item.name || "",
+      size: item.size || "",
+      finish: item.finish || "",
+      color: item.color || "",
+      material: item.material || "",
+      image: item.image || ""
+    } : null,
+    surfaces: selectedSurfaces.map(({ surface, tile }) => ({
+      surface,
+      surfaceLabel: getRenderSurfaceLabel(surface),
+      tileId: tile.id,
+      managementCode: tile.managementCode || "",
+      name: tile.name || "",
+      size: tile.size || "",
+      finish: tile.finish || "",
+      color: tile.color || "",
+      material: tile.material || "",
+      image: tile.image || ""
+    })),
+    images: {
+      siteImageDataUrl: pendingSiteImage,
+      renderImageDataUrl: pendingRenderResultImage
+    },
+    ui: {
+      compareSliderValue: renderCompareSliderValue
+    },
+    user: {
+      role: authUser?.role || "",
+      adminUsername: authUser?.adminUsername || "",
+      businessNumber: authUser?.businessNumber || "",
+      displayName: authUser?.displayName || authUser?.name || ""
+    }
+  };
+}
+
+async function handleRenderFeedbackClick(event) {
+  const button = event.target.closest("[data-render-feedback]");
+  if (!button) return;
+  event.preventDefault();
+  const code = button.dataset.renderFeedback || "";
+  if (!pendingRenderResultImage) {
+    setText("#renderStatus", "먼저 보정 결과를 생성해주세요.");
+    return;
+  }
+  if (!RENDER_FEEDBACK_OPTIONS[code]) return;
+
+  button.disabled = true;
+  try {
+    const payload = await requestJson(
+      "/api/render-feedback",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRenderFeedbackPayload(code))
+      },
+      { timeoutMs: 30000 }
+    );
+    lastRenderFeedbackCode = code;
+    renderRenderFeedbackPanel();
+    setText("#renderStatus", `보정 평가가 저장되었습니다. (${payload?.feedback?.label || RENDER_FEEDBACK_OPTIONS[code]})`);
+  } catch (error) {
+    console.warn(error);
+    setText("#renderStatus", error?.message || "보정 평가 저장 중 오류가 발생했습니다.");
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -7752,6 +8835,7 @@ async function generateRenderPreview() {
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   const pointMemo = document.querySelector("#renderPointMemo").value.trim();
   const selectedSurfaces = getSelectedRenderSurfaces();
+  const roomContext = getSelectedRenderRoomContext();
 
   if (!item) {
     setText("#renderStatus", "\uBCF4\uC815\uD560 \uB300\uC0C1 \uD488\uBAA9\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
@@ -7772,7 +8856,7 @@ async function generateRenderPreview() {
 
   renderJobRunning = true;
   renderRenderWorkspace();
-  setText("#renderStatus", "OpenAI\uB85C \uC2E4\uC0AC \uBCF4\uC815 \uC774\uBBF8\uC9C0\uB97C \uC0DD\uC131\uD558\uACE0 \uC788\uC2B5\uB2C8\uB2E4...");
+  setText("#renderStatus", `${roomContext.roomTypeLabel} · ${roomContext.interiorStyleLabel} 방향으로 실사 보정 이미지를 생성하고 있습니다...`);
 
   try {
     const surfacesPayload = await Promise.all(selectedSurfaces.map(async ({ surface, tile }) => ({
@@ -7790,7 +8874,9 @@ async function generateRenderPreview() {
         body: JSON.stringify({
           siteImageDataUrl: pendingSiteImage,
           surfaces: surfacesPayload,
-          pointMemo
+          pointMemo,
+          roomContext,
+          qualityMode: "premium-photoreal"
         })
       },
       { timeoutMs: 180000 }
@@ -7798,6 +8884,7 @@ async function generateRenderPreview() {
 
     pendingRenderResultImage = String(payload?.imageDataUrl || "");
     if (!pendingRenderResultImage) throw new Error("\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0\uB97C \uBC1B\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
+    lastRenderFeedbackCode = "";
     setText("#renderStatus", "\uC2E4\uC0AC \uBCF4\uC815\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC81C\uC548\uC11C\uC5D0 \uBC18\uC601\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
     document.querySelector("#renderResultPreview")?.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (error) {
@@ -7812,6 +8899,7 @@ async function generateRenderPreview() {
 function saveRenderResultToProposal() {
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   const selectedSurfaces = getSelectedRenderSurfaces();
+  const roomContext = getSelectedRenderRoomContext();
   if (!item) {
     setText("#renderStatus", "\uBCF4\uC815 \uACB0\uACFC\uB97C \uC800\uC7A5\uD560 \uD488\uBAA9\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
     return;
@@ -7834,6 +8922,9 @@ function saveRenderResultToProposal() {
     .map(getRenderSurfaceLabel)
     .join(", ");
   item.renderPointMemo = document.querySelector("#renderPointMemo").value.trim();
+  item.renderRoomType = roomContext.roomTypeLabel;
+  item.renderInteriorStyle = roomContext.interiorStyleLabel;
+  item.renderStyleMemo = roomContext.styleMemo || "";
   if (!saveCart()) {
     setText("#renderStatus", "\uC7A5\uBC14\uAD6C\uB2C8 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uD55C \uBC88 \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694.");
     return;
@@ -9350,7 +10441,10 @@ async function submitSignupForm(event) {
 function saveSignupRequest(payload) {
   try {
     const current = JSON.parse(localStorage.getItem("tbpSignupRequests") || "[]");
-    current.push(payload);
+    const safePayload = { ...payload };
+    delete safePayload.password;
+    delete safePayload.passwordConfirm;
+    current.push(safePayload);
     localStorage.setItem("tbpSignupRequests", JSON.stringify(current));
   } catch (error) {
     console.warn(error);
@@ -9423,6 +10517,7 @@ async function applyAuthenticatedUser(matchedUser, message = "") {
   await hydrateMemberPricingProducts({ render: false });
   if (authUser.role !== "admin") {
     await hydrateCartFromServer({ mergeLocal: true });
+    await hydrateOrdersFromServer();
   }
   renderAuthControls();
   renderMyPage();
@@ -9926,7 +11021,7 @@ function renderPlannerWorkspace() {
 
   if (realRenderButton) {
     realRenderButton.disabled = plannerRealRenderRunning;
-    realRenderButton.textContent = plannerRealRenderRunning ? "고품질 AI 실사 렌더 생성 중..." : "고품질 AI 실사 렌더 만들기";
+    realRenderButton.textContent = plannerRealRenderRunning ? "자체 실사 엔진 렌더링 중..." : "자체 실사 엔진 렌더 만들기";
   }
   updatePlannerRealRenderPreviewDisplay();
   if (realRenderDownload) {
@@ -10355,7 +11450,7 @@ function updatePlannerRealRenderPreviewDisplay() {
   if (!realRenderPreview) return;
   const image = pendingPlannerRealRenderImage || pendingPlannerPhotoPreviewImage;
   if (image) {
-    const label = pendingPlannerRealRenderImage ? "AI 실사 렌더 결과 이미지" : "현장 사진 기반 타일 투영 미리보기";
+    const label = pendingPlannerRealRenderImage ? "자체 실사 엔진 결과 이미지" : "현장 사진 기반 타일 투영 미리보기";
     realRenderPreview.innerHTML = `<img src="${escapeHtml(image)}" alt="${escapeHtml(label)}" />`;
   } else if (pendingPlannerSiteImage) {
     realRenderPreview.innerHTML = "현장 사진에 자동 선택된 벽/바닥 전체 영역 기준으로 사진 기반 미리보기가 표시됩니다.";
@@ -10381,7 +11476,7 @@ function buildPlannerRenderLoadingOverlayHtml() {
   return `
     <div class="planner-render-loading" role="status" aria-live="polite">
       <div class="planner-render-spinner" aria-hidden="true"></div>
-      <strong>고품질 AI 실사 렌더 생성 중</strong>
+      <strong>자체 실사 엔진 렌더링 중</strong>
       <span>${escapeHtml(stage)}</span>
       <small>평균 소요시간 약 90~180초 · 최대 5분까지 대기 · 현재 ${number(elapsedSeconds)}초 경과</small>
       <div class="planner-render-progress" aria-hidden="true">
@@ -10449,13 +11544,13 @@ function updatePlannerPanoramaSourceLabel() {
   if (!label) return;
   const mode = getPlannerPanoramaSourceMode();
   if (mode === "ai-render") {
-    label.textContent = "현재 3D 보기 기준: 고품질 AI 실사 렌더";
+    label.textContent = "현재 3D 보기 기준: 자체 실사 엔진 렌더";
   } else if (mode === "draft-preview") {
     label.textContent = "현재 3D 보기 기준: 임시 타일 미리보기";
   } else if (mode === "site-photo") {
     label.textContent = "현재 3D 보기 기준: 원본 현장 사진";
   } else {
-    label.textContent = "실사 렌더 생성 후 3D화됩니다.";
+    label.textContent = "렌더 생성 후 3D화됩니다.";
   }
 }
 
@@ -10471,7 +11566,7 @@ function schedulePlannerPanoramaRender() {
     pendingPlannerPanoramaImage = "";
     pendingPlannerPanoramaSource = "";
     plannerPanoramaTexture = null;
-    empty.textContent = "고품질 AI 실사 렌더를 만들면 그 결과 이미지 기준으로 3D 현장 보기가 준비됩니다.";
+    empty.textContent = "자체 실사 엔진 렌더를 만들면 그 결과 이미지 기준으로 3D 현장 보기가 준비됩니다.";
     empty.classList.remove("hidden");
     clearPlannerPanoramaCanvas();
     return;
@@ -10482,8 +11577,8 @@ function schedulePlannerPanoramaRender() {
     return;
   }
   empty.textContent = sourceMode === "ai-render"
-    ? "고품질 AI 실사 렌더 기반 3D 현장 보기를 만드는 중입니다."
-    : "임시 3D 현장 보기를 준비하고 있습니다. 고품질 AI 실사 렌더가 완성되면 다시 3D화됩니다.";
+    ? "자체 실사 엔진 기반 3D 현장 보기를 만드는 중입니다."
+    : "임시 3D 현장 보기를 준비하고 있습니다. 자체 실사 엔진 렌더가 완성되면 다시 3D화됩니다.";
   empty.classList.remove("hidden");
   plannerPanoramaTimer = window.setTimeout(() => {
     updatePlannerPanoramaRender(source).catch((error) => {
@@ -10649,7 +11744,7 @@ function renderPlannerPanoramaViewport() {
 
 function getPlannerPanoramaSourceShortLabel() {
   const mode = getPlannerPanoramaSourceMode();
-  if (mode === "ai-render") return "AI 실사 렌더 기반";
+  if (mode === "ai-render") return "자체 실사 엔진 기반";
   if (mode === "draft-preview") return "임시 미리보기 기반";
   if (mode === "site-photo") return "원본 사진 기반";
   return "대기";
@@ -10704,46 +11799,45 @@ function setPlannerPanoramaView(view) {
 
 async function createPlannerPhotoMaterialPreviewDataUrl() {
   if (!pendingPlannerSiteImage) return "";
-  const siteImage = await loadImageFromUrl(pendingPlannerSiteImage);
-  if (!siteImage) return "";
-  const canvas = document.createElement("canvas");
-  canvas.width = 1400;
-  canvas.height = Math.max(780, Math.round((siteImage.height / siteImage.width) * canvas.width));
-  const context = canvas.getContext("2d");
-  context.drawImage(siteImage, 0, 0, canvas.width, canvas.height);
-
   const config = readPlannerConfig();
   const surfaces = [
     { surface: "floor", tile: getPlannerSelectedTile("floor"), opacity: 0.78 },
     { surface: "wall", tile: getPlannerSelectedTile("wall"), opacity: 0.68 }
   ];
-  for (const entry of surfaces) {
+  const renderSurfaces = await Promise.all(surfaces.map(async (entry) => {
     const points = plannerSurfaceRegions[entry.surface] || [];
-    if (!entry.tile?.image || points.length < 3) continue;
-    let tileImageDataUrl = "";
+    if (!entry.tile?.image || points.length < 3) return null;
     try {
-      tileImageDataUrl = await imageUrlToDataUrl(entry.tile.image);
+      return {
+        surface: entry.surface,
+        points,
+        tileSize: entry.tile.size || "",
+        finish: entry.tile.finish || "",
+        orientation: getPlannerSurfaceOrientation(config, entry.surface),
+        groutMillimeters: config.grout,
+        opacity: entry.opacity,
+        room: {
+          widthMeters: config.width,
+          depthMeters: config.depth,
+          heightMeters: config.height
+        },
+        tileImageDataUrl: await imageUrlToDataUrl(entry.tile.image)
+      };
     } catch (error) {
       console.warn(error);
-      continue;
+      return null;
     }
-    const tileImage = await loadImageFromUrl(tileImageDataUrl);
-    if (!tileImage) continue;
-    const scaledPoints = points.map((point) => ({
-      x: point.x * canvas.width,
-      y: point.y * canvas.height
-    }));
-    const tilePattern = createPlannerPhotoTilePattern(
-      tileImage,
-      entry.tile,
-      entry.surface,
-      config,
-      getCanvasPolygonBounds(scaledPoints, canvas.width, canvas.height)
-    );
-    drawPlannerPhotoTileSurface(context, siteImage, canvas, scaledPoints, tilePattern, entry.surface, entry.opacity);
+  }));
+
+  if (window.TbpPlannerPhotoRenderEngine?.renderPhotoTileComposition) {
+    return window.TbpPlannerPhotoRenderEngine.renderPhotoTileComposition({
+      siteImageDataUrl: pendingPlannerSiteImage,
+      outputWidth: 1400,
+      surfaces: renderSurfaces.filter(Boolean)
+    });
   }
 
-  return canvas.toDataURL("image/jpeg", 0.9);
+  return "";
 }
 
 function createPlannerPhotoTilePattern(tileImage, tile, surface, config, surfaceBounds) {
@@ -10875,53 +11969,18 @@ async function generatePlannerRealRender() {
   pendingPlannerRealRenderImage = "";
   startPlannerRenderLoadingTimer();
   renderPlannerWorkspace();
-  setText("#plannerStatus", "현장 사진, 타일 규격, 시공 방향, 배치 미리보기를 기준으로 고품질 AI 실사 렌더를 생성하고 있습니다...");
+  setText("#plannerStatus", "현장 사진, 타일 규격, 줄눈, 시공 방향을 기준으로 자체 실사 엔진 렌더를 생성하고 있습니다...");
 
   try {
-    const config = readPlannerConfig();
-    const guideImageDataUrl = await createPlannerSurfaceGuideImageDataUrl();
     const compositionImageDataUrl = await createPlannerPhotoMaterialPreviewDataUrl();
-    const surfaces = await Promise.all(selectedTiles.map(async ({ surface, tile }) => ({
-      surface,
-      tileName: tile.name,
-      tileSize: tile.size || "",
-      tileFinish: tile.finish || "",
-      tileOrientation: getPlannerSurfaceOrientation(config, surface) === "vertical" ? "vertical" : "horizontal",
-      tileImageDataUrl: await imageUrlToDataUrl(tile.image)
-    })));
-    const payload = await requestJson("/api/render", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        siteImageDataUrl: pendingPlannerSiteImage,
-        guideImageDataUrl,
-        compositionImageDataUrl,
-        qualityMode: "premium-photoreal",
-        surfaces,
-        pointMemo: "",
-        roomContext: {
-          mode: "planner",
-          widthMeters: config.width,
-          depthMeters: config.depth,
-          heightMeters: config.height,
-          groutMillimeters: config.grout,
-          floorOrientation: config.floorOrientation,
-          wallOrientation: config.wallOrientation,
-          footprintType: config.footprint?.usesPlan ? "uploaded floor plan outline" : "rectangular dimensions"
-        }
-      })
-    }, {
-      timeoutMs: 330000,
-      timeoutMessage: "고품질 AI 실사 렌더 응답이 지연되고 있습니다. 이미지 용량을 줄이거나 잠시 후 다시 시도해주세요."
-    });
-    pendingPlannerRealRenderImage = String(payload?.imageDataUrl || "");
+    pendingPlannerRealRenderImage = String(compositionImageDataUrl || "");
     if (!pendingPlannerRealRenderImage) throw new Error("실사 렌더 결과 이미지를 받지 못했습니다.");
     pendingPlannerPanoramaSource = "";
     pendingPlannerPanoramaImage = "";
     plannerPanoramaTexture = null;
     plannerPanoramaYaw = 0.5;
     plannerPanoramaPitch = 0;
-    setText("#plannerStatus", "실사 렌더가 생성되었습니다. 이제 AI 실사 렌더 결과를 기준으로 3D 현장 보기를 만듭니다.");
+    setText("#plannerStatus", "자체 실사 엔진 렌더가 생성되었습니다. 결과 이미지를 기준으로 360 현장 보기를 준비합니다.");
     renderPlannerWorkspace();
     schedulePlannerPanoramaRender();
     window.setTimeout(() => {
@@ -11500,6 +12559,11 @@ function switchPage(pageId, options = {}) {
     void ensureProductsReady();
   }
 
+  if (pageId === "aiTileFinderPage") {
+    syncTileFinderBrandFilter();
+    void ensureProductsReady();
+  }
+
   if (pageId === "myPage") {
     renderMyPage();
   }
@@ -11730,7 +12794,7 @@ async function pushCartToServer() {
   if (!authUser?.businessNumber) return;
   await requestJson("/api/cart", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: getMemberProductAuthHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       businessNumber: authUser.businessNumber,
       companyName: authUser.companyName || "",

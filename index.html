@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260709-admin-brand-filter1" />
+    <link rel="stylesheet" href="styles.css?v=20260715-action-autocheck1" />
   </head>
   <body>
     <!-- build: homeheroslider3 -->
@@ -172,9 +172,9 @@
                 <strong>수도권 빠른 배송</strong>
               </section>
               <section class="mobile-mosaic-grid" aria-label="모바일 추천 배너">
-                <button class="mobile-mosaic-card mobile-mosaic-card--wide" type="button" data-page-target="taxonomyTestPage">
-                  <img src="images/branding/web-storefront-hero-20260706.png" alt="온라인 쇼룸" />
-                  <span>온라인 쇼룸가기</span>
+                <button class="mobile-mosaic-card mobile-mosaic-card--wide" type="button" data-page-target="aiTileFinderPage">
+                  <img src="images/branding/web-storefront-hero-20260706.png" alt="AI 타일찾기" />
+                  <span>AI 타일찾기</span>
                 </button>
                 <button class="mobile-mosaic-card" type="button" data-page-target="samplePage">
                   <img src="images/branding/web-mosaic-banners/sample-go-20260706-v2.png" alt="샘플GO" />
@@ -212,9 +212,9 @@
                   </div>
                 </div>
               </section>
-              <button class="web-mosaic-card web-mosaic-card--showroom" type="button" data-page-target="taxonomyTestPage">
-                <img src="images/branding/web-storefront-hero-20260706.png" alt="타일과 욕실 자재 쇼룸" />
-                <span>온라인 쇼룸가기</span>
+              <button class="web-mosaic-card web-mosaic-card--showroom" type="button" data-page-target="aiTileFinderPage">
+                <img src="images/branding/web-storefront-hero-20260706.png" alt="AI 타일찾기" />
+                <span>AI 타일찾기</span>
               </button>
               <button class="web-mosaic-card web-mosaic-card--sample" type="button" data-page-target="samplePage">
                 <img src="images/branding/web-mosaic-banners/sample-go-20260706-v2.png" alt="샘플GO" />
@@ -413,6 +413,93 @@
         </section>
         <section class="commerce-panel customer-catalog-panel">
           <p class="service-copy">샘플페이지입니다.</p>
+        </section>
+      </main>
+
+      <main class="app-page page-panel customer-page ai-tile-finder-page" id="aiTileFinderPage">
+        <section class="page-heading customer-page-heading">
+          <div>
+            <p class="eyebrow">AI Tile Finder</p>
+            <h2>AI 타일찾기</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
+          </div>
+        </section>
+        <section class="commerce-panel ai-tile-finder-shell">
+          <div class="ai-tile-finder-hero">
+            <div>
+              <p class="eyebrow">Photo Match</p>
+              <h3>사진을 올리면 비슷한 타일을 찾아드립니다.</h3>
+              <p>현장 사진, 샘플 사진, 카탈로그 이미지를 업로드하고 타일 사이즈, 표면, 사용 위치를 선택하세요. 색상, 패턴, 재질감을 기준으로 유사한 상품을 정리합니다.</p>
+            </div>
+            <div class="ai-tile-finder-note">
+              <strong>정확도 기준</strong>
+              <span>사이즈와 표면은 필수 조건으로 먼저 맞추고, 그 안에서 이미지가 가장 비슷한 타일을 보여줍니다.</span>
+            </div>
+          </div>
+          <section class="tile-finder-panel ai-tile-finder-tool">
+            <div class="tile-finder-copy">
+              <p class="eyebrow">Image Match</p>
+              <h3>사진 기반 타일찾기</h3>
+              <p>사진 업로드 후 사이즈를 모르시면 '사이즈 모름'을 선택하고 표면과 사용 위치를 골라 검색하세요.</p>
+            </div>
+            <div class="tile-finder-actions">
+              <div class="tile-finder-controls">
+                <label>
+                  타일 사이즈
+                  <select id="tileFinderSize">
+                    <option value="">사이즈 선택</option>
+                    <option value="__unknown__">사이즈 모름</option>
+                    <option value="__custom__">직접입력</option>
+                    <option value="200*200">200*200</option>
+                    <option value="300*300">300*300</option>
+                    <option value="300*600">300*600</option>
+                    <option value="600*600">600*600</option>
+                    <option value="600*1200">600*1200</option>
+                    <option value="800*800">800*800</option>
+                    <option value="1200*1200">1200*1200</option>
+                    <option value="1200*2400">1200*2400</option>
+                    <option value="1200*3600">1200*3600</option>
+                  </select>
+                  <input class="tile-finder-size-custom hidden" id="tileFinderSizeCustom" type="text" placeholder="직접입력 예: 600*600, 300x600" autocomplete="off" />
+                </label>
+                <label>
+                  표면
+                  <select id="tileFinderFinish">
+                    <option value="">표면 선택</option>
+                    <option value="무광">무광</option>
+                    <option value="유광">유광</option>
+                  </select>
+                </label>
+                <label>
+                  사용 위치
+                  <select id="tileFinderApplication">
+                    <option value="">사용 위치 선택</option>
+                    <option value="floor">바닥</option>
+                    <option value="wall">벽</option>
+                  </select>
+                </label>
+              </div>
+              <div class="ai-tile-finder-action-row">
+                <input class="visually-hidden" id="tileFinderFile" type="file" accept="image/*" />
+                <button class="primary-action" id="tileFinderBtn" type="button">사진 업로드</button>
+                <button class="secondary-action" id="tileFinderSearchBtn" type="button">검색</button>
+              </div>
+              <span id="tileFinderStatus">사진을 올린 뒤 타일 사이즈 또는 직접입력, 사이즈 모름, 표면, 사용 위치를 선택하고 검색하세요.</span>
+            </div>
+            <div class="tile-finder-preview hidden" id="tileFinderPreviewWrap">
+              <img id="tileFinderPreview" alt="업로드한 타일 이미지" />
+              <div>
+                <strong>분석 결과</strong>
+                <div class="tile-finder-tags" id="tileFinderTags"></div>
+              </div>
+            </div>
+            <div class="tile-finder-analysis-panel hidden" id="tileFinderAnalysisPanel"></div>
+            <div class="tile-finder-result-filters hidden" id="tileFinderResultFilters"></div>
+            <div class="tile-finder-results hidden" id="tileFinderResults"></div>
+          </section>
         </section>
       </main>
 
@@ -670,62 +757,15 @@
             <button class="customer-chip" type="button" data-main-category="accessory">바스GO 악세사리 보기</button>
             <button class="customer-chip" type="button" data-main-category="material">자재GO 부자재 보기</button>
           </div>
-          <section class="tile-finder-panel">
+          <section class="tile-finder-panel tile-finder-panel--shortcut">
             <div class="tile-finder-copy">
-              <p class="eyebrow">Image Match</p>
-              <h3>타일찾기</h3>
-              <p>현장 사진이나 샘플 사진을 올리면 색상, 패턴, 재질을 분석해서 비슷한 타일을 찾아줍니다.</p>
+              <p class="eyebrow">AI Tile Finder</p>
+              <h3>사진으로 비슷한 타일을 찾고 싶다면</h3>
+              <p>사진 기반 검색은 전용 화면에서 더 크게 보고 진행할 수 있습니다.</p>
             </div>
             <div class="tile-finder-actions">
-              <div class="tile-finder-controls">
-                <label class="admin-only tile-finder-brand-field">
-                  브랜드
-                  <select id="tileFinderBrand">
-                    <option value="all">전체 브랜드</option>
-                  </select>
-                </label>
-                <label>
-                  타일 사이즈
-                  <select id="tileFinderSize">
-                    <option value="">사이즈 선택</option>
-                    <option value="__unknown__">사이즈 모름</option>
-                    <option value="200*200">200*200</option>
-                    <option value="300*300">300*300</option>
-                    <option value="300*600">300*600</option>
-                    <option value="600*600">600*600</option>
-                    <option value="600*1200">600*1200</option>
-                    <option value="800*800">800*800</option>
-                    <option value="1200*1200">1200*1200</option>
-                    <option value="1200*2400">1200*2400</option>
-                    <option value="1200*3600">1200*3600</option>
-                  </select>
-                </label>
-                <label>
-                  표면
-                  <select id="tileFinderFinish">
-                    <option value="">표면 선택</option>
-                    <option value="무광">무광</option>
-                    <option value="유광">유광</option>
-                    <option value="반무광">반무광</option>
-                    <option value="논슬립">논슬립</option>
-                    <option value="러프">러프</option>
-                    <option value="폴리싱">폴리싱</option>
-                  </select>
-                </label>
-              </div>
-              <input class="visually-hidden" id="tileFinderFile" type="file" accept="image/*" />
-              <button class="primary-action" id="tileFinderBtn" type="button">사진 업로드</button>
-              <button class="secondary-action" id="tileFinderSearchBtn" type="button">검색</button>
-              <span id="tileFinderStatus">사진을 올린 뒤 타일 사이즈 또는 사이즈 모름과 표면을 선택하고 검색하세요.</span>
+              <button class="primary-action" type="button" data-page-target="aiTileFinderPage">AI 타일찾기 열기</button>
             </div>
-            <div class="tile-finder-preview hidden" id="tileFinderPreviewWrap">
-              <img id="tileFinderPreview" alt="업로드한 타일 이미지" />
-              <div>
-                <strong>분석 결과</strong>
-                <div class="tile-finder-tags" id="tileFinderTags"></div>
-              </div>
-            </div>
-            <div class="tile-finder-results hidden" id="tileFinderResults"></div>
           </section>
           <select class="visually-hidden" id="kindFilter" aria-hidden="true" tabindex="-1">
             <option value="all">전체</option>
@@ -1258,7 +1298,7 @@
                 <p class="eyebrow">Current Order</p>
                 <h3>현재 주문내역</h3>
               </div>
-              <button class="secondary-action" id="saveCurrentOrderBtn" type="button">지난 주문으로 저장</button>
+              <button class="secondary-action" id="saveCurrentOrderBtn" type="button">주문 접수하기</button>
             </div>
             <div id="myCurrentOrderSummary"></div>
           </article>
@@ -1402,7 +1442,7 @@
             <div class="planner-actions">
               <button class="secondary-action" id="plannerApplyCartBtn" type="button">타일 자동 적용</button>
               <button class="secondary-action" id="plannerResetCameraBtn" type="button">시점 초기화</button>
-              <button class="primary-action" id="plannerRealRenderBtn" type="button">고품질 AI 실사 렌더 만들기</button>
+              <button class="primary-action" id="plannerRealRenderBtn" type="button">자체 실사 엔진 렌더 만들기</button>
             </div>
             <div class="planner-summary" id="plannerSummary"></div>
             <div class="planner-cart-products" id="plannerCartProducts"></div>
@@ -1422,8 +1462,8 @@
             <div class="planner-real-render">
               <div class="planner-stage-toolbar">
                 <div>
-                  <strong>현장 사진 기반 실사 렌더</strong>
-                  <span>업로드한 현장 이미지를 유지하고 선택 타일만 실제 시공처럼 반영합니다.</span>
+                  <strong>자체 실사 엔진 렌더</strong>
+                  <span>업로드한 현장 이미지를 유지하고 선택 타일을 원근, 줄눈, 조명 기준으로 반영합니다.</span>
                 </div>
                 <a class="hidden" id="plannerRealRenderDownload" download="tile-bath-real-render.png">다운로드</a>
               </div>
@@ -1433,8 +1473,8 @@
               <div class="planner-stage-toolbar">
                 <div>
                   <strong>360 현장 보기</strong>
-                  <span>고품질 AI 실사 렌더가 완성되면 그 이미지를 기준으로 3D화해서 둘러봅니다.</span>
-                  <small class="planner-panorama-source" id="plannerPanoramaSourceLabel">실사 렌더 생성 후 3D화됩니다.</small>
+                  <span>자체 실사 엔진 결과 이미지를 기준으로 3D화해서 둘러봅니다.</span>
+                  <small class="planner-panorama-source" id="plannerPanoramaSourceLabel">렌더 생성 후 3D화됩니다.</small>
                 </div>
                 <div class="planner-panorama-actions" aria-label="360 현장 보기 방향">
                   <button class="secondary-action" type="button" data-planner-panorama-view="front">앞</button>
@@ -1742,6 +1782,45 @@
             </label>
           </div>
 
+          <section class="render-direction-panel">
+            <div class="render-section-heading">
+              <strong>인테리어 방향</strong>
+              <span>현장 사진의 공간을 읽고 선택한 분위기에 맞춰 실사 보정합니다.</span>
+            </div>
+            <div class="render-direction-grid">
+              <label>
+                공간
+                <select id="renderRoomType">
+                  <option value="auto">자동 분석</option>
+                  <option value="bathroom">욕실 / 화장실</option>
+                  <option value="living">거실</option>
+                  <option value="kitchen">주방</option>
+                  <option value="exterior">외벽 / 외부</option>
+                  <option value="commercial">상업공간</option>
+                </select>
+              </label>
+              <label>
+                인테리어풍
+                <select id="renderInteriorStyle">
+                  <option value="natural-modern">내추럴 모던</option>
+                  <option value="mid-century">미드센추리</option>
+                  <option value="minimal">미니멀</option>
+                  <option value="hotel">호텔식</option>
+                  <option value="warm-premium">웜톤 고급</option>
+                  <option value="industrial">인더스트리얼</option>
+                  <option value="nordic">북유럽</option>
+                  <option value="zen">재패니즈 / 젠</option>
+                  <option value="classic">클래식</option>
+                </select>
+              </label>
+              <label class="wide">
+                보정 방향 메모
+                <input id="renderStyleMemo" type="text" placeholder="예: 밝고 고급스럽게, 카페 느낌, 우드톤 가구와 어울리게" />
+              </label>
+            </div>
+            <div class="render-room-analysis" id="renderRoomAnalysis">현장 사진을 올리면 공간 분석 기준을 함께 적용합니다.</div>
+          </section>
+
           <div class="render-surface-config">
             <article class="render-surface-card">
               <div class="render-surface-header">
@@ -1792,7 +1871,26 @@
               <div class="render-preview render-preview-large" id="renderResultPreview">미리보기 없음</div>
               <div class="render-result-actions">
                 <button class="secondary-action render-preview-trigger" id="openRenderPreviewBtn" type="button">결과 크게 보기</button>
-                <a class="primary-action render-download-link hidden" id="downloadRenderResultBtn" download="render-result.png">보정 결과 다운로드</a>
+                <a class="primary-action render-download-link hidden" id="downloadRenderResultBtn" download="render-result.jpg">보정 결과 다운로드</a>
+              </div>
+              <div class="render-feedback-panel hidden" id="renderFeedbackPanel">
+                <div>
+                  <strong>보정 결과 평가</strong>
+                  <span>대표님 평가가 쌓이면 자재GO 보정 품질 기준으로 활용됩니다.</span>
+                </div>
+                <div class="render-feedback-actions" id="renderFeedbackActions">
+                  <button type="button" data-render-feedback="good">좋음</button>
+                  <button type="button" data-render-feedback="graphic">그래픽 같음</button>
+                  <button type="button" data-render-feedback="tile_mismatch">타일 다름</button>
+                  <button type="button" data-render-feedback="grout_issue">줄눈 이상</button>
+                  <button type="button" data-render-feedback="room_changed">공간 바뀜</button>
+                  <button type="button" data-render-feedback="color_issue">색감 이상</button>
+                  <button type="button" data-render-feedback="regenerate">다시 생성 필요</button>
+                </div>
+                <label>
+                  메모
+                  <input id="renderFeedbackMemo" type="text" placeholder="예: 실사감은 좋은데 줄눈이 너무 넓음" />
+                </label>
               </div>
             </div>
           </div>
@@ -1803,6 +1901,19 @@
           </div>
         </section>
       </main>
+
+      <div class="render-loading-overlay hidden" id="renderLoadingOverlay" aria-hidden="true">
+        <div class="render-loading-card" role="status" aria-live="polite">
+          <div class="render-loading-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <strong id="renderLoadingTitle">실사 보정 중</strong>
+          <p id="renderLoadingText">현장 사진과 선택한 타일을 분석해 보정 이미지를 만들고 있습니다.</p>
+          <div class="render-loading-progress" aria-hidden="true"><i></i></div>
+        </div>
+      </div>
 
       <div class="image-preview-modal hidden" id="imagePreviewModal" aria-hidden="true">
         <button class="image-preview-backdrop" id="imagePreviewBackdrop" type="button" aria-label="미리보기 닫기"></button>
@@ -1911,6 +2022,34 @@
 
           <div class="admin-summary-grid admin-ops-kpi-grid" id="adminOpsKpiGrid"></div>
 
+          <div class="admin-launch-board">
+            <article class="admin-ops-panel admin-launch-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">August Launch</p>
+                  <h4>8월 오픈 실행 플로우</h4>
+                </div>
+                <button class="secondary-action" id="adminLaunchResetBtn" type="button">오늘 체크 초기화</button>
+              </div>
+              <div class="admin-launch-status" id="adminLaunchPhaseSummary"></div>
+              <div class="admin-launch-progress" aria-label="8월 오픈 준비 진행률">
+                <span id="adminLaunchProgressBar"></span>
+              </div>
+              <div class="admin-launch-todos" id="adminLaunchTodoList"></div>
+              <div class="admin-launch-request-status" id="adminLaunchRequestStatus">체크 후 실행요청을 누르면 Codex 작업요청 큐에 등록됩니다.</div>
+            </article>
+
+            <article class="admin-ops-panel admin-launch-timeline-panel">
+              <div class="section-header-inline compact-section-header">
+                <div>
+                  <p class="eyebrow">Roadmap</p>
+                  <h4>단계별 점검표</h4>
+                </div>
+              </div>
+              <div class="admin-launch-timeline" id="adminLaunchTimeline"></div>
+            </article>
+          </div>
+
           <div class="admin-ops-layout">
             <article class="admin-ops-panel">
               <div class="section-header-inline compact-section-header">
@@ -1950,6 +2089,7 @@
                       <th>가입경로</th>
                       <th>상태</th>
                       <th>신청일</th>
+                      <th>처리</th>
                     </tr>
                   </thead>
                   <tbody id="adminOpsSignupRows"></tbody>
@@ -1973,6 +2113,7 @@
                       <th>견적합계</th>
                       <th>상태</th>
                       <th>최근 저장</th>
+                      <th>처리</th>
                     </tr>
                   </thead>
                   <tbody id="adminOpsOrderRows"></tbody>
@@ -2262,6 +2403,7 @@
                   <th>품목 수</th>
                   <th>처리 상태</th>
                   <th>최근 저장</th>
+                  <th>처리</th>
                 </tr>
               </thead>
               <tbody id="adminCartRows"></tbody>
@@ -2272,6 +2414,17 @@
     </div>
 
     <script src="products-db.js?v=20260710-products-db-sync1"></script>
-    <script src="app.js?v=20260709-admin-brand-filter2"></script>
+    <script src="src/client/shared/product-dto.js?v=20260710-module-split1"></script>
+    <script src="src/client/features/products/filter-snapshot.js?v=20260710-module-split1"></script>
+    <script src="src/client/features/products/product-page-state.js?v=20260710-module-split2"></script>
+    <script src="src/client/features/products/product-search-text.js?v=20260710-module-split3"></script>
+    <script src="src/client/features/products/product-cards.js?v=20260710-module-split4"></script>
+    <script src="src/client/features/products/product-detail.js?v=20260713-hs-stock1"></script>
+    <script src="src/client/features/cart/cart-tile-metrics.js?v=20260710-module-split5"></script>
+    <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
+    <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
+    <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
+    <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
+    <script src="app.js?v=20260719-order-db1"></script>
   </body>
 </html>

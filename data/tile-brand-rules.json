@@ -1,0 +1,225 @@
+{
+  "version": "2026-07-02-finish-rules-v1",
+  "scope": "tile-finish",
+  "description": "Brand-specific tile finish rules. Customer-facing filters should use the normalized finish group, while this file records the operational rules used to update product finish fields.",
+  "finishValues": {
+    "glossy": "유광",
+    "matte": "무광",
+    "nonSlip": "논슬립",
+    "unknown": "마감 미확인"
+  },
+  "globalRules": [
+    {
+      "id": "global-explicit-nonslip",
+      "priority": 10,
+      "finish": "논슬립",
+      "apply": "always",
+      "reason": "논슬립/NS/R10-R13 표기",
+      "match": {
+        "anyTextRegex": "논슬립|미끄럼|NON[-_\\s]?SLIP|NONSLIP|(?:^|[-_\\s(/])NS(?:$|[-_\\s)/])|\\bR1[0-3]\\b"
+      }
+    },
+    {
+      "id": "global-explicit-glossy",
+      "priority": 70,
+      "finish": "유광",
+      "apply": "always",
+      "reason": "유광/폴리싱/유약/글로시 표기",
+      "match": {
+        "anyTextRegex": "유광|글로시|폴리싱|폴리쉬|유약|유악|POLISHED|POLISHING|GLOSSY|GLOSS"
+      }
+    },
+    {
+      "id": "global-explicit-matte",
+      "priority": 80,
+      "finish": "무광",
+      "apply": "always",
+      "reason": "무광/매트 표기",
+      "match": {
+        "anyTextRegex": "무광|매트|맷|MATT|MATTE"
+      }
+    }
+  ],
+  "brands": {
+    "VG": {
+      "description": "VeryGood Tile114 rules",
+      "defaultFinish": "무광",
+      "defaultApply": "always",
+      "defaultReason": "VG 기본 규칙: 유광 표기가 없으면 무광",
+      "rules": [
+        {
+          "id": "vg-europe-wall-maiolica-glossy",
+          "priority": 20,
+          "finish": "유광",
+          "apply": "always",
+          "reason": "VG 유럽벽 MAIOLICA 시리즈 유광",
+          "match": {
+            "all": [
+              { "field": "category", "regex": "유럽벽|T-유럽벽" },
+              { "field": "name", "regex": "MAIOLICA" }
+            ]
+          }
+        },
+        {
+          "id": "vg-china-wall-wt36p-glossy",
+          "priority": 30,
+          "finish": "유광",
+          "apply": "always",
+          "reason": "VG 중국벽 300x600 WT36Pxx 품번 유광",
+          "match": {
+            "all": [
+              { "field": "category", "regex": "중국벽|T-중국벽" },
+              { "field": "size", "regex": "^300\\*600$" },
+              { "field": "name", "regex": "WT36P\\d+" }
+            ]
+          }
+        },
+        {
+          "id": "vg-china-wall-wt36m-matte",
+          "priority": 31,
+          "finish": "무광",
+          "apply": "always",
+          "reason": "VG 중국벽 300x600 WT36Mxx 품번 무광",
+          "match": {
+            "all": [
+              { "field": "category", "regex": "중국벽|T-중국벽" },
+              { "field": "size", "regex": "^300\\*600$" },
+              { "field": "name", "regex": "WT36M\\d+" }
+            ]
+          }
+        },
+        {
+          "id": "vg-name-ending-p-glossy",
+          "priority": 40,
+          "finish": "유광",
+          "apply": "always",
+          "reason": "VG 상품명 끝 P 표기 유광",
+          "match": {
+            "nameRegex": "(?:^|[\\s(/_.-])P\\)?$|\\(P\\)$|[-_\\s]P$"
+          }
+        }
+      ]
+    },
+    "US": {
+      "description": "Usong rules",
+      "defaultFinish": "무광",
+      "defaultApply": "always",
+      "defaultReason": "US 기본 규칙: 유광 표기가 없으면 무광",
+      "rules": [
+        {
+          "id": "us-polishing-category-glossy",
+          "priority": 20,
+          "finish": "유광",
+          "apply": "always",
+          "reason": "US 폴리싱/유약 카테고리 유광",
+          "match": {
+            "categoryRegex": "폴리싱|유약|유악"
+          }
+        },
+        {
+          "id": "us-stair-matte",
+          "priority": 30,
+          "finish": "무광",
+          "apply": "always",
+          "reason": "US 계단타일 무광",
+          "match": {
+            "categoryRegex": "계단"
+          }
+        },
+        {
+          "id": "us-wood-strip-matte",
+          "priority": 31,
+          "finish": "무광",
+          "apply": "always",
+          "reason": "US 쪽마루/우드 계열 무광",
+          "match": {
+            "anyTextRegex": "쪽마루|우드타일|WOOD"
+          }
+        }
+      ]
+    },
+    "AJ": {
+      "description": "Aju Tile114 rules",
+      "rules": [
+        {
+          "id": "aj-polishing-glossy",
+          "priority": 20,
+          "finish": "유광",
+          "apply": "always",
+          "reason": "AJ 폴리싱/유광 표기",
+          "match": {
+            "anyTextRegex": "유광|폴리싱|POLISHED|POLISHING|GLOSSY|GLOSS"
+          }
+        },
+        {
+          "id": "aj-porcelain-label-matte",
+          "priority": 30,
+          "finish": "무광",
+          "apply": "always",
+          "reason": "AJ 포쉐린 표기 무광",
+          "match": {
+            "anyTextRegex": "포쉐린|PORCELAIN"
+          }
+        }
+      ]
+    },
+    "HS": {
+      "description": "Hwashin rules. HS has finish text in product names/details; do not default unknown HS items.",
+      "rules": [
+        {
+          "id": "hs-explicit-glossy",
+          "priority": 20,
+          "finish": "유광",
+          "apply": "always",
+          "reason": "HS 유광/폴리싱 표기",
+          "match": {
+            "anyTextRegex": "유광|폴리싱|POLISHED|POLISHING|GLOSSY|GLOSS"
+          }
+        },
+        {
+          "id": "hs-explicit-matte",
+          "priority": 30,
+          "finish": "무광",
+          "apply": "always",
+          "reason": "HS 무광/매트 표기",
+          "match": {
+            "anyTextRegex": "무광|매트|맷|MATT|MATTE"
+          }
+        }
+      ]
+    },
+    "GT": {
+      "description": "The Gold Tile rules",
+      "rules": [
+        {
+          "id": "gt-name-m-suffix-matte",
+          "priority": 30,
+          "finish": "무광",
+          "apply": "always",
+          "reason": "더골드 상품명 -M/(M) 무광",
+          "match": {
+            "nameRegex": "(?:^|[-_\\s(/])M(?:$|[-_\\s)/])|\\(M\\)"
+          }
+        },
+        {
+          "id": "gt-name-p-suffix-glossy",
+          "priority": 31,
+          "finish": "유광",
+          "apply": "always",
+          "reason": "더골드 상품명 -P/(P) 유광",
+          "match": {
+            "nameRegex": "(?:^|[-_\\s(/])P(?:$|[-_\\s)/])|\\(P\\)"
+          }
+        }
+      ]
+    },
+    "SG": {
+      "description": "SG Cera uses global explicit finish rules only.",
+      "rules": []
+    },
+    "SNT": {
+      "description": "SNT uses global explicit finish rules only.",
+      "rules": []
+    }
+  }
+}

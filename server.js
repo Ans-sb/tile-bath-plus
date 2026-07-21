@@ -6,6 +6,32 @@ const { execFile } = require("child_process");
 const { pathToFileURL } = require("url");
 const jpeg = require("jpeg-js");
 const { PNG } = require("pngjs");
+const { readRequestBody, sendJson, sendRawJson } = require("./src/server/http-utils");
+const { createHttpError } = require("./src/server/http-errors");
+const { serveStaticFile } = require("./src/server/static-files");
+const { handleProductRoutes } = require("./src/server/routes/product-routes");
+const { handleAccountRoutes } = require("./src/server/routes/account-routes");
+const { handleAdminRoutes } = require("./src/server/routes/admin-routes");
+const { handleMediaRoutes } = require("./src/server/routes/media-routes");
+const { handleSearchRoutes } = require("./src/server/routes/search-routes");
+const { handleSystemRoutes } = require("./src/server/routes/system-routes");
+const { createSupabaseClient } = require("./src/server/services/supabase-client");
+const productSupabaseMapper = require("./src/server/services/product-supabase-mapper");
+const { createProductCache } = require("./src/server/services/product-cache");
+const { createProductFileStore } = require("./src/server/services/product-file-store");
+const { createProductReader } = require("./src/server/services/product-reader");
+const { createProductWriter } = require("./src/server/services/product-writer");
+const accountMapper = require("./src/server/services/account-mapper");
+const accountSession = require("./src/server/services/account-session");
+const authService = require("./src/server/services/auth-service");
+const cartMapper = require("./src/server/services/cart-mapper");
+const { createSearchLogStore } = require("./src/server/services/search-log-store");
+const { createProductResponseMapper } = require("./src/server/services/product-response-mapper");
+const passwordService = require("./src/server/services/password-service");
+const { createAdminProductService } = require("./src/server/services/admin-product-service");
+const { createApprovalRulesService } = require("./src/server/services/approval-rules-service");
+const { createCartStore } = require("./src/server/services/cart-store");
+const { createOrderStore } = require("./src/server/services/order-store");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -13,10 +39,14 @@ loadEnvFile(path.join(root, ".env"));
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 const productsPath = path.join(root, "data", "products.json");
+const productImagesPath = path.join(root, "data", "product-images.json");
 const normalizedTaxonomyPath = path.join(root, "data", "products.normalized.json");
 const searchTrainingFeedbackPath = path.join(root, "data", "search-training-feedback.jsonl");
+const renderFeedbackPath = path.join(root, "data", "render-feedback.jsonl");
+const renderFeedbackAssetDir = path.join(root, "outputs", "render-feedback-assets");
+const adminActionRequestsPath = path.join(root, "data", "admin-action-requests.jsonl");
+const ordersPath = path.join(root, "data", "orders.json");
 const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
-const bodyLimit = 80 * 1024 * 1024;
 const proposalOutputDir = path.join(root, "outputs", "proposals");
 const proposalTmpDir = path.join(root, "tmp", "proposal-ppt");
 const proposalBuilderPath = path.join(root, "scripts", "build-proposal-deck.mjs");
@@ -27,6 +57,10 @@ const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
 const openAiImageModel = String(process.env.OPENAI_IMAGE_MODEL || "gpt-image-1").trim();
 const openAiVisionModel = String(process.env.OPENAI_VISION_MODEL || "gpt-4o-mini").trim();
 const openAiRenderTimeoutMs = Math.max(60000, Number(process.env.OPENAI_RENDER_TIMEOUT_MS || 300000) || 300000);
+const openAiRenderSize = String(process.env.OPENAI_RENDER_SIZE || "1360x960").trim();
+const openAiRenderQuality = String(process.env.OPENAI_RENDER_QUALITY || "high").trim();
+const openAiRenderOutputFormat = normalizeOpenAiRenderOutputFormat(process.env.OPENAI_RENDER_OUTPUT_FORMAT || "jpeg");
+const openAiRenderOutputCompression = Math.max(0, Math.min(100, Number(process.env.OPENAI_RENDER_OUTPUT_COMPRESSION || 92) || 92));
 const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const supabaseSecretKey = String(
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -45,6 +79,11 @@ const productReadCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_CACHE_
 const productReadFallbackCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_FALLBACK_CACHE_TTL_MS || 60 * 1000));
 const productRemoteReadTimeoutMs = Math.max(0, Number(process.env.PRODUCT_REMOTE_READ_TIMEOUT_MS || 20000));
 const supabaseRequestTimeoutMs = Math.max(0, Number(process.env.SUPABASE_REQUEST_TIMEOUT_MS || 12000));
+const supabaseClient = createSupabaseClient({
+  supabaseUrl,
+  supabaseSecretKey,
+  defaultTimeoutMs: supabaseRequestTimeoutMs
+});
 const productReadMode = String(process.env.PRODUCT_READ_MODE || "local-only").trim().toLowerCase();
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
@@ -58,11 +97,34 @@ const memberTokenSecret = crypto
   .digest("hex");
 let businessDocumentBucketReady = false;
 let tileSearchEnginePromise = null;
-let productsReadCache = { expiresAt: 0, rows: null, source: "" };
-let publicProductsJsonCache = { expiresAt: 0, json: "" };
+const productCache = createProductCache({ defaultTtlMs: productReadCacheTtlMs });
+const productFileStore = createProductFileStore({ productsPath });
+const productReader = createProductReader({
+  cache: productCache,
+  fileStore: productFileStore,
+  readRemoteProducts: () => readProductsFromSupabase(),
+  hasSupabaseConfig,
+  withTimeout,
+  logger: console,
+  forceLocalProducts,
+  productReadMode,
+  productReadCacheTtlMs,
+  productReadFallbackCacheTtlMs,
+  productRemoteReadTimeoutMs
+});
+const productWriter = createProductWriter({
+  readProducts: (options) => readProducts(options),
+  fileStore: productFileStore,
+  cache: productCache,
+  hasSupabaseConfig,
+  upsertProductToSupabase
+});
 const tileImageSignatureCache = new Map();
 const tileImageSignatureLimit = Math.max(24, Number(process.env.TILE_IMAGE_SIGNATURE_CACHE_LIMIT || 2500));
-const tileVisualCompareLimit = Math.max(40, Number(process.env.TILE_VISUAL_COMPARE_LIMIT || 240));
+const tileVisualCompareLimit = Math.max(120, Number(process.env.TILE_VISUAL_COMPARE_LIMIT || 240));
+const tileProductImageCompareLimit = Math.max(1, Number(process.env.TILE_PRODUCT_IMAGE_COMPARE_LIMIT || 5) || 5);
+let productImageIndexCache = null;
+let productImageIndexMtimeMs = 0;
 const publicStockExcludeThresholdQty = Math.max(0, Number(
   process.env.PUBLIC_STOCK_EXCLUDE_THRESHOLD_QTY
   || process.env.STOCK_EXCLUDE_THRESHOLD_QTY
@@ -116,265 +178,66 @@ const defaultApprovalRules = {
   ]
 };
 
-const mimeTypes = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".svg": "image/svg+xml"
-};
+const productResponseMapper = createProductResponseMapper({
+  publicExposeAllStockProducts,
+  publicStockExcludeThresholdQty,
+  stockInquiryThresholdQty,
+  classifyPatternCategory,
+  toBlankableNumber
+});
+const adminProductService = createAdminProductService({
+  assertAdminCredentials,
+  readProducts,
+  saveProduct,
+  normalizeProduct,
+  mapPublicProduct
+});
+const approvalRulesService = createApprovalRulesService({
+  cloneApprovalRules,
+  defaultApprovalRules,
+  hasSupabaseConfig,
+  isMissingSupabaseTableError,
+  normalizeStringArray,
+  requestSupabase
+});
+const cartStore = createCartStore({
+  hasSupabaseConfig,
+  isMissingSupabaseTableError,
+  normalizeCartItem,
+  requestSupabase
+});
+const orderStore = createOrderStore({
+  hasSupabaseConfig,
+  isMissingSupabaseTableError,
+  normalizeCartItem,
+  ordersPath,
+  requestSupabase
+});
+const searchLogStore = createSearchLogStore({ root });
 
 const server = http.createServer(async (request, response) => {
   try {
-    if (request.method === "GET" && request.url === "/api/health") {
-      sendJson(response, 200, {
-        ok: true,
-        status: "online",
-        storage: getStorageMode(),
-        startedAt: startedAt.toISOString(),
-        uptimeSeconds: Math.floor(process.uptime())
-      });
+    if (await handleSystemRoutes(request, response, getSystemRouteContext())) {
       return;
     }
 
-    if (request.method === "GET" && request.url.startsWith("/api/social-auth/start")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      response.writeHead(302, {
-        Location: buildSocialAuthStartUrl(
-          String(url.searchParams.get("provider") || ""),
-          String(url.searchParams.get("mode") || "signup"),
-          request
-        )
-      });
-      response.end();
+    if (await handleProductRoutes(request, response, getProductRouteContext())) {
       return;
     }
 
-    if (request.method === "POST" && request.url === "/api/social-auth/profile") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await readSocialAuthProfile(String(payload?.accessToken || "")));
+    if (await handleSearchRoutes(request, response, getSearchRouteContext())) {
       return;
     }
 
-    if (request.method === "POST" && request.url === "/api/social-auth/login") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await loginWithSocialAuth(String(payload?.accessToken || "")));
+    if (await handleAdminRoutes(request, response, getAdminRouteContext())) {
       return;
     }
 
-    if (request.method === "GET" && request.url === "/api/products") {
-      if (areProductsHiddenFromStorefront()) {
-        sendJson(response, 200, []);
-        return;
-      }
-      sendRawJson(response, 200, await getPublicProductsJson());
+    if (await handleAccountRoutes(request, response, getAccountRouteContext())) {
       return;
     }
 
-    if (request.method === "GET" && request.url.startsWith("/api/member/products")) {
-      const memberCredentials = readMemberProductCredentialsFromRequest(request);
-      const member = await verifyMemberProductAccess(
-        memberCredentials.businessNumber,
-        memberCredentials.memberToken
-      );
-      if (areProductsHiddenFromStorefront()) {
-        sendJson(response, 200, { ok: true, user: member, products: [] });
-        return;
-      }
-      sendJson(response, 200, {
-        ok: true,
-        user: member,
-        products: (await readProducts()).filter(isPublicCatalogProduct).map(mapMemberProduct)
-      });
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/local/normalized-taxonomy")) {
-      if (!isLocalRequest(request)) {
-        sendJson(response, 404, { error: "Not found" });
-        return;
-      }
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      sendJson(response, 200, await readLocalNormalizedTaxonomy(String(url.searchParams.get("view") || "admin")));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/local/taxonomy-search-log") {
-      if (!isLocalRequest(request)) {
-        sendJson(response, 404, { error: "Not found" });
-        return;
-      }
-      const payload = JSON.parse(await readRequestBody(request));
-      await appendTaxonomySearchLog(payload);
-      sendJson(response, 200, { ok: true });
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/tile-search") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await searchTileCatalog(payload));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/products") {
-      sendJson(response, 403, { error: "상품 DB 수정은 관리자 전용 API를 사용해야 합니다." });
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/admin/products")) {
-      const adminCredentials = readAdminCredentialsFromRequest(request);
-      sendJson(response, 200, await readAdminProducts(
-        adminCredentials.adminUsername,
-        adminCredentials.adminToken
-      ));
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/admin/product")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      const adminCredentials = readAdminCredentialsFromRequest(request);
-      sendJson(response, 200, await readAdminProduct(
-        adminCredentials.adminUsername,
-        adminCredentials.adminToken,
-        String(url.searchParams.get("id") || "")
-      ));
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/admin/search-training/stats")) {
-      const adminCredentials = readAdminCredentialsFromRequest(request);
-      assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
-      sendJson(response, 200, { ok: true, stats: await readSearchTrainingStats() });
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/admin/search-training/feedback") {
-      const adminCredentials = readAdminCredentialsFromRequest(request);
-      assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await appendSearchTrainingFeedback(payload, adminCredentials.adminUsername));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/admin/search-training/batch-feedback") {
-      const adminCredentials = readAdminCredentialsFromRequest(request);
-      assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await appendSearchTrainingFeedbackBatch(payload, adminCredentials.adminUsername));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/admin/product") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await saveAdminProduct(payload));
-      return;
-    }
-
-    if (request.method === "GET" && request.url === "/api/approval-rules") {
-      sendJson(response, 200, await readApprovalRules());
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/approval-rules") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await saveApprovalRules(payload));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/signup-requests") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await saveSignupRequestRecord(payload));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/login") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await loginWithSignupRequest(payload));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/admin/login") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, loginAsAdmin(payload));
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/cart")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      sendJson(response, 200, await readCartRecord(String(url.searchParams.get("businessNumber") || "")));
-      return;
-    }
-
-    if (request.method === "PUT" && request.url === "/api/cart") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await saveCartRecord(payload));
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/admin/overview")) {
-      const adminCredentials = readAdminCredentialsFromRequest(request);
-      sendJson(response, 200, await readAdminOverview(
-        adminCredentials.adminUsername,
-        adminCredentials.adminToken
-      ));
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/admin/tile114-sample")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      const adminCredentials = readAdminCredentialsFromRequest(request);
-      sendJson(response, 200, await readTile114SampleProducts(
-        adminCredentials.adminUsername,
-        adminCredentials.adminToken,
-        String(url.searchParams.get("category") || "5"),
-        Number(url.searchParams.get("limit") || 5)
-      ));
-      return;
-    }
-
-    if (request.method === "GET" && request.url.startsWith("/api/image-data-url")) {
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      const imageUrl = String(url.searchParams.get("url") || "").trim();
-      sendJson(response, 200, {
-        ok: true,
-        imageDataUrl: await readRemoteImageDataUrl(imageUrl)
-      });
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/render") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await generateRenderPreview(payload));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/tile-match") {
-      const payload = JSON.parse(await readRequestBody(request));
-      const adminContext = readOptionalAdminContextFromRequest(request);
-      sendJson(response, 200, await findSimilarTilesByImage(payload, adminContext));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/business-status") {
-      const { businessNumber } = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await checkBusinessStatus(String(businessNumber || "")));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/proposal-ppt") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await buildProfessionalProposalDeck(payload));
-      return;
-    }
-
-    if (request.method === "POST" && request.url === "/api/server-control") {
-      const payload = JSON.parse(await readRequestBody(request));
-      sendJson(response, 200, await handleServerControl(payload));
+    if (await handleMediaRoutes(request, response, getMediaRouteContext())) {
       return;
     }
 
@@ -400,6 +263,100 @@ server.listen(port, host, () => {
   });
 });
 
+function getSystemRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    startedAt,
+    getStorageMode,
+    buildSocialAuthStartUrl,
+    readSocialAuthProfile,
+    loginWithSocialAuth
+  };
+}
+
+function getProductRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    sendRawJson,
+    areProductsHiddenFromStorefront,
+    getPublicProductsJson,
+    readMemberProductCredentialsFromRequest,
+    verifyMemberProductAccess,
+    readProducts,
+    isPublicCatalogProduct,
+    mapMemberProduct,
+    readAdminCredentialsFromRequest,
+    readAdminProducts,
+    readAdminProduct,
+    saveAdminProduct
+  };
+}
+
+function getAccountRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    readApprovalRules,
+    saveApprovalRules,
+    saveSignupRequestRecord,
+    loginWithSignupRequest,
+    loginAsAdmin,
+    readMemberProductCredentialsFromRequest,
+    verifyMemberSessionAccess,
+    readCartRecord,
+    saveCartRecord,
+    createOrderFromCart,
+    readMemberOrders
+  };
+}
+
+function getAdminRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    readAdminCredentialsFromRequest,
+    assertAdminCredentials,
+    readSearchTrainingStats,
+    appendSearchTrainingFeedback,
+    appendSearchTrainingFeedbackBatch,
+    appendAdminActionRequest,
+    readAdminActionRequests,
+    updateSignupRequestApprovalStatus,
+    updateAdminOrderStatus,
+    readAdminOverview,
+    readTile114SampleProducts,
+    readAllOrders
+  };
+}
+
+function getMediaRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    readRemoteImageDataUrl,
+    generateRenderPreview,
+    appendRenderFeedback,
+    readOptionalAdminContextFromRequest,
+    findSimilarTilesByImage,
+    checkBusinessStatus,
+    buildProfessionalProposalDeck,
+    handleServerControl
+  };
+}
+
+function getSearchRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    isLocalRequest,
+    readLocalNormalizedTaxonomy,
+    appendTaxonomySearchLog,
+    searchTileCatalog
+  };
+}
+
 process.on("unhandledRejection", (error) => {
   console.error("[server] unhandledRejection", error);
   setTimeout(() => process.exit(1), 50).unref();
@@ -411,22 +368,15 @@ process.on("uncaughtException", (error) => {
 });
 
 function getCachedProducts() {
-  if (!productsReadCache.rows || Date.now() >= productsReadCache.expiresAt) return null;
-  return productsReadCache.rows;
+  return productCache.getProducts();
 }
 
 function setCachedProducts(rows, source, ttlMs = productReadCacheTtlMs) {
-  productsReadCache = {
-    expiresAt: Date.now() + ttlMs,
-    rows,
-    source
-  };
-  return rows;
+  return productCache.setProducts(rows, source, ttlMs);
 }
 
 function invalidateProductsReadCache() {
-  productsReadCache = { expiresAt: 0, rows: null, source: "" };
-  publicProductsJsonCache = { expiresAt: 0, json: "" };
+  productCache.invalidate();
 }
 
 async function withTimeout(promise, timeoutMs, message) {
@@ -445,86 +395,42 @@ async function withTimeout(promise, timeoutMs, message) {
 }
 
 async function readProductsFromLocalFile() {
-  const content = await fs.promises.readFile(productsPath, "utf8");
-  return JSON.parse(content);
+  return productFileStore.readProducts();
 }
 
 async function getPublicProductsJson() {
-  if (publicProductsJsonCache.json && Date.now() < publicProductsJsonCache.expiresAt) {
-    return publicProductsJsonCache.json;
-  }
+  const cachedJson = productCache.getPublicJson();
+  if (cachedJson) return cachedJson;
   const json = JSON.stringify((await readProducts()).filter(isPublicCatalogProduct).map(mapPublicProduct));
-  publicProductsJsonCache = {
-    expiresAt: Date.now() + productReadCacheTtlMs,
-    json
-  };
-  return json;
+  return productCache.setPublicJson(json, productReadCacheTtlMs);
 }
 
 function isPublicCatalogProduct(product) {
-  return !isExcludedVerygoodProduct(product) && !isExcludedLowStockPublicProduct(product);
+  return productResponseMapper.isPublicCatalogProduct(product);
 }
 
 function getProductStockQty(product) {
-  const stockQty = Number(product?.stockQty ?? product?.stock_qty ?? product?.stock ?? product?.product?.stockQty ?? product?.product?.stock_qty ?? product?.product?.stock ?? 0);
-  return Number.isFinite(stockQty) ? stockQty : 0;
+  return productResponseMapper.getProductStockQty(product);
 }
 
 function hasOrderableStock(product) {
-  return getProductStockQty(product) > stockInquiryThresholdQty;
+  return productResponseMapper.hasOrderableStock(product);
 }
 
 function isExcludedLowStockPublicProduct(product) {
-  return !publicExposeAllStockProducts && getProductStockQty(product) <= publicStockExcludeThresholdQty;
+  return productResponseMapper.isExcludedLowStockPublicProduct(product);
 }
 
 function isExcludedVerygoodProduct(product) {
-  if (!isVerygoodProduct(product)) return false;
-  const text = normalizeMatchText([
-    product?.name,
-    product?.kind,
-    product?.option,
-    product?.sourceCategoryName,
-    product?.source_category_name
-  ].filter(Boolean).join(" "));
-  if (/할인\s*\(?타일\)?|할인\s*\(?스톤\)?|할인품목|할\s*인\s*품\s*목/.test(text)) return true;
-  return false;
+  return productResponseMapper.isExcludedVerygoodProduct(product);
 }
 
 function isVerygoodProduct(product) {
-  return String(product?.id || "").startsWith("verygood-")
-    || /^(VG|VERYGOOD)$/i.test(String(product?.catalogSource || product?.catalog_source || "").trim())
-    || /verygood|vgtns|베리굿/i.test(String(product?.sourceSite || product?.source_site || "").trim());
+  return productResponseMapper.isVerygoodProduct(product);
 }
 
 async function readProducts(options = {}) {
-  const cachedProducts = options.cache === false ? null : getCachedProducts();
-  if (cachedProducts) return cachedProducts;
-
-  if (forceLocalProducts || productReadMode === "local-only") {
-    const localProducts = await readProductsFromLocalFile();
-    return setCachedProducts(localProducts, "file", productReadCacheTtlMs);
-  }
-
-  if (hasSupabaseConfig() && productReadMode !== "local-only") {
-    try {
-      const remoteProducts = await withTimeout(
-        readProductsFromSupabase(),
-        productRemoteReadTimeoutMs,
-        `Supabase 상품 읽기 시간 초과 (${productRemoteReadTimeoutMs}ms)`
-      );
-      if (remoteProducts.length) return setCachedProducts(remoteProducts, "supabase");
-    } catch (error) {
-      console.warn("[products] Supabase read failed; using local products.json.", error.message);
-    }
-  }
-
-  const localProducts = await readProductsFromLocalFile();
-  return setCachedProducts(
-    localProducts,
-    "file",
-    hasSupabaseConfig() ? productReadFallbackCacheTtlMs : productReadCacheTtlMs
-  );
+  return productReader.readProducts(options);
 }
 
 function normalizeProduct(product) {
@@ -564,7 +470,7 @@ function normalizeProduct(product) {
 
 function hasSupabaseConfig() {
   if (forceLocalProducts) return false;
-  return Boolean(supabaseUrl && supabaseSecretKey);
+  return supabaseClient.hasConfig();
 }
 
 function getStorageMode() {
@@ -575,81 +481,8 @@ function areProductsHiddenFromStorefront() {
   return fs.existsSync(productsHiddenFlagPath);
 }
 
-const LEGACY_PRODUCTS_SUPABASE_COLUMNS = [
-  "id",
-  "management_code",
-  "product_type",
-  "kind",
-  "name",
-  "size",
-  "finish",
-  "maker",
-  "unit",
-  "option_text",
-  "cost_price",
-  "retail_price",
-  "wholesale_price",
-  "stock_qty",
-  "image",
-  "original_image",
-  "close_image",
-  "detail_image",
-  "daylight_image",
-  "fluorescent_image",
-  "scene_image",
-  "catalog_source",
-  "catalog_page",
-  "created_at",
-  "updated_at"
-];
-
-const PRODUCTS_SUPABASE_COLUMNS = [
-  "id",
-  "management_code",
-  "product_type",
-  "kind",
-  "name",
-  "size",
-  "model_name",
-  "material",
-  "surface",
-  "pattern_category",
-  "country_of_origin",
-  "pcs_per_box",
-  "sqm_per_box",
-  "color",
-  "features",
-  "finish",
-  "maker",
-  "unit",
-  "option_text",
-  "cost_price",
-  "retail_price",
-  "wholesale_price",
-  "stock_qty",
-  "stock_text",
-  "grade_a_price",
-  "grade_b_price",
-  "grade_c_price",
-  "image",
-  "image_urls",
-  "original_image",
-  "close_image",
-  "detail_image",
-  "daylight_image",
-  "fluorescent_image",
-  "scene_image",
-  "source_site",
-  "source_url",
-  "source_product_id",
-  "source_category_code",
-  "source_category_name",
-  "catalog_source",
-  "catalog_page",
-  "last_synced_at",
-  "created_at",
-  "updated_at"
-];
+const LEGACY_PRODUCTS_SUPABASE_COLUMNS = productSupabaseMapper.LEGACY_PRODUCTS_SUPABASE_COLUMNS;
+const PRODUCTS_SUPABASE_COLUMNS = productSupabaseMapper.PRODUCTS_SUPABASE_COLUMNS;
 
 async function readProductsFromSupabase() {
   const pageSize = 1000;
@@ -712,478 +545,99 @@ async function upsertProductToSupabase(product) {
 }
 
 async function saveProduct(product) {
-  let products = await readProducts({ cache: false });
-  const index = products.findIndex((item) => item.id === product.id);
-  if (index >= 0) products[index] = product;
-  else products.push(product);
-
-  if (hasSupabaseConfig()) {
-    await upsertProductToSupabase(product);
-    invalidateProductsReadCache();
-    products = await readProducts({ cache: false });
-  }
-
-  await fs.promises.writeFile(productsPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
-  setCachedProducts(products, "file");
-  return products;
+  return productWriter.saveProduct(product);
 }
 
 function mapAppProductToSupabase(product) {
-  return {
-    id: product.id,
-    management_code: product.managementCode || "",
-    product_type: product.productType,
-    kind: product.kind,
-    name: product.name,
-    size: product.size,
-    model_name: product.modelName || product.name || "",
-    material: product.material || "",
-    surface: product.surface || "",
-    pattern_category: product.patternCategory || classifyPatternCategory(product),
-    country_of_origin: product.countryOfOrigin || "",
-    pcs_per_box: toNullableInteger(product.pcsPerBox),
-    sqm_per_box: toNullableNumber(product.sqmPerBox),
-    color: product.color || "",
-    features: product.features || "",
-    finish: product.finish,
-    maker: product.maker,
-    unit: product.unit,
-    option_text: product.option,
-    cost_price: Number(product.costPrice) || 0,
-    retail_price: Number(product.retailPrice) || 0,
-    wholesale_price: Number(product.wholesalePrice) || 0,
-    stock_qty: Number(product.stockQty) || 0,
-    stock_text: product.stockText || "",
-    grade_a_price: toNullableInteger(product.gradeAPrice),
-    grade_b_price: toNullableInteger(product.gradeBPrice),
-    grade_c_price: toNullableInteger(product.gradeCPrice),
-    image: product.image || "",
-    image_urls: Array.isArray(product.imageUrls) ? product.imageUrls : [],
-    original_image: product.originalImage || "",
-    close_image: product.closeImage || "",
-    detail_image: product.detailImage || "",
-    daylight_image: product.daylightImage || "",
-    fluorescent_image: product.fluorescentImage || "",
-    scene_image: product.sceneImage || "",
-    source_site: product.sourceSite || "",
-    source_url: product.sourceUrl || "",
-    source_product_id: product.sourceProductId || "",
-    source_category_code: product.sourceCategoryCode || "",
-    source_category_name: product.sourceCategoryName || "",
-    catalog_source: product.catalogSource || "",
-    catalog_page: Number(product.catalogPage) || 0,
-    last_synced_at: product.lastSyncedAt || null
-  };
+  return productSupabaseMapper.mapAppProductToSupabase(product);
 }
 
 function mapSupabaseProductToApp(row) {
-  return {
-    id: String(row.id || "").trim(),
-    managementCode: String(row.management_code || "").trim(),
-    productType: String(row.product_type || "").trim(),
-    kind: String(row.kind || "").trim(),
-    name: String(row.name || "").trim(),
-    size: String(row.size || "").trim(),
-    modelName: String(row.model_name || row.name || "").trim(),
-    material: String(row.material || "").trim(),
-    surface: String(row.surface || "").trim(),
-    patternCategory: String(row.pattern_category || "").trim() || classifyPatternCategory(row),
-    countryOfOrigin: String(row.country_of_origin || "").trim(),
-    pcsPerBox: toBlankableNumber(row.pcs_per_box),
-    sqmPerBox: toBlankableNumber(row.sqm_per_box),
-    color: String(row.color || "").trim(),
-    features: String(row.features || "").trim(),
-    finish: String(row.finish || "").trim(),
-    maker: String(row.maker || "").trim(),
-    unit: String(row.unit || "").trim(),
-    option: String(row.option_text || "").trim(),
-    costPrice: Number(row.cost_price) || 0,
-    retailPrice: Number(row.retail_price) || 0,
-    wholesalePrice: Number(row.wholesale_price) || 0,
-    stockQty: Number(row.stock_qty) || 0,
-    stockText: String(row.stock_text || "").trim(),
-    gradeAPrice: toBlankableNumber(row.grade_a_price),
-    gradeBPrice: toBlankableNumber(row.grade_b_price),
-    gradeCPrice: toBlankableNumber(row.grade_c_price),
-    image: String(row.image || "").trim(),
-    imageUrls: Array.isArray(row.image_urls) ? row.image_urls : [],
-    originalImage: String(row.original_image || "").trim(),
-    closeImage: String(row.close_image || "").trim(),
-    detailImage: String(row.detail_image || "").trim(),
-    daylightImage: String(row.daylight_image || "").trim(),
-    fluorescentImage: String(row.fluorescent_image || "").trim(),
-    sceneImage: String(row.scene_image || "").trim(),
-    sourceSite: String(row.source_site || "").trim(),
-    sourceUrl: String(row.source_url || "").trim(),
-    sourceProductId: String(row.source_product_id || "").trim(),
-    sourceCategoryCode: String(row.source_category_code || "").trim(),
-    sourceCategoryName: String(row.source_category_name || "").trim(),
-    catalogSource: String(row.catalog_source || "").trim(),
-    catalogPage: Number(row.catalog_page) || 0,
-    lastSyncedAt: String(row.last_synced_at || "").trim()
-  };
+  return productSupabaseMapper.mapSupabaseProductToApp(row);
 }
 
 function mapPublicProduct(product) {
-  const customerProduct = normalizeCustomerProductClassification(product);
-  return stripCustomerSensitiveProductFields({
-    id: String(customerProduct.id || "").trim(),
-    productType: String(customerProduct.productType || "").trim(),
-    kind: getPublicProductGroup(customerProduct),
-    name: String(customerProduct.name || "").trim(),
-    size: String(customerProduct.size || "").trim(),
-    modelName: String(customerProduct.modelName || customerProduct.name || "").trim(),
-    material: String(customerProduct.material || "").trim(),
-    surface: String(customerProduct.surface || "").trim(),
-    patternCategory: String(customerProduct.patternCategory || "").trim() || classifyPatternCategory(customerProduct),
-    color: String(customerProduct.color || "").trim(),
-    features: String(customerProduct.features || "").trim(),
-    finish: String(customerProduct.finish || "").trim(),
-    maker: "",
-    unit: String(customerProduct.unit || "").trim(),
-    option: String(customerProduct.option || "").trim(),
-    priceSortRank: getPublicPriceSortRank(customerProduct),
-    stockQty: Number(customerProduct.stockQty) || 0,
-    stockText: String(customerProduct.stockText || "").trim(),
-    image: String(customerProduct.image || "").trim(),
-    originalImage: String(customerProduct.originalImage || "").trim(),
-    closeImage: String(customerProduct.closeImage || "").trim(),
-    detailImage: String(customerProduct.detailImage || "").trim(),
-    daylightImage: String(customerProduct.daylightImage || "").trim(),
-    fluorescentImage: String(customerProduct.fluorescentImage || "").trim(),
-    sceneImage: String(customerProduct.sceneImage || "").trim()
-  });
+  return productResponseMapper.mapPublicProduct(product);
 }
 
-const CUSTOMER_SENSITIVE_PRODUCT_FIELDS = new Set([
-  "brand",
-  "brandCode",
-  "brandName",
-  "internalBrandId",
-  "internalBrandCode",
-  "internalBrandName",
-  "isCustomerBrandVisible",
-  "maker",
-  "manufacturer",
-  "supplier",
-  "supplierCode",
-  "supplierName",
-  "sourceSite",
-  "sourceUrl",
-  "sourceProductId",
-  "sourceCategoryCode",
-  "sourceCategoryName",
-  "catalogSource",
-  "cost",
-  "costPrice",
-  "cost_price",
-  "purchasePrice",
-  "purchase_price",
-  "margin",
-  "marginGrade",
-  "qualityGrade",
-  "adminSearchableText",
-  "adminSearchText",
-  "internalMemo",
-  "internalNote"
-]);
-
 function stripCustomerSensitiveProductFields(product) {
-  const safe = {};
-  for (const [key, value] of Object.entries(product || {})) {
-    if (CUSTOMER_SENSITIVE_PRODUCT_FIELDS.has(key)) continue;
-    safe[key] = value;
-  }
-  return safe;
+  return productResponseMapper.stripCustomerSensitiveProductFields(product);
 }
 
 function normalizeCustomerProductClassification(product) {
-  const text = normalizeMatchText([
-    product?.name,
-    product?.modelName,
-    product?.option,
-    product?.features,
-    product?.sourceCategoryName,
-    product?.source_category_name,
-    product?.kind,
-    product?.material
-  ].filter(Boolean).join(" "));
-  if (isBathroomCabinetText(text)) {
-    return {
-      ...product,
-      productType: "accessory",
-      kind: "욕실장",
-      option: "욕실장",
-      material: String(product?.material || "").trim() || "욕실제품",
-      features: mergeFeatureText(product?.features, "욕실장")
-    };
-  }
-  if (isBathroomPartitionText(text)) {
-    return {
-      ...product,
-      productType: "accessory",
-      kind: "악세사리",
-      option: "파티션",
-      material: String(product?.material || "").trim() || "욕실제품",
-      features: mergeFeatureText(product?.features, "파티션")
-    };
-  }
-  if (isBathroomCeilingText(text)) {
-    return {
-      ...product,
-      productType: "accessory",
-      kind: "악세사리",
-      option: "천장재",
-      material: String(product?.material || "").trim() || "욕실제품",
-      features: mergeFeatureText(product?.features, "천장재")
-    };
-  }
-  return product;
-}
-
-function isBathroomCabinetText(text) {
-  return /하부장|상부장|거울장|욕실장|세면대장|수납장|키큰장|서랍장|슬라이드장|좌우오픈장|상하오픈장|원도어슬라이즈장|쇼바장|혼합형장|브루노장|패스트장|프로방스|사이드장|2도어장|sidecabinet|cabinet|vanity/.test(String(text || ""));
-}
-
-function isBathroomPartitionText(text) {
-  return /파티션|샤워부스|부스파티션/.test(String(text || ""));
-}
-
-function isBathroomCeilingText(text) {
-  return /천장재|점검구|돔형|평형/.test(String(text || ""));
-}
-
-function mergeFeatureText(value, addition) {
-  const parts = String(value || "")
-    .split(/\s*\/\s*/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  if (!parts.includes(addition)) parts.unshift(addition);
-  return parts.join(" / ");
+  return productResponseMapper.normalizeCustomerProductClassification(product);
 }
 
 function getPublicPriceSortRank(product) {
-  const price = Number(
-    product?.retailPrice
-    || product?.wholesalePrice
-    || product?.gradeAPrice
-    || product?.gradeBPrice
-    || product?.gradeCPrice
-    || 0
-  );
-  if (!price) return 0;
-  const bands = [5000, 10000, 15000, 20000, 30000, 50000, 80000, 120000, 200000, 500000, 1000000];
-  const index = bands.findIndex((limit) => price <= limit);
-  return index >= 0 ? index + 1 : bands.length + 1;
+  return productResponseMapper.getPublicPriceSortRank(product);
 }
 
 function mapMemberProduct(product) {
-  return {
-    ...mapPublicProduct(product),
-    retailPrice: Number(product.retailPrice) || 0,
-    wholesalePrice: Number(product.wholesalePrice) || 0,
-    gradeAPrice: toBlankableNumber(product.gradeAPrice),
-    gradeBPrice: toBlankableNumber(product.gradeBPrice),
-    gradeCPrice: toBlankableNumber(product.gradeCPrice),
-    memberPriceVisible: true
-  };
+  return productResponseMapper.mapMemberProduct(product);
 }
 
 function mapAdminTileMatchProduct(product) {
-  return {
-    ...mapMemberProduct(product),
-    maker: String(product.maker || "").trim(),
-    sourceSite: String(product.sourceSite || "").trim(),
-    sourceUrl: String(product.sourceUrl || "").trim(),
-    sourceProductId: String(product.sourceProductId || "").trim(),
-    sourceCategoryName: String(product.sourceCategoryName || "").trim(),
-    catalogSource: String(product.catalogSource || "").trim(),
-    costPrice: Number(product.costPrice) || 0
-  };
+  return productResponseMapper.mapAdminTileMatchProduct(product);
 }
 
 function getPublicProductGroup(product) {
-  const productType = String(product.productType || "").trim();
-  const internalCodes = new Set(["AJ", "VG", "US", "SG", "GT", "HS"]);
-  const semanticKind = String(product.kind || "").trim();
-  if (["sanitary", "faucet", "accessory", "material"].includes(productType) && semanticKind && !internalCodes.has(semanticKind.toUpperCase())) {
-    return semanticKind;
-  }
-
-  const productTypeLabels = {
-    tile: "타일",
-    sanitary: "위생도기",
-    faucet: "수전금구",
-    accessory: "악세사리",
-    material: "부자재"
-  };
-  const candidates = [
-    product.option,
-    product.sourceCategoryName,
-    product.source_category_name,
-    product.material,
-    productTypeLabels[productType] || productType
-  ];
-  for (const candidate of candidates) {
-    const value = String(candidate || "").trim();
-    if (!value) continue;
-    if (internalCodes.has(value.toUpperCase())) continue;
-    return value;
-  }
-  return "상품";
+  return productResponseMapper.getPublicProductGroup(product);
 }
 
 function toNullableInteger(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const number = Number(String(value).replace(/,/g, ""));
-  return Number.isFinite(number) ? Math.trunc(number) : null;
+  return productSupabaseMapper.toNullableInteger(value);
 }
 
 function toNullableNumber(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const number = Number(String(value).replace(/,/g, ""));
-  return Number.isFinite(number) ? number : null;
+  return productSupabaseMapper.toNullableNumber(value);
 }
 
 function toBlankableNumber(value) {
-  if (value === null || value === undefined || value === "") return "";
-  const number = Number(value);
-  return Number.isFinite(number) ? number : "";
+  return productSupabaseMapper.toBlankableNumber(value);
 }
 
 function classifyPatternCategory(product) {
-  const source = normalizeMatchText([
-    product?.patternCategory,
-    product?.pattern_category,
-    product?.name,
-    product?.modelName,
-    product?.model_name,
-    product?.option,
-    product?.option_text,
-    product?.kind,
-    product?.material,
-    product?.surface,
-    product?.finish,
-    product?.color,
-    product?.features,
-    product?.source_category_name
-  ].filter(Boolean).join(" "));
-
-  if (!source) return "기타";
-  if (/테라조|terrazzo|trz|입자|칩|chip|speckle|스페클/.test(source)) return "테라조";
-  if (/마블|marble|mar|카라라|carrara|calacatta|비앙코|네로마퀴나|nero|베인|vein|대리석/.test(source)) return "마블";
-  if (/시멘트|cement|cem|콘크리트|concrete|con|모르타르|몰탈/.test(source)) return "시멘트";
-  if (/우드|wood|wod|나뭇결|목재|오크|티크/.test(source)) return "우드";
-  if (/스톤|stone|stn|석재|라임스톤|limestone|트라버틴|travertine|슬레이트|현무|라바|lava/.test(source)) return "스톤";
-  if (/패턴|pattern|ptn|art|데코|장식|꽃|플라워|라인|헥사|기하학|모자이크|mosaic|mos|포토/.test(source)) return "패턴";
-  if (/솔리드|solid|단색|plain|무지/.test(source)) return "솔리드";
-  return "솔리드";
+  return productSupabaseMapper.classifyPatternCategory(product);
 }
 
 function toLegacySupabaseProduct(product) {
-  const {
-    model_name,
-    material,
-    surface,
-    pattern_category,
-    country_of_origin,
-    pcs_per_box,
-    sqm_per_box,
-    color,
-    features,
-    stock_text,
-    grade_a_price,
-    grade_b_price,
-    grade_c_price,
-    image_urls,
-    source_site,
-    source_url,
-    source_product_id,
-    source_category_code,
-    source_category_name,
-    last_synced_at,
-    ...legacyProduct
-  } = product;
-  return legacyProduct;
+  return productSupabaseMapper.toLegacySupabaseProduct(product);
 }
 
 function createAdminToken() {
-  return crypto
-    .createHash("sha256")
-    .update(`${adminUsername}\n${adminPassword}\n${adminDisplayName}`)
-    .digest("hex");
+  return accountSession.createAdminToken({ adminUsername, adminPassword, adminDisplayName });
 }
 
 function safeEqualText(left, right) {
-  const leftBuffer = Buffer.from(String(left || ""));
-  const rightBuffer = Buffer.from(String(right || ""));
-  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  return accountSession.safeEqualText(left, right);
 }
 
 function readAdminCredentialsFromRequest(request) {
-  const authorization = String(request.headers.authorization || "").trim();
-  const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
-  return {
-    adminUsername: String(request.headers["x-admin-username"] || "").trim(),
-    adminToken: String(request.headers["x-admin-token"] || bearerToken || "").trim()
-  };
+  return authService.readAdminCredentialsFromRequest(request);
 }
 
 function readOptionalAdminContextFromRequest(request) {
-  const credentials = readAdminCredentialsFromRequest(request);
-  if (!credentials.adminUsername && !credentials.adminToken) return { isAdmin: false };
-  const adminUsernameValue = assertAdminCredentials(credentials.adminUsername, credentials.adminToken);
-  return {
-    isAdmin: true,
-    adminUsername: adminUsernameValue
-  };
+  return authService.readOptionalAdminContextFromRequest(request, { adminUsername, adminPassword, adminDisplayName });
 }
 
 function readMemberProductCredentialsFromRequest(request) {
-  const authorization = String(request.headers.authorization || "").trim();
-  const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
-  return {
-    businessNumber: String(request.headers["x-business-number"] || "").trim(),
-    memberToken: String(request.headers["x-member-token"] || bearerToken || "").trim()
-  };
+  return authService.readMemberProductCredentialsFromRequest(request);
 }
 
 function assertAdminCredentials(value, token) {
-  const clean = String(value || "").trim();
-  if (!clean) throw createHttpError(403, "관리자 아이디가 필요합니다.");
-  if (!adminPassword) throw createHttpError(503, "관리자 계정이 아직 설정되지 않았습니다.");
-  if (clean !== adminUsername) throw createHttpError(403, "관리자 계정이 일치하지 않습니다.");
-  if (!safeEqualText(token, createAdminToken())) throw createHttpError(403, "관리자 로그인이 다시 필요합니다.");
-  return clean;
+  return authService.assertAdminCredentials(value, token, { adminUsername, adminPassword, adminDisplayName });
 }
 
 async function readAdminProduct(adminUsernameValue, adminTokenValue, id) {
-  assertAdminCredentials(adminUsernameValue, adminTokenValue);
-  const cleanId = String(id || "").trim();
-  if (!cleanId) throw new Error("상품 ID가 필요합니다.");
-  const products = await readProducts();
-  const product = products.find((item) => item.id === cleanId);
-  if (!product) throw new Error("상품을 찾을 수 없습니다.");
-  return { ok: true, product };
+  return adminProductService.readAdminProduct(adminUsernameValue, adminTokenValue, id);
 }
 
 async function readAdminProducts(adminUsernameValue, adminTokenValue) {
-  assertAdminCredentials(adminUsernameValue, adminTokenValue);
-  return {
-    ok: true,
-    products: await readProducts({ cache: false })
-  };
+  return adminProductService.readAdminProducts(adminUsernameValue, adminTokenValue);
 }
 
 async function saveAdminProduct(payload) {
-  assertAdminCredentials(payload?.adminUsername, payload?.adminToken);
-  const product = normalizeProduct(payload?.product || {});
-  const products = await saveProduct(product);
-  return {
-    ok: true,
-    product,
-    products: products.map(mapPublicProduct)
-  };
+  return adminProductService.saveAdminProduct(payload);
 }
 
 async function appendSearchTrainingFeedback(payload, reviewer) {
@@ -1222,6 +676,157 @@ async function appendSearchTrainingFeedbackBatch(payload, reviewer) {
     count: entries.length,
     applied,
     stats: await readSearchTrainingStats()
+  };
+}
+
+async function appendRenderFeedback(payload, request) {
+  const entry = await sanitizeRenderFeedback(payload, request);
+  await fs.promises.mkdir(path.dirname(renderFeedbackPath), { recursive: true });
+  await fs.promises.appendFile(renderFeedbackPath, `${JSON.stringify(entry)}\n`, "utf8");
+  return {
+    ok: true,
+    feedback: {
+      id: entry.id,
+      label: entry.label,
+      code: entry.code,
+      createdAt: entry.createdAt,
+      assets: entry.assets
+    }
+  };
+}
+
+async function sanitizeRenderFeedback(payload, request) {
+  const codeLabels = {
+    good: "좋음",
+    graphic: "그래픽 같음",
+    tile_mismatch: "타일 다름",
+    grout_issue: "줄눈 이상",
+    room_changed: "공간 바뀜",
+    color_issue: "색감 이상",
+    regenerate: "다시 생성 필요"
+  };
+  const rawCode = String(payload?.code || "").trim();
+  const code = Object.prototype.hasOwnProperty.call(codeLabels, rawCode) ? rawCode : "regenerate";
+  const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const createdAt = new Date().toISOString();
+  const assetDir = path.join(renderFeedbackAssetDir, id);
+  await fs.promises.mkdir(assetDir, { recursive: true });
+
+  const siteAsset = await writeRenderFeedbackImage(assetDir, "site", payload?.images?.siteImageDataUrl);
+  const resultAsset = await writeRenderFeedbackImage(assetDir, "result", payload?.images?.renderImageDataUrl);
+
+  return {
+    id,
+    createdAt,
+    code,
+    label: codeLabels[code],
+    memo: String(payload?.memo || "").trim().slice(0, 1000),
+    roomContext: sanitizeRenderFeedbackRoomContext(payload?.roomContext || {}),
+    cartItem: sanitizeRenderFeedbackProduct(payload?.cartItem || {}),
+    surfaces: Array.isArray(payload?.surfaces)
+      ? payload.surfaces.slice(0, 6).map(sanitizeRenderFeedbackSurface)
+      : [],
+    assets: {
+      site: siteAsset,
+      result: resultAsset
+    },
+    ui: {
+      compareSliderValue: Math.max(0, Math.min(100, Number(payload?.ui?.compareSliderValue) || 50))
+    },
+    user: sanitizeRenderFeedbackUser(payload?.user || {}),
+    request: {
+      ip: String(request?.socket?.remoteAddress || "").slice(0, 80),
+      userAgent: String(request?.headers?.["user-agent"] || "").slice(0, 300)
+    }
+  };
+}
+
+function sanitizeRenderFeedbackRoomContext(value) {
+  return {
+    roomType: String(value?.roomType || "").slice(0, 80),
+    roomTypeLabel: String(value?.roomTypeLabel || "").slice(0, 120),
+    autoDetect: Boolean(value?.autoDetect),
+    interiorStyle: String(value?.interiorStyle || "").slice(0, 80),
+    interiorStyleLabel: String(value?.interiorStyleLabel || "").slice(0, 120),
+    styleMemo: String(value?.styleMemo || "").trim().slice(0, 500),
+    selectedSurfaces: Array.isArray(value?.selectedSurfaces)
+      ? value.selectedSurfaces.slice(0, 6).map((item) => String(item || "").slice(0, 80))
+      : []
+  };
+}
+
+function sanitizeRenderFeedbackProduct(product) {
+  return {
+    id: String(product?.id || "").slice(0, 100),
+    managementCode: String(product?.managementCode || "").slice(0, 100),
+    productType: String(product?.productType || "").slice(0, 80),
+    kind: String(product?.kind || "").slice(0, 120),
+    name: String(product?.name || "").slice(0, 240),
+    size: String(product?.size || "").slice(0, 80),
+    finish: String(product?.finish || "").slice(0, 80),
+    color: String(product?.color || "").slice(0, 80),
+    material: String(product?.material || "").slice(0, 80),
+    image: String(product?.image || "").slice(0, 1000)
+  };
+}
+
+function sanitizeRenderFeedbackSurface(surface) {
+  return {
+    surface: String(surface?.surface || "").slice(0, 80),
+    surfaceLabel: String(surface?.surfaceLabel || "").slice(0, 80),
+    tileId: String(surface?.tileId || "").slice(0, 100),
+    managementCode: String(surface?.managementCode || "").slice(0, 100),
+    name: String(surface?.name || "").slice(0, 240),
+    size: String(surface?.size || "").slice(0, 80),
+    finish: String(surface?.finish || "").slice(0, 80),
+    color: String(surface?.color || "").slice(0, 80),
+    material: String(surface?.material || "").slice(0, 80),
+    image: String(surface?.image || "").slice(0, 1000)
+  };
+}
+
+function sanitizeRenderFeedbackUser(user) {
+  return {
+    role: String(user?.role || "").slice(0, 80),
+    adminUsername: String(user?.adminUsername || "").slice(0, 120),
+    businessNumber: String(user?.businessNumber || "").slice(0, 80),
+    displayName: String(user?.displayName || "").slice(0, 120)
+  };
+}
+
+function normalizeOpenAiRenderOutputFormat(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "jpg" || normalized === "jpeg") return "jpeg";
+  if (normalized === "webp") return "webp";
+  if (normalized === "png") return "png";
+  return "jpeg";
+}
+
+function getOpenAiRenderOutputMimeType(format) {
+  if (format === "jpeg") return "image/jpeg";
+  if (format === "webp") return "image/webp";
+  return "image/png";
+}
+
+async function writeRenderFeedbackImage(assetDir, role, dataUrl) {
+  const parsed = parseImageDataUrl(dataUrl);
+  if (!parsed) return null;
+  if (parsed.buffer.length > 18 * 1024 * 1024) {
+    throw createHttpError(413, "보정 평가 이미지는 18MB 이하만 저장할 수 있습니다.");
+  }
+  const extension = parsed.mimeType.includes("jpeg") || parsed.mimeType.includes("jpg")
+    ? "jpg"
+    : parsed.mimeType.includes("webp")
+      ? "webp"
+      : "png";
+  const filePath = path.join(assetDir, `${role}.${extension}`);
+  await fs.promises.writeFile(filePath, parsed.buffer);
+  const hash = crypto.createHash("sha256").update(parsed.buffer).digest("hex");
+  return {
+    path: path.relative(root, filePath).replace(/\\/g, "/"),
+    mimeType: parsed.mimeType,
+    bytes: parsed.buffer.length,
+    sha256: hash
   };
 }
 
@@ -1272,7 +877,7 @@ async function applySearchTrainingFeedbackToProducts(entries) {
   }
 
   if (updated > 0) {
-    await fs.promises.writeFile(productsPath, `${JSON.stringify(products, null, 2)}\n`, "utf8");
+    await productFileStore.writeProducts(products);
     invalidateProductsReadCache();
     setCachedProducts(products, "file");
 
@@ -1325,6 +930,57 @@ function sanitizeTrainingLabels(value) {
     origin: String(value?.origin || "").slice(0, 80),
     pattern: String(value?.pattern || "").slice(0, 120),
     texture: String(value?.texture || "").slice(0, 120)
+  };
+}
+
+async function appendAdminActionRequest(payload, requester) {
+  const entry = sanitizeAdminActionRequest(payload, requester);
+  await fs.promises.mkdir(path.dirname(adminActionRequestsPath), { recursive: true });
+  await fs.promises.appendFile(adminActionRequestsPath, `${JSON.stringify(entry)}\n`, "utf8");
+  return {
+    ok: true,
+    request: entry,
+    recent: await readAdminActionRequests(10)
+  };
+}
+
+async function readAdminActionRequests(limit = 50) {
+  try {
+    const content = await fs.promises.readFile(adminActionRequestsPath, "utf8");
+    return content.split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .slice(-Math.min(Math.max(Number(limit) || 50, 1), 200))
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+function sanitizeAdminActionRequest(payload, requester) {
+  const now = new Date().toISOString();
+  const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(12).toString("hex");
+  return {
+    id,
+    createdAt: now,
+    requestedBy: String(requester || "").slice(0, 80),
+    status: "queued",
+    source: String(payload?.source || "admin-dashboard").slice(0, 80),
+    taskId: String(payload?.taskId || "").slice(0, 140),
+    label: String(payload?.label || "").trim().slice(0, 160),
+    detail: String(payload?.detail || "").trim().slice(0, 600),
+    priority: String(payload?.priority || "보통").trim().slice(0, 40),
+    view: String(payload?.view || "operations").trim().slice(0, 40),
+    dateKey: String(payload?.dateKey || "").trim().slice(0, 20),
+    checked: Boolean(payload?.checked),
+    ownerNote: String(payload?.ownerNote || "").trim().slice(0, 600)
   };
 }
 
@@ -1476,61 +1132,15 @@ function addAdminTileSearchSummary(summary, item) {
 }
 
 async function appendTaxonomySearchLog(payload) {
-  const logDir = path.join(root, "data", "search-logs");
-  const logPath = path.join(logDir, "taxonomy-search.jsonl");
-  const entry = {
-    createdAt: new Date().toISOString(),
-    audience: String(payload?.audience || "customer").slice(0, 20),
-    query: String(payload?.query || "").slice(0, 500),
-    resultCount: Number(payload?.resultCount || 0),
-    interpreted: sanitizeSearchLogObject(payload?.interpreted || {})
-  };
-  await fs.promises.mkdir(logDir, { recursive: true });
-  await fs.promises.appendFile(logPath, `${JSON.stringify(entry)}\n`, "utf8");
+  return searchLogStore.appendTaxonomySearchLog(payload);
 }
 
 async function appendTileImageSearchLog(payload) {
-  const logDir = path.join(root, "data", "search-logs");
-  const logPath = path.join(logDir, "tile-image-search.jsonl");
-  const entry = {
-    createdAt: new Date().toISOString(),
-    requestedSize: String(payload?.requestedSize || "").slice(0, 40),
-    requestedFinish: String(payload?.requestedFinish || "").slice(0, 40),
-    searchMode: String(payload?.searchMode || "strict").slice(0, 20),
-    resultCount: Number(payload?.resultCount || 0),
-    analysis: sanitizeSearchLogObject(payload?.analysis || {}),
-    topMatches: (Array.isArray(payload?.topMatches) ? payload.topMatches : []).slice(0, 40).map((item, index) => ({
-      rank: index + 1,
-      id: String(item?.id || "").slice(0, 80),
-      managementCode: String(item?.managementCode || "").slice(0, 80),
-      modelName: String(item?.modelName || item?.name || "").slice(0, 160),
-      size: String(item?.size || "").slice(0, 40),
-      finish: String(item?.finish || item?.surface || "").slice(0, 40),
-      color: String(item?.color || "").slice(0, 40),
-      matchScore: Number(item?.matchScore || 0),
-      matchReasons: Array.isArray(item?.matchReasons)
-        ? item.matchReasons.map((reason) => String(reason).slice(0, 80)).slice(0, 5)
-        : []
-    }))
-  };
-  await fs.promises.mkdir(logDir, { recursive: true });
-  await fs.promises.appendFile(logPath, `${JSON.stringify(entry)}\n`, "utf8");
+  return searchLogStore.appendTileImageSearchLog(payload);
 }
 
 function sanitizeSearchLogObject(value) {
-  if (!value || typeof value !== "object") return {};
-  const allowedKeys = [
-    "origins", "spaces", "applications", "colors", "styles", "patternDetails",
-    "finishes", "textures", "materials", "moods", "sizes", "thicknesses", "priceRanges",
-    "antiSlipRequired", "stockRequired", "stockEmpty", "freeTokens", "productCodes",
-    "patterns", "motifs", "shapes", "keywords", "requestedSize", "requestedFinish", "searchMode", "summary"
-  ];
-  return Object.fromEntries(allowedKeys.map((key) => {
-    const current = value[key];
-    if (Array.isArray(current)) return [key, current.map((item) => String(item).slice(0, 80)).slice(0, 20)];
-    if (typeof current === "boolean") return [key, current];
-    return [key, current ? String(current).slice(0, 80) : current];
-  }));
+  return searchLogStore.sanitizeSearchLogObject(value);
 }
 
 function stripInternalBrandFromNormalizedProduct(item) {
@@ -1566,69 +1176,16 @@ function isLocalRequest(request) {
 }
 
 async function readApprovalRules() {
-  if (!hasSupabaseConfig()) {
-    return { ...cloneApprovalRules(defaultApprovalRules), source: "local-default" };
-  }
-
-  let rows = [];
-  try {
-    const query = new URLSearchParams({
-      select: "id,business_types,business_items,updated_at",
-      id: "eq.default"
-    });
-    rows = await requestSupabase(`/rest/v1/approval_settings?${query.toString()}`);
-  } catch (error) {
-    if (isMissingSupabaseTableError(error, "approval_settings")) {
-      return { ...cloneApprovalRules(defaultApprovalRules), source: "missing-default" };
-    }
-    console.warn("[approval-rules] Supabase read failed; using local defaults.", error.message);
-    return { ...cloneApprovalRules(defaultApprovalRules), source: "supabase-fallback-default" };
-  }
-  const row = Array.isArray(rows) ? rows[0] : null;
-  return {
-    businessTypes: Array.isArray(row?.business_types) && row.business_types.length
-      ? row.business_types
-      : defaultApprovalRules.businessTypes,
-    businessItems: Array.isArray(row?.business_items) && row.business_items.length
-      ? row.business_items
-      : defaultApprovalRules.businessItems,
-    updatedAt: row?.updated_at || "",
-    source: row ? "supabase" : "empty-default"
-  };
+  return approvalRulesService.readApprovalRules();
 }
 
 async function saveApprovalRules(payload) {
-  const businessTypes = normalizeStringArray(payload?.businessTypes);
-  const businessItems = normalizeStringArray(payload?.businessItems);
-
-  if (hasSupabaseConfig()) {
-    try {
-      await requestSupabase("/rest/v1/approval_settings", {
-        method: "POST",
-        headers: {
-          Prefer: "resolution=merge-duplicates,return=representation"
-        },
-        body: JSON.stringify([{
-          id: "default",
-          business_types: businessTypes,
-          business_items: businessItems
-        }])
-      });
-    } catch (error) {
-      if (!isMissingSupabaseTableError(error, "approval_settings")) throw error;
-      return { businessTypes, businessItems, source: "missing" };
-    }
-  }
-
-  return {
-    businessTypes,
-    businessItems,
-    source: hasSupabaseConfig() ? "supabase" : "local"
-  };
+  return approvalRulesService.saveApprovalRules(payload);
 }
 
 async function saveSignupRequestRecord(payload) {
   const record = normalizeSignupRequest(payload);
+  record.password = await passwordService.hashPassword(record.password);
 
   if (hasSupabaseConfig()) {
     try {
@@ -1664,40 +1221,75 @@ async function saveSignupRequestRecord(payload) {
   };
 }
 
-function createUserSessionFromSignupRecord(record) {
-  const pricingApproved = record.approvalStatus === "승인";
+async function updateSignupRequestApprovalStatus(payload, adminUsernameValue = "") {
+  const businessNumber = String(payload?.businessNumber || "").trim();
+  const approvalStatus = normalizeApprovalStatus(payload?.approvalStatus);
+  const memberGrade = String(payload?.memberGrade || "사업자").trim();
+  const priceTier = normalizeMemberPriceTier(payload?.priceTier || (approvalStatus === "승인" ? "wholesale" : "retail"));
+  const isApproved = approvalStatus === "승인";
+  const now = new Date().toISOString();
+
+  if (!businessNumber) throw createHttpError(400, "처리할 사업자등록번호가 필요합니다.");
+  if (!hasSupabaseConfig()) throw createHttpError(503, "Supabase 관리 데이터가 설정되지 않았습니다.");
+
+  const existing = await readSignupRequestByBusinessNumber(businessNumber);
+  if (!existing) throw createHttpError(404, "가입 신청 정보를 찾지 못했습니다.");
+
+  await requestSupabase(`/rest/v1/signup_requests?business_number=eq.${encodeURIComponent(businessNumber)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      approval_status: approvalStatus,
+      member_grade: memberGrade,
+      price_tier: priceTier,
+      updated_at: now
+    })
+  });
+
+  try {
+    await requestSupabase(`/rest/v1/business_profiles?business_number=eq.${encodeURIComponent(businessNumber)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        verification_status: isApproved ? "approved" : "pending",
+        pricing_access: isApproved ? "approved" : "pending",
+        member_grade: memberGrade,
+        price_tier: priceTier,
+        approved_at: isApproved ? now : null
+      })
+    });
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "business_profiles")) throw error;
+  }
+
+  try {
+    await requestSupabase(`/rest/v1/business_documents?business_number=eq.${encodeURIComponent(businessNumber)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({
+        review_status: isApproved ? "approved" : "pending"
+      })
+    });
+  } catch (error) {
+    if (!isMissingSupabaseTableError(error, "business_documents")) throw error;
+  }
+
+  if (existing.accountId) {
+    await updateCustomerAccountStatus(existing.accountId, isApproved ? "approved" : "business_verification_pending");
+  }
+
   return {
-    phone: record.phone,
-    businessNumber: record.businessNumber,
-    name: record.name,
-    title: record.title,
-    companyName: record.companyName,
-    companyAddress: record.companyAddress,
-    contactName: record.contactName || record.name,
-    contactTitle: record.contactTitle || record.title,
-    contactCompanyName: record.contactCompanyName || record.companyName,
-    contactPhone: record.contactPhone || record.phone,
-    contactEmail: record.contactEmail || record.socialEmail || "",
-    contactAddress: record.contactAddress || record.companyAddress,
-    businessCardFileName: record.businessCardFileName || "",
-    contactInfo: {
-      name: record.contactName || record.name,
-      title: record.contactTitle || record.title,
-      companyName: record.contactCompanyName || record.companyName,
-      phone: record.contactPhone || record.phone,
-      email: record.contactEmail || record.socialEmail || "",
-      address: record.contactAddress || record.companyAddress,
-      businessCardFileName: record.businessCardFileName || "",
-      businessCardFileMime: record.businessCardFileMime || "",
-      updatedAt: record.submittedAt || new Date().toISOString()
-    },
-    provider: record.provider || "일반 회원가입",
-    approvalStatus: record.approvalStatus,
-    pricingAccess: pricingApproved ? "approved" : "pending",
-    memberGrade: record.memberGrade || "사업자",
-    priceTier: record.priceTier || (pricingApproved ? "wholesale" : "retail"),
-    memberToken: createMemberToken(record)
+    ok: true,
+    businessNumber,
+    approvalStatus,
+    pricingAccess: isApproved ? "approved" : "pending",
+    handledBy: String(adminUsernameValue || "").trim(),
+    updatedAt: now
   };
+}
+
+function createUserSessionFromSignupRecord(record) {
+  return accountSession.createUserSessionFromSignupRecord(record, memberTokenSecret);
 }
 
 async function loginWithSignupRequest(payload) {
@@ -1713,14 +1305,34 @@ async function loginWithSignupRequest(payload) {
   }
 
   const record = await readSignupRequestByBusinessNumber(businessNumber);
-  if (!record || record.password !== password) {
+  const passwordResult = record
+    ? await passwordService.verifyPassword(password, record.password)
+    : { ok: false, needsRehash: false };
+  if (!record || !passwordResult.ok) {
     throw new Error("사업자등록번호 또는 비밀번호가 일치하지 않습니다.");
+  }
+  if (passwordResult.needsRehash) {
+    const nextPasswordHash = await passwordService.hashPassword(password);
+    await updateSignupPasswordHash(businessNumber, nextPasswordHash);
+    record.password = nextPasswordHash;
   }
 
   return {
     ok: true,
     user: createUserSessionFromSignupRecord(record)
   };
+}
+
+async function updateSignupPasswordHash(businessNumber, passwordHash) {
+  if (!hasSupabaseConfig() || !businessNumber || !passwordHash) return;
+  await requestSupabase(`/rest/v1/signup_requests?business_number=eq.${encodeURIComponent(businessNumber)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      password: passwordHash,
+      updated_at: new Date().toISOString()
+    })
+  });
 }
 
 async function loginWithSocialAuth(accessToken) {
@@ -1812,61 +1424,149 @@ async function enrichSignupRecordWithBusinessProfile(record) {
 }
 
 async function readCartRecord(businessNumber) {
-  const clean = String(businessNumber || "").trim();
-  if (!clean) return { items: [] };
-  if (!hasSupabaseConfig()) return { items: [] };
-
-  const query = new URLSearchParams({
-    select: "business_number,company_name,cart_data,updated_at",
-    business_number: `eq.${clean}`
-  });
-  let rows = [];
-  try {
-    rows = await requestSupabase(`/rest/v1/carts?${query.toString()}`);
-  } catch (error) {
-    if (!isMissingSupabaseTableError(error, "carts")) throw error;
-    return { businessNumber: clean, items: [] };
-  }
-  const row = Array.isArray(rows) ? rows[0] : null;
-  return {
-    businessNumber: clean,
-    companyName: row?.company_name || "",
-    items: Array.isArray(row?.cart_data) ? row.cart_data : [],
-    updatedAt: row?.updated_at || ""
-  };
+  return cartStore.readCartRecord(businessNumber);
 }
 
 async function saveCartRecord(payload) {
-  const businessNumber = String(payload?.businessNumber || "").trim();
-  if (!businessNumber) {
-    throw new Error("?λ컮援щ땲 ??μ뿉???ъ뾽?먮벑濡앸쾲?멸? ?꾩슂?⑸땲??");
-  }
+  return cartStore.saveCartRecord(payload);
+}
 
-  const items = Array.isArray(payload?.items) ? payload.items.map(normalizeCartItem) : [];
-  const companyName = String(payload?.companyName || "").trim();
+async function createOrderFromCart(payload, memberCredentials = {}) {
+  const businessNumber = String(payload?.businessNumber || memberCredentials.businessNumber || "").trim();
+  const memberAccess = await verifyMemberProductAccess(businessNumber, memberCredentials.memberToken);
+  const secureItems = await buildServerPricedOrderItems(payload?.items, memberAccess);
+  return orderStore.createOrder({
+    ...payload,
+    businessNumber,
+    items: secureItems,
+    status: payload?.status || "접수대기"
+  });
+}
 
-  if (hasSupabaseConfig()) {
-    try {
-      await requestSupabase("/rest/v1/carts", {
-        method: "POST",
-        headers: {
-          Prefer: "resolution=merge-duplicates,return=representation"
-        },
-        body: JSON.stringify([{
-          business_number: businessNumber,
-          company_name: companyName,
-          cart_data: items
-        }])
-      });
-    } catch (error) {
-      if (!isMissingSupabaseTableError(error, "carts")) throw error;
+async function buildServerPricedOrderItems(rawItems, memberAccess) {
+  const items = Array.isArray(rawItems) ? rawItems : [];
+  if (!items.length) throw createHttpError(400, "주문 접수할 상품이 없습니다.");
+  const sourceProducts = await readProducts();
+  const productIndex = buildOrderProductIndex(sourceProducts);
+  return items.map((item) => {
+    const product = findOrderProduct(productIndex, item);
+    if (!product) {
+      throw createHttpError(400, "상품 DB에서 확인되지 않은 상품은 주문 접수할 수 없습니다.");
     }
-  }
+    const qty = Math.max(Number(item?.qty) || 0, 0);
+    const quotePrice = getServerOrderUnitPrice(product, memberAccess);
+    return {
+      id: String(product.id || "").trim(),
+      managementCode: String(product.managementCode || item?.managementCode || "").trim(),
+      productType: String(product.productType || item?.productType || "").trim(),
+      kind: String(product.kind || item?.kind || "").trim(),
+      name: String(product.name || item?.name || "").trim(),
+      size: String(product.size || item?.size || "").trim(),
+      finish: String(product.finish || item?.finish || product.option || "").trim(),
+      maker: String(product.maker || "").trim(),
+      unit: String(product.unit || item?.unit || "").trim(),
+      option: String(product.option || item?.option || "").trim(),
+      stockQty: Number(product.stockQty || 0),
+      image: String(product.image || item?.image || "").trim(),
+      qty,
+      quotePrice
+    };
+  });
+}
 
+function buildOrderProductIndex(products) {
+  return (Array.isArray(products) ? products : []).reduce((index, product) => {
+    const ids = [
+      product?.id,
+      product?.managementCode,
+      product?.sourceProductId,
+      product?.modelName
+    ].map((value) => String(value || "").trim()).filter(Boolean);
+    ids.forEach((id) => {
+      if (!index.has(id)) index.set(id, product);
+    });
+    return index;
+  }, new Map());
+}
+
+function findOrderProduct(productIndex, item) {
+  const ids = [
+    item?.id,
+    item?.managementCode,
+    item?.sourceProductId,
+    item?.modelName
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  return ids.map((id) => productIndex.get(id)).find(Boolean) || null;
+}
+
+function getServerOrderUnitPrice(product, memberAccess) {
+  const grade = String(memberAccess?.memberGrade || "").trim().toUpperCase();
+  const gradePrices = {
+    A: Number(product?.gradeAPrice || 0),
+    B: Number(product?.gradeBPrice || 0),
+    C: Number(product?.gradeCPrice || 0)
+  };
+  if (grade.includes("A") && gradePrices.A) return gradePrices.A;
+  if (grade.includes("B") && gradePrices.B) return gradePrices.B;
+  if (grade.includes("C") && gradePrices.C) return gradePrices.C;
+  const firstGradePrice = [gradePrices.A, gradePrices.B, gradePrices.C].find((price) => Number(price) > 0) || 0;
+  const tier = normalizeMemberPriceTier(memberAccess?.priceTier || "");
+  if (tier === "wholesale") {
+    return Number(product?.wholesalePrice || 0) || firstGradePrice || Number(product?.retailPrice || 0) || 0;
+  }
+  return Number(product?.retailPrice || 0) || Number(product?.wholesalePrice || 0) || firstGradePrice || 0;
+}
+
+async function readMemberOrders(businessNumber, memberCredentials = {}) {
+  const cleanBusinessNumber = String(businessNumber || memberCredentials.businessNumber || "").trim();
+  await verifyMemberProductAccess(cleanBusinessNumber, memberCredentials.memberToken);
   return {
     ok: true,
-    businessNumber,
-    items
+    orders: (await orderStore.readOrdersByBusinessNumber(cleanBusinessNumber)).map(mapMemberOrder)
+  };
+}
+
+async function readAllOrders() {
+  return orderStore.readAllOrders();
+}
+
+async function updateAdminOrderStatus(payload, adminUsernameValue = "") {
+  const result = await orderStore.updateOrderStatus(payload);
+  return {
+    ...result,
+    handledBy: String(adminUsernameValue || "").trim(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function mapMemberOrder(order) {
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    businessNumber: order.businessNumber,
+    companyName: order.companyName,
+    contactName: order.contactName,
+    status: order.status,
+    statusLabel: order.statusLabel,
+    itemCount: order.itemCount,
+    totalQuote: order.totalQuote,
+    note: order.note,
+    createdAt: order.createdAt,
+    updatedAt: order.updatedAt,
+    items: (Array.isArray(order.items) ? order.items : []).map((item) => ({
+      id: item.id,
+      managementCode: item.managementCode,
+      productType: item.productType,
+      kind: item.kind,
+      name: item.name,
+      size: item.size,
+      finish: item.finish,
+      unit: item.unit,
+      image: item.image,
+      qty: item.qty,
+      quotePrice: item.quotePrice,
+      lineTotal: item.lineTotal
+    }))
   };
 }
 
@@ -1875,10 +1575,11 @@ async function readAdminOverview(adminUsernameValue, adminTokenValue) {
   if (!hasSupabaseConfig()) throw new Error("Supabase 관리 데이터가 설정되지 않았습니다.");
   assertAdminCredentials(clean, adminTokenValue);
 
-  const [approvalRules, signupRequests, carts] = await Promise.all([
+  const [approvalRules, signupRequests, carts, orders] = await Promise.all([
     readApprovalRules(),
     readAllSignupRequests(),
-    readAllCartRecords()
+    readAllCartRecords(),
+    readAllOrders()
   ]);
 
   return {
@@ -1905,7 +1606,8 @@ async function readAdminOverview(adminUsernameValue, adminTokenValue) {
       businessFileName: entry.businessFileName,
       submittedAt: entry.submittedAt
     })),
-    carts
+    carts,
+    orders
   };
 }
 
@@ -2128,29 +1830,7 @@ function absolutizeTile114Url(value) {
 }
 
 function loginAsAdmin(payload) {
-  const username = String(payload?.adminUsername || "").trim();
-  const password = String(payload?.adminPassword || "");
-
-  if (!username || !password) {
-    throw new Error("관리자 아이디와 비밀번호가 필요합니다.");
-  }
-  if (!adminPassword) {
-    throw new Error("관리자 계정이 아직 설정되지 않았습니다.");
-  }
-  if (username !== adminUsername || password !== adminPassword) {
-    throw new Error("관리자 아이디 또는 비밀번호가 일치하지 않습니다.");
-  }
-
-  return {
-    ok: true,
-    user: {
-      role: "admin",
-      adminUsername,
-      name: adminDisplayName,
-      companyName: adminDisplayName,
-      adminToken: createAdminToken()
-    }
-  };
+  return authService.loginAsAdmin(payload, { adminUsername, adminPassword, adminDisplayName });
 }
 
 async function readAllSignupRequests() {
@@ -2169,108 +1849,15 @@ async function readAllSignupRequests() {
 }
 
 async function readAllCartRecords() {
-  const query = new URLSearchParams({
-    select: "business_number,company_name,cart_data,updated_at",
-    order: "updated_at.desc"
-  });
-  let rows = [];
-  try {
-    rows = await requestSupabase(`/rest/v1/carts?${query.toString()}`);
-  } catch (error) {
-    if (!isMissingSupabaseTableError(error, "carts")) throw error;
-    return [];
-  }
-  return Array.isArray(rows) ? rows.map((row) => {
-    const items = Array.isArray(row.cart_data) ? row.cart_data.map(normalizeCartItem) : [];
-    return {
-      businessNumber: String(row.business_number || "").trim(),
-      companyName: String(row.company_name || "").trim(),
-      itemCount: items.length,
-      itemNames: items.map((item) => String(item.name || "").trim()).filter(Boolean),
-      totalQuote: items.reduce((sum, item) => sum + (Number(item.quotePrice || 0) * Number(item.qty || 0)), 0),
-      updatedAt: String(row.updated_at || "").trim()
-    };
-  }) : [];
+  return cartStore.readAllCartRecords();
 }
 
 async function requestSupabase(pathname, options = {}) {
-  if (!hasSupabaseConfig()) {
-    throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
-  }
-
-  const timeoutMs = Number(options.timeoutMs ?? supabaseRequestTimeoutMs);
-  const controller = timeoutMs > 0 ? new AbortController() : null;
-  const timeout = controller
-    ? setTimeout(() => controller.abort(), timeoutMs)
-    : null;
-  let response;
-
-  try {
-    response = await fetch(`${supabaseUrl}${pathname}`, {
-      method: options.method || "GET",
-      headers: {
-        apikey: supabaseSecretKey,
-        Authorization: `Bearer ${supabaseSecretKey}`,
-        "Content-Type": "application/json",
-        ...(options.headers || {})
-      },
-      body: options.body,
-      signal: controller?.signal
-    });
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error(`Supabase 요청 시간 초과 (${timeoutMs}ms)`);
-    }
-    throw error;
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Supabase 요청 오류 (${response.status}): ${text}`);
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) return null;
-  return response.json();
+  return supabaseClient.request(pathname, options);
 }
 
 async function requestSupabaseStorage(pathname, options = {}) {
-  if (!hasSupabaseConfig()) {
-    throw new Error("Supabase 환경변수가 설정되지 않았습니다.");
-  }
-
-  const response = await fetch(`${supabaseUrl}${pathname}`, {
-    method: options.method || "GET",
-    headers: {
-      apikey: supabaseSecretKey,
-      Authorization: `Bearer ${supabaseSecretKey}`,
-      ...(options.headers || {})
-    },
-    body: options.body
-  });
-
-  const contentType = response.headers.get("content-type") || "";
-  const text = await response.text();
-  let payload = text;
-  if (contentType.includes("application/json") && text) {
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = text;
-    }
-  }
-
-  if (!response.ok) {
-    const message = typeof payload === "string" ? payload : JSON.stringify(payload);
-    const error = new Error(`Supabase Storage 요청 오류 (${response.status}): ${message}`);
-    error.statusCode = response.status;
-    error.payload = payload;
-    throw error;
-  }
-
-  return payload || null;
+  return supabaseClient.requestStorage(pathname, options);
 }
 
 function isMissingSupabaseTableError(error, tableName) {
@@ -2293,20 +1880,15 @@ function normalizeSocialProvider(value) {
 }
 
 function normalizeSocialProviderOptional(value) {
-  const provider = String(value || "").trim();
-  if (!provider) return "";
-  return normalizeSocialProvider(provider);
+  return accountMapper.normalizeSocialProviderOptional(value);
 }
 
 function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
+  return accountMapper.normalizeEmail(value);
 }
 
 function formatSocialProviderLabel(providerValue, emailValue) {
-  const provider = normalizeSocialProvider(providerValue);
-  const label = provider === "kakao" ? "카카오톡 가입" : "Google 가입";
-  const email = normalizeEmail(emailValue);
-  return email ? `${label} <${email}>` : label;
+  return accountMapper.formatSocialProviderLabel(providerValue, emailValue);
 }
 
 function parseSocialProviderLabel(value) {
@@ -2323,10 +1905,7 @@ function parseSocialProviderLabel(value) {
 }
 
 function normalizeSignupProvider(payload) {
-  const socialEmail = normalizeEmail(payload?.socialEmail);
-  const socialProvider = String(payload?.socialProvider || "").trim();
-  if (socialEmail && socialProvider) return formatSocialProviderLabel(socialProvider, socialEmail);
-  return String(payload?.provider || "일반 회원가입").trim();
+  return accountMapper.normalizeSignupProvider(payload);
 }
 
 function getRequestOrigin(request) {
@@ -2524,6 +2103,7 @@ async function upsertBusinessProfileFromSignupRecord(record) {
 async function insertBusinessDocumentFromSignupRecord(record) {
   if (!hasSupabaseConfig() || !record?.businessNumber || !record?.businessFileName) return null;
   const uploadedFile = await uploadBusinessDocumentFile(record.businessFileDataUrl, record.businessFileName);
+  if (!uploadedFile?.fileUrl) return null;
   const payload = {
     account_id: record.accountId || null,
     business_number: record.businessNumber,
@@ -2560,6 +2140,7 @@ async function insertBusinessDocumentFromSignupRecord(record) {
 async function insertBusinessCardDocumentFromSignupRecord(record) {
   if (!hasSupabaseConfig() || !record?.businessNumber || !record?.businessCardFileName) return null;
   const uploadedFile = await uploadBusinessDocumentFile(record.businessCardFileDataUrl, record.businessCardFileName);
+  if (!uploadedFile?.fileUrl) return null;
   const payload = {
     account_id: record.accountId || null,
     business_number: record.businessNumber,
@@ -2682,162 +2263,60 @@ function sanitizeStorageFileName(value) {
 }
 
 function normalizeStringArray(values) {
-  return (Array.isArray(values) ? values : [])
-    .map((value) => String(value || "").trim())
-    .filter(Boolean);
+  return accountMapper.normalizeStringArray(values);
 }
 
 function cloneApprovalRules(rules) {
-  return {
-    businessTypes: normalizeStringArray(rules?.businessTypes),
-    businessItems: normalizeStringArray(rules?.businessItems)
-  };
+  return accountMapper.cloneApprovalRules(rules);
 }
 
 function normalizeSignupRequest(payload) {
-  return {
-    accountId: String(payload?.accountId || "").trim(),
-    phone: String(payload?.phone || "").trim(),
-    businessNumber: String(payload?.businessNumber || "").trim(),
-    name: String(payload?.name || "").trim(),
-    title: String(payload?.title || "").trim(),
-    companyName: String(payload?.companyName || "").trim(),
-    companyAddress: String(payload?.companyAddress || "").trim(),
-    contactName: String(payload?.contactName || payload?.contactInfo?.name || "").trim(),
-    contactTitle: String(payload?.contactTitle || payload?.contactInfo?.title || "").trim(),
-    contactCompanyName: String(payload?.contactCompanyName || payload?.contactInfo?.companyName || "").trim(),
-    contactPhone: String(payload?.contactPhone || payload?.contactInfo?.phone || "").trim(),
-    contactEmail: normalizeEmail(payload?.contactEmail || payload?.contactInfo?.email),
-    contactAddress: String(payload?.contactAddress || payload?.contactInfo?.address || "").trim(),
-    password: String(payload?.password || ""),
-    provider: normalizeSignupProvider(payload),
-    socialProvider: normalizeSocialProviderOptional(payload?.socialProvider),
-    socialEmail: normalizeEmail(payload?.socialEmail),
-    socialProviderId: String(payload?.socialProviderId || "").trim(),
-    socialName: String(payload?.socialName || "").trim(),
-    socialAvatarUrl: String(payload?.socialAvatarUrl || "").trim(),
-    extractedCompanyName: String(payload?.extractedCompanyName || "").trim(),
-    extractedBusinessAddress: String(payload?.extractedBusinessAddress || "").trim(),
-    representative: String(payload?.representative || "").trim(),
-    openingDate: String(payload?.openingDate || "").trim(),
-    businessType: String(payload?.businessType || "").trim(),
-    businessItem: String(payload?.businessItem || "").trim(),
-    businessCategorySection: String(payload?.businessCategorySection || "").trim(),
-    approvalStatus: normalizeApprovalStatus(payload?.approvalStatus),
-    memberGrade: String(payload?.memberGrade || "사업자").trim(),
-    priceTier: normalizeMemberPriceTier(payload?.priceTier || "wholesale"),
-    businessFileName: String(payload?.businessFileName || "").trim(),
-    businessFileMime: String(payload?.businessFileMime || "").trim(),
-    businessFileDataUrl: String(payload?.businessFileDataUrl || "").trim(),
-    businessCardFileName: String(payload?.businessCardFileName || "").trim(),
-    businessCardFileMime: String(payload?.businessCardFileMime || "").trim(),
-    businessCardFileDataUrl: String(payload?.businessCardFileDataUrl || "").trim(),
-    submittedAt: String(payload?.submittedAt || new Date().toISOString()).trim()
-  };
+  return accountMapper.normalizeSignupRequest(payload);
 }
 
 function mapSignupRequestToSupabase(record) {
-  return {
-    account_id: record.accountId || null,
-    phone: record.phone,
-    business_number: record.businessNumber,
-    name: record.name,
-    title: record.title,
-    company_name: record.companyName,
-    company_address: record.companyAddress,
-    password: record.password,
-    provider: record.provider,
-    social_provider: record.socialProvider,
-    social_email: record.socialEmail,
-    social_provider_id: record.socialProviderId,
-    social_name: record.socialName,
-    social_avatar_url: record.socialAvatarUrl,
-    extracted_company_name: record.extractedCompanyName,
-    extracted_business_address: record.extractedBusinessAddress,
-    representative: record.representative,
-    opening_date: record.openingDate || null,
-    business_type: record.businessType,
-    business_item: record.businessItem,
-    business_category_section: record.businessCategorySection,
-    approval_status: record.approvalStatus,
-    member_grade: record.memberGrade,
-    price_tier: record.priceTier,
-    business_file_name: record.businessFileName,
-    submitted_at: record.submittedAt || new Date().toISOString()
-  };
+  return accountMapper.mapSignupRequestToSupabase(record);
 }
 
 function mapSupabaseSignupRequest(row) {
-  return {
-    accountId: String(row.account_id || "").trim(),
-    phone: String(row.phone || "").trim(),
-    businessNumber: String(row.business_number || "").trim(),
-    name: String(row.name || "").trim(),
-    title: String(row.title || "").trim(),
-    companyName: String(row.company_name || "").trim(),
-    companyAddress: String(row.company_address || "").trim(),
-    password: String(row.password || ""),
-    provider: String(row.provider || "일반 회원가입").trim(),
-    socialProvider: normalizeSocialProviderOptional(row.social_provider),
-    socialEmail: normalizeEmail(row.social_email),
-    socialProviderId: String(row.social_provider_id || "").trim(),
-    socialName: String(row.social_name || "").trim(),
-    socialAvatarUrl: String(row.social_avatar_url || "").trim(),
-    extractedCompanyName: String(row.extracted_company_name || "").trim(),
-    extractedBusinessAddress: String(row.extracted_business_address || "").trim(),
-    representative: String(row.representative || "").trim(),
-    openingDate: String(row.opening_date || "").trim(),
-    businessType: String(row.business_type || "").trim(),
-    businessItem: String(row.business_item || "").trim(),
-    businessCategorySection: String(row.business_category_section || "").trim(),
-    approvalStatus: normalizeApprovalStatus(row.approval_status),
-    memberGrade: String(row.member_grade || "사업자").trim(),
-    priceTier: normalizeMemberPriceTier(row.price_tier || "wholesale"),
-    businessFileName: String(row.business_file_name || "").trim(),
-    submittedAt: String(row.submitted_at || "").trim()
-  };
+  return accountMapper.mapSupabaseSignupRequest(row);
 }
 
 function normalizeApprovalStatus(value) {
-  const status = String(value || "").trim();
-  if (status === "승인" || status === "가입승인" || status.toLowerCase() === "approved") return "승인";
-  if (status === "보류" || status === "가입보류" || status.toLowerCase() === "pending") return "보류";
-  return "보류";
+  return accountMapper.normalizeApprovalStatus(value);
 }
 
 function normalizeMemberPriceTier(value) {
-  const tier = String(value || "").trim().toLowerCase();
-  if (["wholesale", "dealer", "partner", "business", "도매", "사업자"].includes(tier)) return "wholesale";
-  return "retail";
+  return accountMapper.normalizeMemberPriceTier(value);
 }
 
 function createMemberToken(record) {
-  const payload = {
-    businessNumber: String(record?.businessNumber || "").trim(),
-    approvalStatus: normalizeApprovalStatus(record?.approvalStatus),
-    issuedAt: Date.now()
-  };
-  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const signature = crypto.createHmac("sha256", memberTokenSecret).update(encoded).digest("base64url");
-  return `${encoded}.${signature}`;
+  return accountSession.createMemberToken(record, memberTokenSecret);
 }
 
 function verifyMemberToken(token) {
-  const [encoded, signature] = String(token || "").split(".");
-  if (!encoded || !signature) return null;
-  const expected = crypto.createHmac("sha256", memberTokenSecret).update(encoded).digest("base64url");
-  if (!safeEqualText(signature, expected)) return null;
-  try {
-    return JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
-  } catch {
-    return null;
-  }
+  return accountSession.verifyMemberToken(token, memberTokenSecret);
 }
 
-function createHttpError(statusCode, message) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  return error;
+async function verifyMemberSessionAccess(businessNumber, memberToken) {
+  const cleanBusinessNumber = String(businessNumber || "").trim();
+  const tokenPayload = verifyMemberToken(memberToken);
+  if (!cleanBusinessNumber || !tokenPayload || tokenPayload.businessNumber !== cleanBusinessNumber) {
+    throw createHttpError(403, "로그인한 회원만 본인 장바구니를 사용할 수 있습니다.");
+  }
+
+  const record = await readSignupRequestByBusinessNumber(cleanBusinessNumber);
+  if (!record) {
+    throw createHttpError(403, "가입 신청 정보를 확인할 수 없습니다.");
+  }
+
+  return {
+    businessNumber: record.businessNumber,
+    companyName: record.companyName,
+    approvalStatus: record.approvalStatus,
+    memberGrade: record.memberGrade || "사업자",
+    priceTier: record.priceTier || "wholesale"
+  };
 }
 
 async function verifyMemberProductAccess(businessNumber, memberToken) {
@@ -2863,28 +2342,7 @@ async function verifyMemberProductAccess(businessNumber, memberToken) {
 }
 
 function normalizeCartItem(item) {
-  return {
-    id: String(item?.id || "").trim(),
-    managementCode: String(item?.managementCode || "").trim(),
-    productType: String(item?.productType || "").trim(),
-    kind: String(item?.kind || "").trim(),
-    name: String(item?.name || "").trim(),
-    size: String(item?.size || "").trim(),
-    finish: String(item?.finish || "").trim(),
-    maker: String(item?.maker || "").trim(),
-    unit: String(item?.unit || "").trim(),
-    option: String(item?.option || "").trim(),
-    costPrice: Number(item?.costPrice) || 0,
-    retailPrice: Number(item?.retailPrice) || 0,
-    wholesalePrice: Number(item?.wholesalePrice) || 0,
-    stockQty: Number(item?.stockQty) || 0,
-    image: String(item?.image || "").trim(),
-    qty: Math.max(Number(item?.qty) || 0, 0),
-    quotePrice: Math.max(Number(item?.quotePrice) || 0, 0),
-    renderedImage: String(item?.renderedImage || "").trim(),
-    renderTarget: String(item?.renderTarget || "").trim(),
-    renderPointMemo: String(item?.renderPointMemo || "").trim()
-  };
+  return cartMapper.normalizeCartItem(item);
 }
 
 async function checkBusinessStatus(businessNumber) {
@@ -2938,37 +2396,9 @@ async function checkBusinessStatus(businessNumber) {
 }
 
 async function serveStatic(request, response) {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-  const pathname = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
-  if (shouldBlockStaticPath(pathname)) {
-    response.writeHead(404);
-    response.end("Not found");
-    return;
-  }
-
-  const resolved = path.resolve(root, `.${pathname}`);
-
-  if (!resolved.startsWith(root)) {
-    response.writeHead(403);
-    response.end("Forbidden");
-    return;
-  }
-
-  fs.readFile(resolved, (error, content) => {
-    if (error) {
-      response.writeHead(404);
-      response.end("Not found");
-      return;
-    }
-
-    const extension = path.extname(resolved).toLowerCase();
-    const isHtml = extension === ".html";
-
-    response.writeHead(200, {
-      "Content-Type": mimeTypes[extension] || "application/octet-stream",
-      "Cache-Control": isHtml ? "no-store" : "public, max-age=300"
-    });
-    response.end(content);
+  return serveStaticFile(request, response, {
+    root,
+    shouldBlockStaticPath
   });
 }
 
@@ -3033,14 +2463,14 @@ async function generateRenderPreview(payload) {
   }).join(" ");
   const roomContextInstruction = buildRenderRoomContextInstruction(roomContext);
   const premiumInstruction = qualityMode === "premium-photoreal"
-    ? "Quality target: premium architectural after-photo realism comparable to a professional interior renovation portfolio photo. The final should have crisp material detail, correct perspective, realistic grout depth, subtle bevels, natural light falloff, contact shadows, ambient occlusion, and believable phone/camera lens behavior while preserving the exact original site geometry."
+    ? "Quality target: professional interior photography realism, like a professional photographer captured the completed renovated space after installation. The image should feel polished, clean, premium, and photo-real, but still physically real. Keep crisp material detail, correct perspective, realistic grout depth, subtle bevels, natural light falloff, contact shadows, ambient occlusion, and believable camera lens behavior while preserving the exact original site geometry. Do not make it look like CGI, a graphic mockup, or a synthetic showroom render."
     : "";
 
   const prompt = [
-    "Create a photorealistic real-world site photo edit, not a CGI render.",
+    "Create a photorealistic professional interior after-photo edit. The output must look like a real photograph taken by a professional interior photographer after renovation, not a graphic, illustration, 3D render, CGI render, showroom render, or AI concept image.",
     "Use the first image as the original site photo.",
     "The final image must be derived from the uploaded site photo. Do not create a separate showroom, synthetic 3D room, isometric view, architectural visualization, or clean CGI replacement scene.",
-    "Keep the original camera position and phone-photo realism. The result should look like the same site photographed after tile installation, not like a graphic mockup.",
+    "Keep the original camera position, crop, lens perspective, room proportions, and architectural geometry. Improve exposure, white balance, contrast, clarity, and color harmony like professional interior photo post-production. The result should look like the same place professionally photographed after tile installation, not like a graphic mockup.",
     premiumInstruction,
     guideInstruction,
     compositionInstruction,
@@ -3054,20 +2484,25 @@ async function generateRenderPreview(payload) {
     "Do not flatten the tile surface into a smooth generic finish. Preserve the natural variation, grain, veining direction, texture breaks, and pattern contrast so the tile still reads as that exact product.",
     "Respect the real installation scale of each selected tile. The grout grid, tile count, repeat density, module proportions, and cut pieces must look physically correct for the stated tile size.",
     "Do not enlarge or shrink the tile pattern arbitrarily. Keep the module size believable relative to the room, fixtures, and perspective lines.",
-    "Preserve original lighting, color temperature, exposure, contrast, shadows, reflected light, and ambient shading from the source photo.",
-    "Add natural contact shadows, ambient occlusion, edge darkening, slight dust, minor surface imperfections, and subtle camera noise so the result looks like a real site photograph.",
-    "Avoid CGI, avoid overly clean 3D rendering, avoid plastic texture, avoid exaggerated reflections, and avoid perfectly uniform repetition.",
+    "Use refined interior-photography lighting: natural-looking highlights, balanced shadows, clean white balance, realistic reflected light, and believable ambient shading. Do not make the lighting look computer generated.",
+    "Clean up the overall presentation enough to feel like a professional completion photo, but preserve physical realism such as natural grout edges, contact shadows, minor surface variation, real corners, and believable material response.",
+    "Add natural contact shadows, ambient occlusion, edge darkening, realistic material reflectance, fine camera grain, and subtle lens behavior so the result reads as a photographed interior.",
+    "Strictly avoid CGI, illustration, painterly style, cartoon style, over-sharpened edges, plastic texture, fake glossy reflections, fake showroom lighting, excessive depth-of-field blur, perfectly uniform repetition, and artificial interior staging.",
+    "Photographic realism priority is higher than decorative style. Interior style may guide the completed-photo mood, color palette, and lighting balance only; it must never make the image look designed from scratch.",
     "At corners, drains, thresholds, base trims, silicone edges, and cut lines, make grout joints and tile cuts look naturally installed.",
     "If multiple surfaces are selected, keep each reference tile assigned only to its matching surface and never mix wall, floor, and point materials.",
-    "Final result style: a realistic after-installation site photo captured on a phone or site camera, suitable for a client proposal."
+    "Final result style: a realistic completed-interior photograph captured by a professional interior photographer, suitable for a client proposal, with no graphic-render feeling."
   ].join(" ");
 
   const form = new FormData();
   form.append("model", openAiImageModel);
   form.append("prompt", prompt);
-  form.append("size", "1536x1024");
-  form.append("quality", "high");
-  form.append("output_format", "png");
+  form.append("size", openAiRenderSize);
+  form.append("quality", openAiRenderQuality);
+  form.append("output_format", openAiRenderOutputFormat);
+  if (openAiRenderOutputFormat === "jpeg" || openAiRenderOutputFormat === "webp") {
+    form.append("output_compression", String(openAiRenderOutputCompression));
+  }
   form.append("image[]", dataUrlToBlob(siteImageDataUrl), "site-photo.png");
   if (hasGuideImage) {
     form.append("image[]", dataUrlToBlob(guideImageDataUrl), "surface-guide.png");
@@ -3082,7 +2517,7 @@ async function generateRenderPreview(payload) {
   const renderStartedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), openAiRenderTimeoutMs);
-  console.log(`[render] OpenAI image edit started. surfaces=${normalizedSurfaces.length}, guide=${hasGuideImage}, composition=${hasCompositionImage}, timeoutMs=${openAiRenderTimeoutMs}`);
+  console.log(`[render] OpenAI image edit started. model=${openAiImageModel}, size=${openAiRenderSize}, quality=${openAiRenderQuality}, format=${openAiRenderOutputFormat}, surfaces=${normalizedSurfaces.length}, guide=${hasGuideImage}, composition=${hasCompositionImage}, timeoutMs=${openAiRenderTimeoutMs}`);
   let response;
   try {
     response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -3122,7 +2557,8 @@ async function generateRenderPreview(payload) {
 
   return {
     ok: true,
-    imageDataUrl: `data:image/png;base64,${imageBase64}`
+    imageDataUrl: `data:${getOpenAiRenderOutputMimeType(openAiRenderOutputFormat)};base64,${imageBase64}`,
+    format: openAiRenderOutputFormat
   };
 }
 
@@ -3137,6 +2573,7 @@ async function findSimilarTilesByImage(payload, context = {}) {
   const sizeUnknown = /^(1|true|yes)$/i.test(String(payload?.sizeUnknown || "").trim());
   const requestedFinish = String(payload?.finish || "").trim();
   const requestedBrand = isAdmin ? normalizeTileFinderBrandFilter(payload?.brand) : "";
+  const requestedApplication = normalizeTileFinderApplication(payload?.application || payload?.targetApplication);
   const searchMode = String(payload?.searchMode || "").trim() === "global" ? "global" : "strict";
   const allSimilar = payload?.allSimilar !== false;
   const limit = allSimilar
@@ -3146,29 +2583,44 @@ async function findSimilarTilesByImage(payload, context = {}) {
     throw new Error("타일 사진을 다시 업로드해주세요.");
   }
 
+  const baseAnalysis = await analyzeTileImage(imageDataUrl);
+  const overrideAnalysis = normalizeTileFinderAnalysisOverrides(payload?.analysisOverrides);
   const analysis = {
-    ...(await analyzeTileImage(imageDataUrl)),
+    ...baseAnalysis,
+    colors: overrideAnalysis.colors?.length ? overrideAnalysis.colors : baseAnalysis.colors,
+    patterns: overrideAnalysis.patterns?.length ? overrideAnalysis.patterns : baseAnalysis.patterns,
+    surface: overrideAnalysis.surface || baseAnalysis.surface,
+    patternScale: baseAnalysis.patternScale,
+    contrast: baseAnalysis.contrast,
+    patternPresence: overrideAnalysis.patternPresence || "",
+    keywords: normalizeKeywordList([
+      ...(baseAnalysis.keywords || []),
+      ...(overrideAnalysis.keywords || [])
+    ]),
     requestedSize,
     sizeUnknown,
     requestedFinish,
     requestedBrand,
+    requestedApplication,
     searchMode
   };
   const baseProducts = (await readProducts()).filter((product) => (
     isTileFinderTileCandidate(product)
     && product.image
     && (!requestedBrand || productMatchesTileFinderBrand(product, requestedBrand))
+    && productMatchesTileFinderApplication(product, requestedApplication)
     && (searchMode === "global" || productMatchesTileFinderBase(product, analysis))
   ));
   const products = baseProducts;
-  const scoredMatches = products
-    .map((product) => scoreTileProduct(product, analysis))
-    .filter((entry) => entry.score > 0);
-  let rankedMatches = scoredMatches.length ? scoredMatches : products.map((product) => ({
-    product,
-    score: 1,
-    reasons: [searchMode === "global" ? "전체 DB 후보" : "사이즈/표면 조건 후보"]
-  }));
+  let rankedMatches = products.map((product) => {
+    const entry = scoreTileProduct(product, analysis);
+    if (entry.score > 0) return entry;
+    return {
+      product,
+      score: 1,
+      reasons: [searchMode === "global" ? "전체 DB 이미지 비교 후보" : "사이즈/표면 조건 이미지 비교 후보"]
+    };
+  });
   rankedMatches = rankedMatches.map((entry) => {
     const stockQty = getProductStockQty(entry.product);
     if (stockQty > stockInquiryThresholdQty) return entry;
@@ -3178,9 +2630,8 @@ async function findSimilarTilesByImage(payload, context = {}) {
     };
   });
   if (searchMode !== "global") {
-    rankedMatches = selectShapeFirstMatches(rankedMatches, analysis);
-    rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
     rankedMatches = await rerankTileMatchesByLocalImage(imageDataUrl, rankedMatches, analysis);
+    rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
   }
   const matches = rankedMatches
     .sort((left, right) => right.score - left.score || String(left.product.name || "").localeCompare(String(right.product.name || ""), "ko"))
@@ -3195,7 +2646,10 @@ async function findSimilarTilesByImage(payload, context = {}) {
     requestedSize,
     requestedFinish,
     requestedBrand,
+    requestedApplication,
     searchMode,
+    userCorrections: sanitizeSearchLogObject(payload?.analysisOverrides || {}),
+    hasUserCorrections: Object.values(payload?.analysisOverrides || {}).some((value) => String(value || "").trim()),
     analysis,
     resultCount: matches.length,
     topMatches: matches.slice(0, 40)
@@ -3305,6 +2759,38 @@ function normalizeTileAnalysis(analysis) {
   };
 }
 
+function normalizeTileFinderAnalysisOverrides(overrides) {
+  const payload = overrides && typeof overrides === "object" ? overrides : {};
+  const color = normalizeOptionalAnalysisText(payload.color);
+  const secondaryColor = normalizeOptionalAnalysisText(payload.secondaryColor);
+  const style = normalizeOptionalAnalysisText(payload.style);
+  const patternPresence = normalizeTileFinderPatternPresence(payload.patternPresence);
+  const finish = normalizeOptionalAnalysisText(payload.finish);
+  const colors = normalizeKeywordList([color, secondaryColor].filter(Boolean));
+  const patterns = style ? [style] : [];
+  const keywords = normalizeKeywordList([
+    color,
+    secondaryColor,
+    style,
+    patternPresence ? `무늬${patternPresence}` : "",
+    finish
+  ].filter(Boolean));
+  return {
+    colors,
+    patterns,
+    patternPresence,
+    keywords,
+    surface: finish
+  };
+}
+
+function normalizeTileFinderPatternPresence(value) {
+  const text = String(value || "").trim();
+  if (/^있음$|있다|유|yes|pattern/i.test(text)) return "있음";
+  if (/^없음$|없다|무|no|plain|solid/i.test(text)) return "없음";
+  return "";
+}
+
 function normalizeOptionalAnalysisText(value) {
   const text = String(value || "").trim();
   if (!text || /^(없음|알수없음|알 수 없음|unknown|none|null|n\/a)$/i.test(text)) return "";
@@ -3392,6 +2878,17 @@ function scoreTileProduct(product, analysis) {
       reasons.push(`표면일치: ${analysis.requestedFinish}`);
     } else if (analysis.searchMode === "global") {
       reasons.push(`선택표면과 다름`);
+    }
+  }
+  if (analysis.patternPresence === "없음") {
+    if (/솔리드|무지|단색|plain|solid/i.test(text)) {
+      score += 14;
+      reasons.push("무늬 없음");
+    }
+  } else if (analysis.patternPresence === "있음") {
+    if (/마블|스톤|테라조|우드|패턴|모자이크|브릭|베인|결|입자|점박이|기하학|라인|나뭇결|marble|stone|terrazzo|wood|pattern|mosaic|brick|vein|grain/i.test(text)) {
+      score += 10;
+      reasons.push("무늬 있음");
     }
   }
 
@@ -3630,7 +3127,30 @@ function productMatchesTileFinderBase(product, analysis) {
     if (!requestedFinishes.some((finish) => productFinishes.includes(finish))) return false;
   }
 
+  if (analysis.patternPresence && !productMatchesTileFinderPatternPresence(product, analysis.patternPresence)) {
+    return false;
+  }
+
   return true;
+}
+
+function productMatchesTileFinderPatternPresence(product, requestedPresence) {
+  const requested = normalizeTileFinderPatternPresence(requestedPresence);
+  if (!requested) return true;
+  const productPresence = getProductTileFinderPatternPresence(product);
+  if (!productPresence) return true;
+  return productPresence === requested;
+}
+
+function getProductTileFinderPatternPresence(product) {
+  const explicit = normalizeTileFinderPatternPresence(
+    product?.patternPresence
+    || product?.pattern_presence
+    || product?.patternYn
+    || product?.hasPattern
+    || product?.patternType
+  );
+  return explicit || "";
 }
 
 function normalizeTileFinderBrandFilter(value) {
@@ -3651,6 +3171,48 @@ function getTileFinderBrandTexts(product) {
 function productMatchesTileFinderBrand(product, normalizedBrand) {
   if (!normalizedBrand) return true;
   return getTileFinderBrandTexts(product).some((value) => normalizeMatchText(value) === normalizedBrand);
+}
+
+function normalizeTileFinderApplication(value) {
+  const text = normalizeMatchText(value);
+  if (!text) return "";
+  if (/바닥|floor|flooring/.test(text)) return "floor";
+  if (/벽|wall/.test(text)) return "wall";
+  return "";
+}
+
+function getTileFinderApplicationText(product) {
+  return normalizeMatchText([
+    product?.application,
+    product?.usage,
+    product?.use,
+    product?.installLocation,
+    product?.category,
+    product?.kind,
+    product?.name,
+    product?.option,
+    product?.material,
+    product?.surface,
+    product?.finish,
+    product?.features,
+    product?.sourceCategoryName
+  ].filter(Boolean).join(" "));
+}
+
+function productMatchesTileFinderApplication(product, requestedApplication) {
+  if (!requestedApplication) return true;
+  const text = getTileFinderApplicationText(product);
+  const isBoth = /벽바닥|벽및바닥|벽용바닥용|벽겸용|바닥겸용|겸용|wallfloor|wallandfloor|wallfloor/.test(text)
+    || (/벽/.test(text) && /바닥/.test(text));
+  const isFloor = isBoth || /바닥|floor|flooring|논슬립|nonslip|nonsilp|antislip|계단/.test(text);
+  const isWall = isBoth || /벽|wall/.test(text);
+  const hasKnownApplication = isFloor || isWall || isBoth;
+
+  if (!hasKnownApplication) return true;
+
+  if (requestedApplication === "floor") return isFloor;
+  if (requestedApplication === "wall") return isWall || isBoth;
+  return true;
 }
 
 function isTileFinderTileCandidate(product) {
@@ -3765,19 +3327,18 @@ async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analys
   if (!querySignature) return scoredMatches;
 
   const candidatePool = [...scoredMatches]
-    .filter((entry) => getProductCompareImageUrl(entry.product))
+    .filter((entry) => getProductCompareImageRefs(entry.product).length)
     .sort((left, right) => right.score - left.score)
     .slice(0, tileVisualCompareLimit);
   if (!candidatePool.length) return scoredMatches;
 
   const visualEntries = await mapWithConcurrency(candidatePool, 8, async (entry) => {
     try {
-      const productSignature = await getProductImageSignature(entry.product);
-      if (!productSignature) return null;
-      const visual = compareTileImageSignatures(querySignature, productSignature);
+      const best = await getBestProductImageVisualMatch(querySignature, entry.product);
+      if (!best) return null;
       return {
         id: String(entry.product.id),
-        visual
+        ...best
       };
     } catch {
       return null;
@@ -3787,21 +3348,28 @@ async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analys
   const visualById = new Map(
     visualEntries
       .filter(Boolean)
-      .map((entry) => [entry.id, entry.visual])
+      .map((entry) => [entry.id, entry])
   );
   if (!visualById.size) return scoredMatches;
 
   return scoredMatches.map((entry) => {
-    const visual = visualById.get(String(entry.product.id));
-    if (!visual) return entry;
+    const visualEntry = visualById.get(String(entry.product.id));
+    if (!visualEntry) return entry;
+    const visual = visualEntry.visual;
     const shapeIntent = getTileImageShapeIntent(analysis);
     const shapeMatch = scoreProductShapeAgainstIntent(entry.product, shapeIntent);
     const visualScore = Number(visual.score || 0);
+    const exactImageBonus = visualScore >= 99
+      && Number(visual.colorScore || 0) >= 99
+      && Number(visual.textureScore || 0) >= 99
+      ? 300
+      : 0;
     const score = (entry.score * 0.35)
       + (visualScore * 1.25)
       + (Number(visual.colorScore || 0) * 0.25)
       + (Number(visual.textureScore || 0) * 0.15)
-      + (shapeMatch.score * 0.35);
+      + (shapeMatch.score * 0.35)
+      + exactImageBonus;
     return {
       ...entry,
       score,
@@ -3812,6 +3380,7 @@ async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analys
         `이미지유사도 ${Math.round(visualScore)}`,
         `색상이미지 ${Math.round(visual.colorScore)}`,
         `패턴이미지 ${Math.round(visual.textureScore)}`,
+        exactImageBonus ? getTileImageExactMatchReason(visualEntry.ref) : "",
         ...(entry.reasons || [])
       ].filter(Boolean)
     };
@@ -3825,8 +3394,28 @@ async function buildTileImageSignatureFromDataUrl(imageDataUrl) {
   return buildTileImageSignature(decoded);
 }
 
-async function getProductImageSignature(product) {
-  const imageUrl = getProductCompareImageUrl(product);
+async function getBestProductImageVisualMatch(querySignature, product) {
+  const imageRefs = getProductCompareImageRefs(product);
+  if (!imageRefs.length) return null;
+  let best = null;
+  for (const ref of imageRefs) {
+    try {
+      const productSignature = await getProductImageSignatureByUrl(ref.url);
+      if (!productSignature) continue;
+      const visual = compareTileImageSignatures(querySignature, productSignature);
+      if (!best || Number(visual.score || 0) > Number(best.visual?.score || 0)
+        || (Number(visual.score || 0) === Number(best.visual?.score || 0)
+          && Number(ref.priority || 0) < Number(best.ref?.priority || 0))) {
+        best = { visual, ref };
+      }
+    } catch {
+      // Ignore individual product image failures and keep comparing the rest.
+    }
+  }
+  return best;
+}
+
+async function getProductImageSignatureByUrl(imageUrl) {
   if (!imageUrl) return null;
   if (tileImageSignatureCache.has(imageUrl)) {
     const cached = tileImageSignatureCache.get(imageUrl);
@@ -3846,14 +3435,128 @@ async function getProductImageSignature(product) {
   return signature;
 }
 
-function getProductCompareImageUrl(product) {
-  return String(
-    product?.closeImage
-    || product?.detailImage
-    || product?.image
-    || product?.originalImage
-    || ""
-  ).trim();
+function getProductCompareImageRefs(product) {
+  const indexedRefs = getIndexedProductImageRefs(product);
+  if (indexedRefs.length) {
+    return selectProductCompareImageRefs(indexedRefs, tileProductImageCompareLimit);
+  }
+
+  const refs = [];
+  const seen = new Set();
+  const add = (url, role, priority) => {
+    const normalized = String(url || "").trim();
+    if (!normalized || seen.has(normalized)) return;
+    if (!/^https?:\/\//i.test(normalized) && !/^data:image\//i.test(normalized)) return;
+    seen.add(normalized);
+    refs.push({ url: normalized, role, priority });
+  };
+
+  add(product?.image, "primary", 0);
+  add(product?.originalImage, "primary", 1);
+
+  const imageUrls = Array.isArray(product?.imageUrls) ? product.imageUrls : [];
+  for (const url of imageUrls) {
+    const role = getProductCompareImageRole(url);
+    add(url, role, getProductCompareImagePriority(role));
+  }
+
+  add(product?.detailImage, "detail", 8);
+  add(product?.closeImage, "detail", 9);
+  add(product?.daylightImage, "detail", 10);
+  add(product?.fluorescentImage, "detail", 11);
+  add(product?.sceneImage, "detail", 12);
+
+  return selectProductCompareImageRefs(refs, tileProductImageCompareLimit);
+}
+
+function getIndexedProductImageRefs(product) {
+  const productId = String(product?.id || "").trim();
+  if (!productId) return [];
+  const index = getProductImageIndexByProductId();
+  const refs = index.get(productId) || [];
+  return refs.map((ref) => ({
+    url: ref.url,
+    role: ref.role,
+    priority: Number(ref.priority) || getProductCompareImagePriority(ref.role),
+    sourceField: ref.sourceField || "product-images"
+  }));
+}
+
+function getProductImageIndexByProductId() {
+  try {
+    const stat = fs.statSync(productImagesPath);
+    if (productImageIndexCache && productImageIndexMtimeMs === stat.mtimeMs) {
+      return productImageIndexCache;
+    }
+    const payload = JSON.parse(fs.readFileSync(productImagesPath, "utf8"));
+    const images = Array.isArray(payload?.images) ? payload.images : [];
+    const next = new Map();
+    for (const image of images) {
+      const productId = String(image?.productId || "").trim();
+      const url = String(image?.url || "").trim();
+      if (!productId || !url) continue;
+      if (!next.has(productId)) next.set(productId, []);
+      next.get(productId).push({
+        url,
+        role: String(image?.role || getProductCompareImageRole(url)).trim(),
+        priority: Number(image?.priority) || getProductCompareImagePriority(image?.role),
+        sourceField: String(image?.sourceField || "").trim()
+      });
+    }
+    for (const refs of next.values()) {
+      refs.sort((left, right) => left.priority - right.priority || left.url.localeCompare(right.url));
+    }
+    productImageIndexCache = next;
+    productImageIndexMtimeMs = stat.mtimeMs;
+    return productImageIndexCache;
+  } catch {
+    productImageIndexCache = new Map();
+    productImageIndexMtimeMs = 0;
+    return productImageIndexCache;
+  }
+}
+
+function selectProductCompareImageRefs(refs, limit) {
+  const sorted = [...refs].sort((left, right) => left.priority - right.priority);
+  const selected = [];
+  const take = (predicate, maxCount) => {
+    for (const ref of sorted) {
+      if (selected.length >= limit) return;
+      if (selected.includes(ref) || !predicate(ref)) continue;
+      selected.push(ref);
+      maxCount -= 1;
+      if (maxCount <= 0) return;
+    }
+  };
+
+  take((ref) => ref.role === "primary", 1);
+  take((ref) => ref.role === "large", 2);
+  take((ref) => ref.role === "detail", 2);
+  take((ref) => ref.role === "scene", 2);
+  take(() => true, limit);
+  return selected.slice(0, limit);
+}
+
+function getProductCompareImageRole(url) {
+  const text = String(url || "").toLowerCase();
+  if (/\/(?:origin|detail|editor)\//.test(text)) return "detail";
+  if (/\/uploads\/product\/[^/]+\.(?:jpe?g|png|webp)(?:\?|$)/.test(text)) return "detail";
+  if (/\/750\//.test(text)) return "large";
+  if (/\/320\//.test(text)) return "scene";
+  if (/\/80\//.test(text)) return "thumb";
+  return "detail";
+}
+
+function getProductCompareImagePriority(role) {
+  if (role === "large") return 3;
+  if (role === "detail") return 4;
+  if (role === "scene") return 5;
+  if (role === "thumb") return 20;
+  return 12;
+}
+
+function getTileImageExactMatchReason(ref) {
+  return ref?.role === "primary" ? "대표이미지 일치" : "상세이미지 일치";
 }
 
 function parseImageDataUrl(value) {
@@ -4296,6 +3999,14 @@ function buildRenderRoomContextInstruction(roomContext) {
   const footprintType = String(roomContext.footprintType || "").trim();
   const floorOrientation = String(roomContext.floorOrientation || "").trim();
   const wallOrientation = String(roomContext.wallOrientation || "").trim();
+  const roomType = String(roomContext.roomType || "").trim();
+  const roomTypeLabel = String(roomContext.roomTypeLabel || "").trim();
+  const interiorStyle = String(roomContext.interiorStyle || "").trim();
+  const interiorStyleLabel = String(roomContext.interiorStyleLabel || "").trim();
+  const styleMemo = String(roomContext.styleMemo || "").trim();
+  const selectedSurfaces = Array.isArray(roomContext.selectedSurfaces)
+    ? roomContext.selectedSurfaces.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
   const parts = [];
   if (width && depth) parts.push(`floor size about ${width}m by ${depth}m`);
   if (height) parts.push(`wall height about ${height}m`);
@@ -4303,8 +4014,28 @@ function buildRenderRoomContextInstruction(roomContext) {
   if (floorOrientation) parts.push(`floor tile orientation: ${floorOrientation}`);
   if (wallOrientation) parts.push(`wall tile orientation: ${wallOrientation}`);
   if (footprintType) parts.push(`space layout source: ${footprintType}`);
-  if (!parts.length) return "";
-  return `Use these room measurements as scale guidance for perspective and tile module density: ${parts.join(", ")}.`;
+  if (selectedSurfaces.length) parts.push(`selected target surfaces: ${selectedSurfaces.join(", ")}`);
+
+  const instructions = [];
+  if (roomType === "auto") {
+    instructions.push("First identify the original site photo context before editing: bathroom, living room, kitchen, exterior facade/outdoor wall, commercial space, or another interior. Use visible fixtures, cabinets, appliances, windows, doors, drains, lighting, ceiling, facade materials, and site context to infer it.");
+  } else if (roomTypeLabel) {
+    instructions.push(`Treat the site photo as this space type unless the image clearly contradicts it: ${roomTypeLabel}.`);
+  }
+
+  if (interiorStyleLabel) {
+    instructions.push(`Interior direction: ${interiorStyleLabel}. Use this only for believable color grading, lighting balance, material harmony, and proposal mood. Do not redesign the room, do not add unrelated furniture or decoration, and do not weaken the selected tile reference identity.`);
+  }
+  if (interiorStyle === "mid-century") {
+    instructions.push("For mid-century direction, keep the result warm, clean, retro-modern, and balanced; use warm wood/brass/soft contrast only when already plausible from the original scene.");
+  }
+  if (styleMemo) {
+    instructions.push(`User direction memo: ${styleMemo}. Follow it only when it does not conflict with the original site geometry or the selected tile references.`);
+  }
+  if (parts.length) {
+    instructions.push(`Use these room measurements and selection hints as scale guidance for perspective and tile module density: ${parts.join(", ")}.`);
+  }
+  return instructions.join(" ");
 }
 
 function normalizeRenderSurfaceValue(value) {
@@ -4417,43 +4148,6 @@ async function handleServerControl(payload) {
   }
 
   throw new Error("吏?먰븯吏 ?딅뒗 ?쒕쾭 ?쒖뼱 ?묒뾽?낅땲??");
-}
-
-function readRequestBody(request) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-
-    request.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > bodyLimit) {
-        reject(new Error("?낅줈???⑸웾???덈Т ?쎈땲??"));
-        request.destroy();
-        return;
-      }
-
-      chunks.push(chunk);
-    });
-
-    request.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    request.on("error", reject);
-  });
-}
-
-function sendJson(response, status, body) {
-  response.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
-  });
-  response.end(JSON.stringify(body));
-}
-
-function sendRawJson(response, status, json) {
-  response.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store"
-  });
-  response.end(json);
 }
 
 function loadEnvFile(filePath) {

@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const productsPath = path.join(root, "data", "products.json");
-const productsDbPath = path.join(root, "products-db.js");
 
 const products = JSON.parse(await fs.readFile(productsPath, "utf8"));
 const counters = new Map();
@@ -19,7 +19,10 @@ const codedProducts = products.map((product) => {
 });
 
 await fs.writeFile(productsPath, `${JSON.stringify(codedProducts, null, 2)}\n`, "utf8");
-await fs.writeFile(productsDbPath, `window.PRODUCTS_DB = ${JSON.stringify(codedProducts, null, 2)};\n`, "utf8");
+execFileSync(process.execPath, [path.join(root, "scripts", "build-public-products-db.mjs")], {
+  cwd: root,
+  stdio: "pipe"
+});
 
 console.log(`Applied managementCode to ${codedProducts.length} products.`);
 

@@ -1,0 +1,466 @@
+{
+  "taxonomyVersion": "2026-06-06-normalization-v1",
+  "generatedAt": "2026-07-12T08:00:54.520Z",
+  "totalProducts": 6769,
+  "tileProducts": 5173,
+  "nonTileProducts": 1596,
+  "estimatedTileCollections": 4289,
+  "needsReview": 2369,
+  "readyForAiSearch": 2804,
+  "fieldCoverage": {
+    "sizeLabel": {
+      "count": 4967,
+      "rate": 96
+    },
+    "materialCategory": {
+      "count": 4702,
+      "rate": 90.9
+    },
+    "mainColor": {
+      "count": 4724,
+      "rate": 91.3
+    },
+    "surfaceFinish": {
+      "count": 4578,
+      "rate": 88.5
+    },
+    "stylePrimary": {
+      "count": 5173,
+      "rate": 100
+    },
+    "applicationCategories": {
+      "count": 5038,
+      "rate": 97.4
+    },
+    "spaceCategories": {
+      "count": 3948,
+      "rate": 76.3
+    },
+    "pcsPerBox": {
+      "count": 4876,
+      "rate": 94.3
+    },
+    "sqmPerBox": {
+      "count": 5126,
+      "rate": 99.1
+    },
+    "image": {
+      "count": 5156,
+      "rate": 99.7
+    }
+  },
+  "byBrand": [
+    {
+      "label": "VG",
+      "count": 1601
+    },
+    {
+      "label": "HS",
+      "count": 1143
+    },
+    {
+      "label": "US",
+      "count": 1019
+    },
+    {
+      "label": "GT",
+      "count": 520
+    },
+    {
+      "label": "SG",
+      "count": 447
+    },
+    {
+      "label": "SNT",
+      "count": 230
+    },
+    {
+      "label": "AJ",
+      "count": 213
+    }
+  ],
+  "bySpace": [
+    {
+      "label": "거실",
+      "count": 2841
+    },
+    {
+      "label": "현관",
+      "count": 1274
+    },
+    {
+      "label": "공간 미확인",
+      "count": 1225
+    },
+    {
+      "label": "욕실",
+      "count": 360
+    },
+    {
+      "label": "베란다",
+      "count": 155
+    },
+    {
+      "label": "외부공간",
+      "count": 147
+    },
+    {
+      "label": "주방",
+      "count": 36
+    },
+    {
+      "label": "상업공간",
+      "count": 3
+    }
+  ],
+  "byApplication": [
+    {
+      "label": "바닥타일",
+      "count": 4615
+    },
+    {
+      "label": "벽·바닥 겸용 타일",
+      "count": 2321
+    },
+    {
+      "label": "벽타일",
+      "count": 957
+    },
+    {
+      "label": "모자이크 타일",
+      "count": 776
+    },
+    {
+      "label": "슬랩 / 대형타일",
+      "count": 196
+    },
+    {
+      "label": "용도 미확인",
+      "count": 135
+    },
+    {
+      "label": "외부용 타일",
+      "count": 121
+    },
+    {
+      "label": "계단 타일",
+      "count": 32
+    },
+    {
+      "label": "상업용 바닥타일",
+      "count": 3
+    }
+  ],
+  "byStyle": [
+    {
+      "label": "컬러 / 솔리드",
+      "count": 4428
+    },
+    {
+      "label": "패턴 / 데코",
+      "count": 1396
+    },
+    {
+      "label": "콘크리트룩",
+      "count": 1079
+    },
+    {
+      "label": "스톤룩",
+      "count": 907
+    },
+    {
+      "label": "마블룩",
+      "count": 152
+    },
+    {
+      "label": "테라조룩",
+      "count": 123
+    },
+    {
+      "label": "핸드메이드룩",
+      "count": 60
+    },
+    {
+      "label": "트래버틴룩",
+      "count": 53
+    },
+    {
+      "label": "입체 / 텍스처",
+      "count": 39
+    },
+    {
+      "label": "브릭 / 서브웨이",
+      "count": 37
+    },
+    {
+      "label": "우드룩",
+      "count": 18
+    },
+    {
+      "label": "메탈룩",
+      "count": 16
+    },
+    {
+      "label": "엔카우스틱 / 시멘트타일",
+      "count": 3
+    }
+  ],
+  "bySizeGroup": [
+    {
+      "label": "대형 타일",
+      "count": 2980
+    },
+    {
+      "label": "중형 타일",
+      "count": 1642
+    },
+    {
+      "label": "소형 타일",
+      "count": 351
+    },
+    {
+      "label": "초대형 / 슬랩",
+      "count": 196
+    },
+    {
+      "label": "특수형",
+      "count": 4
+    }
+  ],
+  "byThicknessBucket": [
+    {
+      "label": "기타",
+      "count": 4923
+    },
+    {
+      "label": "6T 이하",
+      "count": 84
+    },
+    {
+      "label": "9~10T",
+      "count": 76
+    },
+    {
+      "label": "20T",
+      "count": 70
+    },
+    {
+      "label": "11~12T",
+      "count": 11
+    },
+    {
+      "label": "7~8T",
+      "count": 9
+    }
+  ],
+  "byMaterial": [
+    {
+      "label": "포세린",
+      "count": 2325
+    },
+    {
+      "label": "자기질",
+      "count": 755
+    },
+    {
+      "label": "도기질",
+      "count": 669
+    },
+    {
+      "label": "재질 미확인",
+      "count": 471
+    },
+    {
+      "label": "세라믹",
+      "count": 349
+    },
+    {
+      "label": "모자이크",
+      "count": 319
+    },
+    {
+      "label": "복합소재 / 기타",
+      "count": 164
+    },
+    {
+      "label": "테라코타",
+      "count": 75
+    },
+    {
+      "label": "천연석",
+      "count": 22
+    },
+    {
+      "label": "복합대리석",
+      "count": 15
+    },
+    {
+      "label": "테라조",
+      "count": 5
+    },
+    {
+      "label": "시멘트 타일",
+      "count": 3
+    },
+    {
+      "label": "석재 타일",
+      "count": 1
+    }
+  ],
+  "byColor": [
+    {
+      "label": "그레이",
+      "count": 1544
+    },
+    {
+      "label": "화이트",
+      "count": 1127
+    },
+    {
+      "label": "아이보리 / 크림",
+      "count": 817
+    },
+    {
+      "label": "색상 미확인",
+      "count": 449
+    },
+    {
+      "label": "베이지",
+      "count": 421
+    },
+    {
+      "label": "블랙",
+      "count": 220
+    },
+    {
+      "label": "블루",
+      "count": 120
+    },
+    {
+      "label": "브라운",
+      "count": 112
+    },
+    {
+      "label": "차콜 / 다크그레이",
+      "count": 93
+    },
+    {
+      "label": "그린",
+      "count": 66
+    },
+    {
+      "label": "테라코타 / 오렌지",
+      "count": 60
+    },
+    {
+      "label": "멀티컬러",
+      "count": 44
+    },
+    {
+      "label": "메탈릭",
+      "count": 33
+    },
+    {
+      "label": "핑크",
+      "count": 30
+    },
+    {
+      "label": "옐로우",
+      "count": 22
+    },
+    {
+      "label": "레드",
+      "count": 15
+    }
+  ],
+  "byFinish": [
+    {
+      "label": "무광",
+      "count": 3961
+    },
+    {
+      "label": "유광",
+      "count": 704
+    },
+    {
+      "label": "마감 미확인",
+      "count": 508
+    }
+  ],
+  "byFinishDetail": [
+    {
+      "label": "무광",
+      "count": 3783
+    },
+    {
+      "label": "유광",
+      "count": 640
+    },
+    {
+      "label": "마감 미확인",
+      "count": 508
+    },
+    {
+      "label": "논슬립",
+      "count": 93
+    },
+    {
+      "label": "반무광",
+      "count": 61
+    },
+    {
+      "label": "텍스쳐",
+      "count": 36
+    },
+    {
+      "label": "3D",
+      "count": 22
+    },
+    {
+      "label": "내추럴",
+      "count": 17
+    },
+    {
+      "label": "혼드",
+      "count": 7
+    },
+    {
+      "label": "엠보",
+      "count": 3
+    },
+    {
+      "label": "폴리싱",
+      "count": 3
+    }
+  ],
+  "topReviewReasons": [
+    {
+      "label": "공간 미확인",
+      "count": 1225
+    },
+    {
+      "label": "마감 미확인",
+      "count": 595
+    },
+    {
+      "label": "재질 미확인",
+      "count": 471
+    },
+    {
+      "label": "색상 미확인",
+      "count": 449
+    },
+    {
+      "label": "규격 미확인",
+      "count": 206
+    },
+    {
+      "label": "용도 미확인",
+      "count": 135
+    },
+    {
+      "label": "이미지 미확인",
+      "count": 17
+    }
+  ]
+}
