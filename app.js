@@ -2048,7 +2048,7 @@ function renderProductExpertGuide(state = getProductPageState()) {
     const chips = getProductExpertIntentChips(state);
     intentWrap.innerHTML = chips.length
       ? chips.map((chip) => `<span>${escapeHtml(chip)}</span>`).join("")
-      : `<span>공간, 용도, 색상, 스타일, 규격, 마감을 자연어로 입력해보세요.</span>`;
+      : `<span>공간, 용도, 색상, 스타일, 사이즈, 마감을 자연어로 입력해보세요.</span>`;
   }
   if (comment) comment.textContent = getProductExpertComment(state);
   if (suggestionWrap) {
@@ -2059,7 +2059,7 @@ function renderProductExpertGuide(state = getProductPageState()) {
           ${escapeHtml(item.label)} <small>${number(item.count)}</small>
         </button>
       `).join("")
-      : `<span>${hasKeyword || hasFilter ? "더 좁힐 조건이 부족합니다. 검색어를 조금 넓혀보세요." : "검색하면 색상, 마감, 규격, 스타일 추천 버튼이 나타납니다."}</span>`;
+      : `<span>${hasKeyword || hasFilter ? "더 좁힐 조건이 부족합니다. 검색어를 조금 넓혀보세요." : "검색하면 색상, 마감, 사이즈, 스타일 추천 버튼이 나타납니다."}</span>`;
   }
 }
 
@@ -2070,10 +2070,10 @@ function getProductExpertIntentChips(state) {
     if (text && text !== "all") chips.push(`${label} ${text}`);
   };
   add("대분류", PRODUCT_TYPE_LABELS[state.type] || state.type);
-  add("종류", state.option);
+  add("용도", state.option);
   add("스타일", state.patternCategory);
   add("원산지", state.origin);
-  add("규격", state.size);
+  add("사이즈", state.size);
   add("마감", state.finish);
   add("색상", state.color);
   if (state.naturalIntent?.active) {
@@ -2087,13 +2087,13 @@ function getProductExpertComment(state) {
   const tileCount = state.filtered.filter((product) => product.productType === "tile").length;
   const stocked = state.filtered.filter((product) => Number(product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY).length;
   if (!state.keyword && state.activeFilters === 0) {
-    return "원하는 현장 조건을 말하듯 입력하면 색상, 마감, 규격, 스타일을 해석해서 후보를 좁혀드립니다.";
+    return "원하는 현장 조건을 말하듯 입력하면 색상, 마감, 사이즈, 스타일을 해석해서 후보를 좁혀드립니다.";
   }
   if (!total) {
     return "현재 조건은 너무 좁습니다. 사이즈나 마감 중 하나를 넓히거나, 색상 표현을 아이보리/베이지처럼 비슷한 말로 바꿔보세요.";
   }
   if (state.naturalIntent?.active && state.naturalIntent?.sizes?.length) {
-    return `규격 조건을 먼저 고정하고 ${number(total)}개 후보를 찾았습니다. 이 중 타일 ${number(tileCount)}개, 바로 재고 확인 가능한 상품은 ${number(stocked)}개입니다.`;
+    return `사이즈 조건을 먼저 고정하고 ${number(total)}개 후보를 찾았습니다. 이 중 타일 ${number(tileCount)}개, 바로 재고 확인 가능한 상품은 ${number(stocked)}개입니다.`;
   }
   if (state.naturalIntent?.active && state.naturalIntent?.finishes?.length) {
     return `마감 조건을 우선 반영해 ${number(total)}개 후보를 정리했습니다. 색상이나 스타일을 한 번 더 누르면 더 정확해집니다.`;
@@ -2106,7 +2106,7 @@ function getProductExpertSuggestions(state) {
   const groups = [
     { filter: "color", label: "색상", selector: "#colorFilter", values: getProductDirectColorValues, intentValues: state.naturalIntent?.colors || [] },
     { filter: "finish", label: "마감", selector: "#finishFilter", values: getProductDirectFinishValues, intentValues: state.naturalIntent?.finishes || [] },
-    { filter: "size", label: "규격", selector: "#sizeFilter", values: (product) => [product.size].filter(Boolean), intentValues: state.naturalIntent?.sizes || [] },
+    { filter: "size", label: "사이즈", selector: "#sizeFilter", values: (product) => [product.size].filter(Boolean), intentValues: state.naturalIntent?.sizes || [] },
     { filter: "patternCategory", label: "스타일", selector: "#patternCategoryFilter", values: getProductDirectTileCategories, intentValues: state.naturalIntent?.styles || [] }
   ];
   const suggestions = [];
@@ -2166,7 +2166,7 @@ function getProductExpertReasons(product, state) {
   if (!state || (!state.keyword && state.activeFilters === 0)) return [];
   const reasons = [];
   const normalized = product.productType === "tile" ? getNormalizedTaxonomyProductForProduct(product) : null;
-  if (state.size !== "all" && product.size === state.size) reasons.push(`규격 ${product.size}`);
+  if (state.size !== "all" && product.size === state.size) reasons.push(`사이즈 ${product.size}`);
   if (state.origin !== "all" && getProductDirectOriginValues(product).includes(state.origin)) reasons.push(`원산지 ${state.origin}`);
   if (state.finish !== "all" && getProductDirectFinishValues(product).includes(state.finish)) reasons.push(`마감 ${state.finish}`);
   if (state.color !== "all" && getProductDirectColorValues(product).includes(state.color)) reasons.push(`색상 ${state.color}`);
@@ -2174,7 +2174,7 @@ function getProductExpertReasons(product, state) {
   if (normalized && state.naturalIntent?.active) {
     if (state.naturalIntent.colors?.some((value) => taxonomyHasAny([normalized.mainColor, normalized.subColor, normalized.accentColor], [value]))) reasons.push("색상 의도 일치");
     if (state.naturalIntent.styles?.some((value) => taxonomyHasAny(normalized.styleCategories, [value]))) reasons.push("디자인 의도 일치");
-    if (state.naturalIntent.sizes?.some((value) => taxonomySizeMatches(normalized, value))) reasons.push("규격 의도 일치");
+    if (state.naturalIntent.sizes?.some((value) => taxonomySizeMatches(normalized, value))) reasons.push("사이즈 의도 일치");
   }
   if (Number(product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY) reasons.push("재고 확인 가능");
   return unique(reasons).slice(0, 3);

@@ -743,7 +743,7 @@
             <div class="catalog-toolbar-copy">
               <p class="eyebrow">Browse Catalog</p>
               <h3>카테고리와 조건을 직접 골라 상품을 좁혀보세요.</h3>
-              <p>상품군, 규격, 색상, 마감, 재고 조건을 직접 선택해서 원하는 상품만 빠르게 확인할 수 있습니다.</p>
+              <p>사이즈, 용도, 색상, 마감, 재고 조건을 직접 선택해서 원하는 상품만 빠르게 확인할 수 있습니다.</p>
             </div>
             <div class="catalog-summary-card">
               <strong>추천 탐색 흐름</strong>
@@ -774,6 +774,16 @@
             <option value="all">전체</option>
           </select>
           <div class="filter-grid filter-grid-catalog">
+            <label class="admin-only" id="productBrandFilterField">
+              브랜드
+              <select id="productBrandFilter">
+                <option value="all">전체</option>
+              </select>
+            </label>
+            <label>
+              사이즈
+              <select id="sizeFilter"></select>
+            </label>
             <label>
               대분류
               <select id="mainCategoryFilter">
@@ -785,14 +795,8 @@
                 <option value="material">부자재</option>
               </select>
             </label>
-            <label class="admin-only" id="productBrandFilterField">
-              브랜드
-              <select id="productBrandFilter">
-                <option value="all">전체</option>
-              </select>
-            </label>
             <label>
-              종류
+              용도
               <select id="optionFilter"></select>
             </label>
             <label>
@@ -802,10 +806,6 @@
             <label>
               원산지
               <select id="originFilter"></select>
-            </label>
-            <label>
-              규격
-              <select id="sizeFilter"></select>
             </label>
             <label>
               마감
@@ -832,7 +832,7 @@
               <article>
                 <strong>해석된 조건</strong>
                 <div class="expert-chip-row" id="expertIntentChips">
-                  <span>자연어로 원하는 공간, 색상, 규격, 마감을 입력해보세요.</span>
+                  <span>자연어로 원하는 공간, 색상, 사이즈, 마감을 입력해보세요.</span>
                 </div>
               </article>
               <article>
@@ -2429,6 +2429,6 @@
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260719-order-db1"></script>
+    <script src="app.js?v=20260723-size-use-filter1"></script>
   </body>
 </html>
