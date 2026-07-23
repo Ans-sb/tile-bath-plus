@@ -63,6 +63,7 @@ const PRODUCT_TYPE_LABELS = {
   material: "부자재"
 };
 const BATH_PRODUCT_PAGE_SIZE = 20;
+const SAMPLE_PRODUCT_PAGE_SIZE = 20;
 const BATH_PRODUCT_CATEGORIES = [
   {
     id: "all",
@@ -278,6 +279,7 @@ const shortDate = new Intl.DateTimeFormat("ko-KR", {
 let products = [];
 let productCurrentPage = 1;
 let bathProductCurrentPage = 1;
+let sampleProductCurrentPage = 1;
 let bathProductCategory = "all";
 let bathProductSubcategory = "all";
 let bathProductSortMode = "recommended";
@@ -780,6 +782,29 @@ function bindEvents() {
     openProductDetail(productCard.dataset.viewProduct, productCard);
   });
 
+  document.querySelector("#sampleProductSearch")?.addEventListener("input", () => {
+    sampleProductCurrentPage = 1;
+    renderSamplePage();
+  });
+
+  document.querySelector("#sampleProductPagination")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-sample-product-page]");
+    if (!button || button.disabled) return;
+    sampleProductCurrentPage = Number(button.dataset.sampleProductPage) || 1;
+    renderSamplePage();
+    document.querySelector("#sampleProductList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  document.querySelector("#sampleProductList")?.addEventListener("click", (event) => {
+    const addButton = event.target.closest("[data-add-product]");
+    if (addButton) {
+      addToCart(addButton.dataset.addProduct);
+      return;
+    }
+    const productCard = event.target.closest("[data-view-product]");
+    if (productCard) openProductDetail(productCard.dataset.viewProduct, productCard);
+  });
+
   document.querySelector("#bathCategoryTabs")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-bath-category]");
     if (!button) return;
@@ -1168,6 +1193,9 @@ async function loadProducts() {
   if (currentPageId === "bathProductsPage") {
     renderBathProductsPage();
   }
+  if (currentPageId === "samplePage") {
+    renderSamplePage();
+  }
 
   try {
     const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 30000 });
@@ -1201,8 +1229,16 @@ async function loadProducts() {
     if (currentPageId === "bathProductsPage") {
       renderBathProductsPage();
     }
-    if (!products.length && ["productsPage", "bathProductsPage"].includes(currentPageId)) {
-      const list = document.querySelector(currentPageId === "bathProductsPage" ? "#bathProductList" : "#productList");
+    if (currentPageId === "samplePage") {
+      renderSamplePage();
+    }
+    if (!products.length && ["productsPage", "bathProductsPage", "samplePage"].includes(currentPageId)) {
+      const listSelector = currentPageId === "bathProductsPage"
+        ? "#bathProductList"
+        : currentPageId === "samplePage"
+          ? "#sampleProductList"
+          : "#productList";
+      const list = document.querySelector(listSelector);
       if (list) list.innerHTML = `<div class="empty-state">상품 DB를 불러오지 못했습니다. 서버를 실행하거나 페이지를 다시 열어주세요.</div>`;
     }
     return;
@@ -1214,6 +1250,9 @@ async function loadProducts() {
   }
   if (currentPageId === "bathProductsPage") {
     renderBathProductsPage();
+  }
+  if (currentPageId === "samplePage") {
+    renderSamplePage();
   }
 }
 
@@ -1278,18 +1317,25 @@ async function loadStoredNormalizedTaxonomyProducts() {
 }
 
 async function ensureProductsReady() {
-  const listSelector = currentPageId === "bathProductsPage" ? "#bathProductList" : "#productList";
+  const listSelector = currentPageId === "bathProductsPage"
+    ? "#bathProductList"
+    : currentPageId === "samplePage"
+      ? "#sampleProductList"
+      : "#productList";
   const currentMarkup = document.querySelector(listSelector)?.innerHTML?.trim() || "";
   const needsReload = !products.length || (!productsLoadedFromRemote && (!currentMarkup || currentMarkup.includes("상품 DB를 불러오지 못했습니다")));
   if (!needsReload) return;
 
   if (currentPageId === "bathProductsPage") {
     setText("#bathProductStatus", "상품 목록을 다시 불러오는 중입니다.");
+  } else if (currentPageId === "samplePage") {
+    setText("#sampleProductStatus", "샘플 상품을 다시 불러오는 중입니다.");
   } else {
     updateProductListStatus("상품 목록을 다시 불러오는 중입니다.");
   }
   await loadProducts();
   if (currentPageId === "bathProductsPage") renderBathProductsPage();
+  else if (currentPageId === "samplePage") renderSamplePage();
   else renderProducts();
 }
 
@@ -1891,6 +1937,32 @@ function getProductDisplayOrigin(product) {
     || "미확인";
 }
 
+function isSntSampleProduct(product) {
+  if (!product || product.productType !== "tile") return false;
+  if (/^snt-/i.test(String(product.id || "").trim())) return true;
+  return [
+    product.catalogSource,
+    product.maker,
+    product.kind,
+    product.majorCategory,
+    product.brand,
+    product.internalBrandCode
+  ].some((value) => /^snt$/i.test(String(value || "").trim()));
+}
+
+function getProductDisplayName(product) {
+  const name = String(product?.name || "상품명 미확인").trim();
+  if (isAdminUser() || !isSntSampleProduct(product)) return name;
+  return name.replace(/^SNT(?:\s*[-_/]\s*|\s+)/i, "").trim() || "타일 샘플";
+}
+
+function getProductDisplayKind(product) {
+  const kind = String(product?.kind || "").trim();
+  if (isAdminUser() || !isSntSampleProduct(product)) return kind || "-";
+  const option = String(product?.option || "").trim();
+  return option && !/^snt$/i.test(option) ? option : "타일";
+}
+
 function getProductAdminBrandLabel(product) {
   return [
     product?.catalogSource,
@@ -2005,6 +2077,9 @@ function renderAll() {
   }
   if (currentPageId === "bathProductsPage") {
     renderBathProductsPage();
+  }
+  if (currentPageId === "samplePage") {
+    renderSamplePage();
   }
   if (currentPageId === "aiTileFinderPage") {
     syncTileFinderBrandFilter();
@@ -2402,6 +2477,83 @@ function renderProducts() {
   commitProductPageView(productCurrentPage);
 }
 
+function getFilteredSampleProducts() {
+  const keyword = normalizeSearchText(document.querySelector("#sampleProductSearch")?.value || "");
+  return products
+    .filter(isSntSampleProduct)
+    .filter((product) => {
+      if (!keyword) return true;
+      const safeSearchText = normalizeSearchText([
+        getProductDisplayName(product),
+        product.modelName,
+        product.size,
+        product.color,
+        product.finish,
+        product.patternCategory,
+        product.material,
+        product.option
+      ].filter(Boolean).join(" "));
+      return safeSearchText.includes(keyword);
+    })
+    .sort(compareProductsForDisplay);
+}
+
+function renderSamplePage() {
+  const list = document.querySelector("#sampleProductList");
+  if (!list) return;
+  const filtered = getFilteredSampleProducts();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / SAMPLE_PRODUCT_PAGE_SIZE));
+  sampleProductCurrentPage = Math.min(Math.max(sampleProductCurrentPage, 1), totalPages);
+  const startIndex = (sampleProductCurrentPage - 1) * SAMPLE_PRODUCT_PAGE_SIZE;
+  const pageProducts = filtered.slice(startIndex, startIndex + SAMPLE_PRODUCT_PAGE_SIZE);
+  const keyword = String(document.querySelector("#sampleProductSearch")?.value || "").trim();
+  const cardState = {
+    keyword,
+    naturalIntent: null,
+    activeFilters: keyword ? 1 : 0,
+    size: "all",
+    thickness: "all",
+    origin: "all",
+    finish: "all",
+    color: "all",
+    patternCategory: "all"
+  };
+
+  list.dataset.currentPage = String(sampleProductCurrentPage);
+  list.dataset.totalPages = String(totalPages);
+  list.innerHTML = pageProducts.map((product) => buildProductCardHtml(product, cardState)).join("")
+    || `<div class="empty-state">${keyword ? "검색어에 맞는 샘플 상품이 없습니다." : "등록된 샘플 상품이 없습니다."}</div>`;
+
+  if (filtered.length) {
+    setText("#sampleProductStatus", `총 ${number(filtered.length)}개 샘플 · ${number(sampleProductCurrentPage)}/${number(totalPages)}페이지`);
+  } else if (products.length) {
+    setText("#sampleProductStatus", keyword ? "검색어에 맞는 샘플 상품이 없습니다." : "샘플 제공 상품을 준비 중입니다.");
+  } else {
+    setText("#sampleProductStatus", "샘플 상품 데이터를 불러오는 중입니다.");
+  }
+  renderSampleProductPagination(filtered.length, totalPages);
+}
+
+function renderSampleProductPagination(totalItems, totalPages) {
+  const pagination = document.querySelector("#sampleProductPagination");
+  if (!pagination) return;
+  if (!totalItems || totalPages <= 1) {
+    pagination.innerHTML = "";
+    return;
+  }
+  const pages = getVisibleProductPages(sampleProductCurrentPage, totalPages);
+  pagination.innerHTML = [
+    `<button type="button" data-sample-product-page="1" ${sampleProductCurrentPage === 1 ? "disabled" : ""}>처음</button>`,
+    `<button type="button" data-sample-product-page="${Math.max(1, sampleProductCurrentPage - 1)}" ${sampleProductCurrentPage === 1 ? "disabled" : ""}>이전</button>`,
+    ...pages.map((page) => page === "..."
+      ? `<span class="product-pagination-ellipsis">...</span>`
+      : `<button type="button" data-sample-product-page="${page}" class="${page === sampleProductCurrentPage ? "active" : ""}" ${page === sampleProductCurrentPage ? "aria-current=\"page\"" : ""}>${number(page)}</button>`),
+    `<button type="button" data-sample-product-page="${Math.min(totalPages, sampleProductCurrentPage + 1)}" ${sampleProductCurrentPage === totalPages ? "disabled" : ""}>다음</button>`,
+    `<button type="button" data-sample-product-page="${totalPages}" ${sampleProductCurrentPage === totalPages ? "disabled" : ""}>끝</button>`,
+    `<span class="product-pagination-summary">${number(totalItems)}개 · ${number(SAMPLE_PRODUCT_PAGE_SIZE)}개씩</span>`
+  ].join("");
+}
+
 function getFilteredProductsForProductPage() {
   return getProductPageState();
 }
@@ -2627,6 +2779,7 @@ function buildProductCardHtml(product, state = null) {
 function getProductCardCallbacks() {
   return {
     escapeHtml,
+    getProductDisplayName,
     getProductDisplaySize,
     getProductDisplayColor,
     getProductDisplayFinish,
@@ -6014,7 +6167,7 @@ async function openProductDetail(id, sourceElement = null) {
   let product = products.find((item) => item.id === id);
   if (!product) return;
   const card = sourceElement?.closest(".product-card") || document.querySelector(`[data-view-product="${cssEscape(id)}"]`)?.closest(".product-card");
-  const sourcePageId = ["productsPage", "bathProductsPage", "taxonomyTestPage", "aiTileFinderPage"].includes(currentPageId)
+  const sourcePageId = ["productsPage", "bathProductsPage", "taxonomyTestPage", "aiTileFinderPage", "samplePage"].includes(currentPageId)
     ? currentPageId
     : productListReturnState.sourcePageId || "productsPage";
   productListReturnState = {
@@ -6121,6 +6274,8 @@ function getProductDetailCallbacks() {
     productTypeLabels: PRODUCT_TYPE_LABELS,
     getProductImage,
     getProductDetailPriceSpecs,
+    getProductDisplayName,
+    getProductDisplayKind,
     getAdminProductBrandLabel,
     getProductDisplaySize,
     getProductDisplayThickness,
@@ -13300,6 +13455,11 @@ function switchPage(pageId, options = {}) {
     void ensureProductsReady();
   }
 
+  if (pageId === "samplePage") {
+    renderSamplePage();
+    void ensureProductsReady();
+  }
+
   if (pageId === "aiTileFinderPage") {
     syncTileFinderBrandFilter();
     void ensureProductsReady();
@@ -13381,12 +13541,13 @@ function goBackPage() {
 
 function returnToProductsPage() {
   pageScrollPositions.set(currentPageId, window.scrollY);
-  const sourcePageId = ["productsPage", "bathProductsPage", "taxonomyTestPage", "aiTileFinderPage"].includes(productListReturnState.sourcePageId)
+  const sourcePageId = ["productsPage", "bathProductsPage", "taxonomyTestPage", "aiTileFinderPage", "samplePage"].includes(productListReturnState.sourcePageId)
     ? productListReturnState.sourcePageId
     : "productsPage";
   const previous = pageHistory[pageHistory.length - 1];
   if (previous?.pageId === sourcePageId) {
     goBackPage();
+    history.replaceState({ pageId: sourcePageId }, "", `#${sourcePageId}`);
     return;
   }
 
@@ -13395,6 +13556,7 @@ function returnToProductsPage() {
     updateBrowserHistory: false,
     scrollY: productListReturnState.scrollY || pageScrollPositions.get(sourcePageId) || 0
   });
+  history.replaceState({ pageId: sourcePageId }, "", `#${sourcePageId}`);
 }
 
 function handleBrowserBack() {

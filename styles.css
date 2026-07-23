@@ -231,6 +231,48 @@ body.customer-experience-mode .customer-nav-group {
   }
 }
 
+.sample-product-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 18px 0;
+}
+
+body.customer-experience-mode .sample-product-toolbar label,
+.sample-product-toolbar label {
+  display: grid !important;
+  min-width: min(420px, 100%);
+  gap: 7px;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.sample-product-toolbar input {
+  width: 100%;
+  min-height: 44px;
+}
+
+.sample-product-toolbar strong {
+  color: var(--muted);
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .sample-product-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sample-product-toolbar label {
+    min-width: 0;
+  }
+
+  .sample-product-toolbar strong {
+    text-align: left;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

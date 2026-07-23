@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260723-global-font-1-3x1" />
+    <link rel="stylesheet" href="styles.css?v=20260724-sample-snt1" />
   </head>
   <body>
     <!-- build: homeheroslider3 -->
@@ -408,15 +408,37 @@
       <main class="app-page page-panel customer-page" id="samplePage">
         <section class="page-heading customer-page-heading">
           <div>
-            <p class="eyebrow">Sample</p>
-            <h2>샘플페이지입니다</h2>
+            <p class="eyebrow">SampleGO</p>
+            <h2>샘플GO</h2>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
           </div>
         </section>
-        <section class="commerce-panel customer-catalog-panel">
-          <p class="service-copy">샘플페이지입니다.</p>
+        <section class="commerce-panel catalog-panel customer-catalog-panel">
+          <div class="catalog-toolbar customer-catalog-hero">
+            <div class="catalog-toolbar-copy">
+              <p class="eyebrow">Sample Catalog</p>
+              <h3>샘플로 확인할 타일을 골라보세요.</h3>
+              <p>품번, 품명 또는 규격으로 검색하고 상품 상세를 확인한 뒤 장바구니에 담을 수 있습니다.</p>
+            </div>
+            <div class="catalog-summary-card">
+              <strong>샘플 전용 상품</strong>
+              <span>현재 샘플 제공 대상으로 선별된 타일만 보여드립니다.</span>
+            </div>
+          </div>
+          <div class="sample-product-toolbar">
+            <label>
+              샘플 검색
+              <input id="sampleProductSearch" type="search" placeholder="품번, 품명, 규격 검색" autocomplete="off" />
+            </label>
+            <strong id="sampleProductStatus">샘플 상품을 불러오는 중입니다.</strong>
+          </div>
+          <div class="product-list product-page-list sample-product-list" id="sampleProductList">
+            <div class="empty-state">샘플 상품을 불러오는 중입니다.</div>
+          </div>
+          <div class="product-pagination" id="sampleProductPagination" aria-label="샘플 상품 페이지"></div>
         </section>
       </main>
 
@@ -2554,13 +2576,13 @@
     <script src="src/client/features/products/filter-snapshot.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/products/product-page-state.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/products/product-search-text.js?v=20260710-module-split3"></script>
-    <script src="src/client/features/products/product-cards.js?v=20260723-size-thickness1"></script>
-    <script src="src/client/features/products/product-detail.js?v=20260723-bath-storefront1"></script>
+    <script src="src/client/features/products/product-cards.js?v=20260724-sample-snt1"></script>
+    <script src="src/client/features/products/product-detail.js?v=20260724-sample-snt1"></script>
     <script src="src/client/features/cart/cart-tile-metrics.js?v=20260710-module-split5"></script>
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260723-global-font-2x1"></script>
+    <script src="app.js?v=20260724-sample-snt2"></script>
   </body>
 </html>

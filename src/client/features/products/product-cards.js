@@ -14,6 +14,9 @@
     const state = options.state || null;
     const callbacks = options.callbacks || {};
     const escapeHtml = callbacks.escapeHtml || ((value) => String(value ?? ""));
+    const displayName = callbacks.getProductDisplayName
+      ? callbacks.getProductDisplayName(product)
+      : product.name || "상품명 미확인";
     const displaySize = callbacks.getProductDisplaySize
       ? callbacks.getProductDisplaySize(product)
       : product.size || "미확인";
@@ -22,11 +25,11 @@
     const expertReasons = callbacks.getProductExpertReasons(product, state);
     return `
     <article class="product-card">
-      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
-        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" fetchpriority="low" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
+      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(displayName)} 상세 보기">
+        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(displayName)}" loading="lazy" decoding="async" fetchpriority="low" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
       </button>
       <div>
-        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
+        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(displayName)}</button>
         <span>사이즈 ${escapeHtml(displaySize)}</span>
         <span>색상 ${escapeHtml(displayColor)}</span>
         <span>마감 ${escapeHtml(displayFinish)}</span>
