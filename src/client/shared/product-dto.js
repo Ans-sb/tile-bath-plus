@@ -77,6 +77,7 @@
       color: product?.color,
       features: product?.features,
       finish: product?.finish,
+      countryOfOrigin: product?.countryOfOrigin,
       unit: product?.unit,
       option: product?.option,
       priceSortRank: includeMemberPrices ? product?.priceSortRank : undefined,

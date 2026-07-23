@@ -50,6 +50,7 @@ function mapPublicProduct(product) {
     color: clean(customerProduct.color),
     features: clean(customerProduct.features),
     finish: clean(customerProduct.finish),
+    countryOfOrigin: clean(customerProduct.countryOfOrigin),
     unit: clean(customerProduct.unit),
     option: clean(customerProduct.option),
     stockQty: shouldHideStock ? 0 : getProductStockQty(customerProduct),

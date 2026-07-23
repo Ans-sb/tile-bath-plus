@@ -61,6 +61,7 @@ function createProductResponseMapper({
         color: String(customerProduct.color || "").trim(),
         features: String(customerProduct.features || "").trim(),
         finish: String(customerProduct.finish || "").trim(),
+        countryOfOrigin: String(customerProduct.countryOfOrigin || "").trim(),
         maker: "",
         unit: String(customerProduct.unit || "").trim(),
         option: String(customerProduct.option || "").trim(),
