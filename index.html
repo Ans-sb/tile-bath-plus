@@ -770,7 +770,7 @@
             <div class="catalog-toolbar-copy">
               <p class="eyebrow">Tile Catalog</p>
               <h3>타일 규격과 현장 조건을 골라 빠르게 찾아보세요.</h3>
-              <p>사이즈, 두께, 용도, 스타일, 마감과 색상을 조합해 원하는 타일만 확인할 수 있습니다.</p>
+              <p>사이즈, 용도, 마감, 스타일과 색상을 조합해 원하는 타일만 확인할 수 있습니다.</p>
             </div>
             <div class="catalog-summary-card">
               <strong>추천 탐색 흐름</strong>
@@ -797,6 +797,9 @@
           <select class="visually-hidden" id="tileFeatureFilter" aria-hidden="true" tabindex="-1">
             <option value="all">전체</option>
           </select>
+          <select class="visually-hidden" id="thicknessFilter" aria-hidden="true" tabindex="-1">
+            <option value="all">전체</option>
+          </select>
           <div class="filter-grid filter-grid-catalog">
             <label class="admin-only" id="productBrandFilterField">
               브랜드
@@ -807,10 +810,6 @@
             <label>
               사이즈
               <select id="sizeFilter"></select>
-            </label>
-            <label>
-              두께
-              <select id="thicknessFilter"></select>
             </label>
             <label class="visually-hidden" aria-hidden="true">
               대분류
@@ -823,12 +822,12 @@
               <select id="optionFilter"></select>
             </label>
             <label>
-              스타일
-              <select id="patternCategoryFilter"></select>
-            </label>
-            <label>
               마감
               <select id="finishFilter"></select>
+            </label>
+            <label>
+              스타일
+              <select id="patternCategoryFilter"></select>
             </label>
             <label>
               색상
@@ -947,7 +946,6 @@
               <select id="bathProductSort">
                 <option value="recommended">추천순</option>
                 <option value="new">신상품순</option>
-                <option value="stock">재고 많은순</option>
                 <option value="name">상품명순</option>
               </select>
             </label>
@@ -1057,7 +1055,7 @@
             <div class="wide taxonomy-search-field">
               <span>AI 통합검색</span>
               <div class="taxonomy-search-row">
-                <input id="taxonomySearch" type="search" placeholder="예: 욕실 바닥 베이지 마블 600x1200 재고 또는 사진과 함께 검색" />
+                <input id="taxonomySearch" type="search" placeholder="예: 욕실 바닥 베이지 마블 600x1200 무광 또는 사진과 함께 검색" />
                 <button class="primary-action" id="taxonomySearchBtn" type="button">검색</button>
               </div>
               <div class="taxonomy-search-assist">
@@ -1091,7 +1089,6 @@
                   <option value="match">일치도 높은순</option>
                   <option value="priceAsc">금액 낮은순</option>
                   <option value="priceDesc">금액 높은순</option>
-                  <option value="stockDesc">재고 많은순</option>
                 </select>
               </label>
             </div>
@@ -2576,13 +2573,13 @@
     <script src="src/client/features/products/filter-snapshot.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/products/product-page-state.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/products/product-search-text.js?v=20260710-module-split3"></script>
-    <script src="src/client/features/products/product-cards.js?v=20260724-sample-snt1"></script>
+    <script src="src/client/features/products/product-cards.js?v=20260724-catalog-fields1"></script>
     <script src="src/client/features/products/product-detail.js?v=20260724-sample-snt1"></script>
     <script src="src/client/features/cart/cart-tile-metrics.js?v=20260710-module-split5"></script>
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260724-sample-snt3"></script>
+    <script src="app.js?v=20260724-catalog-fields2"></script>
   </body>
 </html>
