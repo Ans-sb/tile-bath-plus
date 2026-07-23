@@ -5235,28 +5235,17 @@ function renderTaxonomyImageResults(matches, options = {}) {
       <strong>이미지 유사 결과</strong>
       <span>총 ${number(matches.length)}개 · ${number(taxonomyImageResultsPage)}/${number(totalPages)}페이지 · 20개씩 표시</span>
     </div>`,
-    ...pageMatches.map(renderTaxonomyImageMatchCard),
+    ...pageMatches.map(renderImageSearchProductCard),
     renderImageSearchPagination(taxonomyImageResultsPage, totalPages, "taxonomy")
   ].join("") : "";
 }
 
-function renderTaxonomyImageMatchCard(product) {
-  return `
-    <article class="tile-match-card">
-      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
-        ${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb-empty">이미지 없음</div>`}
-      </button>
-      <strong>${escapeHtml(product.name || "-")}</strong>
-      <span>${escapeHtml(product.size || "-")} · ${escapeHtml(product.finish || product.option || "-")}</span>
-      <span>재고 ${escapeHtml(formatStockQuantity(product))}</span>
-      <small>${escapeHtml((product.matchReasons || []).slice(0, 3).join(" · ") || "이미지 유사 후보")}</small>
-      <span class="tile-match-score">유사도 ${number(product.matchScore || 0)}</span>
-      <div class="tile-match-actions">
-        <button class="secondary-action" type="button" data-view-product="${escapeHtml(product.id)}">상세</button>
-        <button class="primary-action" type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
-      </div>
-    </article>
-  `;
+function renderImageSearchProductCard(product) {
+  const reason = (product?.matchReasons || []).slice(0, 3).join(" · ") || "이미지 유사 후보";
+  const scoreBadge = `<span class="image-search-match-score" title="${escapeHtml(reason)}">유사도 ${number(product?.matchScore || 0)}</span>`;
+  return buildProductCardHtml(product, null)
+    .replace('class="product-card"', 'class="product-card image-search-product-card"')
+    .replace(/(<button type="button" data-add-product=)/, `${scoreBadge}$1`);
 }
 
 function renderImageSearchPagination(currentPage, totalPages, mode) {
@@ -5923,17 +5912,6 @@ function getTileFinderPriceBandUpper(rank) {
   return index >= 0 && index < bands.length ? bands[index] : 0;
 }
 
-function getTileFinderPriceBandLabel(rank) {
-  const price = getTileFinderPriceBandUpper(rank);
-  return price ? `${money.format(price)} 이하` : "";
-}
-
-function renderTileFinderPriceLine(product) {
-  if (hasMemberPriceAccess()) return renderProductCardPriceLine(product);
-  const band = getTileFinderPriceBandLabel(product?.priceSortRank);
-  return `<span>${escapeHtml(band ? `금액대 ${band}` : "가격 협의")}</span>`;
-}
-
 function renderTileFinderResults(matches, options = {}) {
   const results = document.querySelector("#tileFinderResults");
   if (!results) return;
@@ -5953,30 +5931,20 @@ function renderTileFinderResults(matches, options = {}) {
       <span>총 ${number(rawMatches.length)}개 · 표시 ${number(visibleMatches.length)}개 · ${number(tileFinderResultsPage)}/${number(totalPages)}페이지 · 10개씩 표시</span>
     </div>`,
     ...(pageMatches.length ? pageGroups.map((group) => `
-    <section class="tile-finder-result-group">
+    <section class="tile-finder-result-group product-list product-page-list">
       <div class="tile-finder-result-group-title">
         <strong>${escapeHtml(group.label)}</strong>
         <span>${escapeHtml(group.summary)}</span>
       </div>
       ${group.items.map((entry) => {
         const product = entry.product;
-        return `
-    <article class="tile-match-card" data-tile-finder-group="${escapeHtml(group.key)}">
-      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
-        ${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" />` : `<div class="product-thumb-empty">이미지 없음</div>`}
-      </button>
-      <strong>${escapeHtml(product.name)}</strong>
-      <span>${escapeHtml(product.size || "-")} · ${escapeHtml(getTileFinderStyleValue(product))} · ${escapeHtml(getTileFinderColorValue(product))}</span>
-      <span>${escapeHtml(product.finish || product.option || "-")}</span>
-      ${renderTileFinderPriceLine(product)}
-      <span>재고 ${escapeHtml(formatStockQuantity(product))}</span>
-      <small>${escapeHtml(getTileFinderHumanReason(product, entry.index, group.key))}</small>
-      <span class="tile-match-score">유사도 ${number(product.matchScore || 0)}</span>
-      <div class="tile-match-actions">
-        <button class="secondary-action" type="button" data-view-product="${escapeHtml(product.id)}">상세</button>
-        <button class="primary-action" type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
-      </div>
-    </article>`;
+        return renderImageSearchProductCard({
+          ...product,
+          matchReasons: [
+            getTileFinderHumanReason(product, entry.index, group.key),
+            ...(product.matchReasons || [])
+          ].filter(Boolean)
+        });
       }).join("")}
     </section>
   `) : [`<div class="empty-state">선택한 스타일/색상/금액 조건에 맞는 결과가 없습니다.</div>`]),
