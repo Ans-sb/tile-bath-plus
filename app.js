@@ -279,6 +279,7 @@ let productCurrentPage = 1;
 let bathProductCurrentPage = 1;
 let bathProductCategory = "all";
 let bathProductSubcategory = "all";
+let bathProductSortMode = "recommended";
 let productPageTransitioning = false;
 let productPageCacheVersion = 0;
 let productPageStateCache = null;
@@ -802,6 +803,24 @@ function bindEvents() {
     });
   });
 
+  document.querySelector("#bathProductSearchBtn")?.addEventListener("click", () => {
+    bathProductCurrentPage = 1;
+    renderBathProductsPage();
+  });
+
+  document.querySelector("#bathProductSearch")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    bathProductCurrentPage = 1;
+    renderBathProductsPage();
+  });
+
+  document.querySelector("#bathProductSort")?.addEventListener("change", (event) => {
+    bathProductSortMode = event.target.value || "recommended";
+    bathProductCurrentPage = 1;
+    renderBathProductsPage();
+  });
+
   document.querySelector("#bathProductPagination")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-bath-product-page]");
     if (!button || button.disabled) return;
@@ -828,9 +847,34 @@ function bindEvents() {
   });
 
   document.querySelector("#productDetailPage")?.addEventListener("click", (event) => {
+    const quantityButton = event.target.closest("[data-detail-quantity-change]");
+    if (quantityButton) {
+      changeDetailPurchaseQuantity(Number(quantityButton.dataset.detailQuantityChange) || 0);
+      return;
+    }
+    const inlineCartButton = event.target.closest("#detailInlineAddToCartBtn");
+    if (inlineCartButton) {
+      addSelectedDetailProductToCart();
+      return;
+    }
+    const buyNowButton = event.target.closest("#detailBuyNowBtn");
+    if (buyNowButton) {
+      addSelectedDetailProductToCart();
+      switchPage("cartPage");
+      return;
+    }
+    const scrollButton = event.target.closest("[data-detail-scroll-target]");
+    if (scrollButton) {
+      document.querySelector(scrollButton.dataset.detailScrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     const trigger = event.target.closest("[data-preview-image]");
     if (!trigger) return;
     openImageSourcePreview(trigger.dataset.previewImage, trigger.dataset.previewTitle || "제품 이미지 확대");
+  });
+
+  document.querySelector("#detailPurchaseQuantity")?.addEventListener("input", (event) => {
+    event.target.value = String(Math.max(1, Math.min(999, Math.floor(Number(event.target.value) || 1))));
   });
 
   document.querySelector("#taxonomyCollectionList")?.addEventListener("click", (event) => {
@@ -1017,7 +1061,7 @@ function bindEvents() {
   });
   document.querySelector("#backToProductsBtn").addEventListener("click", returnToProductsPage);
   document.querySelector("#detailAddToCartBtn").addEventListener("click", () => {
-    if (selectedProductId) addToCart(selectedProductId);
+    addSelectedDetailProductToCart();
   });
   document.querySelector("#detailEditForm")?.addEventListener("submit", saveDetailProductSpecs);
   document.querySelector("#detailEditResetBtn")?.addEventListener("click", () => {
@@ -2119,13 +2163,23 @@ function syncBathProductBrandFilter(scopeProducts) {
 
 function getFilteredBathProducts(allBathProducts, selectedBrand) {
   const normalizedKeyword = normalizeSearchText(document.querySelector("#bathProductSearch")?.value || "");
-  return allBathProducts
+  const filtered = allBathProducts
     .filter((product) => productMatchesAdminBrandFilter(product, selectedBrand))
     .filter((product) => productMatchesBathCategory(product))
     .filter((product) => bathProductSubcategory === "all"
       || getBathProductSubcategoryId(product, bathProductCategory) === bathProductSubcategory)
-    .filter((product) => !normalizedKeyword || getProductSearchableText(product).includes(normalizedKeyword))
-    .sort(compareProductsForDisplay);
+    .filter((product) => !normalizedKeyword || getProductSearchableText(product).includes(normalizedKeyword));
+
+  if (bathProductSortMode === "stock") {
+    return filtered.sort((a, b) => (Number(b.stockQty) || 0) - (Number(a.stockQty) || 0) || compareProductsForDisplay(a, b));
+  }
+  if (bathProductSortMode === "name") {
+    return filtered.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "ko"));
+  }
+  if (bathProductSortMode === "new") {
+    return filtered.sort((a, b) => Number(isNewBathProduct(b)) - Number(isNewBathProduct(a)) || compareProductsForDisplay(a, b));
+  }
+  return filtered.sort(compareProductsForDisplay);
 }
 
 function renderBathProductsPage() {
@@ -2152,6 +2206,7 @@ function renderBathProductsPage() {
 
   setText("#bathCategoryTitle", category.title);
   setText("#bathCategoryDescription", category.description);
+  setText("#bathCatalogBreadcrumb", `바스GO > ${category.label}${bathProductSubcategory !== "all" ? ` > ${category.subcategories.find((item) => item.id === bathProductSubcategory)?.label || ""}` : ""}`);
   const categoryProducts = allBathProducts.filter((product) => productMatchesBathCategory(product, category.id));
   const subcategoryButtons = category.subcategories.map((subcategory) => {
     const count = categoryProducts.filter((product) => getBathProductSubcategoryId(product, category.id) === subcategory.id).length;
@@ -2216,21 +2271,25 @@ function buildBathProductCardHtml(product, state) {
   const categoryLabel = categoryId === "other" ? "욕실상품" : category.label;
   const itemLabel = subcategory?.label || categoryLabel;
   const expertReasons = getProductExpertReasons(product, state);
+  const stockLabel = hasStockValue(product) ? formatStockQuantity(product) : "확인 필요";
   return `
     <article class="product-card bath-product-card">
-      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
-        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" fetchpriority="low" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
+      <button class="bath-product-card-link" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
+        <span class="bath-product-card-media">
+          ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" fetchpriority="low" />` : `<span class="product-thumb product-thumb-empty">이미지 없음</span>`}
+          ${isNewBathProduct(product) ? `<span class="bath-card-badge">신상품</span>` : ""}
+        </span>
+        <span class="bath-product-card-copy">
+          <small class="bath-product-category">${escapeHtml(categoryLabel)} · ${escapeHtml(itemLabel)}</small>
+          <strong class="bath-product-name">${escapeHtml(product.name)}</strong>
+          <span class="bath-product-spec">${escapeHtml(getProductDisplaySize(product))}${product.option ? ` · ${escapeHtml(product.option)}` : ""}</span>
+          <span class="bath-product-price">${renderProductCardPriceLine(product)}</span>
+          <span class="bath-product-delivery">재고 ${escapeHtml(stockLabel)} · 배송일정 주문 확인 후 안내</span>
+          ${renderProductCardAdminMeta(product)}
+          ${expertReasons.length ? `<small class="expert-product-reasons">${expertReasons.map(escapeHtml).join(" · ")}</small>` : ""}
+        </span>
       </button>
-      <div>
-        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
-        <span>품목 ${escapeHtml(itemLabel)}</span>
-        <span>규격 ${escapeHtml(getProductDisplaySize(product))}</span>
-        <span>재고 ${escapeHtml(hasStockValue(product) ? formatStockQuantity(product) : "확인 필요")}</span>
-        ${renderProductCardAdminMeta(product)}
-        ${renderProductCardPriceLine(product)}
-        ${expertReasons.length ? `<small class="expert-product-reasons">${expertReasons.map(escapeHtml).join(" · ")}</small>` : ""}
-      </div>
-      <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
+      <button class="bath-card-cart-button" type="button" data-add-product="${escapeHtml(product.id)}">장바구니 담기</button>
     </article>
   `;
 }
@@ -6008,16 +6067,63 @@ async function openProductDetail(id, sourceElement = null) {
 
 function renderProductDetail(product) {
   selectedDetailProduct = product;
+  const bathDetail = isBathProduct(product);
   const detailView = window.TbpProductDetail.buildProductDetailView({
     product,
     callbacks: getProductDetailCallbacks()
   });
+  const detailPage = document.querySelector("#productDetailPage");
+  detailPage?.classList.toggle("bath-detail-mode", bathDetail);
   setText("#detailProductTitle", detailView.title);
   document.querySelector("#detailMainMedia").innerHTML = detailView.mainMediaHtml;
   document.querySelector("#detailSpecGrid").innerHTML = detailView.specGridHtml;
+  renderDetailCommercePanel(product, bathDetail);
 
   renderDetailAdminEditor(product);
   document.querySelector("#detailGalleryGrid").innerHTML = detailView.galleryHtml;
+}
+
+function renderDetailCommercePanel(product, bathDetail) {
+  const commercePanel = document.querySelector("#detailCommercePanel");
+  const breadcrumb = document.querySelector("#detailCommerceBreadcrumb");
+  if (!commercePanel) return;
+  commercePanel.classList.toggle("hidden", !bathDetail);
+  breadcrumb?.classList.toggle("hidden", !bathDetail);
+  if (!bathDetail) return;
+
+  const categoryId = getBathProductBaseCategoryId(product);
+  const category = getBathProductCategory(categoryId);
+  const subcategoryId = getBathProductSubcategoryId(product, categoryId);
+  const subcategory = category.subcategories.find((item) => item.id === subcategoryId);
+  const categoryLabel = categoryId === "other" ? "욕실상품" : category.label;
+  const itemLabel = subcategory?.label || categoryLabel;
+  const stockLabel = hasStockValue(product) ? formatStockQuantity(product) : "확인 필요";
+  setText("#detailCommerceBreadcrumb", `바스GO > ${categoryLabel} > ${itemLabel}`);
+  setText("#detailCommerceCategory", `${categoryLabel} · ${itemLabel}`);
+  setText("#detailCommerceName", product.name || "상품 상세");
+  setText("#detailCommerceModel", [getProductDisplaySize(product), product.option].filter(Boolean).join(" · ") || "상세 규격 확인");
+  document.querySelector("#detailCommercePrice").innerHTML = renderProductCardPriceLine(product);
+  setText("#detailCommerceStock", `재고 ${stockLabel}`);
+  setText("#detailCommerceDelivery", "상품과 배송 지역 확인 후 출고 일정을 안내드립니다.");
+  const quantityInput = document.querySelector("#detailPurchaseQuantity");
+  if (quantityInput) quantityInput.value = "1";
+}
+
+function getDetailPurchaseQuantity() {
+  return Math.max(1, Math.min(999, Math.floor(Number(document.querySelector("#detailPurchaseQuantity")?.value) || 1)));
+}
+
+function changeDetailPurchaseQuantity(change) {
+  const input = document.querySelector("#detailPurchaseQuantity");
+  if (!input) return;
+  input.value = String(Math.max(1, Math.min(999, getDetailPurchaseQuantity() + change)));
+}
+
+function addSelectedDetailProductToCart() {
+  if (!selectedProductId) return;
+  addToCart(selectedProductId, document.querySelector("#productDetailPage")?.classList.contains("bath-detail-mode")
+    ? getDetailPurchaseQuantity()
+    : 1);
 }
 
 function getProductDetailAdminSpecs(product) {
@@ -6036,6 +6142,10 @@ function getProductDetailCallbacks() {
     getProductDisplaySize,
     getProductDisplayThickness,
     getProductDisplayOrigin,
+    isBathProduct,
+    getBathProductBaseCategoryId,
+    getBathProductCategory,
+    getBathProductSubcategoryId,
     hasStockValue,
     formatStockQuantity,
     getProductStockText
@@ -11553,13 +11663,14 @@ function brandCode(maker, source) {
   return "TBP";
 }
 
-function addToCart(id) {
+function addToCart(id, quantity = 1) {
   const product = products.find((item) => item.id === id);
   if (!product) return;
+  const safeQuantity = Math.max(1, Math.min(999, Math.floor(Number(quantity) || 1)));
 
   const existing = cart.find((item) => item.id === id);
-  if (existing) existing.qty += 1;
-  else cart.push({ ...product, qty: 1, quotePrice: getMemberBaseUnitPrice(product) });
+  if (existing) existing.qty += safeQuantity;
+  else cart.push({ ...product, qty: safeQuantity, quotePrice: getMemberBaseUnitPrice(product) });
 
   saveCart();
   renderCart();

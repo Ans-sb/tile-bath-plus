@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260723-tile-bath-split5" />
+    <link rel="stylesheet" href="styles.css?v=20260723-bath-storefront1" />
   </head>
   <body>
     <!-- build: homeheroslider3 -->
@@ -884,12 +884,13 @@
           </div>
         </section>
         <section class="commerce-panel bath-catalog-panel">
+          <p class="bath-catalog-breadcrumb" id="bathCatalogBreadcrumb">바스GO &gt; 전체</p>
           <header class="bath-catalog-heading">
             <div>
-              <p class="eyebrow">Bathroom Catalog</p>
-              <h3>욕실 품목별로 빠르게 찾아보세요.</h3>
+              <p class="eyebrow">BathGO Store</p>
+              <h3>욕실 상품을 한곳에서 찾아보세요.</h3>
             </div>
-            <p>수전부터 세면대, 양변기, 욕실장과 악세사리까지 품목을 선택하면 해당 상품만 바로 보여드립니다.</p>
+            <p>품목을 고르고 상품명이나 모델명을 검색하면 필요한 욕실 상품만 빠르게 확인할 수 있습니다.</p>
           </header>
           <nav class="bath-category-tabs" id="bathCategoryTabs" aria-label="바스GO 상품 카테고리"></nav>
           <section class="bath-subcategory-band" aria-labelledby="bathCategoryTitle">
@@ -906,14 +907,28 @@
                 <option value="all">전체</option>
               </select>
             </label>
-            <label class="wide">
-              상품 검색
-              <input id="bathProductSearch" type="search" placeholder="예: 원피스 양변기, 탑볼 세면대, 매립 휴지걸이" />
-            </label>
+            <div class="bath-search-field wide">
+              <label for="bathProductSearch">상품 검색</label>
+              <div class="bath-search-control">
+                <input id="bathProductSearch" type="search" placeholder="상품명 또는 모델명 검색" />
+                <button class="primary-action" id="bathProductSearchBtn" type="button">검색</button>
+              </div>
+            </div>
           </div>
-          <div class="customer-list-header">
-            <strong>바스GO 상품 리스트</strong>
-            <span id="bathProductStatus">상품을 불러오는 중입니다.</span>
+          <div class="customer-list-header bath-result-header">
+            <div>
+              <strong>바스GO 상품</strong>
+              <span id="bathProductStatus">상품을 불러오는 중입니다.</span>
+            </div>
+            <label class="bath-sort-field">
+              정렬
+              <select id="bathProductSort">
+                <option value="recommended">추천순</option>
+                <option value="new">신상품순</option>
+                <option value="stock">재고 많은순</option>
+                <option value="name">상품명순</option>
+              </select>
+            </label>
           </div>
           <div class="product-list product-page-list bath-product-list" id="bathProductList"></div>
           <div class="product-pagination" id="bathProductPagination"></div>
@@ -1076,11 +1091,43 @@
             <button class="primary-action" id="detailAddToCartBtn" type="button">장바구니 담기</button>
           </div>
         </section>
+        <p class="detail-commerce-breadcrumb hidden" id="detailCommerceBreadcrumb">바스GO &gt; 상품 상세</p>
         <section class="commerce-panel product-detail-layout">
           <div class="detail-main-media" id="detailMainMedia"></div>
           <div class="detail-spec-panel">
-            <p class="eyebrow">Specification</p>
-            <h3>제품 상세스펙</h3>
+            <div class="detail-commerce-panel hidden" id="detailCommercePanel">
+              <p class="detail-commerce-category" id="detailCommerceCategory">욕실상품</p>
+              <h3 id="detailCommerceName">상품 상세</h3>
+              <p class="detail-commerce-model" id="detailCommerceModel">상세 규격 확인</p>
+              <div class="detail-commerce-price" id="detailCommercePrice"></div>
+              <dl class="detail-commerce-summary">
+                <div>
+                  <dt>재고</dt>
+                  <dd id="detailCommerceStock">재고 확인 필요</dd>
+                </div>
+                <div>
+                  <dt>배송</dt>
+                  <dd id="detailCommerceDelivery">상품과 배송 지역 확인 후 출고 일정을 안내드립니다.</dd>
+                </div>
+              </dl>
+              <div class="detail-quantity-control">
+                <span>수량</span>
+                <div>
+                  <button type="button" data-detail-quantity-change="-1" aria-label="수량 줄이기">−</button>
+                  <input id="detailPurchaseQuantity" type="number" min="1" max="999" step="1" value="1" aria-label="구매 수량" />
+                  <button type="button" data-detail-quantity-change="1" aria-label="수량 늘리기">+</button>
+                </div>
+              </div>
+              <div class="detail-purchase-actions">
+                <button class="secondary-action" id="detailInlineAddToCartBtn" type="button">장바구니</button>
+                <button class="primary-action" id="detailBuyNowBtn" type="button">바로 구매</button>
+              </div>
+              <p class="detail-business-notice">사업자 인증 회원은 승인된 등급 가격으로 주문할 수 있습니다.</p>
+            </div>
+            <div class="detail-spec-heading">
+              <p class="eyebrow">Specification</p>
+              <h3>제품 상세스펙</h3>
+            </div>
             <div class="detail-spec-grid" id="detailSpecGrid"></div>
             <div class="detail-admin-editor hidden" id="detailAdminEditor">
               <div class="panel-heading compact-panel-heading">
@@ -1165,14 +1212,46 @@
             </div>
           </div>
         </section>
-        <section class="commerce-panel">
+        <nav class="product-detail-tabs" aria-label="상품 상세 메뉴">
+          <button type="button" data-detail-scroll-target="#detailProductInfoSection">상품정보</button>
+          <button type="button" data-detail-scroll-target="#detailGallerySection">상세이미지</button>
+          <button type="button" data-detail-scroll-target="#detailDeliverySection">배송·교환 안내</button>
+        </nav>
+        <section class="commerce-panel detail-product-info-section" id="detailProductInfoSection">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Images</p>
-              <h2>제품 이미지 자료</h2>
+              <p class="eyebrow">Product Information</p>
+              <h2>상품정보</h2>
+            </div>
+          </div>
+          <p>화면의 규격과 옵션을 확인한 뒤 현장 조건에 맞는지 검토해 주세요. 설치 환경에 따라 필요한 부속품이 달라질 수 있습니다.</p>
+        </section>
+        <section class="commerce-panel" id="detailGallerySection">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Detail Images</p>
+              <h2>상품 상세이미지</h2>
             </div>
           </div>
           <div class="detail-gallery-grid" id="detailGalleryGrid"></div>
+        </section>
+        <section class="commerce-panel detail-delivery-section" id="detailDeliverySection">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Delivery &amp; Returns</p>
+              <h2>배송·교환 안내</h2>
+            </div>
+          </div>
+          <dl>
+            <div>
+              <dt>배송 안내</dt>
+              <dd>재고, 상품 크기, 수량과 배송 지역을 확인한 뒤 출고 일정을 안내합니다. 현장 반입 조건은 주문 전에 알려주세요.</dd>
+            </div>
+            <div>
+              <dt>교환·반품 안내</dt>
+              <dd>설치 또는 사용한 상품, 포장이 훼손된 상품은 교환·반품이 제한될 수 있습니다. 파손이나 오배송은 수령 직후 사진과 함께 접수해 주세요.</dd>
+            </div>
+          </dl>
         </section>
       </main>
 
@@ -2476,12 +2555,12 @@
     <script src="src/client/features/products/product-page-state.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/products/product-search-text.js?v=20260710-module-split3"></script>
     <script src="src/client/features/products/product-cards.js?v=20260723-size-thickness1"></script>
-    <script src="src/client/features/products/product-detail.js?v=20260723-origin-result1"></script>
+    <script src="src/client/features/products/product-detail.js?v=20260723-bath-storefront1"></script>
     <script src="src/client/features/cart/cart-tile-metrics.js?v=20260710-module-split5"></script>
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260723-tile-bath-split5"></script>
+    <script src="app.js?v=20260723-bath-storefront1"></script>
   </body>
 </html>

@@ -9328,3 +9328,619 @@ body.customer-experience-mode .customer-nav-group {
     grid-template-columns: 1fr;
   }
 }
+
+/* BathGO storefront: familiar marketplace flow in the JAJAEGO visual system. */
+.bath-catalog-breadcrumb,
+.detail-commerce-breadcrumb {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bath-search-field {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.bath-search-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 8px;
+}
+
+.bath-search-control input {
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid #cfd8e8;
+  border-radius: 6px;
+  color: #111827;
+  background: #fff;
+}
+
+.bath-search-control input:focus {
+  border-color: #1268ff;
+  outline: 3px solid rgba(18, 104, 255, 0.12);
+}
+
+.bath-search-control button {
+  min-height: 46px;
+  border-radius: 6px;
+}
+
+.bath-result-header {
+  align-items: end;
+  padding: 16px 0 12px;
+  border-bottom: 1px solid #dfe5ef;
+}
+
+.bath-result-header > div {
+  display: grid;
+  gap: 5px;
+}
+
+.bath-result-header > div > strong {
+  color: #111827;
+  font-size: 21px;
+}
+
+.bath-result-header > div > span {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bath-sort-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bath-sort-field select {
+  min-width: 132px;
+  height: 40px;
+  padding: 0 34px 0 12px;
+  border: 1px solid #d5dbe6;
+  border-radius: 6px;
+  color: #1f2937;
+  background: #fff;
+}
+
+body.customer-experience-mode .product-list.bath-product-list,
+.product-list.bath-product-list {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 28px 16px !important;
+  align-items: start !important;
+  touch-action: pan-y;
+}
+
+body.customer-experience-mode .bath-product-list .bath-product-card,
+.bath-product-list .bath-product-card {
+  display: flex !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  aspect-ratio: auto !important;
+  flex-direction: column;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  gap: 12px !important;
+  padding: 0 0 14px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.bath-product-card-link {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.bath-product-card-media {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid #e1e6ef;
+  border-radius: 6px;
+  background: #f7f8fa;
+}
+
+body.customer-experience-mode .bath-product-list .product-thumb,
+.bath-product-list .product-thumb {
+  width: 100% !important;
+  height: 100% !important;
+  aspect-ratio: 1 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  object-fit: cover;
+  transition: transform 180ms ease;
+}
+
+.bath-product-card-link:hover .product-thumb,
+.bath-product-card-link:focus-visible .product-thumb {
+  transform: scale(1.025);
+}
+
+.bath-product-card-link:focus-visible {
+  border-radius: 6px;
+  outline: 3px solid rgba(18, 104, 255, 0.2);
+  outline-offset: 3px;
+}
+
+.bath-card-badge {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  display: inline-flex !important;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: #fff !important;
+  background: #1268ff;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+}
+
+.bath-product-card-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bath-product-category {
+  overflow: hidden;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bath-product-name {
+  display: -webkit-box;
+  min-height: 44px;
+  overflow: hidden;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.bath-product-spec,
+.bath-product-delivery {
+  display: block;
+  overflow: hidden;
+  color: #737b8c;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bath-product-price {
+  display: block;
+  min-height: 25px;
+}
+
+.bath-product-price .member-price-line {
+  color: #081957 !important;
+  font-size: 17px !important;
+  font-weight: 900 !important;
+}
+
+.bath-product-price .price-locked {
+  color: #1268ff !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+body.customer-experience-mode .bath-product-list .bath-card-cart-button,
+.bath-product-list .bath-card-cart-button {
+  position: static !important;
+  width: 100%;
+  min-height: 40px !important;
+  padding: 0 12px !important;
+  border: 1px solid #b9c8e2 !important;
+  border-radius: 6px !important;
+  color: #081957 !important;
+  background: #fff !important;
+  font-size: 13px !important;
+  font-weight: 900;
+  box-shadow: none !important;
+}
+
+.bath-product-list .bath-card-cart-button:hover,
+.bath-product-list .bath-card-cart-button:focus-visible {
+  border-color: #1268ff !important;
+  color: #fff !important;
+  background: #1268ff !important;
+}
+
+.detail-commerce-breadcrumb {
+  padding: 0 4px;
+}
+
+.bath-detail-mode .product-detail-layout {
+  grid-template-columns: minmax(360px, 560px) minmax(360px, 1fr);
+  gap: clamp(28px, 5vw, 68px);
+  padding: clamp(20px, 3vw, 38px);
+  border-top: 2px solid #111827;
+  box-shadow: none;
+}
+
+.bath-detail-mode .detail-main-media {
+  position: sticky;
+  top: 18px;
+  border-radius: 6px;
+  background: #f7f8fa;
+}
+
+.bath-detail-mode .detail-spec-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.detail-commerce-panel {
+  display: grid;
+  gap: 15px;
+}
+
+.detail-commerce-category,
+.detail-commerce-model,
+.detail-business-notice {
+  margin: 0;
+}
+
+.detail-commerce-category {
+  color: #1268ff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.bath-detail-mode .detail-commerce-panel h3 {
+  margin: 0;
+  color: #111827;
+  font-size: clamp(24px, 2.2vw, 34px);
+  line-height: 1.3;
+}
+
+.detail-commerce-model {
+  color: #687386;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.detail-commerce-price {
+  min-height: 52px;
+  padding: 18px 0;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-commerce-price .member-price-line {
+  color: #081957;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.detail-commerce-price .price-locked {
+  color: #1268ff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.detail-commerce-summary {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.detail-commerce-summary > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.detail-commerce-summary dt {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.detail-commerce-summary dd {
+  margin: 0;
+  color: #253047;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.detail-quantity-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 58px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid #e0e5ed;
+  background: #f8fafc;
+}
+
+.detail-quantity-control > span {
+  color: #27334a;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.detail-quantity-control > div {
+  display: grid;
+  grid-template-columns: 38px 54px 38px;
+}
+
+.detail-quantity-control button,
+.detail-quantity-control input {
+  width: 100%;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #cfd7e4;
+  border-radius: 0;
+  color: #111827;
+  background: #fff;
+  text-align: center;
+  font-weight: 900;
+}
+
+.detail-quantity-control input {
+  border-right: 0;
+  border-left: 0;
+  appearance: textfield;
+}
+
+.detail-purchase-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.detail-purchase-actions button {
+  min-height: 54px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.detail-business-notice {
+  color: #687386;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.bath-detail-mode .detail-spec-heading {
+  padding-top: 22px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.bath-detail-mode .detail-spec-heading h3 {
+  margin-bottom: 12px;
+  font-size: 19px;
+}
+
+.bath-detail-mode .detail-spec-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bath-detail-mode .detail-spec-grid div {
+  min-height: 68px;
+  padding: 12px;
+  border-radius: 4px;
+  background: #f8fafc;
+}
+
+.product-detail-tabs {
+  position: sticky;
+  z-index: 5;
+  top: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #ccd5e4;
+  border-bottom: 1px solid #ccd5e4;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.product-detail-tabs button {
+  min-height: 54px;
+  border: 0;
+  border-right: 1px solid #e1e6ef;
+  border-radius: 0;
+  color: #3f4b60;
+  background: transparent;
+  font-weight: 900;
+}
+
+.product-detail-tabs button:last-child {
+  border-right: 0;
+}
+
+.product-detail-tabs button:hover,
+.product-detail-tabs button:focus-visible {
+  color: #1268ff;
+  background: #f3f7ff;
+}
+
+.detail-product-info-section > p {
+  margin: 0;
+  color: #5f6b7d;
+  line-height: 1.8;
+}
+
+.detail-delivery-section dl {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid #dfe5ef;
+}
+
+.detail-delivery-section dl > div {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.detail-delivery-section dt,
+.detail-delivery-section dd {
+  margin: 0;
+  padding: 18px;
+  line-height: 1.7;
+}
+
+.detail-delivery-section dt {
+  color: #27334a;
+  background: #f7f9fc;
+  font-weight: 900;
+}
+
+.detail-delivery-section dd {
+  color: #5f6b7d;
+}
+
+@media (max-width: 1040px) {
+  body.customer-experience-mode .product-list.bath-product-list,
+  .product-list.bath-product-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .bath-detail-mode .product-detail-layout {
+    grid-template-columns: minmax(300px, 0.9fr) minmax(340px, 1.1fr);
+    gap: 28px;
+  }
+}
+
+@media (max-width: 720px) {
+  .bath-products-page .customer-page-heading {
+    padding-bottom: 14px;
+  }
+
+  .bath-catalog-panel {
+    padding: 18px 14px !important;
+    border-radius: 10px !important;
+  }
+
+  .bath-search-control {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  .bath-result-header {
+    display: flex !important;
+    align-items: end !important;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .bath-sort-field {
+    display: grid;
+    gap: 4px;
+  }
+
+  .bath-sort-field select {
+    min-width: 112px;
+    height: 38px;
+  }
+
+  body.customer-experience-mode .product-list.bath-product-list,
+  .product-list.bath-product-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 22px 10px !important;
+  }
+
+  body.customer-experience-mode .bath-product-list .bath-product-card,
+  .bath-product-list .bath-product-card {
+    gap: 9px !important;
+    padding-bottom: 10px !important;
+  }
+
+  .bath-product-card-link {
+    gap: 9px;
+  }
+
+  .bath-product-card-copy {
+    gap: 4px;
+  }
+
+  .bath-product-name {
+    min-height: 39px;
+    font-size: 13px;
+  }
+
+  .bath-product-price .member-price-line {
+    font-size: 15px !important;
+  }
+
+  .bath-product-delivery {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .bath-detail-mode .product-detail-layout {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    padding: 14px;
+    border-radius: 10px !important;
+  }
+
+  .bath-detail-mode .detail-main-media {
+    position: static;
+  }
+
+  .bath-detail-mode .detail-commerce-panel h3 {
+    font-size: 24px;
+  }
+
+  .detail-commerce-price .price-locked {
+    font-size: 16px;
+  }
+
+  .detail-purchase-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .product-detail-tabs button {
+    min-height: 48px;
+    padding: 0 6px;
+    font-size: 12px;
+  }
+
+  .detail-delivery-section dl > div {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-delivery-section dt,
+  .detail-delivery-section dd {
+    padding: 14px;
+  }
+}

@@ -42,6 +42,9 @@
   }
 
   function buildProductSpecs(product, callbacks) {
+    if (callbacks.isBathProduct?.(product)) {
+      return buildBathProductSpecs(product, callbacks);
+    }
     const stockText = callbacks.getProductStockText
       ? callbacks.getProductStockText(product)
       : String(product.stockText || "").trim();
@@ -76,6 +79,39 @@
     ];
   }
 
+  function buildBathProductSpecs(product, callbacks) {
+    const stockText = callbacks.getProductStockText
+      ? callbacks.getProductStockText(product)
+      : String(product.stockText || "").trim();
+    const displaySize = callbacks.getProductDisplaySize
+      ? callbacks.getProductDisplaySize(product)
+      : product.size || "-";
+    const displayOrigin = callbacks.getProductDisplayOrigin
+      ? callbacks.getProductDisplayOrigin(product)
+      : product.countryOfOrigin || "-";
+    const categoryId = callbacks.getBathProductBaseCategoryId(product);
+    const category = callbacks.getBathProductCategory(categoryId);
+    const subcategoryId = callbacks.getBathProductSubcategoryId(product, categoryId);
+    const subcategory = category?.subcategories?.find((item) => item.id === subcategoryId);
+    const categoryLabel = categoryId === "other" ? "욕실상품" : category?.label || "욕실상품";
+    const itemLabel = subcategory?.label || categoryLabel;
+    return [
+      ...(callbacks.isAdmin && product.managementCode ? [["내부관리 상품코드", product.managementCode]] : []),
+      ...(callbacks.isAdmin ? buildAdminSpecs(product, callbacks) : []),
+      ["품목", categoryLabel],
+      ["세부 품목", itemLabel],
+      ["상품명", product.name || "-"],
+      ["규격", displaySize],
+      ["옵션", product.option || "-"],
+      ["재질", product.material || "-"],
+      ["원산지", displayOrigin],
+      ["판매 단위", product.unit || "-"],
+      ...callbacks.getProductDetailPriceSpecs(product),
+      ...(callbacks.hasStockValue(product) ? [["재고", callbacks.formatStockQuantity(product)]] : []),
+      ...(stockText ? [["재고 안내", stockText]] : [])
+    ];
+  }
+
   function buildAdminSpecs(product, callbacks) {
     const cost = Number(product?.costPrice || 0);
     return [
@@ -106,6 +142,7 @@
   global.TbpProductDetail = {
     buildProductDetailView,
     buildProductSpecs,
+    buildBathProductSpecs,
     buildAdminSpecs,
     buildGalleryHtml
   };
