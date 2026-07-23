@@ -9639,7 +9639,10 @@ async function generateRenderPreview() {
           qualityMode: "premium-photoreal"
         })
       },
-      { timeoutMs: 180000 }
+      {
+        timeoutMs: 330000,
+        timeoutMessage: "고품질 실사 보정이 5분 30초를 초과했습니다. 잠시 후 다시 시도해주세요."
+      }
     );
 
     pendingRenderResultImage = String(payload?.imageDataUrl || "");

@@ -57,7 +57,7 @@ const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
 const openAiImageModel = String(process.env.OPENAI_IMAGE_MODEL || "gpt-image-1").trim();
 const openAiVisionModel = String(process.env.OPENAI_VISION_MODEL || "gpt-4o-mini").trim();
 const openAiRenderTimeoutMs = Math.max(60000, Number(process.env.OPENAI_RENDER_TIMEOUT_MS || 300000) || 300000);
-const openAiRenderSize = String(process.env.OPENAI_RENDER_SIZE || "1360x960").trim();
+const openAiRenderSize = normalizeOpenAiRenderSize(process.env.OPENAI_RENDER_SIZE || "1536x1024", openAiImageModel);
 const openAiRenderQuality = String(process.env.OPENAI_RENDER_QUALITY || "high").trim();
 const openAiRenderOutputFormat = normalizeOpenAiRenderOutputFormat(process.env.OPENAI_RENDER_OUTPUT_FORMAT || "jpeg");
 const openAiRenderOutputCompression = Math.max(0, Math.min(100, Number(process.env.OPENAI_RENDER_OUTPUT_COMPRESSION || 92) || 92));
@@ -805,6 +805,23 @@ function normalizeOpenAiRenderOutputFormat(value) {
   if (normalized === "webp") return "webp";
   if (normalized === "png") return "png";
   return "jpeg";
+}
+
+function normalizeOpenAiRenderSize(value, model) {
+  const requested = String(value || "").trim().toLowerCase();
+  if (!/^gpt-image-/i.test(String(model || ""))) return requested || "1536x1024";
+
+  const supported = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
+  if (supported.has(requested)) return requested;
+
+  const dimensions = requested.match(/^(\d+)x(\d+)$/);
+  if (dimensions) {
+    const width = Number(dimensions[1]);
+    const height = Number(dimensions[2]);
+    if (height > width) return "1024x1536";
+    if (width === height) return "1024x1024";
+  }
+  return "1536x1024";
 }
 
 function getOpenAiRenderOutputMimeType(format) {
