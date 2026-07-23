@@ -176,7 +176,7 @@ function isSntProduct(product) {
 function getCustomerSafeProductName(product) {
   const name = String(product?.name || "").trim();
   if (!isSntProduct(product)) return name;
-  return name.replace(/^SNT(?:\s*[-_/]\s*|\s+)/i, "").trim() || "타일 샘플";
+  return name.replace(/^(?:SNT(?:\s*[-_/]\s*|\s+))+/i, "").trim() || "타일 샘플";
 }
 
 function stripCustomerSensitiveProductFields(product) {

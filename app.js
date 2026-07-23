@@ -1953,7 +1953,7 @@ function isSntSampleProduct(product) {
 function getProductDisplayName(product) {
   const name = String(product?.name || "상품명 미확인").trim();
   if (isAdminUser() || !isSntSampleProduct(product)) return name;
-  return name.replace(/^SNT(?:\s*[-_/]\s*|\s+)/i, "").trim() || "타일 샘플";
+  return name.replace(/^(?:SNT(?:\s*[-_/]\s*|\s+))+/i, "").trim() || "타일 샘플";
 }
 
 function getProductDisplayKind(product) {
