@@ -514,7 +514,7 @@ function bindEvents() {
   });
   document.querySelector("#productExpertGuide")?.addEventListener("click", handleExpertSearchSuggestionClick);
 
-  ["#taxonomyAudienceMode", "#taxonomyAxisFilter", "#taxonomyBrandFilter", "#taxonomyOriginFilter", "#taxonomyApplicationFilter", "#taxonomyColorFilter", "#taxonomyStyleFilter", "#taxonomyFinishFilter", "#taxonomySizeFilter", "#taxonomyPriceFilter", "#taxonomyStockFilter"].forEach((selector) => {
+  ["#taxonomyAudienceMode", "#taxonomyAxisFilter", "#taxonomyBrandFilter", "#taxonomyOriginFilter", "#taxonomyCatalogSizeFilter", "#taxonomySizeFilter", "#taxonomyMainCategoryFilter", "#taxonomyApplicationFilter", "#taxonomyStyleFilter", "#taxonomyFinishFilter", "#taxonomyColorFilter", "#taxonomyPriceFilter", "#taxonomyStockFilter"].forEach((selector) => {
     document.querySelector(selector)?.addEventListener("input", () => {
       taxonomyCurrentPage = 1;
       syncTaxonomyFilters();
@@ -532,23 +532,12 @@ function bindEvents() {
     event.preventDefault();
     runTaxonomySearch();
   });
-  document.querySelector("#taxonomyAssistSizeBtn")?.addEventListener("click", () => {
-    toggleTaxonomyAssistSizePanel();
-  });
-  document.querySelector("#taxonomyAssistSizePanel")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-taxonomy-assist-size]");
-    if (!button) return;
-    setTaxonomyAssistSize(button.dataset.taxonomyAssistSize || "");
-  });
-  document.querySelector("#taxonomyAssistFinishGroup")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-taxonomy-assist-finish]");
-    if (!button) return;
-    setTaxonomyAssistFinish(button.dataset.taxonomyAssistFinish || "all");
-  });
   document.querySelector("#taxonomyAssistClearBtn")?.addEventListener("click", () => {
     setTaxonomyAssistSize("");
     setTaxonomyAssistFinish("all");
     clearTaxonomyImageSearch();
+    syncTaxonomyFilters();
+    renderTaxonomyTestPage();
   });
   document.querySelector("#taxonomyImageSearchBtn")?.addEventListener("click", () => {
     document.querySelector("#taxonomyImageSearchFile")?.click();
@@ -1130,7 +1119,9 @@ async function hydrateAdminProducts(options = {}) {
 function shouldHydrateAdminProductsForCurrentView() {
   if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return false;
   if (currentPageId === "adminPage") return ["products", "quality", "searchTraining"].includes(currentAdminView);
-  return currentPageId === "productsPage" || currentPageId === "productDetailPage";
+  return currentPageId === "productsPage"
+    || currentPageId === "taxonomyTestPage"
+    || currentPageId === "productDetailPage";
 }
 
 async function ensureAdminProductsForView(view) {
@@ -2578,11 +2569,15 @@ function prepareTaxonomyProducts() {
 }
 
 function mapStoredNormalizedTaxonomyProducts() {
-  const productById = new Map(products.map((product) => [product.id, product]));
-  return storedNormalizedTaxonomyProducts
+  const productQueues = new Map();
+  products.forEach((product) => {
+    if (!productQueues.has(product.id)) productQueues.set(product.id, []);
+    productQueues.get(product.id).push(product);
+  });
+  const storedTileItems = storedNormalizedTaxonomyProducts
     .filter((item) => item.productType === "tile")
     .map((item) => {
-      const product = productById.get(item.productId);
+      const product = productQueues.get(item.productId)?.shift();
       if (!product) return null;
       const internalBrandCode = item.internalBrandCode || item.brand || product.kind || product.catalogSource || product.maker || "BR-UNKNOWN";
       const internalBrandName = item.internalBrandName || item.supplierName || product.maker || `${internalBrandCode}_INTERNAL`;
@@ -2669,6 +2664,10 @@ function mapStoredNormalizedTaxonomyProducts() {
       };
     })
     .filter(Boolean);
+  const liveFallbackItems = [...productQueues.values()]
+    .flat()
+    .map(normalizeProductForTaxonomy);
+  return [...storedTileItems, ...liveFallbackItems];
 }
 
 function makeTaxonomySizeThicknessLabel(sizeLabel, thicknessMm) {
@@ -2773,16 +2772,99 @@ function syncTaxonomyFilters() {
   if (!document.querySelector("#taxonomyBrandFilter")) return;
   prepareTaxonomyProducts();
   syncTaxonomyAudienceControls();
-  fillTaxonomySelect("#taxonomyBrandFilter", unique(normalizedTaxonomyProducts.map((item) => item.internalBrandCode || item.brand)), "전체");
+  const mainCategory = getTaxonomyValue("#taxonomyMainCategoryFilter");
+  const previousBrand = getTaxonomyValue("#taxonomyBrandFilter");
+  const previousSize = getTaxonomyValue("#taxonomyCatalogSizeFilter");
+  const previousThickness = getTaxonomyValue("#taxonomySizeFilter");
+  const previousApplication = getTaxonomyValue("#taxonomyApplicationFilter");
+  const previousStyle = getTaxonomyValue("#taxonomyStyleFilter");
+  const previousFinish = getTaxonomyValue("#taxonomyFinishFilter");
+  const previousColor = getTaxonomyValue("#taxonomyColorFilter");
+  const typeScope = mainCategory === "all"
+    ? normalizedTaxonomyProducts
+    : normalizedTaxonomyProducts.filter((item) => item.product?.productType === mainCategory);
+  const selectedBrand = fillProductFilterSelect(
+    document.querySelector("#taxonomyBrandFilter"),
+    typeScope.map((item) => getProductAdminBrandLabel(item.product)).filter(Boolean),
+    previousBrand,
+    "전체"
+  );
+  const brandScope = getTaxonomyAudienceMode() === "admin"
+    ? typeScope.filter((item) => productMatchesAdminBrandFilter(item.product, selectedBrand))
+    : typeScope;
+  const scopeProducts = brandScope.map((item) => item.product).filter(Boolean);
+
   fillTaxonomySelect("#taxonomyOriginFilter", unique(normalizedTaxonomyProducts.map((item) => item.originRegion).filter(Boolean)), "전체");
-  fillTaxonomySelect("#taxonomyApplicationFilter", collectTaxonomyValues("applicationCategories"), "전체");
-  fillTaxonomySelect("#taxonomyColorFilter", unique(normalizedTaxonomyProducts.map((item) => item.mainColor).filter(Boolean)), "전체");
-  fillTaxonomySelect("#taxonomyStyleFilter", collectTaxonomyValues("styleCategories"), "전체");
-  fillTaxonomySelect("#taxonomyFinishFilter", unique(normalizedTaxonomyProducts.map((item) => item.finishGroup || "마감 미확인")), "전체");
-  fillTaxonomySelect("#taxonomySizeFilter", unique(normalizedTaxonomyProducts.map((item) => item.thicknessBucket).filter(Boolean)), "전체");
+  const nonTileOptions = sortDirectProductFilterValues(scopeProducts
+    .filter((product) => product.productType !== "tile")
+    .flatMap((product) => [product.option, product.kind])
+    .filter(Boolean));
+  const rawOptions = sortDirectProductFilterValues(scopeProducts.map((product) => product.option).filter(Boolean));
+  const preserveOptionOrder = mainCategory === "tile" || mainCategory === "all";
+  const options = mainCategory === "tile"
+    ? TILE_DIRECT_KIND_OPTIONS
+    : mainCategory === "all"
+      ? unique([...TILE_DIRECT_KIND_OPTIONS, ...nonTileOptions])
+      : rawOptions;
+  const selectedApplication = fillProductFilterSelect(
+    document.querySelector("#taxonomyApplicationFilter"),
+    options,
+    previousApplication,
+    "전체",
+    { preserveOrder: preserveOptionOrder }
+  );
+  const applicationScope = scopeProducts.filter((product) => productMatchesDirectOptionFilter(product, selectedApplication));
+  const styles = sortDirectTileStyleValues(applicationScope.flatMap(getProductDirectTileCategories));
+  const selectedStyle = fillProductFilterSelect(
+    document.querySelector("#taxonomyStyleFilter"),
+    styles,
+    previousStyle,
+    "전체",
+    { preserveOrder: true }
+  );
+  const measurementScope = getDirectProductSizeScope(scopeProducts, selectedApplication, selectedStyle);
+  const sizeOptionScope = measurementScope.filter((product) => productMatchesDirectFilter(product, previousThickness, getProductDirectThicknessValues));
+  const selectedSize = fillTaxonomyCatalogSizeSelect(getDirectProductSizes(sizeOptionScope), previousSize);
+  const thicknessOptionScope = measurementScope.filter((product) => productMatchesDirectFilter(
+    product,
+    selectedSize === UNKNOWN_TILE_SIZE_VALUE ? "all" : selectedSize,
+    getProductDirectSizeValues
+  ));
+  const selectedThickness = fillProductFilterSelect(
+    document.querySelector("#taxonomySizeFilter"),
+    thicknessOptionScope.flatMap(getProductDirectThicknessValues),
+    previousThickness,
+    "전체"
+  );
+  const attributeScope = thicknessOptionScope.filter((product) => productMatchesDirectFilter(product, selectedThickness, getProductDirectThicknessValues));
+  fillProductFilterSelect(
+    document.querySelector("#taxonomyFinishFilter"),
+    attributeScope.flatMap(getProductDirectFinishValues),
+    previousFinish,
+    "전체"
+  );
+  fillProductFilterSelect(
+    document.querySelector("#taxonomyColorFilter"),
+    attributeScope.flatMap(getProductDirectColorValues),
+    previousColor,
+    "전체"
+  );
   fillTaxonomySelect("#taxonomyPriceFilter", unique(normalizedTaxonomyProducts.map((item) => item.priceRange).filter(Boolean)), "전체");
-  renderTaxonomyAssistSizePanel();
-  syncTaxonomyAssistFinishButtons();
+}
+
+function fillTaxonomyCatalogSizeSelect(values, previousValue = "all") {
+  const select = document.querySelector("#taxonomyCatalogSizeFilter");
+  if (!select) return "all";
+  const sizes = sortDirectProductFilterValues(values);
+  select.innerHTML = [
+    `<option value="all">전체</option>`,
+    `<option value="${UNKNOWN_TILE_SIZE_VALUE}">사이즈 모름</option>`,
+    ...sizes.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+  ].join("");
+  select.value = previousValue === UNKNOWN_TILE_SIZE_VALUE || sizes.includes(previousValue)
+    ? previousValue
+    : "all";
+  return select.value;
 }
 
 function getTaxonomyAudienceMode() {
@@ -2827,17 +2909,14 @@ function fillTaxonomySelect(selector, values, allLabel) {
   select.value = sorted.includes(previous) ? previous : "all";
 }
 
-function collectTaxonomyValues(key) {
-  return unique(normalizedTaxonomyProducts.flatMap((item) => Array.isArray(item[key]) ? item[key] : [item[key]]).filter(Boolean));
-}
-
 function getTaxonomyAssistSize() {
   const value = getTaxonomyAssistSizeSelection();
-  return value === UNKNOWN_TILE_SIZE_VALUE ? "" : value;
+  return value === UNKNOWN_TILE_SIZE_VALUE ? "" : value.replace(/\*/g, "x");
 }
 
 function getTaxonomyAssistSizeSelection() {
-  return document.querySelector("#taxonomyAssistSizeBtn")?.dataset.selectedSize || "";
+  const value = document.querySelector("#taxonomyCatalogSizeFilter")?.value || "all";
+  return value === "all" ? "" : value;
 }
 
 function getTaxonomyAssistSizeLabel() {
@@ -2847,87 +2926,22 @@ function getTaxonomyAssistSizeLabel() {
 }
 
 function getTaxonomyAssistFinish() {
-  return document.querySelector("#taxonomyAssistFinishGroup button.active")?.dataset.taxonomyAssistFinish || "all";
-}
-
-function toggleTaxonomyAssistSizePanel() {
-  const panel = document.querySelector("#taxonomyAssistSizePanel");
-  const button = document.querySelector("#taxonomyAssistSizeBtn");
-  if (!panel || !button) return;
-  const willOpen = panel.classList.contains("hidden");
-  panel.classList.toggle("hidden", !willOpen);
-  button.setAttribute("aria-expanded", String(willOpen));
+  return document.querySelector("#taxonomyFinishFilter")?.value || "all";
 }
 
 function setTaxonomyAssistSize(value) {
-  const button = document.querySelector("#taxonomyAssistSizeBtn");
-  const panel = document.querySelector("#taxonomyAssistSizePanel");
-  if (!button) return;
-  button.dataset.selectedSize = value;
-  button.textContent = getTaxonomyAssistSizeLabel();
-  if (panel) panel.classList.add("hidden");
-  button.setAttribute("aria-expanded", "false");
+  const select = document.querySelector("#taxonomyCatalogSizeFilter");
+  if (select) select.value = value || "all";
   taxonomyResultFacetFilters = {};
   taxonomyCurrentPage = 1;
-  renderTaxonomyAssistSizePanel();
 }
 
 function setTaxonomyAssistFinish(value) {
   const nextValue = value && value !== "all" ? value : "all";
-  document.querySelectorAll("#taxonomyAssistFinishGroup [data-taxonomy-assist-finish]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.taxonomyAssistFinish === nextValue);
-  });
+  const select = document.querySelector("#taxonomyFinishFilter");
+  if (select) select.value = nextValue;
   taxonomyResultFacetFilters = {};
   taxonomyCurrentPage = 1;
-}
-
-function syncTaxonomyAssistFinishButtons() {
-  const currentValue = getTaxonomyAssistFinish();
-  document.querySelectorAll("#taxonomyAssistFinishGroup [data-taxonomy-assist-finish]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.taxonomyAssistFinish === currentValue);
-  });
-}
-
-function renderTaxonomyAssistSizePanel() {
-  const panel = document.querySelector("#taxonomyAssistSizePanel");
-  if (!panel) return;
-  const selectedSize = getTaxonomyAssistSizeSelection();
-  const sizeCounts = new Map();
-  products
-    .filter((product) => product.productType === "tile")
-    .forEach((product) => {
-      const size = normalizeTaxonomyProductSizeLabel(product.size);
-      if (!size) return;
-      sizeCounts.set(size, (sizeCounts.get(size) || 0) + 1);
-    });
-  const sizes = sortTileSizeLabels([...sizeCounts.keys()]);
-  const buttons = [
-    `<button type="button" class="${selectedSize ? "" : "active"}" data-taxonomy-assist-size="">전체</button>`,
-    `<button type="button" class="${selectedSize === UNKNOWN_TILE_SIZE_VALUE ? "active" : ""}" data-taxonomy-assist-size="${UNKNOWN_TILE_SIZE_VALUE}">사이즈 모름 <span>전체</span></button>`,
-    ...sizes.map((size) => {
-      const count = sizeCounts.get(size) || 0;
-      return `<button type="button" class="${selectedSize === size ? "active" : ""}" data-taxonomy-assist-size="${escapeHtml(size)}">${escapeHtml(size)} <span>${number(count)}</span></button>`;
-    })
-  ];
-  panel.innerHTML = buttons.join("");
-}
-
-function sortTileSizeLabels(values) {
-  return unique(values).sort((a, b) => {
-    const [aw, ah] = parseTaxonomySizeLabel(a);
-    const [bw, bh] = parseTaxonomySizeLabel(b);
-    const areaA = aw * ah;
-    const areaB = bw * bh;
-    if (areaA !== areaB) return areaA - areaB;
-    if (aw !== bw) return aw - bw;
-    return String(a).localeCompare(String(b), "ko", { numeric: true });
-  });
-}
-
-function parseTaxonomySizeLabel(value) {
-  const match = String(value || "").match(/(\d{2,4})\s*x\s*(\d{2,4})/i);
-  if (!match) return [999999, 999999];
-  return [Number(match[1]) || 0, Number(match[2]) || 0];
 }
 
 function normalizeTaxonomyProductSizeLabel(value) {
@@ -2949,8 +2963,6 @@ function renderTaxonomyTestPage() {
   const list = document.querySelector("#taxonomyCollectionList");
   if (!list) return;
   prepareTaxonomyProducts();
-  renderTaxonomyAssistSizePanel();
-  syncTaxonomyAssistFinishButtons();
 
   const searchIntent = getCurrentTaxonomySearchIntent();
   const baseFiltered = filterTaxonomyProducts(searchIntent, { skipResultFacets: true });
@@ -3018,6 +3030,9 @@ function filterTaxonomyProducts(searchIntent = getCurrentTaxonomySearchIntent())
   const audience = getTaxonomyAudienceMode();
   const brand = getTaxonomyValue("#taxonomyBrandFilter");
   const origin = getTaxonomyValue("#taxonomyOriginFilter");
+  const mainCategory = getTaxonomyValue("#taxonomyMainCategoryFilter");
+  const sizeSelection = getTaxonomyValue("#taxonomyCatalogSizeFilter");
+  const size = sizeSelection === UNKNOWN_TILE_SIZE_VALUE ? "all" : sizeSelection;
   const application = getTaxonomyValue("#taxonomyApplicationFilter");
   const color = getTaxonomyValue("#taxonomyColorFilter");
   const style = getTaxonomyValue("#taxonomyStyleFilter");
@@ -3027,13 +3042,15 @@ function filterTaxonomyProducts(searchIntent = getCurrentTaxonomySearchIntent())
   const stock = getTaxonomyValue("#taxonomyStockFilter");
   return normalizedTaxonomyProducts.map((item) => {
     const searchText = audience === "admin" ? (item.adminSearchText || item.searchText) : (item.customerSearchText || item.searchText);
-    const filterPassed = (audience !== "admin" || brand === "all" || item.internalBrandCode === brand || item.brand === brand)
+    const filterPassed = (audience !== "admin" || productMatchesAdminBrandFilter(item.product, brand))
       && (origin === "all" || item.originRegion === origin)
-      && (application === "all" || item.applicationCategories.includes(application))
-      && (color === "all" || item.mainColor === color)
-      && (style === "all" || item.styleCategories.includes(style))
-      && (finish === "all" || (item.finishGroup || "마감 미확인") === finish)
-      && (thickness === "all" || item.thicknessBucket === thickness)
+      && (mainCategory === "all" || item.product?.productType === mainCategory)
+      && productMatchesDirectFilter(item.product, size, getProductDirectSizeValues)
+      && productMatchesDirectFilter(item.product, thickness, getProductDirectThicknessValues)
+      && productMatchesDirectOptionFilter(item.product, application)
+      && productMatchesDirectFilter(item.product, style, getProductDirectTileCategories)
+      && productMatchesDirectFilter(item.product, finish, getProductDirectFinishValues)
+      && productMatchesDirectFilter(item.product, color, getProductDirectColorValues)
       && (price === "all" || item.priceRange === price)
       && (stock === "all" || (stock === "stocked" ? Number(item.product.stockQty || 0) > STOCK_INQUIRY_THRESHOLD_QTY : Number(item.product.stockQty || 0) <= STOCK_INQUIRY_THRESHOLD_QTY))
       && passesTaxonomySearchHardRules(item, searchIntent, audience);
