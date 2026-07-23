@@ -10,12 +10,15 @@
     const isAdmin = Boolean(options.isAdmin);
     const normalizeSearchText = options.normalizeSearchText || ((value) => String(value || "").trim().toLowerCase());
     const parseNaturalSearch = options.parseNaturalSearch || (() => null);
+    const normalizeKeyword = options.normalizeKeyword || ((value) => String(value || ""));
 
-    const keyword = documentRef.querySelector("#productSearch")?.value.trim().toLowerCase() || "";
+    const rawKeyword = documentRef.querySelector("#productSearch")?.value.trim() || "";
+    const keyword = normalizeKeyword(rawKeyword).trim().toLowerCase();
     return {
       type: readSelectValue(documentRef, "#mainCategoryFilter"),
       brand: isAdmin ? readSelectValue(documentRef, "#productBrandFilter") : "all",
       kind: readSelectValue(documentRef, "#kindFilter"),
+      origin: readSelectValue(documentRef, "#originFilter"),
       size: readSelectValue(documentRef, "#sizeFilter"),
       option: readSelectValue(documentRef, "#optionFilter"),
       tileFeature: readSelectValue(documentRef, "#tileFeatureFilter"),

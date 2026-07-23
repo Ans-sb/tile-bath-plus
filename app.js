@@ -497,12 +497,12 @@ function bindEvents() {
     });
   });
 
-  ["#mainCategoryFilter", "#productBrandFilter", "#sizeFilter", "#optionFilter", "#patternCategoryFilter", "#finishFilter", "#colorFilter", "#productSearch"].forEach((selector) => {
+  ["#mainCategoryFilter", "#productBrandFilter", "#originFilter", "#sizeFilter", "#optionFilter", "#patternCategoryFilter", "#finishFilter", "#colorFilter", "#productSearch"].forEach((selector) => {
     const control = document.querySelector(selector);
     if (!control) return;
     control.addEventListener("input", () => {
       if (selector === "#mainCategoryFilter") syncProductFilters({ resetSubFilters: true });
-      if (selector === "#productBrandFilter" || selector === "#optionFilter" || selector === "#patternCategoryFilter") syncProductFilters();
+      if (selector === "#productBrandFilter" || selector === "#originFilter" || selector === "#optionFilter" || selector === "#patternCategoryFilter") syncProductFilters();
       productCurrentPage = 1;
       renderProducts();
     });
@@ -1511,6 +1511,29 @@ function getProductDirectColorValues(product) {
   return unique([product.color].map(normalizeDirectProductFilterValue).filter(Boolean));
 }
 
+function getProductDirectOriginValues(product) {
+  if (!product) return [];
+  if (product.productType === "tile") {
+    const item = getNormalizedTaxonomyProductForProduct(product);
+    return unique([
+      item?.originRegion,
+      item?.originCountry,
+      product.countryOfOrigin
+    ].map(normalizeDirectOriginValue).filter(Boolean));
+  }
+  return unique([product.countryOfOrigin].map(normalizeDirectOriginValue).filter(Boolean));
+}
+
+function normalizeDirectOriginValue(value) {
+  const text = normalizeDirectProductFilterValue(value);
+  if (!text || /미확인/.test(text)) return "";
+  if (/중국|china|cn/i.test(text)) return "중국";
+  if (/국산|한국|대한민국|korea|kr/i.test(text)) return "국산";
+  if (/유럽|이태리|이탈리아|스페인|포르투갈|italy|spain|portugal|europe/i.test(text)) return "유럽";
+  if (/아시아|인도|베트남|말레이|태국|인도네시아|india|vietnam|malaysia|thailand|indonesia/i.test(text)) return "아시아";
+  return text;
+}
+
 function productMatchesDirectFilter(product, selectedValue, valueGetter) {
   if (!selectedValue || selectedValue === "all") return true;
   return valueGetter(product).includes(selectedValue);
@@ -1607,12 +1630,14 @@ function syncProductFilters(config = {}) {
   const kindFilter = document.querySelector("#kindFilter");
   const sizeFilter = document.querySelector("#sizeFilter");
   const brandFilter = document.querySelector("#productBrandFilter");
+  const originFilter = document.querySelector("#originFilter");
   const optionFilter = document.querySelector("#optionFilter");
   const tileFeatureFilter = document.querySelector("#tileFeatureFilter");
   const patternCategoryFilter = document.querySelector("#patternCategoryFilter");
   const finishFilter = document.querySelector("#finishFilter");
   const colorFilter = document.querySelector("#colorFilter");
   const previousBrand = config.resetSubFilters ? "all" : brandFilter?.value || "all";
+  const previousOrigin = config.resetSubFilters ? "all" : originFilter?.value || "all";
   const previousSize = config.resetSubFilters ? "all" : sizeFilter?.value || "all";
   const previousOption = config.resetSubFilters ? "all" : optionFilter?.value || "all";
   const previousPatternCategory = config.resetSubFilters ? "all" : patternCategoryFilter?.value || "all";
@@ -1623,16 +1648,19 @@ function syncProductFilters(config = {}) {
   const filteredByType = type === "all" ? products : products.filter((product) => product.productType === type);
   const selectedBrand = syncProductBrandFilter(filteredByType, previousBrand);
   const filteredByBrand = filteredByType.filter((product) => productMatchesAdminBrandFilter(product, selectedBrand));
+  const origins = sortDirectProductFilterValues(filteredByBrand.flatMap(getProductDirectOriginValues));
+  const selectedOrigin = fillProductFilterSelect(originFilter, origins, previousOrigin, "전체");
+  const filteredByOrigin = filteredByBrand.filter((product) => productMatchesDirectFilter(product, selectedOrigin, getProductDirectOriginValues));
   if (kindFilter) {
     kindFilter.innerHTML = `<option value="all">전체</option>`;
     kindFilter.value = "all";
   }
 
-  const nonTileOptions = sortDirectProductFilterValues(filteredByBrand
+  const nonTileOptions = sortDirectProductFilterValues(filteredByOrigin
     .filter((product) => product.productType !== "tile")
     .flatMap((product) => [product.option, product.kind])
     .filter(Boolean));
-  const rawOptions = sortDirectProductFilterValues(filteredByBrand.map((product) => product.option).filter(Boolean));
+  const rawOptions = sortDirectProductFilterValues(filteredByOrigin.map((product) => product.option).filter(Boolean));
   const preserveOptionOrder = type === "tile" || type === "all";
   const options = type === "tile"
     ? TILE_DIRECT_KIND_OPTIONS
@@ -1640,10 +1668,10 @@ function syncProductFilters(config = {}) {
       ? unique([...TILE_DIRECT_KIND_OPTIONS, ...nonTileOptions])
       : rawOptions;
   const selectedOption = fillProductFilterSelect(optionFilter, options, previousOption, "전체", { preserveOrder: preserveOptionOrder });
-  const filteredByOption = filteredByBrand.filter((product) => productMatchesDirectOptionFilter(product, selectedOption));
+  const filteredByOption = filteredByOrigin.filter((product) => productMatchesDirectOptionFilter(product, selectedOption));
   const patternCategories = sortDirectTileStyleValues(filteredByOption.flatMap(getProductDirectTileCategories));
   const selectedPatternCategory = fillProductFilterSelect(patternCategoryFilter, patternCategories, previousPatternCategory, "전체", { preserveOrder: true });
-  const filteredForSize = getDirectProductSizeScope(filteredByBrand, selectedOption, selectedPatternCategory);
+  const filteredForSize = getDirectProductSizeScope(filteredByOrigin, selectedOption, selectedPatternCategory);
   const sizes = getDirectProductSizes(filteredForSize);
   const finishes = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectFinishValues));
   const colors = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectColorValues));
@@ -1787,8 +1815,31 @@ function getProductFilterSnapshot() {
     documentRef: document,
     isAdmin: isAdminUser(),
     normalizeSearchText,
-    parseNaturalSearch: parseTaxonomyNaturalSearch
+    normalizeKeyword: normalizeProductSearchKeyword,
+    parseNaturalSearch: parseProductNaturalSearch
   });
+}
+
+function normalizeProductSearchKeyword(value) {
+  return String(value || "")
+    .replace(/\b(china|cn|korea|kr|europe|italy|spain|india|vietnam)\b/gi, " ")
+    .replace(/중국산|중국|국산|국내산|한국|대한민국|유럽|이태리|이탈리아|스페인|인도|베트남/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseProductNaturalSearch(value, audience = "customer") {
+  const intent = parseTaxonomyNaturalSearch(value, audience);
+  if (!intent?.active) return intent;
+  const originGroups = (intent.origins || []).map(makeTaxonomyTokenGroup);
+  const originTokens = new Set(originGroups.flat());
+  const isOriginGroup = (group) => Array.isArray(group) && group.some((token) => originTokens.has(token));
+  return {
+    ...intent,
+    origins: [],
+    tokenGroups: (intent.tokenGroups || []).filter((group) => !isOriginGroup(group)),
+    freeTokens: (intent.freeTokens || []).filter((token) => !originTokens.has(normalizeTaxonomySearch(token)))
+  };
 }
 
 function getProductPriceCacheKey() {
@@ -1828,6 +1879,7 @@ function getProductPageState() {
       getProductDirectTileCategories,
       getProductDirectFinishValues,
       getProductDirectColorValues,
+      getProductDirectOriginValues,
       hasActiveTaxonomyIntentCriteria,
       compareProductsForDisplay
     }
@@ -2020,6 +2072,7 @@ function getProductExpertIntentChips(state) {
   add("대분류", PRODUCT_TYPE_LABELS[state.type] || state.type);
   add("종류", state.option);
   add("스타일", state.patternCategory);
+  add("원산지", state.origin);
   add("규격", state.size);
   add("마감", state.finish);
   add("색상", state.color);
@@ -2114,6 +2167,7 @@ function getProductExpertReasons(product, state) {
   const reasons = [];
   const normalized = product.productType === "tile" ? getNormalizedTaxonomyProductForProduct(product) : null;
   if (state.size !== "all" && product.size === state.size) reasons.push(`규격 ${product.size}`);
+  if (state.origin !== "all" && getProductDirectOriginValues(product).includes(state.origin)) reasons.push(`원산지 ${state.origin}`);
   if (state.finish !== "all" && getProductDirectFinishValues(product).includes(state.finish)) reasons.push(`마감 ${state.finish}`);
   if (state.color !== "all" && getProductDirectColorValues(product).includes(state.color)) reasons.push(`색상 ${state.color}`);
   if (state.patternCategory !== "all" && getProductDirectTileCategories(product).includes(state.patternCategory)) reasons.push(`스타일 ${state.patternCategory}`);
