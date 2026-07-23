@@ -49,6 +49,7 @@ const TILE_STYLE_OPTIONS = [
 const TILE_STYLE_OPTION_SET = new Set(TILE_STYLE_OPTIONS);
 const TILE_FINDER_COLOR_OPTIONS = ["화이트", "아이보리", "베이지", "브라운", "그레이", "차콜", "블랙", "그린", "블루", "핑크", "레드", "옐로우", "테라코타", "멀티"];
 const TILE_FINDER_PATTERN_PRESENCE_OPTIONS = ["있음", "없음"];
+const TILE_FINDER_VEIN_PRESENCE_OPTIONS = ["있음", "없음", "불확실"];
 const TILE_FINDER_FINISH_OPTIONS = ["무광", "유광"];
 const SANITARY_KINDS = ["양변기", "비데", "소변기", "세면기", "욕조", "위생도기"];
 const FAUCET_KINDS = ["수전 금구", "세면수전", "샤워수전", "주방수전", "해바라기샤워"];
@@ -5210,7 +5211,11 @@ function renderTaxonomyImageAnalysis(analysis) {
     ...(analysis.colors || []).map((item) => `색상 ${item}`),
     ...(analysis.patterns || []).map((item) => `패턴 ${item}`),
     ...(analysis.shapes || []).map((item) => `형태 ${item}`),
-    ...(analysis.motifs || []).map((item) => `무늬 ${item}`)
+    ...(analysis.motifs || []).map((item) => `무늬 ${item}`),
+    analysis.veinPresence ? `베인·결 ${analysis.veinPresence}` : "",
+    analysis.veinType && !["없음", "불확실"].includes(analysis.veinType) ? `결 종류 ${analysis.veinType}` : "",
+    analysis.veinDirection && !["없음", "불확실"].includes(analysis.veinDirection) ? `결 방향 ${analysis.veinDirection}` : "",
+    analysis.veinIntensity && !["없음", "불확실"].includes(analysis.veinIntensity) ? `결 강도 ${analysis.veinIntensity}` : ""
   ].filter(Boolean);
   tags.innerHTML = values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
     || `<span>분석값 없음</span>`;
@@ -5460,10 +5465,14 @@ function renderTileFinderAnalysis(analysis) {
     tileFinderEditableAnalysis.secondaryColor ? `보조색 ${tileFinderEditableAnalysis.secondaryColor}` : "",
     tileFinderEditableAnalysis.style ? `스타일 ${tileFinderEditableAnalysis.style}` : "",
     tileFinderEditableAnalysis.patternPresence ? `무늬 ${tileFinderEditableAnalysis.patternPresence}` : "",
+    tileFinderEditableAnalysis.veinPresence ? `베인·결 ${tileFinderEditableAnalysis.veinPresence}` : "",
     ...(analysis.colors || []).filter((item) => item !== tileFinderEditableAnalysis.color).slice(0, 2).map((item) => `보조색 ${item}`),
     ...(analysis.patterns || []).filter((item) => item !== tileFinderEditableAnalysis.style).slice(0, 2).map((item) => `보조패턴 ${item}`),
     ...(analysis.shapes || []).map((item) => `형태 ${item}`),
-    ...(analysis.motifs || []).map((item) => `무늬 ${item}`)
+    ...(analysis.motifs || []).map((item) => `무늬 ${item}`),
+    analysis.veinType && !["없음", "불확실"].includes(analysis.veinType) ? `결 종류 ${analysis.veinType}` : "",
+    analysis.veinDirection && !["없음", "불확실"].includes(analysis.veinDirection) ? `결 방향 ${analysis.veinDirection}` : "",
+    analysis.veinIntensity && !["없음", "불확실"].includes(analysis.veinIntensity) ? `결 강도 ${analysis.veinIntensity}` : ""
   ].filter(Boolean);
   tags.innerHTML = values.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
     || `<span>분석값 없음</span>`;
@@ -5476,6 +5485,7 @@ function createEmptyTileFinderEditableAnalysis() {
     secondaryColor: "",
     style: "",
     patternPresence: "",
+    veinPresence: "",
     finish: ""
   };
 }
@@ -5487,6 +5497,7 @@ function mergeTileFinderEditableAnalysis(analysis = {}, current = createEmptyTil
     secondaryColor: current.secondaryColor || inferTileFinderSecondaryColor(analysis, current.color || inferTileFinderColor(analysis)),
     style: current.style || inferTileFinderStyle(analysis),
     patternPresence: current.patternPresence || inferTileFinderPatternPresence(analysis),
+    veinPresence: current.veinPresence || analysis.veinPresence || "",
     finish: current.finish || requestedFinish || inferTileFinderFinish(analysis)
   };
 }
@@ -5552,6 +5563,7 @@ function inferTileFinderStyle(analysis = {}) {
 }
 
 function inferTileFinderPatternPresence(analysis = {}) {
+  if (analysis.patternPresence) return analysis.patternPresence;
   const source = [
     analysis.patternScale,
     analysis.patternFlow,
@@ -5585,6 +5597,7 @@ function renderTileFinderAnalysisPanel() {
     { key: "secondaryColor", label: "보조색", value: tileFinderEditableAnalysis.secondaryColor, options: ["없음", ...TILE_FINDER_COLOR_OPTIONS] },
     { key: "style", label: "스타일", value: tileFinderEditableAnalysis.style, options: TILE_STYLE_OPTIONS },
     { key: "patternPresence", label: "무늬", value: tileFinderEditableAnalysis.patternPresence, options: TILE_FINDER_PATTERN_PRESENCE_OPTIONS },
+    { key: "veinPresence", label: "베인·결", value: tileFinderEditableAnalysis.veinPresence, options: TILE_FINDER_VEIN_PRESENCE_OPTIONS },
     { key: "finish", label: "표면", value: tileFinderEditableAnalysis.finish, options: TILE_FINDER_FINISH_OPTIONS }
   ];
   panel.innerHTML = `
@@ -5646,6 +5659,7 @@ function buildTileFinderAnalysisOverrides() {
     secondaryColor: tileFinderEditableAnalysis.secondaryColor,
     style: tileFinderEditableAnalysis.style,
     patternPresence: tileFinderEditableAnalysis.patternPresence,
+    veinPresence: tileFinderEditableAnalysis.veinPresence,
     finish: tileFinderEditableAnalysis.finish
   };
 }

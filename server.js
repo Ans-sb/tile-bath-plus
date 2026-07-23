@@ -2610,7 +2610,11 @@ async function findSimilarTilesByImage(payload, context = {}) {
     surface: overrideAnalysis.surface || baseAnalysis.surface,
     patternScale: baseAnalysis.patternScale,
     contrast: baseAnalysis.contrast,
-    patternPresence: overrideAnalysis.patternPresence || "",
+    patternPresence: overrideAnalysis.patternPresence || baseAnalysis.patternPresence || "",
+    veinPresence: overrideAnalysis.veinPresence || baseAnalysis.veinPresence || "",
+    veinType: baseAnalysis.veinType || "",
+    veinDirection: baseAnalysis.veinDirection || "",
+    veinIntensity: baseAnalysis.veinIntensity || "",
     keywords: normalizeKeywordList([
       ...(baseAnalysis.keywords || []),
       ...(overrideAnalysis.keywords || [])
@@ -2729,6 +2733,11 @@ async function analyzeTileImage(imageDataUrl) {
                   "patterns: Korean pattern category words array, use only these when possible: 스톤, 마블, 시멘트, 솔리드, 테라조, 우드, 패턴, 모자이크, 브릭, 입체,",
                   "motifs: Korean visible motif words array such as 꽃, 선형, 구름결, 베인, 입자, 점박이, 나뭇결, 기하학, 줄눈, 반복라인,",
                   "shapes: Korean visible shape/layout words array. Detect physical layout first: 모자이크, 긴브릭, 직사각, 세로라인, 가로라인, 스틱, 서브웨이, 입체, 골지, 웨이브,",
+                  "patternPresence: one of 있음, 없음, 불확실. Use 없음 only for a completely plain surface,",
+                  "veinPresence: one of 있음, 없음, 불확실. Treat marble veining, stone mineral grain, travertine lines, and wood grain as visible 베인·결,",
+                  "veinType: one of 마블베인, 스톤결, 트래버틴결, 우드결, 선형결, 구름결, 없음, 불확실,",
+                  "veinDirection: one of 세로, 가로, 사선, 불규칙, 없음, 불확실,",
+                  "veinIntensity: one of 약함, 보통, 강함, 없음, 불확실,",
                   "keywords: short search tokens for color, pattern, and shape,",
                   "summary: one Korean sentence."
                 ].join(" ")
@@ -2782,6 +2791,14 @@ function normalizeTileAnalysis(analysis) {
   const patternScale = String(analysis.patternScale || "").trim();
   const patternFlow = String(analysis.patternFlow || "").trim();
   const contrast = String(analysis.contrast || "").trim();
+  const patternPresence = normalizeTileFinderPatternPresence(analysis.patternPresence);
+  const veinPresence = normalizeTileVeinPresence(analysis.veinPresence);
+  const veinType = normalizeTileVeinType(analysis.veinType);
+  const veinDirection = normalizeTileVeinDirection(analysis.veinDirection);
+  const veinIntensity = normalizeTileVeinIntensity(analysis.veinIntensity);
+  const veinKeywords = veinPresence === "있음"
+    ? ["베인", "결", veinType, veinDirection ? `${veinDirection}결` : "", veinIntensity ? `${veinIntensity}결` : ""]
+    : [];
 
   return {
     colors,
@@ -2793,7 +2810,12 @@ function normalizeTileAnalysis(analysis) {
     patternScale,
     patternFlow,
     contrast,
-    keywords: normalizeKeywordList([...colors, ...patterns, ...motifs, ...shapes, ...keywords, ...expandTileMatchKeywords([...colors, ...patterns, ...motifs, ...shapes, ...keywords])]),
+    patternPresence,
+    veinPresence,
+    veinType,
+    veinDirection,
+    veinIntensity,
+    keywords: normalizeKeywordList([...colors, ...patterns, ...motifs, ...shapes, ...keywords, ...veinKeywords, ...expandTileMatchKeywords([...colors, ...patterns, ...motifs, ...shapes, ...keywords, ...veinKeywords])]),
     summary: String(analysis.summary || "").trim()
   };
 }
@@ -2804,6 +2826,7 @@ function normalizeTileFinderAnalysisOverrides(overrides) {
   const secondaryColor = normalizeOptionalAnalysisText(payload.secondaryColor);
   const style = normalizeOptionalAnalysisText(payload.style);
   const patternPresence = normalizeTileFinderPatternPresence(payload.patternPresence);
+  const veinPresence = normalizeTileVeinPresence(payload.veinPresence);
   const finish = normalizeOptionalAnalysisText(payload.finish);
   const colors = normalizeKeywordList([color, secondaryColor].filter(Boolean));
   const patterns = style ? [style] : [];
@@ -2812,12 +2835,14 @@ function normalizeTileFinderAnalysisOverrides(overrides) {
     secondaryColor,
     style,
     patternPresence ? `무늬${patternPresence}` : "",
+    veinPresence ? `베인결${veinPresence}` : "",
     finish
   ].filter(Boolean));
   return {
     colors,
     patterns,
     patternPresence,
+    veinPresence,
     keywords,
     surface: finish
   };
@@ -2827,6 +2852,48 @@ function normalizeTileFinderPatternPresence(value) {
   const text = String(value || "").trim();
   if (/^있음$|있다|유|yes|pattern/i.test(text)) return "있음";
   if (/^없음$|없다|무|no|plain|solid/i.test(text)) return "없음";
+  return "";
+}
+
+function normalizeTileVeinPresence(value) {
+  const text = String(value || "").trim();
+  if (/^있음$|있다|유|yes|present|visible/i.test(text)) return "있음";
+  if (/^없음$|없다|무|no|none|absent|plain|solid/i.test(text)) return "없음";
+  if (/불확실|애매|모름|unknown|uncertain/i.test(text)) return "불확실";
+  return "";
+}
+
+function normalizeTileVeinType(value) {
+  const text = String(value || "").trim();
+  if (/마블|대리석|marble/i.test(text)) return "마블베인";
+  if (/트래버틴|travertine/i.test(text)) return "트래버틴결";
+  if (/우드|나뭇결|wood/i.test(text)) return "우드결";
+  if (/구름|cloud/i.test(text)) return "구름결";
+  if (/선형|라인|linear|line/i.test(text)) return "선형결";
+  if (/스톤|석재|stone|grain|결/i.test(text)) return "스톤결";
+  if (/없음|none|absent/i.test(text)) return "없음";
+  if (/불확실|모름|unknown|uncertain/i.test(text)) return "불확실";
+  return "";
+}
+
+function normalizeTileVeinDirection(value) {
+  const text = String(value || "").trim();
+  if (/세로|vertical/i.test(text)) return "세로";
+  if (/가로|horizontal/i.test(text)) return "가로";
+  if (/사선|대각|diagonal/i.test(text)) return "사선";
+  if (/불규칙|랜덤|random|irregular/i.test(text)) return "불규칙";
+  if (/없음|none|absent/i.test(text)) return "없음";
+  if (/불확실|모름|unknown|uncertain/i.test(text)) return "불확실";
+  return "";
+}
+
+function normalizeTileVeinIntensity(value) {
+  const text = String(value || "").trim();
+  if (/강함|강한|굵|볼드|strong|bold|dramatic/i.test(text)) return "강함";
+  if (/보통|중간|medium|moderate/i.test(text)) return "보통";
+  if (/약함|약한|잔잔|은은|미세|soft|subtle|light/i.test(text)) return "약함";
+  if (/없음|none|absent/i.test(text)) return "없음";
+  if (/불확실|모름|unknown|uncertain/i.test(text)) return "불확실";
   return "";
 }
 
@@ -2931,6 +2998,10 @@ function scoreTileProduct(product, analysis) {
     }
   }
 
+  const veinScore = scoreTileVeinProfile(product, analysis);
+  score += veinScore.score;
+  reasons.push(...veinScore.reasons);
+
   const shapeIntent = getTileImageShapeIntent(analysis);
   if (shapeIntent.active) {
     const shapeMatch = scoreProductShapeAgainstIntent(product, shapeIntent);
@@ -2971,6 +3042,75 @@ function scoreTileProduct(product, analysis) {
     score,
     reasons: [...new Set(reasons)]
   };
+}
+
+function scoreTileVeinProfile(product, analysis) {
+  const presence = normalizeTileVeinPresence(analysis?.veinPresence);
+  if (!presence || presence === "불확실") return { score: 0, reasons: [] };
+
+  const text = normalizeMatchText([
+    product?.name,
+    product?.modelName,
+    product?.patternCategory,
+    product?.features,
+    product?.option,
+    product?.material
+  ].filter(Boolean).join(" "));
+  const patternCategory = normalizeMatchText(product?.patternCategory);
+  const reasons = [];
+  let score = 0;
+  const hasExplicitVein = /베인|vein|veincut|베인컷|칼라카타|카라라|스타투아리오|아라베스카토|판다|오닉스|onyx/.test(text);
+  const hasVeinStyle = /마블|대리석|marble|트래버틴|트라버틴|travertine/.test(text)
+    || /마블|트래버틴/.test(patternCategory);
+  const hasNaturalGrain = /스톤|석재|stone|라임스톤|limestone|슬레이트|slate|우드|나뭇결|wood|grain|결/.test(text);
+  const isPlain = /솔리드|무지|민무늬|단색|plain|solid/.test(text)
+    || patternCategory === normalizeMatchText("솔리드");
+
+  if (presence === "있음") {
+    if (hasExplicitVein) {
+      score += 34;
+      reasons.push("베인·결 있음 일치");
+    } else if (hasVeinStyle) {
+      score += 24;
+      reasons.push("베인 계열 스타일");
+    } else if (hasNaturalGrain) {
+      score += 12;
+      reasons.push("자연 결 계열");
+    }
+    if (isPlain) score -= 24;
+  } else if (presence === "없음") {
+    if (hasExplicitVein) score -= 30;
+    else if (hasVeinStyle) score -= 20;
+    if (isPlain) {
+      score += 18;
+      reasons.push("베인·결 없음 일치");
+    }
+  }
+
+  const direction = normalizeTileVeinDirection(analysis?.veinDirection);
+  if (presence === "있음" && direction && !["없음", "불확실"].includes(direction)) {
+    const directionPatterns = {
+      세로: /세로|vertical|종방향/,
+      가로: /가로|horizontal|횡방향/,
+      사선: /사선|대각|diagonal/,
+      불규칙: /불규칙|랜덤|random|irregular|자연결/
+    };
+    if (directionPatterns[direction]?.test(text)) {
+      score += 10;
+      reasons.push(`결 방향 ${direction}`);
+    }
+  }
+
+  const intensity = normalizeTileVeinIntensity(analysis?.veinIntensity);
+  if (presence === "있음" && intensity === "강함" && /강한|굵은|볼드|대비|strong|bold|dramatic/.test(text)) {
+    score += 8;
+    reasons.push("강한 베인");
+  } else if (presence === "있음" && intensity === "약함" && /잔잔|은은|미세|잔결|soft|subtle/.test(text)) {
+    score += 8;
+    reasons.push("은은한 결");
+  }
+
+  return { score, reasons };
 }
 
 function selectShapeFirstMatches(matches, analysis) {
@@ -3458,6 +3598,8 @@ async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analys
       + (Number(visual.textureScore || 0) * 0.15)
       + (shapeMatch.score * 0.35)
       + exactImageBonus;
+    const veinReasons = (entry.reasons || []).filter((reason) => /베인|결 방향|자연 결|강한 베인|은은한 결/.test(reason));
+    const remainingReasons = (entry.reasons || []).filter((reason) => !veinReasons.includes(reason));
     return {
       ...entry,
       score,
@@ -3468,8 +3610,9 @@ async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analys
         `이미지유사도 ${Math.round(visualScore)}`,
         `색상이미지 ${Math.round(visual.colorScore)}`,
         `패턴이미지 ${Math.round(visual.textureScore)}`,
+        ...veinReasons,
         exactImageBonus ? getTileImageExactMatchReason(visualEntry.ref) : "",
-        ...(entry.reasons || [])
+        ...remainingReasons
       ].filter(Boolean)
     };
   });
