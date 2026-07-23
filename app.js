@@ -2174,7 +2174,7 @@ function updateProductListStatus(message) {
 }
 
 function getProductPageSize() {
-  return 15;
+  return 20;
 }
 
 function goToProductPage(page, options = {}) {

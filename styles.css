@@ -7435,6 +7435,7 @@ body.customer-experience-mode .product-pagination-toolbar label {
 
   .product-page-slide-panel {
     gap: 7px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   body.customer-experience-mode .product-page-list .product-card,
