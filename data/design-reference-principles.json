@@ -1,0 +1,279 @@
+{
+  "version": "2026-07-24",
+  "name": "JAJAEGO award-informed UI principles",
+  "purpose": "Guide future UI design and review using award-winning UX patterns without copying protected visual assets.",
+  "productPosition": "Fast, trustworthy B2B material discovery, ordering, and operations platform",
+  "primaryOutcomes": [
+    "Reduce time to find a suitable product",
+    "Reduce ordering and approval errors",
+    "Make AI search explainable and correctable",
+    "Keep customer and internal data strictly separated",
+    "Support mobile and weak-network field use"
+  ],
+  "awardCriteria": {
+    "ifDesign": [
+      "idea",
+      "form",
+      "function",
+      "differentiation",
+      "sustainability"
+    ],
+    "uxDesignAwards": [
+      "relevance",
+      "empowerment",
+      "innovation",
+      "business_value_and_responsibility",
+      "holistic_user_centered_thinking",
+      "design_and_experience_quality"
+    ]
+  },
+  "brandTokens": {
+    "color": {
+      "primaryNavy": "#081957",
+      "actionBlue": "#0B5CFF",
+      "white": "#FFFFFF",
+      "background": "#F5F7FA",
+      "textPrimary": "#101828",
+      "textSecondary": "#475467",
+      "border": "#D0D5DD",
+      "success": "#067647",
+      "warning": "#B54708",
+      "error": "#B42318"
+    },
+    "radiusPx": {
+      "control": 6,
+      "card": 8,
+      "modal": 8
+    },
+    "spacingPx": [
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48
+    ],
+    "mobileTouchTargetRecommendedPx": 44
+  },
+  "customerProductCard": {
+    "visibleFieldsInOrder": [
+      "main_image",
+      "product_name",
+      "model_or_sku",
+      "size",
+      "finish"
+    ],
+    "primaryAction": "add_to_cart",
+    "forbiddenFields": [
+      "internal_brand_id",
+      "internal_brand_code",
+      "internal_brand_name",
+      "supplier_name",
+      "cost_price",
+      "margin_grade",
+      "quality_grade",
+      "stock_quantity"
+    ],
+    "layout": {
+      "mobileColumns": 2,
+      "desktopColumns": 4,
+      "maxTitleLines": 2,
+      "stableCardHeight": true
+    }
+  },
+  "tileGoFilters": {
+    "primaryOrder": [
+      "size",
+      "usage_wall_or_floor",
+      "finish",
+      "style",
+      "color"
+    ],
+    "postSearchOptions": [
+      "origin",
+      "thickness",
+      "price",
+      "stock_status"
+    ],
+    "originIsTopLevelCategory": false
+  },
+  "bathGoCategories": [
+    "faucet",
+    "basin",
+    "bathtub",
+    "toilet",
+    "bathroom_cabinet",
+    "mirror",
+    "bathroom_accessory"
+  ],
+  "sampleGo": {
+    "allowedInternalBrandCodes": [
+      "SNT"
+    ],
+    "customerBrandVisible": false
+  },
+  "aiTileSearch": {
+    "inputs": [
+      "natural_language",
+      "image",
+      "size",
+      "finish"
+    ],
+    "absoluteFilters": [
+      "size",
+      "finish"
+    ],
+    "imageSignals": [
+      "main_color",
+      "secondary_color",
+      "pattern",
+      "vein",
+      "shape",
+      "mosaic_piece_structure",
+      "surface_appearance"
+    ],
+    "maxResults": 50,
+    "mustExplainMatch": true,
+    "explanationParts": [
+      "size_match",
+      "finish_match",
+      "color_similarity",
+      "style_or_pattern_similarity"
+    ],
+    "userCanCorrectInterpretedConditions": true
+  },
+  "accessibility": {
+    "standard": "WCAG 2.2 AA",
+    "normalTextContrastMinimum": "4.5:1",
+    "largeTextContrastMinimum": "3:1",
+    "pointerTargetMinimumCssPx": 24,
+    "importantControlRecommendedCssPx": 44,
+    "focusMustRemainVisible": true,
+    "textZoomPercentWithoutLoss": 200
+  },
+  "motion": {
+    "recommendedDurationMs": {
+      "minimum": 180,
+      "maximum": 260
+    },
+    "allowed": [
+      "page_direction_transition",
+      "filter_sheet_open_close",
+      "add_to_cart_confirmation",
+      "result_reordering",
+      "before_after_comparison",
+      "loading_progress"
+    ],
+    "avoid": [
+      "scroll_jacking",
+      "long_intro",
+      "autoplay_background_video",
+      "repeated_card_entrance_animation",
+      "information_hidden_until_animation_finishes",
+      "excessive_product_card_zoom"
+    ]
+  },
+  "requiredStates": [
+    "loading",
+    "empty",
+    "no_search_result",
+    "network_error",
+    "permission_denied",
+    "saving",
+    "saved",
+    "partial_failure"
+  ],
+  "antiPatterns": [
+    "marketing copy on operational customer screens",
+    "nested cards",
+    "every section styled as a floating card",
+    "too many specifications on product cards",
+    "brand or supplier leakage to customers",
+    "AI score without a human-readable reason",
+    "full-page reload for filters or pagination",
+    "color-only status communication",
+    "hover-only controls",
+    "fixed navigation obscuring focused content"
+  ],
+  "performanceTargets": {
+    "LCPSeconds": 2.5,
+    "INPMilliseconds": 200,
+    "CLSMaximum": 0.1,
+    "imageSearchImmediateFeedbackMilliseconds": 300,
+    "searchFirstViewSeconds": 3
+  },
+  "referenceCases": [
+    {
+      "name": "Shikhar App by Unilever",
+      "award": "Red Dot",
+      "year": 2023,
+      "relevance": "B2B ordering, order tracking, returns, weak-network support",
+      "url": "https://www.red-dot.org/project/shikhar-app-by-unilever-66741"
+    },
+    {
+      "name": "Uno",
+      "award": "UX Design Awards",
+      "year": 2025,
+      "relevance": "Role-based unified dashboard and explainable natural-language data access",
+      "url": "https://ux-design-awards.com/winners/2025-1-uno"
+    },
+    {
+      "name": "SiftedAI",
+      "award": "UX Design Awards",
+      "year": 2025,
+      "relevance": "AI logistics dashboard with lower cognitive load and guided decisions",
+      "url": "https://ux-design-awards.com/winners/2025-1-siftedai-a-logistics-intelligence-software"
+    },
+    {
+      "name": "HP Workforce Experience Platform",
+      "award": "UX Design Awards",
+      "year": 2025,
+      "relevance": "Unified design library for a large enterprise management platform",
+      "url": "https://ux-design-awards.com/winners/2025-2-hp-workforce-experience-platform"
+    },
+    {
+      "name": "AI Powered Investing",
+      "award": "UX Design Awards",
+      "year": 2025,
+      "relevance": "Progressive disclosure and natural-language AI rationale",
+      "url": "https://ux-design-awards.com/winners/2025-2-ai-powered-investing"
+    },
+    {
+      "name": "CIARTIC Move",
+      "award": "UX Design Awards Gold",
+      "year": 2025,
+      "relevance": "Error-reducing visual guidance and professional workflow validation",
+      "url": "https://ux-design-awards.com/winners/2025-1-ciartic-move-self-driving-3d-c-arm"
+    },
+    {
+      "name": "29CM",
+      "award": "Red Dot",
+      "year": 2014,
+      "relevance": "Minimal commerce layout that prioritizes products and editorial content",
+      "url": "https://www.red-dot.org/project/29cm-21429"
+    },
+    {
+      "name": "Energy Plus",
+      "award": "Red Dot",
+      "year": 2025,
+      "relevance": "Clear hierarchy, contrast, and WCAG-compliant components",
+      "url": "https://www.red-dot.org/ko/project/energy-plus-85165"
+    },
+    {
+      "name": "A-RT.COM",
+      "award": "Red Dot",
+      "relevance": "Adaptive mobile commerce information flow",
+      "url": "https://www.red-dot.org/de/project/a-rtcom-55159"
+    },
+    {
+      "name": "MAZEDROP",
+      "award": "Red Dot",
+      "relevance": "Clear, content-focused e-commerce discovery",
+      "url": "https://www.red-dot.org/de/project/mazedrop-49339"
+    }
+  ],
+  "sourceDocuments": [
+    "docs/ui-award-benchmark-jajaego-2026.md"
+  ]
+}
