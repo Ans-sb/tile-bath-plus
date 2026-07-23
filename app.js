@@ -2289,7 +2289,7 @@ function buildBathProductCardHtml(product, state) {
           ${expertReasons.length ? `<small class="expert-product-reasons">${expertReasons.map(escapeHtml).join(" · ")}</small>` : ""}
         </span>
       </button>
-      <button class="bath-card-cart-button" type="button" data-add-product="${escapeHtml(product.id)}">장바구니 담기</button>
+      <button class="bath-card-cart-button" type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
     </article>
   `;
 }
