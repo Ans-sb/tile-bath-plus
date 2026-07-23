@@ -5057,7 +5057,7 @@ async function handleTileFinderFileChange(event) {
   tileFinderEditableAnalysis = createEmptyTileFinderEditableAnalysis();
   hideTileFinderAnalysisPanel();
 
-  const imageDataUrl = await readImageFile(file, 1200, 0.82);
+  const imageDataUrl = await readImageFile(file, 768, 0.76);
   if (!imageDataUrl) {
     if (status) status.textContent = "사진을 읽지 못했습니다.";
     return;
@@ -5097,7 +5097,7 @@ async function handleTaxonomyImageSearchFileChange(event) {
   taxonomyImageMatches = [];
   taxonomyImageResultsPage = 1;
 
-  const imageDataUrl = await readImageFile(file, 1200, 0.82);
+  const imageDataUrl = await readImageFile(file, 768, 0.76);
   if (!imageDataUrl) {
     if (status) status.textContent = "사진을 읽지 못했습니다.";
     return;

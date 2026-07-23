@@ -121,8 +121,13 @@ const productWriter = createProductWriter({
 });
 const tileImageSignatureCache = new Map();
 const tileImageSignatureLimit = Math.max(24, Number(process.env.TILE_IMAGE_SIGNATURE_CACHE_LIMIT || 2500));
-const tileVisualCompareLimit = Math.max(120, Number(process.env.TILE_VISUAL_COMPARE_LIMIT || 240));
-const tileProductImageCompareLimit = Math.max(1, Number(process.env.TILE_PRODUCT_IMAGE_COMPARE_LIMIT || 5) || 5);
+const tileVisualCompareLimit = Math.max(24, Number(process.env.TILE_VISUAL_COMPARE_LIMIT || 72));
+const tileProductImageCompareLimit = Math.max(1, Number(process.env.TILE_PRODUCT_IMAGE_COMPARE_LIMIT || 3) || 3);
+const tileVisualDeepCompareLimit = Math.max(0, Number(process.env.TILE_VISUAL_DEEP_COMPARE_LIMIT || 16));
+const tileVisualCompareConcurrency = Math.max(4, Number(process.env.TILE_VISUAL_COMPARE_CONCURRENCY || 16));
+const tileVisualCompareBudgetMs = Math.max(5000, Number(process.env.TILE_VISUAL_COMPARE_BUDGET_MS || 22000));
+const tileImageFetchTimeoutMs = Math.max(1000, Number(process.env.TILE_IMAGE_FETCH_TIMEOUT_MS || 3500));
+const tileVisionAnalysisTimeoutMs = Math.max(5000, Number(process.env.TILE_VISION_ANALYSIS_TIMEOUT_MS || 15000));
 let productImageIndexCache = null;
 let productImageIndexMtimeMs = 0;
 const publicStockExcludeThresholdQty = Math.max(0, Number(
@@ -2563,6 +2568,7 @@ async function generateRenderPreview(payload) {
 }
 
 async function findSimilarTilesByImage(payload, context = {}) {
+  const searchStartedAt = Date.now();
   if (!openAiApiKey) {
     throw new Error("OPENAI_API_KEY가 설정되어 있어야 사진으로 타일을 찾을 수 있습니다.");
   }
@@ -2583,7 +2589,19 @@ async function findSimilarTilesByImage(payload, context = {}) {
     throw new Error("타일 사진을 다시 업로드해주세요.");
   }
 
-  const baseAnalysis = await analyzeTileImage(imageDataUrl);
+  const analysisStartedAt = Date.now();
+  let analysisMode = "vision";
+  let baseAnalysis = null;
+  try {
+    baseAnalysis = await analyzeTileImage(imageDataUrl);
+  } catch (error) {
+    analysisMode = "local-fallback";
+    console.warn("[tile-image-search] vision analysis fallback:", error.message);
+    baseAnalysis = normalizeTileAnalysis({
+      summary: "사진 색상과 패턴을 상품 이미지와 직접 비교했습니다."
+    });
+  }
+  const analysisMs = Date.now() - analysisStartedAt;
   const overrideAnalysis = normalizeTileFinderAnalysisOverrides(payload?.analysisOverrides);
   const analysis = {
     ...baseAnalysis,
@@ -2604,6 +2622,7 @@ async function findSimilarTilesByImage(payload, context = {}) {
     requestedApplication,
     searchMode
   };
+  const filterStartedAt = Date.now();
   const baseProducts = (await readProducts()).filter((product) => (
     isTileFinderTileCandidate(product)
     && product.image
@@ -2611,6 +2630,7 @@ async function findSimilarTilesByImage(payload, context = {}) {
     && productMatchesTileFinderApplication(product, requestedApplication)
     && (searchMode === "global" || productMatchesTileFinderBase(product, analysis))
   ));
+  const filterMs = Date.now() - filterStartedAt;
   const products = baseProducts;
   let rankedMatches = products.map((product) => {
     const entry = scoreTileProduct(product, analysis);
@@ -2630,7 +2650,9 @@ async function findSimilarTilesByImage(payload, context = {}) {
     };
   });
   if (searchMode !== "global") {
+    const visualStartedAt = Date.now();
     rankedMatches = await rerankTileMatchesByLocalImage(imageDataUrl, rankedMatches, analysis);
+    analysis.visualCompareMs = Date.now() - visualStartedAt;
     rankedMatches = selectTextColorStrictMatches(rankedMatches, analysis);
   }
   const matches = rankedMatches
@@ -2660,55 +2682,72 @@ async function findSimilarTilesByImage(payload, context = {}) {
   return {
     ok: true,
     analysis,
-    matches
+    matches,
+    performance: {
+      totalMs: Date.now() - searchStartedAt,
+      analysisMs,
+      filterMs,
+      visualCompareMs: Number(analysis.visualCompareMs || 0),
+      analysisMode,
+      candidateCount: products.length,
+      visualCandidateLimit: tileVisualCompareLimit
+    }
   };
 }
 
 async function analyzeTileImage(imageDataUrl) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openAiApiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: openAiVisionModel,
-      temperature: 0.1,
-      max_tokens: 700,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: "You analyze tile photos for product matching. Return compact JSON only. Do not guess brand or price."
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: [
-                "Analyze this tile image for catalog search.",
-                "Return JSON with keys:",
-                "colors: Korean color words array,",
-                "patterns: Korean pattern category words array, use only these when possible: 스톤, 마블, 시멘트, 솔리드, 테라조, 우드, 패턴, 모자이크, 브릭, 입체,",
-                "motifs: Korean visible motif words array such as 꽃, 선형, 구름결, 베인, 입자, 점박이, 나뭇결, 기하학, 줄눈, 반복라인,",
-                "shapes: Korean visible shape/layout words array. Detect physical layout first: 모자이크, 긴브릭, 직사각, 세로라인, 가로라인, 스틱, 서브웨이, 입체, 골지, 웨이브,",
-                "keywords: short search tokens for color, pattern, and shape,",
-                "summary: one Korean sentence."
-              ].join(" ")
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageDataUrl,
-                detail: "low"
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), tileVisionAnalysisTimeoutMs);
+  let response = null;
+  try {
+    response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${openAiApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: openAiVisionModel,
+        temperature: 0.1,
+        max_tokens: 500,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: "You analyze tile photos for product matching. Return compact JSON only. Do not guess brand or price."
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: [
+                  "Analyze this tile image for catalog search.",
+                  "Return JSON with keys:",
+                  "colors: Korean color words array,",
+                  "patterns: Korean pattern category words array, use only these when possible: 스톤, 마블, 시멘트, 솔리드, 테라조, 우드, 패턴, 모자이크, 브릭, 입체,",
+                  "motifs: Korean visible motif words array such as 꽃, 선형, 구름결, 베인, 입자, 점박이, 나뭇결, 기하학, 줄눈, 반복라인,",
+                  "shapes: Korean visible shape/layout words array. Detect physical layout first: 모자이크, 긴브릭, 직사각, 세로라인, 가로라인, 스틱, 서브웨이, 입체, 골지, 웨이브,",
+                  "keywords: short search tokens for color, pattern, and shape,",
+                  "summary: one Korean sentence."
+                ].join(" ")
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageDataUrl,
+                  detail: "low"
+                }
               }
-            }
-          ]
-        }
-      ]
-    })
-  });
+            ]
+          }
+        ]
+      })
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await response.text();
   let result = null;
@@ -3282,6 +3321,16 @@ function getProductTileFinderFinishGroups(product) {
   const hasExplicitFinish = Boolean(explicitText);
   const explicitGlossy = /유광|gloss|gls|glossy|폴리싱|polishing|pol/.test(explicitText);
   const explicitMatte = /무광|matte|matt|논슬립|nsp|nonslip|nonsilp|antislip|러프|rough|ruf/.test(explicitText);
+  const explicitGroups = [];
+  if (/논슬립|nsp|nonslip|nonsilp|antislip/.test(explicitText)) explicitGroups.push("논슬립", "무광");
+  if (/폴리싱|polishing|pol/.test(explicitText)) explicitGroups.push("폴리싱", "유광");
+  if (/반무광|새틴|satin|sat/.test(explicitText)) explicitGroups.push("반무광");
+  if (/유광|gloss|gls|glossy/.test(explicitText)) explicitGroups.push("유광");
+  if (/러프|rough|ruf/.test(explicitText)) explicitGroups.push("러프", "무광");
+  if (/무광|matte|matt/.test(explicitText)) explicitGroups.push("무광");
+  if (/라파토|lappato|lapato/.test(explicitText)) explicitGroups.push("라파토");
+  if (explicitGroups.length) return [...new Set(explicitGroups)];
+
   const rawText = [
     product?.finish,
     product?.surface,
@@ -3332,9 +3381,14 @@ async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analys
     .slice(0, tileVisualCompareLimit);
   if (!candidatePool.length) return scoredMatches;
 
-  const visualEntries = await mapWithConcurrency(candidatePool, 8, async (entry) => {
+  const deadlineAt = Date.now() + tileVisualCompareBudgetMs;
+  const visualEntries = await mapWithConcurrency(candidatePool, tileVisualCompareConcurrency, async (entry) => {
+    if (Date.now() >= deadlineAt) return null;
     try {
-      const best = await getBestProductImageVisualMatch(querySignature, entry.product);
+      const best = await getBestProductImageVisualMatch(querySignature, entry.product, {
+        maxRefs: 1,
+        deadlineAt
+      });
       if (!best) return null;
       return {
         id: String(entry.product.id),
@@ -3351,6 +3405,40 @@ async function rerankTileMatchesByLocalImage(imageDataUrl, scoredMatches, analys
       .map((entry) => [entry.id, entry])
   );
   if (!visualById.size) return scoredMatches;
+
+  const deepCandidates = candidatePool
+    .filter((entry) => visualById.has(String(entry.product.id)))
+    .sort((left, right) => {
+      const leftVisual = Number(visualById.get(String(left.product.id))?.visual?.score || 0);
+      const rightVisual = Number(visualById.get(String(right.product.id))?.visual?.score || 0);
+      return rightVisual - leftVisual || right.score - left.score;
+    })
+    .slice(0, tileVisualDeepCompareLimit);
+
+  if (deepCandidates.length && Date.now() < deadlineAt) {
+    const deepEntries = await mapWithConcurrency(
+      deepCandidates,
+      Math.min(tileVisualCompareConcurrency, 12),
+      async (entry) => {
+        if (Date.now() >= deadlineAt) return null;
+        try {
+          const best = await getBestProductImageVisualMatch(querySignature, entry.product, {
+            maxRefs: tileProductImageCompareLimit,
+            deadlineAt
+          });
+          return best ? { id: String(entry.product.id), ...best } : null;
+        } catch {
+          return null;
+        }
+      }
+    );
+    for (const entry of deepEntries.filter(Boolean)) {
+      const current = visualById.get(entry.id);
+      if (!current || Number(entry.visual?.score || 0) >= Number(current.visual?.score || 0)) {
+        visualById.set(entry.id, entry);
+      }
+    }
+  }
 
   return scoredMatches.map((entry) => {
     const visualEntry = visualById.get(String(entry.product.id));
@@ -3394,13 +3482,16 @@ async function buildTileImageSignatureFromDataUrl(imageDataUrl) {
   return buildTileImageSignature(decoded);
 }
 
-async function getBestProductImageVisualMatch(querySignature, product) {
-  const imageRefs = getProductCompareImageRefs(product);
+async function getBestProductImageVisualMatch(querySignature, product, options = {}) {
+  const maxRefs = Math.max(1, Number(options.maxRefs || tileProductImageCompareLimit));
+  const deadlineAt = Number(options.deadlineAt || 0);
+  const imageRefs = getProductCompareImageRefs(product).slice(0, maxRefs);
   if (!imageRefs.length) return null;
   let best = null;
   for (const ref of imageRefs) {
+    if (deadlineAt && Date.now() >= deadlineAt) break;
     try {
-      const productSignature = await getProductImageSignatureByUrl(ref.url);
+      const productSignature = await getProductImageSignatureByUrl(ref.url, { deadlineAt });
       if (!productSignature) continue;
       const visual = compareTileImageSignatures(querySignature, productSignature);
       if (!best || Number(visual.score || 0) > Number(best.visual?.score || 0)
@@ -3415,7 +3506,7 @@ async function getBestProductImageVisualMatch(querySignature, product) {
   return best;
 }
 
-async function getProductImageSignatureByUrl(imageUrl) {
+async function getProductImageSignatureByUrl(imageUrl, options = {}) {
   if (!imageUrl) return null;
   if (tileImageSignatureCache.has(imageUrl)) {
     const cached = tileImageSignatureCache.get(imageUrl);
@@ -3424,7 +3515,10 @@ async function getProductImageSignatureByUrl(imageUrl) {
     return cached;
   }
 
-  const bufferInfo = await readImageBuffer(imageUrl);
+  const deadlineAt = Number(options.deadlineAt || 0);
+  const remainingMs = deadlineAt ? Math.max(1, deadlineAt - Date.now()) : tileImageFetchTimeoutMs;
+  if (deadlineAt && remainingMs <= 1) return null;
+  const bufferInfo = await readImageBuffer(imageUrl, Math.min(tileImageFetchTimeoutMs, remainingMs));
   const decoded = decodeImageBuffer(bufferInfo.buffer, bufferInfo.mimeType);
   const signature = buildTileImageSignature(decoded);
   tileImageSignatureCache.set(imageUrl, signature);
@@ -3568,7 +3662,7 @@ function parseImageDataUrl(value) {
   };
 }
 
-async function readImageBuffer(imageUrl) {
+async function readImageBuffer(imageUrl, timeoutMs = tileImageFetchTimeoutMs) {
   const url = String(imageUrl || "").trim();
   if (/^data:image\//i.test(url)) {
     const parsed = parseImageDataUrl(url);
@@ -3577,7 +3671,7 @@ async function readImageBuffer(imageUrl) {
   }
   if (!/^https?:\/\//i.test(url)) throw new Error("unsupported product image url");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 7000);
+  const timeout = setTimeout(() => controller.abort(), Math.max(250, Number(timeoutMs) || tileImageFetchTimeoutMs));
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error(`image fetch failed ${response.status}`);
