@@ -20,7 +20,8 @@
       const passed = (snapshot.type === "all" || product.productType === snapshot.type)
         && callbacks.productMatchesAdminBrandFilter(product, snapshot.brand)
         && callbacks.productMatchesDirectFilter(product, snapshot.origin, callbacks.getProductDirectOriginValues)
-        && (snapshot.size === "all" || product.size === snapshot.size)
+        && callbacks.productMatchesDirectFilter(product, snapshot.size, callbacks.getProductDirectSizeValues)
+        && callbacks.productMatchesDirectFilter(product, snapshot.thickness, callbacks.getProductDirectThicknessValues)
         && callbacks.productMatchesDirectOptionFilter(product, snapshot.option)
         && (snapshot.tileFeature === "all" || callbacks.matchesTileFeatureFilter(product, snapshot.tileFeature))
         && callbacks.productMatchesDirectFilter(product, snapshot.patternCategory, callbacks.getProductDirectTileCategories)
@@ -50,6 +51,7 @@
       Boolean(options.isAdmin) && snapshot.brand !== "all",
       snapshot.origin !== "all",
       snapshot.size !== "all",
+      snapshot.thickness !== "all",
       snapshot.option !== "all",
       snapshot.tileFeature !== "all",
       snapshot.patternCategory !== "all",

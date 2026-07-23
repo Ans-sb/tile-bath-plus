@@ -20,6 +20,7 @@
       kind: readSelectValue(documentRef, "#kindFilter"),
       origin: readSelectValue(documentRef, "#originFilter"),
       size: readSelectValue(documentRef, "#sizeFilter"),
+      thickness: readSelectValue(documentRef, "#thicknessFilter"),
       option: readSelectValue(documentRef, "#optionFilter"),
       tileFeature: readSelectValue(documentRef, "#tileFeatureFilter"),
       patternCategory: readSelectValue(documentRef, "#patternCategoryFilter"),

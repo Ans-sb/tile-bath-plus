@@ -14,6 +14,9 @@
     const state = options.state || null;
     const callbacks = options.callbacks || {};
     const escapeHtml = callbacks.escapeHtml || ((value) => String(value ?? ""));
+    const displaySize = callbacks.getProductDisplaySize
+      ? callbacks.getProductDisplaySize(product)
+      : product.size || "미확인";
     const displayColor = callbacks.getProductDisplayColor(product);
     const displayFinish = callbacks.getProductDisplayFinish(product);
     const expertReasons = callbacks.getProductExpertReasons(product, state);
@@ -24,7 +27,7 @@
       </button>
       <div>
         <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
-        <span>사이즈 ${escapeHtml(product.size || "미확인")}</span>
+        <span>사이즈 ${escapeHtml(displaySize)}</span>
         <span>색상 ${escapeHtml(displayColor)}</span>
         <span>마감 ${escapeHtml(displayFinish)}</span>
         <span>재고 ${escapeHtml(callbacks.hasStockValue(product) ? callbacks.formatStockQuantity(product) : "확인 필요")}</span>

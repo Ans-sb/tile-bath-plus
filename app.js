@@ -497,12 +497,12 @@ function bindEvents() {
     });
   });
 
-  ["#mainCategoryFilter", "#productBrandFilter", "#originFilter", "#sizeFilter", "#optionFilter", "#patternCategoryFilter", "#finishFilter", "#colorFilter", "#productSearch"].forEach((selector) => {
+  ["#mainCategoryFilter", "#productBrandFilter", "#originFilter", "#sizeFilter", "#thicknessFilter", "#optionFilter", "#patternCategoryFilter", "#finishFilter", "#colorFilter", "#productSearch"].forEach((selector) => {
     const control = document.querySelector(selector);
     if (!control) return;
     control.addEventListener("input", () => {
       if (selector === "#mainCategoryFilter") syncProductFilters({ resetSubFilters: true });
-      if (selector === "#productBrandFilter" || selector === "#originFilter" || selector === "#optionFilter" || selector === "#patternCategoryFilter") syncProductFilters();
+      if (selector === "#productBrandFilter" || selector === "#originFilter" || selector === "#sizeFilter" || selector === "#thicknessFilter" || selector === "#optionFilter" || selector === "#patternCategoryFilter") syncProductFilters();
       productCurrentPage = 1;
       renderProducts();
     });
@@ -1534,6 +1534,80 @@ function normalizeDirectOriginValue(value) {
   return text;
 }
 
+function formatDirectProductMeasurement(value) {
+  const numberValue = Number(value || 0);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) return "";
+  return Number.isInteger(numberValue)
+    ? String(numberValue)
+    : String(Number(numberValue.toFixed(2)));
+}
+
+function parseDirectProductDimensions(value) {
+  const text = String(value || "").replace(/[×xX＊]/g, "*");
+  const match = text.match(/(\d{1,4}(?:\.\d+)?)\s*\*\s*(\d{1,4}(?:\.\d+)?)/);
+  if (!match) return null;
+  const first = Number(match[1]) || 0;
+  const second = Number(match[2]) || 0;
+  if (!first || !second) return null;
+  const width = Math.min(first, second);
+  const height = Math.max(first, second);
+  return {
+    width,
+    height,
+    label: `${formatDirectProductMeasurement(width)}*${formatDirectProductMeasurement(height)}`
+  };
+}
+
+function getProductDirectSizeValues(product) {
+  if (!product) return [];
+  const direct = parseDirectProductDimensions(product.size);
+  if (direct?.label) return [direct.label];
+  if (product.productType === "tile") {
+    const item = getNormalizedTaxonomyProductForProduct(product);
+    const normalized = parseDirectProductDimensions(item?.sizeLabel);
+    if (normalized?.label) return [normalized.label];
+  }
+  return [];
+}
+
+function parseDirectProductThicknessMm(product) {
+  if (!product) return 0;
+  const source = [
+    product.size,
+    product.thickness,
+    product.thicknessMm,
+    product.name,
+    product.features
+  ].filter(Boolean).join(" ");
+  const normalized = String(source).replace(/[×xX＊]/g, "*");
+  const explicit = normalized.match(/(?:^|[^0-9])(\d{1,2}(?:\.\d+)?)\s*(?:T|MM)\b/i);
+  if (explicit) return Number(explicit[1]) || 0;
+
+  if (product.productType === "tile") {
+    const item = getNormalizedTaxonomyProductForProduct(product);
+    const normalizedThickness = Number(item?.thicknessMm || 0);
+    if (normalizedThickness > 0) return normalizedThickness;
+    const dimensions = normalized.match(/(\d{1,4}(?:\.\d+)?)\s*\*\s*(\d{1,4}(?:\.\d+)?)\s*\*\s*(\d{1,3}(?:\.\d+)?)/);
+    const thirdDimension = Number(dimensions?.[3] || 0);
+    if (thirdDimension > 0 && thirdDimension <= 50) return thirdDimension;
+  }
+  return 0;
+}
+
+function getProductDirectThicknessValues(product) {
+  const thickness = parseDirectProductThicknessMm(product);
+  const label = formatDirectProductMeasurement(thickness);
+  return label ? [`${label}T`] : [];
+}
+
+function getProductDisplaySize(product) {
+  return getProductDirectSizeValues(product)[0] || normalizeDirectProductFilterValue(product?.size) || "미확인";
+}
+
+function getProductDisplayThickness(product) {
+  return getProductDirectThicknessValues(product)[0] || "미확인";
+}
+
 function productMatchesDirectFilter(product, selectedValue, valueGetter) {
   if (!selectedValue || selectedValue === "all") return true;
   return valueGetter(product).includes(selectedValue);
@@ -1565,7 +1639,7 @@ function isDirectProductSizeLabel(value) {
 
 function getDirectProductSizes(baseProducts) {
   const productSizes = unique((baseProducts || [])
-    .map((product) => normalizeDirectProductFilterValue(product.size))
+    .flatMap(getProductDirectSizeValues)
     .filter(isDirectProductSizeLabel));
   return [
     ...TILE_SIZES.filter((size) => productSizes.includes(size)),
@@ -1629,6 +1703,7 @@ function syncProductFilters(config = {}) {
   const type = document.querySelector("#mainCategoryFilter")?.value || "all";
   const kindFilter = document.querySelector("#kindFilter");
   const sizeFilter = document.querySelector("#sizeFilter");
+  const thicknessFilter = document.querySelector("#thicknessFilter");
   const brandFilter = document.querySelector("#productBrandFilter");
   const originFilter = document.querySelector("#originFilter");
   const optionFilter = document.querySelector("#optionFilter");
@@ -1639,6 +1714,7 @@ function syncProductFilters(config = {}) {
   const previousBrand = config.resetSubFilters ? "all" : brandFilter?.value || "all";
   const previousOrigin = config.resetSubFilters ? "all" : originFilter?.value || "all";
   const previousSize = config.resetSubFilters ? "all" : sizeFilter?.value || "all";
+  const previousThickness = config.resetSubFilters ? "all" : thicknessFilter?.value || "all";
   const previousOption = config.resetSubFilters ? "all" : optionFilter?.value || "all";
   const previousPatternCategory = config.resetSubFilters ? "all" : patternCategoryFilter?.value || "all";
   const previousFinish = config.resetSubFilters ? "all" : finishFilter?.value || "all";
@@ -1672,11 +1748,16 @@ function syncProductFilters(config = {}) {
   const patternCategories = sortDirectTileStyleValues(filteredByOption.flatMap(getProductDirectTileCategories));
   const selectedPatternCategory = fillProductFilterSelect(patternCategoryFilter, patternCategories, previousPatternCategory, "전체", { preserveOrder: true });
   const filteredForSize = getDirectProductSizeScope(filteredByOrigin, selectedOption, selectedPatternCategory);
-  const sizes = getDirectProductSizes(filteredForSize);
-  const finishes = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectFinishValues));
-  const colors = sortDirectProductFilterValues(filteredForSize.flatMap(getProductDirectColorValues));
+  const sizeOptionScope = filteredForSize.filter((product) => productMatchesDirectFilter(product, previousThickness, getProductDirectThicknessValues));
+  const sizes = getDirectProductSizes(sizeOptionScope);
+  const selectedSize = fillProductFilterSelect(sizeFilter, sizes, previousSize);
+  const thicknessOptionScope = filteredForSize.filter((product) => productMatchesDirectFilter(product, selectedSize, getProductDirectSizeValues));
+  const thicknesses = sortDirectProductFilterValues(thicknessOptionScope.flatMap(getProductDirectThicknessValues));
+  const selectedThickness = fillProductFilterSelect(thicknessFilter, thicknesses, previousThickness);
+  const filteredForAttributes = thicknessOptionScope.filter((product) => productMatchesDirectFilter(product, selectedThickness, getProductDirectThicknessValues));
+  const finishes = sortDirectProductFilterValues(filteredForAttributes.flatMap(getProductDirectFinishValues));
+  const colors = sortDirectProductFilterValues(filteredForAttributes.flatMap(getProductDirectColorValues));
 
-  fillProductFilterSelect(sizeFilter, sizes, previousSize);
   fillProductFilterSelect(finishFilter, finishes, previousFinish);
   fillProductFilterSelect(colorFilter, colors, previousColor);
   syncTileFinderBrandFilter();
@@ -1876,6 +1957,8 @@ function getProductPageState() {
       productMatchesDirectOptionFilter,
       matchesTileFeatureFilter,
       productMatchesDirectFilter,
+      getProductDirectSizeValues,
+      getProductDirectThicknessValues,
       getProductDirectTileCategories,
       getProductDirectFinishValues,
       getProductDirectColorValues,
@@ -2023,6 +2106,7 @@ function buildProductCardHtml(product, state = null) {
 function getProductCardCallbacks() {
   return {
     escapeHtml,
+    getProductDisplaySize,
     getProductDisplayColor,
     getProductDisplayFinish,
     getProductExpertReasons,
@@ -2048,7 +2132,7 @@ function renderProductExpertGuide(state = getProductPageState()) {
     const chips = getProductExpertIntentChips(state);
     intentWrap.innerHTML = chips.length
       ? chips.map((chip) => `<span>${escapeHtml(chip)}</span>`).join("")
-      : `<span>공간, 용도, 색상, 스타일, 사이즈, 마감을 자연어로 입력해보세요.</span>`;
+      : `<span>공간, 용도, 색상, 스타일, 사이즈, 두께, 마감을 자연어로 입력해보세요.</span>`;
   }
   if (comment) comment.textContent = getProductExpertComment(state);
   if (suggestionWrap) {
@@ -2059,7 +2143,7 @@ function renderProductExpertGuide(state = getProductPageState()) {
           ${escapeHtml(item.label)} <small>${number(item.count)}</small>
         </button>
       `).join("")
-      : `<span>${hasKeyword || hasFilter ? "더 좁힐 조건이 부족합니다. 검색어를 조금 넓혀보세요." : "검색하면 색상, 마감, 사이즈, 스타일 추천 버튼이 나타납니다."}</span>`;
+      : `<span>${hasKeyword || hasFilter ? "더 좁힐 조건이 부족합니다. 검색어를 조금 넓혀보세요." : "검색하면 색상, 마감, 사이즈, 두께, 스타일 추천 버튼이 나타납니다."}</span>`;
   }
 }
 
@@ -2074,6 +2158,7 @@ function getProductExpertIntentChips(state) {
   add("스타일", state.patternCategory);
   add("원산지", state.origin);
   add("사이즈", state.size);
+  add("두께", state.thickness);
   add("마감", state.finish);
   add("색상", state.color);
   if (state.naturalIntent?.active) {
@@ -2106,7 +2191,8 @@ function getProductExpertSuggestions(state) {
   const groups = [
     { filter: "color", label: "색상", selector: "#colorFilter", values: getProductDirectColorValues, intentValues: state.naturalIntent?.colors || [] },
     { filter: "finish", label: "마감", selector: "#finishFilter", values: getProductDirectFinishValues, intentValues: state.naturalIntent?.finishes || [] },
-    { filter: "size", label: "사이즈", selector: "#sizeFilter", values: (product) => [product.size].filter(Boolean), intentValues: state.naturalIntent?.sizes || [] },
+    { filter: "size", label: "사이즈", selector: "#sizeFilter", values: getProductDirectSizeValues, intentValues: state.naturalIntent?.sizes || [] },
+    { filter: "thickness", label: "두께", selector: "#thicknessFilter", values: getProductDirectThicknessValues, intentValues: [] },
     { filter: "patternCategory", label: "스타일", selector: "#patternCategoryFilter", values: getProductDirectTileCategories, intentValues: state.naturalIntent?.styles || [] }
   ];
   const suggestions = [];
@@ -2148,6 +2234,7 @@ function handleExpertSearchSuggestionClick(event) {
     color: "#colorFilter",
     finish: "#finishFilter",
     size: "#sizeFilter",
+    thickness: "#thicknessFilter",
     patternCategory: "#patternCategoryFilter"
   };
   const selector = selectorByFilter[button.dataset.expertFilter];
@@ -2156,7 +2243,7 @@ function handleExpertSearchSuggestionClick(event) {
   const value = button.dataset.expertValue || "all";
   if (![...control.options].some((option) => option.value === value)) return;
   control.value = value;
-  if (button.dataset.expertFilter === "patternCategory") syncProductFilters();
+  if (["patternCategory", "size", "thickness"].includes(button.dataset.expertFilter)) syncProductFilters();
   productCurrentPage = 1;
   renderProducts();
   document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2166,7 +2253,8 @@ function getProductExpertReasons(product, state) {
   if (!state || (!state.keyword && state.activeFilters === 0)) return [];
   const reasons = [];
   const normalized = product.productType === "tile" ? getNormalizedTaxonomyProductForProduct(product) : null;
-  if (state.size !== "all" && product.size === state.size) reasons.push(`사이즈 ${product.size}`);
+  if (state.size !== "all" && getProductDirectSizeValues(product).includes(state.size)) reasons.push(`사이즈 ${state.size}`);
+  if (state.thickness !== "all" && getProductDirectThicknessValues(product).includes(state.thickness)) reasons.push(`두께 ${state.thickness}`);
   if (state.origin !== "all" && getProductDirectOriginValues(product).includes(state.origin)) reasons.push(`원산지 ${state.origin}`);
   if (state.finish !== "all" && getProductDirectFinishValues(product).includes(state.finish)) reasons.push(`마감 ${state.finish}`);
   if (state.color !== "all" && getProductDirectColorValues(product).includes(state.color)) reasons.push(`색상 ${state.color}`);
@@ -5454,6 +5542,8 @@ function getProductDetailCallbacks() {
     getProductImage,
     getProductDetailPriceSpecs,
     getAdminProductBrandLabel,
+    getProductDisplaySize,
+    getProductDisplayThickness,
     hasStockValue,
     formatStockQuantity,
     getProductStockText

@@ -45,13 +45,20 @@
     const stockText = callbacks.getProductStockText
       ? callbacks.getProductStockText(product)
       : String(product.stockText || "").trim();
+    const displaySize = callbacks.getProductDisplaySize
+      ? callbacks.getProductDisplaySize(product)
+      : product.size || "-";
+    const displayThickness = callbacks.getProductDisplayThickness
+      ? callbacks.getProductDisplayThickness(product)
+      : "-";
     return [
       ...(product.managementCode ? [["내부관리 상품코드", product.managementCode]] : []),
       ...(callbacks.isAdmin ? buildAdminSpecs(product, callbacks) : []),
       ["대분류", callbacks.productTypeLabels[product.productType] || product.productType || "-"],
       ["종류", product.kind || "-"],
       ["품명", product.name || "-"],
-      ["규격", product.size || "-"],
+      ["사이즈", displaySize],
+      ["두께", displayThickness],
       ["패턴 카테고리", product.patternCategory || "-"],
       ["제조사", product.maker || "-"],
       ["단위", product.unit || "-"],

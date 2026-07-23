@@ -743,7 +743,7 @@
             <div class="catalog-toolbar-copy">
               <p class="eyebrow">Browse Catalog</p>
               <h3>카테고리와 조건을 직접 골라 상품을 좁혀보세요.</h3>
-              <p>사이즈, 용도, 색상, 마감, 재고 조건을 직접 선택해서 원하는 상품만 빠르게 확인할 수 있습니다.</p>
+              <p>사이즈, 두께, 용도, 색상, 마감, 재고 조건을 직접 선택해서 원하는 상품만 빠르게 확인할 수 있습니다.</p>
             </div>
             <div class="catalog-summary-card">
               <strong>추천 탐색 흐름</strong>
@@ -783,6 +783,10 @@
             <label>
               사이즈
               <select id="sizeFilter"></select>
+            </label>
+            <label>
+              두께
+              <select id="thicknessFilter"></select>
             </label>
             <label>
               대분류
@@ -2419,16 +2423,16 @@
 
     <script src="products-db.js?v=20260710-products-db-sync1"></script>
     <script src="src/client/shared/product-dto.js?v=20260710-module-split1"></script>
-    <script src="src/client/features/products/filter-snapshot.js?v=20260710-module-split1"></script>
-    <script src="src/client/features/products/product-page-state.js?v=20260710-module-split2"></script>
+    <script src="src/client/features/products/filter-snapshot.js?v=20260723-size-thickness1"></script>
+    <script src="src/client/features/products/product-page-state.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/products/product-search-text.js?v=20260710-module-split3"></script>
-    <script src="src/client/features/products/product-cards.js?v=20260710-module-split4"></script>
-    <script src="src/client/features/products/product-detail.js?v=20260713-hs-stock1"></script>
+    <script src="src/client/features/products/product-cards.js?v=20260723-size-thickness1"></script>
+    <script src="src/client/features/products/product-detail.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/cart/cart-tile-metrics.js?v=20260710-module-split5"></script>
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260723-size-use-filter1"></script>
+    <script src="app.js?v=20260723-size-thickness1"></script>
   </body>
 </html>
