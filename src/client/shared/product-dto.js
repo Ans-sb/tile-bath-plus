@@ -64,13 +64,17 @@
 
   function mapPublicProductForClient(product, options = {}) {
     const includeMemberPrices = Boolean(options.includeMemberPrices);
+    const isSnt = isSntProduct(product);
+    const customerName = getCustomerSafeProductName(product);
     return stripCustomerSensitiveProductFields({
       id: product?.id,
       productType: product?.productType,
-      kind: product?.kind,
-      name: product?.name,
+      kind: isSnt ? product?.option || "타일" : product?.kind,
+      name: customerName,
       size: product?.size,
-      modelName: product?.modelName,
+      modelName: isSnt && String(product?.modelName || "").trim() === String(product?.name || "").trim()
+        ? customerName
+        : product?.modelName,
       material: product?.material,
       surface: product?.surface,
       patternCategory: product?.patternCategory,
@@ -99,6 +103,24 @@
       fluorescentImage: product?.fluorescentImage,
       sceneImage: product?.sceneImage
     });
+  }
+
+  function isSntProduct(product) {
+    if (/^snt-/i.test(String(product?.id || "").trim())) return true;
+    return [
+      product?.catalogSource,
+      product?.maker,
+      product?.kind,
+      product?.majorCategory,
+      product?.brand,
+      product?.internalBrandCode
+    ].some((value) => /^snt$/i.test(String(value || "").trim()));
+  }
+
+  function getCustomerSafeProductName(product) {
+    const name = String(product?.name || "").trim();
+    if (!isSntProduct(product)) return name;
+    return name.replace(/^SNT(?:\s*[-_/]\s*|\s+)/i, "").trim() || "타일 샘플";
   }
 
   global.TbpProductDto = {

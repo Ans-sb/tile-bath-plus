@@ -48,13 +48,16 @@ function createProductResponseMapper({
     mapPublicProduct(product) {
       const customerProduct = normalizeCustomerProductClassification(product);
       const shouldHideStock = isHsBrandProduct(customerProduct);
+      const customerName = getCustomerSafeProductName(customerProduct);
       return stripCustomerSensitiveProductFields({
         id: String(customerProduct.id || "").trim(),
         productType: String(customerProduct.productType || "").trim(),
         kind: getPublicProductGroup(customerProduct),
-        name: String(customerProduct.name || "").trim(),
+        name: customerName,
         size: String(customerProduct.size || "").trim(),
-        modelName: String(customerProduct.modelName || customerProduct.name || "").trim(),
+        modelName: String(customerProduct.modelName || "").trim() === String(customerProduct.name || "").trim()
+          ? customerName
+          : String(customerProduct.modelName || customerName).trim(),
         material: String(customerProduct.material || "").trim(),
         surface: String(customerProduct.surface || "").trim(),
         patternCategory: String(customerProduct.patternCategory || "").trim() || classifyPatternCategory(customerProduct),
@@ -164,6 +167,18 @@ function isHsBrandProduct(product) {
     || /myhwashin|화신/i.test(String(product?.sourceSite || product?.source_site || "").trim());
 }
 
+function isSntProduct(product) {
+  return String(product?.id || "").startsWith("snt-")
+    || /^(SNT)$/i.test(String(product?.catalogSource || product?.catalog_source || "").trim())
+    || /^(SNT)$/i.test(String(product?.maker || product?.kind || product?.majorCategory || "").trim());
+}
+
+function getCustomerSafeProductName(product) {
+  const name = String(product?.name || "").trim();
+  if (!isSntProduct(product)) return name;
+  return name.replace(/^SNT(?:\s*[-_/]\s*|\s+)/i, "").trim() || "타일 샘플";
+}
+
 function stripCustomerSensitiveProductFields(product) {
   const safe = {};
   for (const [key, value] of Object.entries(product || {})) {
@@ -255,7 +270,7 @@ function getPublicPriceSortRank(product) {
 
 function getPublicProductGroup(product) {
   const productType = String(product.productType || "").trim();
-  const internalCodes = new Set(["AJ", "VG", "US", "SG", "GT", "HS"]);
+  const internalCodes = new Set(["AJ", "VG", "US", "SG", "GT", "HS", "SNT"]);
   const semanticKind = String(product.kind || "").trim();
   if (["sanitary", "faucet", "accessory", "material"].includes(productType) && semanticKind && !internalCodes.has(semanticKind.toUpperCase())) {
     return semanticKind;
