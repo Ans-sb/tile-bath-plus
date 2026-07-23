@@ -2583,8 +2583,8 @@ async function findSimilarTilesByImage(payload, context = {}) {
   const searchMode = String(payload?.searchMode || "").trim() === "global" ? "global" : "strict";
   const allSimilar = payload?.allSimilar !== false;
   const limit = allSimilar
-    ? Number.MAX_SAFE_INTEGER
-    : Math.min(Math.max(Number(payload?.limit) || 12, 4), 60);
+    ? 50
+    : Math.min(Math.max(Number(payload?.limit) || 12, 4), 50);
   if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(imageDataUrl)) {
     throw new Error("타일 사진을 다시 업로드해주세요.");
   }
