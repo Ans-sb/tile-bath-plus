@@ -5242,7 +5242,8 @@ function renderTaxonomyImageResults(matches, options = {}) {
 
 function renderImageSearchProductCard(product) {
   const reason = (product?.matchReasons || []).slice(0, 3).join(" · ") || "이미지 유사 후보";
-  const scoreBadge = `<span class="image-search-match-score" title="${escapeHtml(reason)}">유사도 ${number(product?.matchScore || 0)}</span>`;
+  const score = number(product?.matchScore || 0);
+  const scoreBadge = `<span class="image-search-match-score" title="${escapeHtml(`유사도 ${score} · ${reason}`)}" aria-label="유사도 ${score}">${score}%</span>`;
   return buildProductCardHtml(product, null)
     .replace('class="product-card"', 'class="product-card image-search-product-card"')
     .replace(/(<button type="button" data-add-product=)/, `${scoreBadge}$1`);
