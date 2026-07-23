@@ -51,6 +51,9 @@
     const displayThickness = callbacks.getProductDisplayThickness
       ? callbacks.getProductDisplayThickness(product)
       : "-";
+    const displayOrigin = callbacks.getProductDisplayOrigin
+      ? callbacks.getProductDisplayOrigin(product)
+      : product.countryOfOrigin || "-";
     return [
       ...(product.managementCode ? [["내부관리 상품코드", product.managementCode]] : []),
       ...(callbacks.isAdmin ? buildAdminSpecs(product, callbacks) : []),
@@ -59,6 +62,7 @@
       ["품명", product.name || "-"],
       ["사이즈", displaySize],
       ["두께", displayThickness],
+      ["원산지", displayOrigin],
       ["패턴 카테고리", product.patternCategory || "-"],
       ["제조사", product.maker || "-"],
       ["단위", product.unit || "-"],

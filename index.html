@@ -808,10 +808,6 @@
               <select id="patternCategoryFilter"></select>
             </label>
             <label>
-              원산지
-              <select id="originFilter"></select>
-            </label>
-            <label>
               마감
               <select id="finishFilter"></select>
             </label>
@@ -849,6 +845,16 @@
                   <span>검색 후 추천 필터가 표시됩니다.</span>
                 </div>
               </article>
+            </div>
+            <div class="product-result-origin-option hidden" id="productResultOriginOption">
+              <div>
+                <strong>검색 결과 옵션</strong>
+                <span>검색된 상품을 원산지로 한 번 더 좁힐 수 있습니다.</span>
+              </div>
+              <label>
+                원산지
+                <select id="originFilter"></select>
+              </label>
             </div>
           </section>
           <div class="customer-list-header">
@@ -904,7 +910,6 @@
             <label class="admin-only" id="taxonomyAxisField">
               보기 축
               <select id="taxonomyAxisFilter">
-                <option value="originRegion">원산지</option>
                 <option value="applicationCategories">제품군 / 사용군</option>
                 <option value="mainColor">색상</option>
                 <option value="styleCategories">디자인 / 패턴</option>
@@ -919,10 +924,9 @@
               브랜드
               <select id="taxonomyBrandFilter"></select>
             </label>
-            <label>
-              원산지
-              <select id="taxonomyOriginFilter"></select>
-            </label>
+            <select class="visually-hidden" id="taxonomyOriginFilter" aria-hidden="true" tabindex="-1">
+              <option value="all">전체</option>
+            </select>
             <label>
               제품군 / 사용군
               <select id="taxonomyApplicationFilter"></select>
@@ -2427,12 +2431,12 @@
     <script src="src/client/features/products/product-page-state.js?v=20260723-size-thickness1"></script>
     <script src="src/client/features/products/product-search-text.js?v=20260710-module-split3"></script>
     <script src="src/client/features/products/product-cards.js?v=20260723-size-thickness1"></script>
-    <script src="src/client/features/products/product-detail.js?v=20260723-size-thickness1"></script>
+    <script src="src/client/features/products/product-detail.js?v=20260723-origin-result1"></script>
     <script src="src/client/features/cart/cart-tile-metrics.js?v=20260710-module-split5"></script>
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260723-size-thickness1"></script>
+    <script src="app.js?v=20260723-origin-result1"></script>
   </body>
 </html>

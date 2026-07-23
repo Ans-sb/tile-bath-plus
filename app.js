@@ -176,7 +176,7 @@ let taxonomyResultFacetFilters = {};
 let taxonomyCurrentPage = 1;
 let taxonomySortMode = "match";
 const TAXONOMY_PAGE_SIZE = 10;
-const VISIBLE_TAXONOMY_RESULT_FACET_KEYS = new Set(["mainColor", "finishGroup", "sizeLabel", "styleCategories"]);
+const VISIBLE_TAXONOMY_RESULT_FACET_KEYS = new Set(["mainColor", "finishGroup", "sizeLabel", "styleCategories", "originRegion"]);
 let tileFinderImageDataUrl = "";
 let tileFinderImageFileName = "";
 let tileFinderEditableAnalysis = createEmptyTileFinderEditableAnalysis();
@@ -1655,6 +1655,20 @@ function getProductDisplayFinish(product) {
   return getProductDirectFinishValues(product)[0] || product.finish || product.surface || product.option || "미확인";
 }
 
+function getProductDisplayOrigin(product) {
+  const item = product?.productType === "tile"
+    ? getNormalizedTaxonomyProductForProduct(product)
+    : null;
+  return [
+    item?.originCountry,
+    product?.countryOfOrigin,
+    item?.originRegion
+  ]
+    .map(normalizeDirectProductFilterValue)
+    .find((value) => value && !/미확인/.test(value))
+    || "미확인";
+}
+
 function getProductAdminBrandLabel(product) {
   return [
     product?.catalogSource,
@@ -2127,6 +2141,7 @@ function renderProductExpertGuide(state = getProductPageState()) {
   const hasKeyword = Boolean(state.keyword);
   const hasNaturalIntent = state.naturalIntent?.active && hasActiveTaxonomyIntentCriteria(state.naturalIntent);
   const hasFilter = state.activeFilters > 0;
+  document.querySelector("#productResultOriginOption")?.classList.toggle("hidden", !hasKeyword && !hasFilter);
   if (mode) mode.textContent = hasNaturalIntent ? "전문가 검색 중" : hasFilter ? "조건 탐색 중" : "검색 전";
   if (intentWrap) {
     const chips = getProductExpertIntentChips(state);
@@ -2788,7 +2803,7 @@ function syncTaxonomyAudienceControls() {
   const axisFilter = document.querySelector("#taxonomyAxisFilter");
   const brandAxisOption = axisFilter?.querySelector('option[value="internalBrandCode"]');
   if (brandAxisOption) brandAxisOption.hidden = !isAdmin;
-  if (!isAdmin && axisFilter?.value === "internalBrandCode") axisFilter.value = "originRegion";
+  if (!isAdmin && axisFilter?.value === "internalBrandCode") axisFilter.value = "applicationCategories";
 }
 
 function ensureTaxonomyAdminAudienceDefault() {
@@ -3038,7 +3053,7 @@ function getCurrentTaxonomySearchIntent() {
     taxonomyResultFacetFilters = {};
     taxonomyCurrentPage = 1;
   }
-  return augmentTaxonomyIntentWithAssistOptions(parseTaxonomyNaturalSearch(raw, getTaxonomyAudienceMode()));
+  return augmentTaxonomyIntentWithAssistOptions(parseProductNaturalSearch(raw, getTaxonomyAudienceMode()));
 }
 
 function augmentTaxonomyIntentWithAssistOptions(intent) {
@@ -3515,7 +3530,7 @@ function renderTaxonomyResultFacets(intent, baseFiltered, filtered) {
   const wrap = document.querySelector("#taxonomyIntentChips");
   if (!wrap) return;
   if (!intent?.active) {
-    wrap.innerHTML = `<span><strong>검색 대기</strong> 먼저 자연어로 검색하면 결과 안에서 색상, 마감, 규격, 디자인 필터가 나타납니다.</span>`;
+    wrap.innerHTML = `<span><strong>검색 대기</strong> 먼저 자연어로 검색하면 결과 안에서 색상, 마감, 규격, 디자인, 원산지 필터가 나타납니다.</span>`;
     return;
   }
   const facetGroups = buildTaxonomyResultFacetGroups(baseFiltered);
@@ -3528,7 +3543,7 @@ function renderTaxonomyResultFacets(intent, baseFiltered, filtered) {
     ? `<button class="taxonomy-intent-reset" type="button" data-taxonomy-reset-facets>결과 필터 초기화</button>`
     : "";
   wrap.innerHTML = visibleFacetGroups.length
-    ? `<span class="taxonomy-intent-help"><strong>결과 필터</strong>${number(baseFiltered.length)}개 검색 결과 안에서 색상, 마감, 규격, 디자인만 좁혀보세요. 현재 ${number(filtered.length)}개 표시 중입니다.</span>${reset}${visibleFacetGroups.map(renderTaxonomyFacetGroup).join("")}`
+    ? `<span class="taxonomy-intent-help"><strong>결과 필터</strong>${number(baseFiltered.length)}개 검색 결과 안에서 색상, 마감, 규격, 디자인, 원산지를 좁혀보세요. 현재 ${number(filtered.length)}개 표시 중입니다.</span>${reset}${visibleFacetGroups.map(renderTaxonomyFacetGroup).join("")}`
     : `<span><strong>결과 필터 없음</strong>${number(filtered.length)}개 후보를 점수순으로 정렬했습니다.</span>`;
 }
 
@@ -3543,7 +3558,7 @@ function buildTaxonomyResultFacetGroups(items) {
     { key: "sizeLabel", label: "규격", limit: 12, visibleInResultFilters: true },
     { key: "styleCategories", label: "디자인", limit: 10, visibleInResultFilters: true },
     { key: "finishDetail", label: "세부 마감", limit: 10, visibleInResultFilters: false },
-    { key: "originRegion", label: "원산지", limit: 10, visibleInResultFilters: false },
+    { key: "originRegion", label: "원산지", limit: 10, visibleInResultFilters: true },
     { key: "thickness", label: "두께", limit: 10, visibleInResultFilters: false },
     { key: "applicationCategories", label: "제품군", limit: 10, visibleInResultFilters: false },
     { key: "materialCategory", label: "소재", limit: 10, visibleInResultFilters: false },
@@ -3655,7 +3670,6 @@ function renderTaxonomyCollectionCard(collection) {
   const displayTitle = isAdmin ? collection.title : collection.customerTitle || collection.title;
   const tags = unique([
     ...collection.styles.slice(0, 2),
-    collection.origin,
     ...collection.applications.slice(0, 2),
     ...collection.functions.slice(0, 2)
   ]).slice(0, 6);
@@ -3668,7 +3682,7 @@ function renderTaxonomyCollectionCard(collection) {
         <div>
           ${isAdmin ? `<span class="product-code-badge">${escapeHtml(collection.brand)} / ${escapeHtml(collection.internalBrandName || "내부브랜드")}</span>` : ""}
           <strong>${escapeHtml(displayTitle)}</strong>
-          <p>${escapeHtml(collection.origin || "원산지 미확인")} · ${escapeHtml(collection.color || "색상 미확인")} · ${escapeHtml(collection.style || "디자인 미확인")} · ${escapeHtml(collection.finish || "마감 미확인")}</p>
+          <p>${escapeHtml(collection.color || "색상 미확인")} · ${escapeHtml(collection.style || "디자인 미확인")} · ${escapeHtml(collection.finish || "마감 미확인")}</p>
         </div>
         <div class="taxonomy-mini-grid">
           <span>SKU ${number(collection.products.length)}개</span>
@@ -5544,6 +5558,7 @@ function getProductDetailCallbacks() {
     getAdminProductBrandLabel,
     getProductDisplaySize,
     getProductDisplayThickness,
+    getProductDisplayOrigin,
     hasStockValue,
     formatStockQuantity,
     getProductStockText
