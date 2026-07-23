@@ -61,6 +61,122 @@ const PRODUCT_TYPE_LABELS = {
   accessory: "악세사리",
   material: "부자재"
 };
+const BATH_PRODUCT_PAGE_SIZE = 20;
+const BATH_PRODUCT_CATEGORIES = [
+  {
+    id: "all",
+    label: "전체",
+    title: "전체 상품",
+    description: "바스GO의 전체 욕실 상품입니다.",
+    subcategories: []
+  },
+  {
+    id: "faucet",
+    label: "수전",
+    title: "수전",
+    description: "설치 위치와 사용 목적에 맞는 수전을 찾아보세요.",
+    subcategories: [
+      { id: "kitchen", label: "싱크대수전", terms: ["싱크대수전", "싱크수전", "주방수전", "주방용"] },
+      { id: "basin", label: "세면 수전", terms: ["세면수전", "세면 수전", "세면용", "원홀세면"] },
+      { id: "shower", label: "샤워 수전", terms: ["샤워수전", "샤워 수전", "샤워기"] },
+      { id: "bath-shower", label: "욕조 샤워 수전", terms: ["욕조수전", "욕조 수전", "샤워욕조수전", "욕조 샤워"] },
+      { id: "washer", label: "세탁기 수전", terms: ["세탁기수전", "세탁 수전", "세탁기"] },
+      { id: "parts", label: "수전 부품", terms: ["수전부품", "수전 부품", "커플링", "카트리지", "밸브", "연결구"] }
+    ]
+  },
+  {
+    id: "basin",
+    label: "세면대",
+    title: "세면대",
+    description: "설치 방식에 맞춰 세면대를 선택할 수 있습니다.",
+    subcategories: [
+      { id: "top", label: "탑볼형 세면대", terms: ["탑볼", "탑카운터"] },
+      { id: "under", label: "매립형 세면대", terms: ["언더볼", "매립형", "매립세면", "카운터형", "카운터 세면"] },
+      { id: "wall-half", label: "벽걸이형 / 반다리 세면대", terms: ["벽걸이", "반다리"] },
+      { id: "pedestal", label: "긴다리 세면대", terms: ["긴다리", "페데스탈", "pedestal"] },
+      { id: "standing", label: "스탠딩 세면대", terms: ["스탠딩", "독립형", "원통세면", "기둥형"] },
+      { id: "tile-basin", label: "타일세면대", terms: ["타일세면", "타일 세면"] },
+      { id: "parts", label: "세면대 부품", terms: ["세면대부품", "세면 부품", "세면기부품", "폽업", "팝업", "트랩"] }
+    ]
+  },
+  {
+    id: "bathtub",
+    label: "욕조",
+    title: "욕조",
+    description: "공간과 시공 방식에 맞는 욕조를 찾아보세요.",
+    subcategories: [
+      { id: "built-in", label: "매립식욕조", terms: ["매립식욕조", "매립 욕조", "매립식"] },
+      { id: "freestanding", label: "이동식욕조", terms: ["이동식욕조", "이동식 욕조", "이동식", "프리스탠딩", "독립형욕조"] },
+      { id: "whirlpool", label: "월풀욕조", terms: ["월풀욕조", "월풀 욕조", "스파욕조"] },
+      { id: "apron", label: "에이프런", terms: ["에이프런", "앞치마"] }
+    ]
+  },
+  {
+    id: "toilet",
+    label: "양변기",
+    title: "양변기 · 비데 · 소변기",
+    description: "양변기 타입과 비데, 소변기를 함께 확인할 수 있습니다.",
+    subcategories: [
+      { id: "one-piece", label: "원피스", terms: ["원피스", "onepiece", "one piece"] },
+      { id: "two-piece", label: "투피스", terms: ["투피스", "twopiece", "two piece"] },
+      { id: "integrated-bidet", label: "비데 일체형", terms: ["비데일체형", "비데 일체형", "일체형비데", "스마트변기"] },
+      { id: "seat-bidet", label: "시트 비데", terms: ["시트비데", "시트 비데", "전자비데", "비데"] },
+      { id: "urinal", label: "소변기", terms: ["소변기"] },
+      { id: "parts", label: "양변기 부품", terms: ["양변기부품", "변기 부품", "양부속", "물탱크부속", "시트", "정심"] }
+    ]
+  },
+  {
+    id: "cabinet",
+    label: "욕실장",
+    title: "욕실장",
+    description: "수납 방식과 설치 형태에 맞는 욕실장을 선택하세요.",
+    subcategories: [
+      { id: "upper", label: "상부장", terms: ["상부장"] },
+      { id: "upper-lower", label: "상하단장(미니플랩장)", terms: ["상하단장", "미니플랩", "플랩장"] },
+      { id: "slide", label: "슬라이드장", terms: ["슬라이드장", "슬라이딩장"] },
+      { id: "wall-lower", label: "벽걸이 하부장", terms: ["벽걸이하부장", "벽걸이 하부장", "벽부형하부장"] },
+      { id: "leg-lower", label: "다리형 하부장", terms: ["다리형하부장", "다리형 하부장", "스탠드하부장"] }
+    ]
+  },
+  {
+    id: "mirror",
+    label: "거울",
+    title: "거울",
+    description: "조명 유무와 설치 공간에 맞는 거울을 찾아보세요.",
+    subcategories: [
+      { id: "led", label: "LED 거울", terms: ["led거울", "led 거울", "조명거울"] },
+      { id: "standard", label: "일반 거울", terms: ["거울", "미러", "mirror"] }
+    ]
+  },
+  {
+    id: "accessory",
+    label: "욕실악세사리",
+    title: "욕실악세사리",
+    description: "욕실 사용성과 마감을 완성하는 악세사리입니다.",
+    subcategories: [
+      { id: "set", label: "악세사리세트", terms: ["악세사리세트", "액세서리세트", "욕실세트"] },
+      { id: "towel", label: "수건걸이 / 수건선반", terms: ["수건걸이", "수건선반"] },
+      { id: "shelf", label: "선반", terms: ["선반", "젠다이"] },
+      { id: "paper", label: "일반형 휴지걸이", terms: ["휴지걸이", "휴지 걸이"] },
+      { id: "paper-recessed", label: "매립형 휴지걸이", terms: ["매립휴지", "매립형휴지"] },
+      { id: "cup", label: "컵대", terms: ["컵대", "컵걸이"] },
+      { id: "soap", label: "비누대", terms: ["비누대", "비누받침"] },
+      { id: "hook", label: "옷걸이", terms: ["옷걸이", "로브훅", "후크"] },
+      { id: "slide-bar", label: "슬라이드바", terms: ["슬라이드바", "슬라이드 바"] },
+      { id: "shaving-mirror", label: "면도경", terms: ["면도경"] },
+      { id: "drain", label: "유가", terms: ["유가", "배수구", "트렌치"] },
+      { id: "spray", label: "스프레이건", terms: ["스프레이건", "청소건"] },
+      { id: "shower-head", label: "샤워기 헤드", terms: ["샤워헤드", "샤워기헤드", "샤워 호스"] }
+    ]
+  },
+  {
+    id: "new",
+    label: "신상품",
+    title: "신상품",
+    description: "최근 등록되었거나 신상품으로 표시된 욕실 상품입니다.",
+    subcategories: []
+  }
+];
 const PLANNER_THREE_URL = "https://unpkg.com/three@0.164.1/build/three.module.js";
 const PLANNER_PLAN_DESKTOP_WIDTH = 960;
 
@@ -160,6 +276,9 @@ const shortDate = new Intl.DateTimeFormat("ko-KR", {
 
 let products = [];
 let productCurrentPage = 1;
+let bathProductCurrentPage = 1;
+let bathProductCategory = "all";
+let bathProductSubcategory = "all";
 let productPageTransitioning = false;
 let productPageCacheVersion = 0;
 let productPageStateCache = null;
@@ -292,10 +411,10 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage"]);
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
-let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0 };
+let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0, sourcePageId: "productsPage" };
 let suppressHistoryState = false;
 let serverConnection = { online: false, checked: false, failures: 0 };
 let serverConnectionTimer = null;
@@ -659,6 +778,55 @@ function bindEvents() {
     openProductDetail(productCard.dataset.viewProduct, productCard);
   });
 
+  document.querySelector("#bathCategoryTabs")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-bath-category]");
+    if (!button) return;
+    bathProductCategory = button.dataset.bathCategory || "all";
+    bathProductSubcategory = "all";
+    bathProductCurrentPage = 1;
+    renderBathProductsPage();
+  });
+
+  document.querySelector("#bathSubcategoryList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-bath-subcategory]");
+    if (!button) return;
+    bathProductSubcategory = button.dataset.bathSubcategory || "all";
+    bathProductCurrentPage = 1;
+    renderBathProductsPage();
+  });
+
+  ["#bathProductBrandFilter", "#bathProductSearch"].forEach((selector) => {
+    document.querySelector(selector)?.addEventListener("input", () => {
+      bathProductCurrentPage = 1;
+      renderBathProductsPage();
+    });
+  });
+
+  document.querySelector("#bathProductPagination")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-bath-product-page]");
+    if (!button || button.disabled) return;
+    goToBathProductPage(Number(button.dataset.bathProductPage) || 1);
+  });
+
+  document.querySelector("#bathProductList")?.addEventListener("click", (event) => {
+    const addButton = event.target.closest("[data-add-product]");
+    if (addButton) {
+      addToCart(addButton.dataset.addProduct);
+      return;
+    }
+    const productCard = event.target.closest("[data-view-product]");
+    if (productCard) openProductDetail(productCard.dataset.viewProduct, productCard);
+  });
+
+  document.querySelector("#bathProductList")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.target.closest("[data-add-product]")) return;
+    const productCard = event.target.closest("[data-view-product]");
+    if (!productCard) return;
+    event.preventDefault();
+    openProductDetail(productCard.dataset.viewProduct, productCard);
+  });
+
   document.querySelector("#productDetailPage")?.addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-preview-image]");
     if (!trigger) return;
@@ -952,6 +1120,9 @@ async function loadProducts() {
     syncProductFilters();
     renderProducts();
   }
+  if (currentPageId === "bathProductsPage") {
+    renderBathProductsPage();
+  }
 
   try {
     const remoteProducts = await requestJson("/api/products", {}, { retries: 2, timeoutMs: 30000 });
@@ -982,8 +1153,12 @@ async function loadProducts() {
       syncProductFilters();
       renderProducts();
     }
-    if (!products.length && currentPageId === "productsPage") {
-      document.querySelector("#productList").innerHTML = `<div class="empty-state">상품 DB를 불러오지 못했습니다. 서버를 실행하거나 index.html을 다시 열어주세요.</div>`;
+    if (currentPageId === "bathProductsPage") {
+      renderBathProductsPage();
+    }
+    if (!products.length && ["productsPage", "bathProductsPage"].includes(currentPageId)) {
+      const list = document.querySelector(currentPageId === "bathProductsPage" ? "#bathProductList" : "#productList");
+      if (list) list.innerHTML = `<div class="empty-state">상품 DB를 불러오지 못했습니다. 서버를 실행하거나 페이지를 다시 열어주세요.</div>`;
     }
     return;
   }
@@ -991,6 +1166,9 @@ async function loadProducts() {
   if (currentPageId === "productsPage") {
     syncProductFilters();
     renderProducts();
+  }
+  if (currentPageId === "bathProductsPage") {
+    renderBathProductsPage();
   }
 }
 
@@ -1055,13 +1233,19 @@ async function loadStoredNormalizedTaxonomyProducts() {
 }
 
 async function ensureProductsReady() {
-  const currentMarkup = document.querySelector("#productList")?.innerHTML?.trim() || "";
+  const listSelector = currentPageId === "bathProductsPage" ? "#bathProductList" : "#productList";
+  const currentMarkup = document.querySelector(listSelector)?.innerHTML?.trim() || "";
   const needsReload = !products.length || (!productsLoadedFromRemote && (!currentMarkup || currentMarkup.includes("상품 DB를 불러오지 못했습니다")));
   if (!needsReload) return;
 
-  updateProductListStatus("상품 목록을 다시 불러오는 중입니다.");
+  if (currentPageId === "bathProductsPage") {
+    setText("#bathProductStatus", "상품 목록을 다시 불러오는 중입니다.");
+  } else {
+    updateProductListStatus("상품 목록을 다시 불러오는 중입니다.");
+  }
   await loadProducts();
-  renderProducts();
+  if (currentPageId === "bathProductsPage") renderBathProductsPage();
+  else renderProducts();
 }
 
 function loadLocalProducts() {
@@ -1108,6 +1292,7 @@ async function hydrateAdminProducts(options = {}) {
     products = mergeProducts(products, payload.products);
     adminProductsHydrated = true;
     if (currentPageId === "productsPage") syncProductFilters();
+    if (currentPageId === "bathProductsPage") renderBathProductsPage();
     if (options.render) renderAll();
     return true;
   } catch (error) {
@@ -1120,6 +1305,7 @@ function shouldHydrateAdminProductsForCurrentView() {
   if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) return false;
   if (currentPageId === "adminPage") return ["products", "quality", "searchTraining"].includes(currentAdminView);
   return currentPageId === "productsPage"
+    || currentPageId === "bathProductsPage"
     || currentPageId === "taxonomyTestPage"
     || currentPageId === "productDetailPage";
 }
@@ -1772,6 +1958,9 @@ function renderAll() {
   if (currentPageId === "productsPage") {
     renderProducts();
   }
+  if (currentPageId === "bathProductsPage") {
+    renderBathProductsPage();
+  }
   if (currentPageId === "aiTileFinderPage") {
     syncTileFinderBrandFilter();
   }
@@ -1803,11 +1992,277 @@ function renderAll() {
 }
 
 function openProductCategory(productType) {
-  document.querySelector("#mainCategoryFilter").value = productType;
-  document.querySelector("#productSearch").value = "";
-  syncProductFilters({ resetSubFilters: true });
-  renderProducts();
-  switchPage("productsPage");
+  if (productType === "tile") {
+    const categoryFilter = document.querySelector("#mainCategoryFilter");
+    const searchInput = document.querySelector("#productSearch");
+    if (categoryFilter) categoryFilter.value = "tile";
+    if (searchInput) searchInput.value = "";
+    syncProductFilters({ resetSubFilters: true });
+    renderProducts();
+    switchPage("productsPage");
+    return;
+  }
+
+  if (["sanitary", "faucet", "accessory"].includes(productType)) {
+    bathProductCategory = productType === "faucet"
+      ? "faucet"
+      : productType === "accessory"
+        ? "accessory"
+        : "all";
+    bathProductSubcategory = "all";
+    bathProductCurrentPage = 1;
+    const searchInput = document.querySelector("#bathProductSearch");
+    if (searchInput) searchInput.value = "";
+    renderBathProductsPage();
+    switchPage("bathProductsPage");
+    return;
+  }
+
+  switchPage("taxonomyTestPage");
+}
+
+function getBathProductCategory(categoryId) {
+  return BATH_PRODUCT_CATEGORIES.find((category) => category.id === categoryId)
+    || BATH_PRODUCT_CATEGORIES[0];
+}
+
+function getBathProductClassificationText(product) {
+  return normalizeSearchText([
+    product?.name,
+    product?.kind,
+    product?.option,
+    product?.features,
+    product?.material,
+    product?.sourceCategoryName,
+    product?.productType === "material" ? product?.description : ""
+  ].filter(Boolean).join(" "));
+}
+
+function bathTextIncludesAny(text, terms = []) {
+  return terms.some((term) => text.includes(normalizeSearchText(term)));
+}
+
+function isBathProduct(product) {
+  if (!product || product.productType === "tile") return false;
+  if (["sanitary", "faucet", "accessory"].includes(product.productType)) return true;
+  if (product.productType !== "material") return false;
+  const text = getBathProductClassificationText(product);
+  return bathTextIncludesAny(text, [
+    "욕실", "양변기", "소변기", "비데", "세면", "수전", "샤워", "욕조",
+    "거울", "수건걸이", "휴지걸이", "비누대", "유가", "욕실장", "폽업", "팝업", "트랩"
+  ]);
+}
+
+function getBathProductBaseCategoryId(product) {
+  const text = getBathProductClassificationText(product);
+  if (bathTextIncludesAny(text, ["욕실장", "상부장", "하부장", "상하단장", "슬라이드장", "플랩장"])) return "cabinet";
+  if (bathTextIncludesAny(text, ["led거울", "조명거울", "거울", "미러", "mirror"])) return "mirror";
+  if (bathTextIncludesAny(text, [
+    "슬라이드바", "샤워헤드", "샤워기헤드", "샤워호스", "스프레이건"
+  ])) return "accessory";
+  if (bathTextIncludesAny(text, ["스테인리스"]) && bathTextIncludesAny(text, ["45p", "삼각유가", "정심", "편심"])) return "accessory";
+  if (product.productType === "faucet" || bathTextIncludesAny(text, [
+    "수전", "수도꼭지", "싱크대수전", "주방수전", "세면수전", "샤워수전", "주방용", "세면용", "주방원홀"
+  ])) return "faucet";
+  if (bathTextIncludesAny(text, ["욕조", "월풀", "에이프런", "프리스탠딩욕조", "이동식"])) return "bathtub";
+  if (bathTextIncludesAny(text, ["양변기", "변기", "소변기", "비데", "원피스", "투피스", "양부속", "유아용", "초절수", "후레쉬밸브"])) return "toilet";
+  if (!bathTextIncludesAny(text, ["수전"]) && bathTextIncludesAny(text, [
+    "세면대", "세면기", "수채", "탑볼", "언더볼", "반다리", "긴다리", "페데스탈",
+    "유리볼", "기둥형", "벽걸이(lar)", "p트랩", "오버캡"
+  ])) return "basin";
+  if (product.productType === "accessory" || bathTextIncludesAny(text, [
+    "악세사리", "액세서리", "수건", "휴지", "비누", "선반", "유가", "배수구",
+    "옷걸이", "면도경", "젠다이", "컵대"
+  ])) return "accessory";
+  return "other";
+}
+
+function isNewBathProduct(product) {
+  if (product?.isNew === true || product?.newArrival === true) return true;
+  return bathTextIncludesAny(getBathProductClassificationText(product), ["신상품", "newarrival"]);
+}
+
+function getBathProductSubcategoryId(product, categoryId) {
+  const category = getBathProductCategory(categoryId);
+  if (!category.subcategories.length) return "all";
+  const text = getBathProductClassificationText(product);
+  const priority = categoryId === "faucet"
+    ? ["bath-shower", "kitchen", "basin", "washer", "parts", "shower"]
+    : categoryId === "accessory"
+      ? ["paper-recessed", "shower-head", "slide-bar", "shaving-mirror", "spray", "set", "towel", "paper", "cup", "soap", "hook", "drain", "shelf"]
+      : category.subcategories.map((subcategory) => subcategory.id);
+  for (const subcategoryId of priority) {
+    const subcategory = category.subcategories.find((item) => item.id === subcategoryId);
+    if (subcategory && bathTextIncludesAny(text, subcategory.terms)) return subcategory.id;
+  }
+  return "other";
+}
+
+function productMatchesBathCategory(product, categoryId = bathProductCategory) {
+  if (categoryId === "all") return true;
+  if (categoryId === "new") return isNewBathProduct(product);
+  return getBathProductBaseCategoryId(product) === categoryId;
+}
+
+function syncBathProductBrandFilter(scopeProducts) {
+  const brandFilter = document.querySelector("#bathProductBrandFilter");
+  if (!brandFilter) return "all";
+  if (!isAdminUser()) {
+    brandFilter.innerHTML = `<option value="all">전체</option>`;
+    brandFilter.value = "all";
+    return "all";
+  }
+  const previousBrand = brandFilter.value || "all";
+  const brands = sortDirectProductFilterValues(scopeProducts.map(getProductAdminBrandLabel).filter(Boolean));
+  return fillProductFilterSelect(brandFilter, brands, previousBrand, "전체");
+}
+
+function getFilteredBathProducts(allBathProducts, selectedBrand) {
+  const normalizedKeyword = normalizeSearchText(document.querySelector("#bathProductSearch")?.value || "");
+  return allBathProducts
+    .filter((product) => productMatchesAdminBrandFilter(product, selectedBrand))
+    .filter((product) => productMatchesBathCategory(product))
+    .filter((product) => bathProductSubcategory === "all"
+      || getBathProductSubcategoryId(product, bathProductCategory) === bathProductSubcategory)
+    .filter((product) => !normalizedKeyword || getProductSearchableText(product).includes(normalizedKeyword))
+    .sort(compareProductsForDisplay);
+}
+
+function renderBathProductsPage() {
+  const tabs = document.querySelector("#bathCategoryTabs");
+  const subcategoryList = document.querySelector("#bathSubcategoryList");
+  const productList = document.querySelector("#bathProductList");
+  if (!tabs || !subcategoryList || !productList) return;
+
+  const allBathProducts = products.filter(isBathProduct);
+  const selectedBrand = syncBathProductBrandFilter(allBathProducts);
+  const category = getBathProductCategory(bathProductCategory);
+  if (category.id !== bathProductCategory) {
+    bathProductCategory = category.id;
+    bathProductSubcategory = "all";
+  }
+
+  tabs.innerHTML = BATH_PRODUCT_CATEGORIES.map((item) => {
+    const count = allBathProducts.filter((product) => productMatchesBathCategory(product, item.id)).length;
+    const active = item.id === bathProductCategory;
+    return `<button type="button" class="bath-category-tab ${active ? "is-active" : ""}" data-bath-category="${escapeHtml(item.id)}" ${active ? "aria-current=\"page\"" : ""}>
+      <span>${escapeHtml(item.label)}</span><small>${number(count)}</small>
+    </button>`;
+  }).join("");
+
+  setText("#bathCategoryTitle", category.title);
+  setText("#bathCategoryDescription", category.description);
+  const categoryProducts = allBathProducts.filter((product) => productMatchesBathCategory(product, category.id));
+  const subcategoryButtons = category.subcategories.map((subcategory) => {
+    const count = categoryProducts.filter((product) => getBathProductSubcategoryId(product, category.id) === subcategory.id).length;
+    const active = bathProductSubcategory === subcategory.id;
+    return `<button type="button" class="bath-subcategory-button ${active ? "is-active" : ""}" data-bath-subcategory="${escapeHtml(subcategory.id)}">
+      <span>${escapeHtml(subcategory.label)}</span><small>${number(count)}</small>
+    </button>`;
+  });
+  if (category.subcategories.length) {
+    const allActive = bathProductSubcategory === "all";
+    subcategoryList.innerHTML = [
+      `<button type="button" class="bath-subcategory-button ${allActive ? "is-active" : ""}" data-bath-subcategory="all"><span>전체</span><small>${number(categoryProducts.length)}</small></button>`,
+      ...subcategoryButtons
+    ].join("");
+  } else {
+    bathProductSubcategory = "all";
+    subcategoryList.innerHTML = `<span class="bath-subcategory-empty">세부 품목을 선택하지 않아도 전체 상품을 볼 수 있습니다.</span>`;
+  }
+
+  const filtered = getFilteredBathProducts(allBathProducts, selectedBrand);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / BATH_PRODUCT_PAGE_SIZE));
+  bathProductCurrentPage = Math.min(Math.max(bathProductCurrentPage, 1), totalPages);
+  const startIndex = (bathProductCurrentPage - 1) * BATH_PRODUCT_PAGE_SIZE;
+  const pageProducts = filtered.slice(startIndex, startIndex + BATH_PRODUCT_PAGE_SIZE);
+  const keyword = String(document.querySelector("#bathProductSearch")?.value || "").trim();
+  const cardState = {
+    keyword,
+    naturalIntent: null,
+    activeFilters: [
+      bathProductCategory !== "all",
+      bathProductSubcategory !== "all",
+      isAdminUser() && selectedBrand !== "all",
+      Boolean(keyword)
+    ].filter(Boolean).length,
+    size: "all",
+    thickness: "all",
+    origin: "all",
+    finish: "all",
+    color: "all",
+    patternCategory: "all"
+  };
+  productList.dataset.currentPage = String(bathProductCurrentPage);
+  productList.dataset.totalPages = String(totalPages);
+  productList.innerHTML = pageProducts.map((product) => buildBathProductCardHtml(product, cardState)).join("")
+    || `<div class="empty-state">${keyword ? "상품 검색 결과가 없습니다." : "선택한 품목에 등록된 상품이 없습니다."}</div>`;
+
+  if (filtered.length) {
+    setText("#bathProductStatus", `총 ${number(filtered.length)}개 상품 · ${number(bathProductCurrentPage)}/${number(totalPages)}페이지`);
+  } else if (allBathProducts.length) {
+    setText("#bathProductStatus", "선택한 조건에 맞는 상품이 없습니다. 다른 세부 품목을 선택해보세요.");
+  } else {
+    setText("#bathProductStatus", "바스GO 상품 데이터를 불러오는 중입니다.");
+  }
+  renderBathProductPagination(filtered.length, totalPages);
+}
+
+function buildBathProductCardHtml(product, state) {
+  const categoryId = getBathProductBaseCategoryId(product);
+  const category = getBathProductCategory(categoryId);
+  const subcategoryId = getBathProductSubcategoryId(product, categoryId);
+  const subcategory = category.subcategories.find((item) => item.id === subcategoryId);
+  const categoryLabel = categoryId === "other" ? "욕실상품" : category.label;
+  const itemLabel = subcategory?.label || categoryLabel;
+  const expertReasons = getProductExpertReasons(product, state);
+  return `
+    <article class="product-card bath-product-card">
+      <button class="product-detail-trigger" type="button" data-view-product="${escapeHtml(product.id)}" aria-label="${escapeHtml(product.name)} 상세 보기">
+        ${product.image ? `<img class="product-thumb" src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async" fetchpriority="low" />` : `<div class="product-thumb product-thumb-empty">이미지 없음</div>`}
+      </button>
+      <div>
+        <button class="product-name-button" type="button" data-view-product="${escapeHtml(product.id)}">${escapeHtml(product.name)}</button>
+        <span>품목 ${escapeHtml(itemLabel)}</span>
+        <span>규격 ${escapeHtml(getProductDisplaySize(product))}</span>
+        <span>재고 ${escapeHtml(hasStockValue(product) ? formatStockQuantity(product) : "확인 필요")}</span>
+        ${renderProductCardAdminMeta(product)}
+        ${renderProductCardPriceLine(product)}
+        ${expertReasons.length ? `<small class="expert-product-reasons">${expertReasons.map(escapeHtml).join(" · ")}</small>` : ""}
+      </div>
+      <button type="button" data-add-product="${escapeHtml(product.id)}">담기</button>
+    </article>
+  `;
+}
+
+function renderBathProductPagination(totalItems, totalPages) {
+  const pagination = document.querySelector("#bathProductPagination");
+  if (!pagination) return;
+  if (!totalItems || totalPages <= 1) {
+    pagination.innerHTML = "";
+    return;
+  }
+  const pages = getVisibleProductPages(bathProductCurrentPage, totalPages);
+  pagination.innerHTML = [
+    `<button type="button" data-bath-product-page="1" ${bathProductCurrentPage === 1 ? "disabled" : ""}>처음</button>`,
+    `<button type="button" data-bath-product-page="${Math.max(1, bathProductCurrentPage - 1)}" ${bathProductCurrentPage === 1 ? "disabled" : ""}>이전</button>`,
+    ...pages.map((page) => page === "..."
+      ? `<span class="product-pagination-ellipsis">...</span>`
+      : `<button type="button" data-bath-product-page="${page}" class="${page === bathProductCurrentPage ? "active" : ""}" ${page === bathProductCurrentPage ? "aria-current=\"page\"" : ""}>${number(page)}</button>`),
+    `<button type="button" data-bath-product-page="${Math.min(totalPages, bathProductCurrentPage + 1)}" ${bathProductCurrentPage === totalPages ? "disabled" : ""}>다음</button>`,
+    `<button type="button" data-bath-product-page="${totalPages}" ${bathProductCurrentPage === totalPages ? "disabled" : ""}>끝</button>`,
+    `<span class="product-pagination-summary">${number(totalItems)}개 · ${number(BATH_PRODUCT_PAGE_SIZE)}개씩</span>`
+  ].join("");
+}
+
+function goToBathProductPage(page) {
+  const allBathProducts = products.filter(isBathProduct);
+  const selectedBrand = isAdminUser() ? document.querySelector("#bathProductBrandFilter")?.value || "all" : "all";
+  const filtered = getFilteredBathProducts(allBathProducts, selectedBrand);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / BATH_PRODUCT_PAGE_SIZE));
+  bathProductCurrentPage = Math.min(Math.max(Number(page) || 1, 1), totalPages);
+  renderBathProductsPage();
+  document.querySelector("#bathProductList")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function applyInitialPageFromHash() {
@@ -1975,9 +2430,10 @@ function getProductPageState() {
 
   const pageSize = getProductPageSize();
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const activeFilters = window.TbpProductPageState.countActiveProductFilters(snapshot, {
+  const countedFilters = window.TbpProductPageState.countActiveProductFilters(snapshot, {
     isAdmin: isAdminUser()
   });
+  const activeFilters = Math.max(0, countedFilters - (snapshot.type === "tile" ? 1 : 0));
   const state = {
     ...snapshot,
     filtered,
@@ -5516,12 +5972,16 @@ async function openProductDetail(id, sourceElement = null) {
   let product = products.find((item) => item.id === id);
   if (!product) return;
   const card = sourceElement?.closest(".product-card") || document.querySelector(`[data-view-product="${cssEscape(id)}"]`)?.closest(".product-card");
+  const sourcePageId = ["productsPage", "bathProductsPage", "taxonomyTestPage", "aiTileFinderPage"].includes(currentPageId)
+    ? currentPageId
+    : productListReturnState.sourcePageId || "productsPage";
   productListReturnState = {
     scrollY: window.scrollY,
     productId: id,
-    viewportTop: card ? card.getBoundingClientRect().top : 0
+    viewportTop: card ? card.getBoundingClientRect().top : 0,
+    sourcePageId
   };
-  pageScrollPositions.set("productsPage", window.scrollY);
+  pageScrollPositions.set(sourcePageId, window.scrollY);
   selectedProductId = id;
   selectedDetailProduct = product;
   renderProductDetail(product);
@@ -10788,6 +11248,9 @@ function renderAuthControls() {
     syncProductFilters();
     renderProducts();
   }
+  if (currentPageId === "bathProductsPage") {
+    renderBathProductsPage();
+  }
   if (currentPageId === "taxonomyTestPage") {
     syncTaxonomyFilters();
     renderTaxonomyTestPage();
@@ -12710,7 +13173,7 @@ function switchPage(pageId, options = {}) {
   currentPageId = pageId;
   syncExperienceMode(pageId);
   const activeNavPage = pageId === "productDetailPage"
-    ? "taxonomyTestPage"
+    ? productListReturnState.sourcePageId || "taxonomyTestPage"
     : pageId === "samplePage"
       ? "homePage"
       : pageId;
@@ -12732,6 +13195,11 @@ function switchPage(pageId, options = {}) {
   if (pageId === "productsPage") {
     syncProductFilters();
     renderProducts();
+    void ensureProductsReady();
+  }
+
+  if (pageId === "bathProductsPage") {
+    renderBathProductsPage();
     void ensureProductsReady();
   }
 
@@ -12773,7 +13241,7 @@ function switchPage(pageId, options = {}) {
 function restorePageScroll(pageId, scrollY) {
   const targetScroll = Math.max(Number(scrollY) || 0, 0);
   const restore = () => {
-    if (pageId === "productsPage" && productListReturnState.productId) {
+    if (pageId === productListReturnState.sourcePageId && productListReturnState.productId) {
       restoreProductListPosition(targetScroll);
       return;
     }
@@ -12816,16 +13284,19 @@ function goBackPage() {
 
 function returnToProductsPage() {
   pageScrollPositions.set(currentPageId, window.scrollY);
+  const sourcePageId = ["productsPage", "bathProductsPage", "taxonomyTestPage", "aiTileFinderPage"].includes(productListReturnState.sourcePageId)
+    ? productListReturnState.sourcePageId
+    : "productsPage";
   const previous = pageHistory[pageHistory.length - 1];
-  if (previous?.pageId === "productsPage") {
+  if (previous?.pageId === sourcePageId) {
     goBackPage();
     return;
   }
 
-  switchPage("productsPage", {
+  switchPage(sourcePageId, {
     pushHistory: false,
     updateBrowserHistory: false,
-    scrollY: productListReturnState.scrollY || pageScrollPositions.get("productsPage") || 0
+    scrollY: productListReturnState.scrollY || pageScrollPositions.get(sourcePageId) || 0
   });
 }
 
@@ -12833,8 +13304,9 @@ function handleBrowserBack() {
   if (suppressHistoryState) return;
   if (currentPageId === "productDetailPage") {
     suppressHistoryState = true;
+    const sourcePageId = productListReturnState.sourcePageId || "productsPage";
     returnToProductsPage();
-    history.replaceState({ pageId: "productsPage" }, "", "#productsPage");
+    history.replaceState({ pageId: sourcePageId }, "", `#${sourcePageId}`);
     suppressHistoryState = false;
     return;
   }

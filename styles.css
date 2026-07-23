@@ -18,6 +18,219 @@
   --shadow-soft: 0 10px 24px rgba(8, 25, 87, 0.06);
 }
 
+/* TileGO / BathGO catalog split */
+body.customer-experience-mode .customer-nav-group {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.bath-catalog-panel {
+  display: grid;
+  gap: 24px;
+}
+
+.bath-catalog-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.bath-catalog-heading h3,
+.bath-subcategory-head h3 {
+  margin: 0;
+  color: #081957;
+}
+
+.bath-catalog-heading > p {
+  max-width: 620px;
+  margin: 0;
+  color: #596579;
+  line-height: 1.7;
+}
+
+.bath-category-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 26px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 2px;
+  border-bottom: 1px solid #dfe5ef;
+  scrollbar-width: thin;
+}
+
+.bath-category-tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #4d596c;
+  background: transparent;
+  font-weight: 900;
+}
+
+.bath-category-tab::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  background: transparent;
+  content: "";
+}
+
+.bath-category-tab small {
+  color: #8893a5;
+  font-size: 11px;
+}
+
+.bath-category-tab:hover,
+.bath-category-tab.is-active {
+  color: #081957;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bath-category-tab.is-active::after {
+  background: #1857f2;
+}
+
+.bath-category-tab.is-active small {
+  color: #1857f2;
+}
+
+.bath-subcategory-band {
+  display: grid;
+  gap: 16px;
+  padding: 22px 0 4px;
+}
+
+.bath-subcategory-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.bath-subcategory-head span {
+  color: #687386;
+  font-size: 13px;
+}
+
+.bath-subcategory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid #e5e7eb;
+  border-left: 1px solid #e5e7eb;
+}
+
+.bath-subcategory-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 0;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  color: #263249;
+  background: #fff;
+  text-align: left;
+}
+
+.bath-subcategory-button small {
+  color: #8b95a5;
+}
+
+.bath-subcategory-button:hover,
+.bath-subcategory-button.is-active {
+  color: #081957;
+  background: #f3f6ff;
+  box-shadow: inset 3px 0 0 #1857f2;
+}
+
+.bath-subcategory-button.is-active small {
+  color: #1857f2;
+}
+
+.bath-subcategory-empty {
+  grid-column: 1 / -1;
+  padding: 16px 0;
+  color: #7a8597;
+}
+
+.bath-filter-grid {
+  grid-template-columns: minmax(180px, 0.35fr) minmax(280px, 1fr);
+}
+
+.bath-product-list {
+  min-height: 360px;
+}
+
+@media (max-width: 860px) {
+  body.customer-experience-mode .customer-nav-group {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .bath-subcategory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .bath-catalog-panel {
+    gap: 18px;
+  }
+
+  .bath-catalog-heading {
+    display: grid;
+    gap: 10px;
+    padding-bottom: 16px;
+  }
+
+  .bath-category-tabs {
+    gap: 22px;
+    margin-right: -14px;
+    margin-left: -14px;
+    padding: 0 14px;
+  }
+
+  .bath-category-tab {
+    min-height: 44px;
+  }
+
+  .bath-subcategory-band {
+    padding-top: 10px;
+  }
+
+  .bath-subcategory-head {
+    display: grid;
+    gap: 4px;
+  }
+
+  .bath-subcategory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bath-subcategory-button {
+    min-height: 50px;
+    padding: 9px 10px;
+    font-size: 12px;
+  }
+
+  .bath-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -9088,5 +9301,30 @@ body.admin-experience-mode .admin-flow-column {
     border: 0;
     border-radius: 0 !important;
     background: #fff;
+  }
+}
+
+/* Keep the split catalog navigation stable after legacy responsive rules. */
+body.customer-experience-mode .customer-nav-group {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.filter-grid.bath-filter-grid {
+  grid-template-columns: minmax(180px, 0.35fr) minmax(280px, 1fr);
+}
+
+@media (min-width: 721px) and (max-width: 860px) {
+  body.customer-experience-mode .customer-nav-group {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  body.customer-experience-mode .customer-nav-group {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .filter-grid.bath-filter-grid {
+    grid-template-columns: 1fr;
   }
 }
