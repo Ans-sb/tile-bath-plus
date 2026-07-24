@@ -631,6 +631,18 @@ function bindEvents() {
       renderProducts();
     });
   });
+  document.querySelector("#productSearchBtn")?.addEventListener("click", () => {
+    productCurrentPage = 1;
+    renderProducts();
+    document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  document.querySelector("#productSearch")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    productCurrentPage = 1;
+    renderProducts();
+    document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   document.querySelector("#productPageSize")?.addEventListener("change", () => {
     productCurrentPage = 1;
@@ -813,6 +825,15 @@ function bindEvents() {
     bathProductSubcategory = "all";
     bathProductCurrentPage = 1;
     renderBathProductsPage();
+  });
+  document.querySelector("#bathEditorialCategories")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-bath-category]");
+    if (!button) return;
+    bathProductCategory = button.dataset.bathCategory || "all";
+    bathProductSubcategory = "all";
+    bathProductCurrentPage = 1;
+    renderBathProductsPage();
+    document.querySelector("#bathCatalogBreadcrumb")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   document.querySelector("#bathSubcategoryList")?.addEventListener("click", (event) => {
@@ -2308,6 +2329,11 @@ function renderBathProductsPage() {
       <span>${escapeHtml(item.label)}</span><small>${number(count)}</small>
     </button>`;
   }).join("");
+  document.querySelectorAll("#bathEditorialCategories [data-bath-category]").forEach((button) => {
+    const active = button.dataset.bathCategory === bathProductCategory;
+    button.classList.toggle("is-active", active);
+    button.toggleAttribute("aria-current", active);
+  });
 
   setText("#bathCategoryTitle", category.title);
   setText("#bathCategoryDescription", category.description);

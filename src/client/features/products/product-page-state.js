@@ -5,9 +5,11 @@
     const products = Array.isArray(options.products) ? options.products : [];
     const snapshot = options.snapshot || {};
     const callbacks = options.callbacks || {};
+    const keywordTokens = getKeywordTokens(snapshot.keyword);
 
     const scoredProducts = products.map((product) => {
       const searchable = callbacks.getProductSearchableText(product);
+      const normalizedSearchable = normalizeSearchToken(searchable);
       const normalizedProduct = snapshot.naturalIntent?.active && product.productType === "tile"
         ? callbacks.getNormalizedTaxonomyProductForProduct(product)
         : null;
@@ -16,6 +18,7 @@
         : 0;
       const keywordMatched = !snapshot.normalizedKeyword
         || searchable.includes(snapshot.normalizedKeyword)
+        || (keywordTokens.length > 1 && keywordTokens.every((token) => normalizedSearchable.includes(token)))
         || naturalScore > 0;
       const passed = (snapshot.type === "all" || product.productType === snapshot.type)
         && callbacks.productMatchesAdminBrandFilter(product, snapshot.brand)
@@ -43,6 +46,20 @@
         return callbacks.compareProductsForDisplay(left.product, right.product);
       })
       .map((entry) => entry.product);
+  }
+
+  function getKeywordTokens(value) {
+    return String(value || "")
+      .split(/\s+/)
+      .map(normalizeSearchToken)
+      .filter((token) => token.length > 1);
+  }
+
+  function normalizeSearchToken(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/[×＊*]/g, "x")
+      .replace(/[\s\-_.\/]/g, "");
   }
 
   function countActiveProductFilters(snapshot, options = {}) {
