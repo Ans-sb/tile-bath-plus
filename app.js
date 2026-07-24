@@ -433,6 +433,16 @@ const loginForm = document.querySelector("#loginForm");
 const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 let currentAdminView = "operations";
+const adminProductFilters = {
+  brand: "",
+  query: "",
+  productType: "",
+  stock: ""
+};
+const adminOrderFilters = {
+  query: "",
+  stage: ""
+};
 let adminProductsHydrated = false;
 let adminLaunchRenderedTasks = new Map();
 const LAUNCH_PLAN_START_DATE = "2026-07-15";
@@ -1157,6 +1167,14 @@ function bindEvents() {
   document.querySelector("#adminQualityTab")?.addEventListener("click", () => switchAdminView("quality"));
   document.querySelector("#adminSearchTrainingTab")?.addEventListener("click", () => switchAdminView("searchTraining"));
   document.querySelector("#adminOrdersTab")?.addEventListener("click", () => switchAdminView("orders"));
+  document.querySelector("#adminProductBrandFilter")?.addEventListener("change", handleAdminProductFilters);
+  document.querySelector("#adminProductSearch")?.addEventListener("input", handleAdminProductFilters);
+  document.querySelector("#adminProductTypeFilter")?.addEventListener("change", handleAdminProductFilters);
+  document.querySelector("#adminProductStockFilter")?.addEventListener("change", handleAdminProductFilters);
+  document.querySelector("#adminProductFilterResetBtn")?.addEventListener("click", resetAdminProductFilters);
+  document.querySelector("#adminOrderSearch")?.addEventListener("input", handleAdminOrderFilters);
+  document.querySelector("#adminOrderStageFilter")?.addEventListener("change", handleAdminOrderFilters);
+  document.querySelector("#adminOrderFilterResetBtn")?.addEventListener("click", resetAdminOrderFilters);
   document.querySelector("#adminLaunchTodoList")?.addEventListener("change", handleAdminLaunchTodoToggle);
   document.querySelector("#adminLaunchTodoList")?.addEventListener("click", handleAdminLaunchExecuteClick);
   document.querySelector("#adminLaunchResetBtn")?.addEventListener("click", resetAdminLaunchTodos);
@@ -8452,6 +8470,96 @@ function renderAdminOperations(signupRequests, cartRecords, orderRecords) {
   `).join("") || `<tr><td colspan="4">현재 표시할 운영 리스크가 없습니다.</td></tr>`;
 }
 
+function getAdminProductBrand(product) {
+  const catalogBrand = String(product?.catalogSource || "").trim();
+  if (catalogBrand) return catalogBrand;
+  const kind = String(product?.kind || "").trim();
+  return /^(AJ|GT|HS|SG|SNT|US|VG)$/i.test(kind) ? kind.toUpperCase() : "";
+}
+
+function syncAdminProductFilterOptions() {
+  const select = document.querySelector("#adminProductBrandFilter");
+  if (!select) return;
+  const brands = Array.from(new Set(products.map(getAdminProductBrand).filter(Boolean)))
+    .sort((left, right) => left.localeCompare(right, "ko"));
+  select.innerHTML = [
+    `<option value="">전체 브랜드</option>`,
+    ...brands.map((brand) => `<option value="${escapeHtml(brand)}">${escapeHtml(brand)}</option>`)
+  ].join("");
+  select.value = brands.includes(adminProductFilters.brand) ? adminProductFilters.brand : "";
+}
+
+function getFilteredAdminProducts() {
+  const query = adminProductFilters.query.trim().toLowerCase();
+  return products.filter((product) => {
+    if (adminProductFilters.brand && getAdminProductBrand(product) !== adminProductFilters.brand) return false;
+    if (adminProductFilters.productType && String(product.productType || "") !== adminProductFilters.productType) return false;
+    const stockQty = Number(product.stockQty || 0);
+    if (adminProductFilters.stock === "available" && stockQty <= STOCK_INQUIRY_THRESHOLD_QTY) return false;
+    if (adminProductFilters.stock === "inquiry" && stockQty > STOCK_INQUIRY_THRESHOLD_QTY) return false;
+    if (!query) return true;
+    return [
+      product.managementCode,
+      product.modelName,
+      product.name,
+      product.size,
+      product.kind,
+      product.countryOfOrigin
+    ].some((value) => String(value || "").toLowerCase().includes(query));
+  });
+}
+
+function handleAdminProductFilters() {
+  adminProductFilters.brand = document.querySelector("#adminProductBrandFilter")?.value || "";
+  adminProductFilters.query = document.querySelector("#adminProductSearch")?.value || "";
+  adminProductFilters.productType = document.querySelector("#adminProductTypeFilter")?.value || "";
+  adminProductFilters.stock = document.querySelector("#adminProductStockFilter")?.value || "";
+  if (currentAdminView === "products") renderAdminOverview();
+}
+
+function resetAdminProductFilters() {
+  Object.assign(adminProductFilters, { brand: "", query: "", productType: "", stock: "" });
+  const search = document.querySelector("#adminProductSearch");
+  const brand = document.querySelector("#adminProductBrandFilter");
+  const type = document.querySelector("#adminProductTypeFilter");
+  const stock = document.querySelector("#adminProductStockFilter");
+  if (search) search.value = "";
+  if (brand) brand.value = "";
+  if (type) type.value = "";
+  if (stock) stock.value = "";
+  if (currentAdminView === "products") renderAdminOverview();
+}
+
+function getFilteredAdminOrders(orderRecords) {
+  const query = adminOrderFilters.query.trim().toLowerCase();
+  return orderRecords.filter((entry) => {
+    if (adminOrderFilters.stage && entry.stageKey !== adminOrderFilters.stage) return false;
+    if (!query) return true;
+    return [
+      entry.companyName,
+      entry.contactName,
+      entry.businessNumber,
+      entry.orderNumber,
+      ...(entry.itemNames || [])
+    ].some((value) => String(value || "").toLowerCase().includes(query));
+  });
+}
+
+function handleAdminOrderFilters() {
+  adminOrderFilters.query = document.querySelector("#adminOrderSearch")?.value || "";
+  adminOrderFilters.stage = document.querySelector("#adminOrderStageFilter")?.value || "";
+  if (currentAdminView === "orders") renderAdminOverview();
+}
+
+function resetAdminOrderFilters() {
+  Object.assign(adminOrderFilters, { query: "", stage: "" });
+  const search = document.querySelector("#adminOrderSearch");
+  const stage = document.querySelector("#adminOrderStageFilter");
+  if (search) search.value = "";
+  if (stage) stage.value = "";
+  if (currentAdminView === "orders") renderAdminOverview();
+}
+
 function renderAdminOverview() {
   const summaryGrid = document.querySelector("#adminSummaryGrid");
   const categoryRows = document.querySelector("#adminCategoryRows");
@@ -8469,8 +8577,12 @@ function renderAdminOverview() {
   }
 
   if (currentAdminView === "products") {
+    syncAdminProductFilterOptions();
+    const filteredProducts = getFilteredAdminProducts();
+    const result = document.querySelector("#adminProductFilterResult");
+    if (result) result.textContent = `${number(filteredProducts.length)} / ${number(products.length)}개 표시`;
     const html = window.TbpAdminProductsOverview.buildAdminProductsOverview({
-      products,
+      products: filteredProducts,
       signupRequests,
       cartRecords,
       approvalRules: adminOverview?.approvalRules || {},
@@ -8488,9 +8600,12 @@ function renderAdminOverview() {
   }
 
   if (currentAdminView === "orders") {
-    renderAdminOrderFlow(orderRecords);
+    const filteredOrders = getFilteredAdminOrders(orderRecords);
+    const result = document.querySelector("#adminOrderFilterResult");
+    if (result) result.textContent = `${number(filteredOrders.length)} / ${number(orderRecords.length)}건 표시`;
+    renderAdminOrderFlow(filteredOrders);
     cartRows.innerHTML = window.TbpAdminOrders.buildAdminCartRowsHtml({
-      orderRecords,
+      orderRecords: filteredOrders,
       callbacks: getAdminOrdersCallbacks()
     });
   }

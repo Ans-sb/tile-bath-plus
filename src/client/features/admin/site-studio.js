@@ -115,11 +115,90 @@
     draft: clone(DEFAULT_SETTINGS),
     defaults: clone(DEFAULT_SETTINGS),
     initialized: false,
-    loading: false
+    loading: false,
+    activeSection: "siteStudioOverviewSection",
+    activeTextGroup: "all",
+    textSearch: "",
+    previewDevice: "desktop",
+    history: [],
+    future: [],
+    lastHistoryKey: "",
+    lastHistoryAt: 0
   };
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
+  }
+
+  function changedValueCount(savedValue = state.saved, draftValue = state.draft) {
+    let count = 0;
+    function visit(left, right) {
+      if (Array.isArray(left) || Array.isArray(right)) {
+        if (JSON.stringify(left) !== JSON.stringify(right)) count += 1;
+        return;
+      }
+      if ((left && typeof left === "object") || (right && typeof right === "object")) {
+        const keys = new Set([
+          ...Object.keys(left && typeof left === "object" ? left : {}),
+          ...Object.keys(right && typeof right === "object" ? right : {})
+        ]);
+        keys.forEach((key) => visit(left?.[key], right?.[key]));
+        return;
+      }
+      if (left !== right) count += 1;
+    }
+    visit(savedValue, draftValue);
+    return count;
+  }
+
+  function recordHistory(key = "edit") {
+    const now = Date.now();
+    if (state.lastHistoryKey === key && now - state.lastHistoryAt < 700) {
+      state.lastHistoryAt = now;
+      return;
+    }
+    state.history.push(clone(state.draft));
+    if (state.history.length > 40) state.history.shift();
+    state.future = [];
+    state.lastHistoryKey = key;
+    state.lastHistoryAt = now;
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    const canUndo = state.history.length > 0;
+    const canRedo = state.future.length > 0;
+    ["#siteStudioUndoBtn", "#siteStudioUndoBottomBtn"].forEach((selector) => {
+      const button = document.querySelector(selector);
+      if (button) button.disabled = !canUndo;
+    });
+    const redoButton = document.querySelector("#siteStudioRedoBtn");
+    if (redoButton) redoButton.disabled = !canRedo;
+  }
+
+  function restoreDraft(snapshot) {
+    state.draft = mergeSettings(snapshot);
+    applySettings(state.draft);
+    renderAllEditors();
+    setActiveSection(state.activeSection);
+  }
+
+  function undoDraft() {
+    if (!state.history.length) return;
+    state.future.push(clone(state.draft));
+    restoreDraft(state.history.pop());
+    state.lastHistoryKey = "";
+    updateHistoryButtons();
+    setStatus("직전 변경을 취소했습니다.");
+  }
+
+  function redoDraft() {
+    if (!state.future.length) return;
+    state.history.push(clone(state.draft));
+    restoreDraft(state.future.pop());
+    state.lastHistoryKey = "";
+    updateHistoryButtons();
+    setStatus("취소한 변경을 다시 적용했습니다.");
   }
 
   function escapeHtml(value) {
@@ -235,11 +314,102 @@
   }
 
   function updateDirtyState() {
+    const dirty = isDirty();
+    const count = changedValueCount();
     const node = document.querySelector("#siteStudioDraftState");
     if (node) {
-      node.textContent = isDirty() ? "저장하지 않은 변경사항이 있습니다." : "운영 서버에 저장된 상태입니다.";
-      node.classList.toggle("is-dirty", isDirty());
+      node.textContent = dirty ? `${count}개 설정이 변경되었습니다. 저장 전까지 고객 화면에는 반영되지 않습니다.` : "운영 서버에 저장된 상태입니다.";
+      node.classList.toggle("is-dirty", dirty);
     }
+    const countNode = document.querySelector("#siteStudioChangeCount");
+    if (countNode) countNode.textContent = dirty ? `저장 전 변경 ${count}개` : "저장된 상태";
+    document.querySelector("#siteStudioSaveBtn")?.classList.toggle("has-unsaved", dirty);
+    document.querySelector("#siteStudioSaveBottomBtn")?.classList.toggle("has-unsaved", dirty);
+    updateHistoryButtons();
+  }
+
+  function renderSavedAt() {
+    const node = document.querySelector("#siteStudioSavedAt");
+    if (!node) return;
+    const raw = state.saved?.updatedAt;
+    if (!raw) {
+      node.textContent = "기본 설정 사용 중";
+      return;
+    }
+    const date = new Date(raw);
+    node.textContent = Number.isNaN(date.getTime())
+      ? "최근 저장 정보 없음"
+      : `최근 저장 ${date.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`;
+  }
+
+  function setActiveSection(sectionId, options = {}) {
+    const nextId = document.querySelector(`#${sectionId}[data-site-studio-panel]`)
+      ? sectionId
+      : "siteStudioOverviewSection";
+    state.activeSection = nextId;
+    document.querySelectorAll("[data-site-studio-panel]").forEach((panel) => {
+      panel.classList.toggle("active", panel.id === nextId);
+    });
+    document.querySelectorAll("[data-site-studio-section]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.siteStudioSection === nextId);
+    });
+    const activeButton = document.querySelector(`[data-site-studio-section="${nextId}"]`);
+    const label = activeButton?.dataset.sectionLabel || activeButton?.querySelector("b")?.textContent || "운영 홈";
+    const labelNode = document.querySelector("#siteStudioCurrentSectionLabel");
+    if (labelNode) labelNode.textContent = label;
+    if (options.scroll !== false) {
+      document.querySelector("#siteStudioPage")?.scrollIntoView({ behavior: options.behavior || "smooth", block: "start" });
+    }
+  }
+
+  function applyThemePreset(name) {
+    const presets = {
+      jajaego: {
+        primaryColor: "#0b5cff",
+        inkColor: "#081957",
+        pageColor: "#ffffff",
+        surfaceColor: "#ffffff",
+        fontFamily: "system"
+      },
+      clean: {
+        primaryColor: "#175cd3",
+        inkColor: "#101828",
+        pageColor: "#f8fafc",
+        surfaceColor: "#ffffff",
+        fontFamily: "pretendard"
+      },
+      graphite: {
+        primaryColor: "#2563eb",
+        inkColor: "#111827",
+        pageColor: "#f3f4f6",
+        surfaceColor: "#ffffff",
+        fontFamily: "system"
+      }
+    };
+    const preset = presets[name];
+    if (!preset) return;
+    recordHistory(`theme:${name}`);
+    state.draft.appearance = { ...state.draft.appearance, ...preset };
+    applySettings(state.draft);
+    renderAllEditors();
+    setActiveSection("siteStudioAppearanceSection", { scroll: false });
+    setStatus("테마 프리셋을 적용했습니다. 미리보기 확인 후 저장하세요.", "success");
+  }
+
+  function applyLayoutPreset(name) {
+    const presets = {
+      compact: { contentWidth: 1600, cornerRadius: 4, homeTileGap: 10, productColumnsDesktop: 5, productColumnsMobile: 2 },
+      balanced: { contentWidth: 1480, cornerRadius: 8, homeTileGap: 18, productColumnsDesktop: 4, productColumnsMobile: 2 },
+      visual: { contentWidth: 1380, cornerRadius: 8, homeTileGap: 24, productColumnsDesktop: 3, productColumnsMobile: 2 }
+    };
+    const preset = presets[name];
+    if (!preset) return;
+    recordHistory(`layout:${name}`);
+    state.draft.appearance = { ...state.draft.appearance, ...preset };
+    applySettings(state.draft);
+    renderAllEditors();
+    setActiveSection("siteStudioLayoutSection", { scroll: false });
+    setStatus("레이아웃 프리셋을 적용했습니다. 저장 전 미리보기를 확인하세요.", "success");
   }
 
   function renderAppearanceEditor() {
@@ -283,14 +453,28 @@
   function renderTextEditor() {
     const container = document.querySelector("#siteStudioTextFields");
     if (!container) return;
-    container.innerHTML = TEXT_FIELDS.map(([group, key, label, type]) => `
-      <label class="site-studio-text-field">
+    const keyword = state.textSearch.trim().toLowerCase();
+    const visibleFields = TEXT_FIELDS.filter(([group, key, label]) => {
+      const groupMatches = state.activeTextGroup === "all" || state.activeTextGroup === group;
+      const searchMatches = !keyword || `${group} ${key} ${label} ${state.draft.text[key] || ""}`.toLowerCase().includes(keyword);
+      return groupMatches && searchMatches;
+    });
+    container.innerHTML = visibleFields.map(([group, key, label, type]) => `
+      <div class="site-studio-text-field">
         <span><small>${escapeHtml(group)}</small>${escapeHtml(label)}</span>
-        ${type === "textarea"
-          ? `<textarea rows="2" data-site-text-input="${escapeHtml(key)}">${escapeHtml(state.draft.text[key] || "")}</textarea>`
-          : `<input type="text" value="${escapeHtml(state.draft.text[key] || "")}" data-site-text-input="${escapeHtml(key)}" />`}
-      </label>
-    `).join("");
+        <span class="site-studio-text-control">
+          ${type === "textarea"
+            ? `<textarea rows="2" aria-label="${escapeHtml(`${group} ${label}`)}" data-site-text-input="${escapeHtml(key)}">${escapeHtml(state.draft.text[key] || "")}</textarea>`
+            : `<input type="text" aria-label="${escapeHtml(`${group} ${label}`)}" value="${escapeHtml(state.draft.text[key] || "")}" data-site-text-input="${escapeHtml(key)}" />`}
+          <button type="button" data-site-reset-text="${escapeHtml(key)}" title="${escapeHtml(label)} 기본값 복원">기본값</button>
+        </span>
+      </div>
+    `).join("") || `<div class="site-studio-empty-search">조건에 맞는 문구가 없습니다.</div>`;
+    document.querySelectorAll("[data-site-text-group]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.siteTextGroup === state.activeTextGroup);
+    });
+    const search = document.querySelector("#siteStudioTextSearch");
+    if (search && search.value !== state.textSearch) search.value = state.textSearch;
   }
 
   function renderImageEditor() {
@@ -304,10 +488,13 @@
           <small>${escapeHtml(hint)}</small>
           <input type="text" value="${escapeHtml(state.draft.images[key] || "")}" data-site-image-input="${escapeHtml(key)}" />
         </div>
-        <label class="secondary-action site-studio-file-button">
-          이미지 선택
-          <input type="file" accept="image/png,image/jpeg,image/webp" data-site-image-file="${escapeHtml(key)}" />
-        </label>
+        <div class="site-studio-image-actions">
+          <label class="secondary-action site-studio-file-button">
+            이미지 선택
+            <input type="file" accept="image/png,image/jpeg,image/webp" data-site-image-file="${escapeHtml(key)}" />
+          </label>
+          <button class="site-studio-quiet-button" type="button" data-site-reset-image="${escapeHtml(key)}">기본값</button>
+        </div>
       </article>
     `).join("");
   }
@@ -353,6 +540,11 @@
   function renderPreview() {
     const preview = document.querySelector("#siteStudioLivePreview");
     if (!preview) return;
+    const stage = document.querySelector("#siteStudioPreviewStage");
+    if (stage) stage.classList.toggle("is-mobile", state.previewDevice === "mobile");
+    document.querySelectorAll("[data-site-preview-device]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.sitePreviewDevice === state.previewDevice);
+    });
     const mode = document.querySelector("#siteStudioPreviewPage")?.value || "home";
     const settings = state.draft;
     const style = [
@@ -421,10 +613,13 @@
     renderLayoutEditor();
     renderMenuEditor();
     renderPreview();
+    renderSavedAt();
     updateDirtyState();
+    updateHistoryButtons();
   }
 
   function updateAppearanceValue(key, rawValue, source) {
+    recordHistory(`appearance:${key}`);
     const numericKeys = new Set(["cornerRadius", "contentWidth", "productColumnsDesktop", "productColumnsMobile", "homeTileGap"]);
     state.draft.appearance[key] = numericKeys.has(key) ? Number(rawValue) : rawValue;
     if (source?.type === "color" || (source?.type === "text" && /^#[0-9a-f]{6}$/i.test(rawValue))) {
@@ -448,6 +643,7 @@
     const index = menu.findIndex((item) => item.id === id);
     const nextIndex = index + Number(direction);
     if (index < 0 || nextIndex < 0 || nextIndex >= menu.length) return;
+    recordHistory(`menu-order:${id}`);
     [menu[index], menu[nextIndex]] = [menu[nextIndex], menu[index]];
     menu.forEach((item, itemIndex) => {
       item.order = itemIndex + 1;
@@ -464,11 +660,13 @@
       setStatus("관리자 로그인 후 저장할 수 있습니다.", "error");
       return;
     }
-    const button = document.querySelector("#siteStudioSaveBtn");
-    if (button) {
+    const buttons = ["#siteStudioSaveBtn", "#siteStudioSaveBottomBtn"]
+      .map((selector) => document.querySelector(selector))
+      .filter(Boolean);
+    buttons.forEach((button) => {
       button.disabled = true;
       button.textContent = "저장 중";
-    }
+    });
     setStatus("운영 서버에 디자인 설정을 저장하고 있습니다.");
     try {
       const payload = await state.callbacks.requestJson("/api/admin/site-settings", {
@@ -478,16 +676,18 @@
       }, { timeoutMs: 15000 });
       state.saved = mergeSettings(payload.settings);
       state.draft = clone(state.saved);
+      state.history = [];
+      state.future = [];
       applySettings(state.saved);
       renderAllEditors();
       setStatus("저장 완료. 고객 화면에 새 디자인이 즉시 적용되었습니다.", "success");
     } catch (error) {
       setStatus(error.message || "설정 저장에 실패했습니다.", "error");
     } finally {
-      if (button) {
+      buttons.forEach((button) => {
         button.disabled = false;
         button.textContent = "변경사항 저장";
-      }
+      });
     }
   }
 
@@ -505,6 +705,8 @@
       }, { timeoutMs: 15000 });
       state.saved = mergeSettings(payload.settings);
       state.draft = clone(state.saved);
+      state.history = [];
+      state.future = [];
       applySettings(state.saved);
       renderAllEditors();
       setStatus("기본 디자인으로 복원했습니다.", "success");
@@ -525,6 +727,7 @@
         headers: state.callbacks.getAdminAuthHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ dataUrl, fileName: file.name })
       }, { timeoutMs: 30000 });
+      recordHistory(`image-upload:${key}`);
       state.draft.images[key] = payload.url;
       applySettings(state.draft);
       renderImageEditor();
@@ -552,6 +755,7 @@
     const file = input.files?.[0];
     if (!file) return;
     try {
+      recordHistory("settings-import");
       state.draft = mergeSettings(JSON.parse(await file.text()));
       applySettings(state.draft);
       renderAllEditors();
@@ -561,6 +765,50 @@
     } finally {
       input.value = "";
     }
+  }
+
+  function resetTextField(key) {
+    if (!(key in state.defaults.text)) return;
+    recordHistory(`text-reset:${key}`);
+    state.draft.text[key] = state.defaults.text[key];
+    applySettings(state.draft);
+    renderTextEditor();
+    renderPreview();
+    updateDirtyState();
+  }
+
+  function resetImageField(key) {
+    if (!(key in state.defaults.images)) return;
+    recordHistory(`image-reset:${key}`);
+    state.draft.images[key] = state.defaults.images[key];
+    applySettings(state.draft);
+    renderImageEditor();
+    renderPreview();
+    updateDirtyState();
+  }
+
+  function handleGlobalSearch(value) {
+    const keyword = String(value || "").trim().toLowerCase();
+    if (!keyword) return;
+    const sectionTerms = [
+      ["siteStudioAppearanceSection", "폰트 컬러 색상 글자 배경 브랜드 강조"],
+      ["siteStudioLayoutSection", "레이아웃 구성 밀도 간격 열 너비 모서리"],
+      ["siteStudioMenuSection", "메뉴 내비게이션 순서 노출"],
+      ["siteStudioImageSection", `이미지 사진 미디어 ${IMAGE_FIELDS.map((item) => item[1]).join(" ")}`],
+      ["siteStudioTextSection", `문구 텍스트 제목 설명 ${TEXT_FIELDS.map((item) => `${item[0]} ${item[2]}`).join(" ")}`]
+    ];
+    const match = sectionTerms.find(([, terms]) => terms.toLowerCase().includes(keyword));
+    if (!match) {
+      setStatus(`"${value}"에 맞는 설정을 찾지 못했습니다.`, "error");
+      return;
+    }
+    if (match[0] === "siteStudioTextSection") {
+      state.activeTextGroup = "all";
+      state.textSearch = value;
+      renderTextEditor();
+    }
+    setActiveSection(match[0]);
+    setStatus(`"${value}" 관련 설정으로 이동했습니다.`);
   }
 
   function bindEvents() {
@@ -576,6 +824,7 @@
       }
       const textInput = event.target.closest("[data-site-text-input]");
       if (textInput) {
+        recordHistory(`text:${textInput.dataset.siteTextInput}`);
         state.draft.text[textInput.dataset.siteTextInput] = textInput.value;
         applySettings(state.draft);
         renderPreview();
@@ -584,6 +833,7 @@
       }
       const imageInput = event.target.closest("[data-site-image-input]");
       if (imageInput) {
+        recordHistory(`image:${imageInput.dataset.siteImageInput}`);
         state.draft.images[imageInput.dataset.siteImageInput] = imageInput.value;
         applySettings(state.draft);
         renderPreview();
@@ -593,10 +843,18 @@
       const menuLabel = event.target.closest("[data-site-menu-label]");
       if (menuLabel) {
         const item = findMenuItem(menuLabel.dataset.siteMenuLabel);
-        if (item) item.label = menuLabel.value;
+        if (item) {
+          recordHistory(`menu-label:${menuLabel.dataset.siteMenuLabel}`);
+          item.label = menuLabel.value;
+        }
         applySettings(state.draft);
         renderPreview();
         updateDirtyState();
+        return;
+      }
+      if (event.target.matches("#siteStudioTextSearch")) {
+        state.textSearch = event.target.value;
+        renderTextEditor();
       }
     });
 
@@ -604,7 +862,10 @@
       const visible = event.target.closest("[data-site-menu-visible]");
       if (visible) {
         const item = findMenuItem(visible.dataset.siteMenuVisible);
-        if (item) item.visible = visible.checked;
+        if (item) {
+          recordHistory(`menu-visible:${visible.dataset.siteMenuVisible}`);
+          item.visible = visible.checked;
+        }
         applySettings(state.draft);
         renderPreview();
         updateDirtyState();
@@ -623,6 +884,38 @@
     });
 
     page.addEventListener("click", (event) => {
+      const textGroup = event.target.closest("[data-site-text-group]");
+      if (textGroup) {
+        state.activeTextGroup = textGroup.dataset.siteTextGroup;
+        renderTextEditor();
+        return;
+      }
+      const previewDevice = event.target.closest("[data-site-preview-device]");
+      if (previewDevice) {
+        state.previewDevice = previewDevice.dataset.sitePreviewDevice;
+        renderPreview();
+        return;
+      }
+      const themePreset = event.target.closest("[data-site-theme-preset]");
+      if (themePreset) {
+        applyThemePreset(themePreset.dataset.siteThemePreset);
+        return;
+      }
+      const layoutPreset = event.target.closest("[data-site-layout-preset]");
+      if (layoutPreset) {
+        applyLayoutPreset(layoutPreset.dataset.siteLayoutPreset);
+        return;
+      }
+      const resetText = event.target.closest("[data-site-reset-text]");
+      if (resetText) {
+        resetTextField(resetText.dataset.siteResetText);
+        return;
+      }
+      const resetImage = event.target.closest("[data-site-reset-image]");
+      if (resetImage) {
+        resetImageField(resetImage.dataset.siteResetImage);
+        return;
+      }
       const move = event.target.closest("[data-site-menu-move]");
       if (move) {
         moveMenuItem(move.dataset.siteMenuMove, move.dataset.direction);
@@ -630,7 +923,7 @@
       }
       const section = event.target.closest("[data-site-studio-section]");
       if (section) {
-        document.querySelector(`#${section.dataset.siteStudioSection}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setActiveSection(section.dataset.siteStudioSection);
         return;
       }
       const adminView = event.target.closest("[data-studio-admin-view]");
@@ -642,16 +935,52 @@
 
     document.querySelector("#siteStudioSaveBtn")?.addEventListener("click", saveSettings);
     document.querySelector("#siteStudioSaveBottomBtn")?.addEventListener("click", saveSettings);
+    document.querySelector("#siteStudioUndoBtn")?.addEventListener("click", undoDraft);
+    document.querySelector("#siteStudioUndoBottomBtn")?.addEventListener("click", undoDraft);
+    document.querySelector("#siteStudioRedoBtn")?.addEventListener("click", redoDraft);
     document.querySelector("#siteStudioDiscardBtn")?.addEventListener("click", () => {
       state.draft = clone(state.saved);
+      state.history = [];
+      state.future = [];
       applySettings(state.saved);
       renderAllEditors();
+      setActiveSection(state.activeSection, { scroll: false });
       setStatus("저장 전 변경사항을 취소했습니다.");
     });
     document.querySelector("#siteStudioResetBtn")?.addEventListener("click", resetSettings);
     document.querySelector("#siteStudioExportBtn")?.addEventListener("click", exportSettings);
     document.querySelector("#siteStudioImportBtn")?.addEventListener("click", () => document.querySelector("#siteStudioImportInput")?.click());
     document.querySelector("#siteStudioOpenPreviewBtn")?.addEventListener("click", () => state.callbacks.switchPage("homePage"));
+    document.querySelector("#siteStudioGlobalSearch")?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      handleGlobalSearch(event.currentTarget.value);
+    });
+    page.addEventListener("keydown", (event) => {
+      const keyboardAction = event.target.closest('[data-studio-admin-view][role="button"]');
+      if (keyboardAction && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        state.callbacks.switchPage("adminPage");
+        state.callbacks.switchAdminView(keyboardAction.dataset.studioAdminView);
+        return;
+      }
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = String(event.key || "").toLowerCase();
+      if (key === "s") {
+        event.preventDefault();
+        void saveSettings();
+        return;
+      }
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault();
+        redoDraft();
+        return;
+      }
+      if (key === "z") {
+        event.preventDefault();
+        undoDraft();
+      }
+    });
   }
 
   async function enter() {
@@ -665,8 +994,11 @@
       state.defaults = mergeSettings(payload.defaults);
       state.saved = mergeSettings(payload.settings);
       state.draft = clone(state.saved);
+      state.history = [];
+      state.future = [];
       applySettings(state.saved);
       renderAllEditors();
+      setActiveSection(state.activeSection, { scroll: false });
       setStatus("운영 서버 설정을 불러왔습니다. 수정 후 저장하면 고객 화면에 즉시 반영됩니다.", "success");
     } catch (error) {
       renderAllEditors();
@@ -680,12 +1012,18 @@
     const container = document.querySelector("#siteStudioOpsSummary");
     if (!container) return;
     const items = [
-      ["전체 상품", `${Number(summary.products || 0).toLocaleString("ko-KR")}개`],
-      ["타일 상품", `${Number(summary.tiles || 0).toLocaleString("ko-KR")}개`],
-      ["승인 대기", `${Number(summary.pendingSignups || 0).toLocaleString("ko-KR")}건`],
-      ["주문·장바구니", `${Number(summary.orders || 0).toLocaleString("ko-KR")}건`]
+      ["전체 상품", `${Number(summary.products || 0).toLocaleString("ko-KR")}개`, "상품 관리 열기", "products"],
+      ["타일 상품", `${Number(summary.tiles || 0).toLocaleString("ko-KR")}개`, "타일 현황 보기", "products"],
+      ["승인 대기", `${Number(summary.pendingSignups || 0).toLocaleString("ko-KR")}건`, "회원 검토하기", "orders"],
+      ["주문·장바구니", `${Number(summary.orders || 0).toLocaleString("ko-KR")}건`, "주문 흐름 보기", "orders"]
     ];
-    container.innerHTML = items.map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+    container.innerHTML = items.map(([label, value, note, view]) => `
+      <article data-studio-admin-view="${escapeHtml(view)}" tabindex="0" role="button">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+        <small>${escapeHtml(note)}</small>
+      </article>
+    `).join("");
   }
 
   function initialize(callbacks) {
