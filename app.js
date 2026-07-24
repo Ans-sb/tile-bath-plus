@@ -255,7 +255,7 @@ const DEFAULT_APPROVAL_RULES = {
   ]
 };
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
-const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "tile114TestPage"]);
+const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "siteStudioPage", "tile114TestPage"]);
 const IMAGE_SEARCH_RESULTS_PAGE_SIZE = 20;
 const TILE_FINDER_RESULTS_PAGE_SIZE = 10;
 const ADMIN_PRODUCT_TABLE_LIMIT = 300;
@@ -570,6 +570,15 @@ async function init() {
   history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   syncExperienceMode(currentPageId);
   bindEvents();
+  window.TbpSiteStudio?.initialize({
+    getAdminAuthHeaders,
+    isAdminUser,
+    readImageFile,
+    requestJson,
+    switchAdminView,
+    switchPage
+  });
+  await window.TbpSiteStudio?.loadPublicSettings({ requestJson });
   setupDbForm();
   syncDefaultApprovalRules();
   renderApprovalRules();
@@ -581,6 +590,10 @@ async function init() {
   await hydrateOrdersFromServer();
   renderAll();
   if (currentPageId === "adminPage") {
+    loadAdminOverview();
+  }
+  if (currentPageId === "siteStudioPage") {
+    window.TbpSiteStudio?.enter();
     loadAdminOverview();
   }
   if (socialRedirect) await completeSocialAuthRedirect(socialRedirect);
@@ -2159,6 +2172,19 @@ function renderAll() {
   if (currentPageId === "adminPage") {
     renderAdminOverview();
   }
+  renderSiteStudioOperationsSummary();
+}
+
+function renderSiteStudioOperationsSummary() {
+  const signupRequests = Array.isArray(adminOverview?.signupRequests) ? adminOverview.signupRequests : [];
+  const carts = Array.isArray(adminOverview?.carts) ? adminOverview.carts : [];
+  const orders = Array.isArray(adminOverview?.orders) ? adminOverview.orders : [];
+  window.TbpSiteStudio?.renderOperationsSummary({
+    products: products.length,
+    tiles: products.filter((product) => String(product?.productType || "").toLowerCase() === "tile" || String(product?.mainCategory || "") === "타일").length,
+    pendingSignups: signupRequests.filter((entry) => String(entry?.approvalStatus || "") !== "승인").length,
+    orders: carts.length + orders.length
+  });
 }
 
 function openProductCategory(productType) {
@@ -13529,6 +13555,12 @@ function switchPage(pageId, options = {}) {
     loadAdminOverview();
   }
 
+  if (pageId === "siteStudioPage") {
+    window.TbpSiteStudio?.enter();
+    loadAdminOverview();
+    renderSiteStudioOperationsSummary();
+  }
+
   if (pageId === "tile114TestPage") {
     renderTile114SampleGrid([]);
     setText("#tile114Status", authUser?.role === "admin" ? "카테고리와 개수를 선택한 뒤 샘플 가져오기를 눌러주세요." : "관리자 로그인 후 사용할 수 있습니다.");
@@ -13665,6 +13697,7 @@ async function loadAdminOverview() {
       headers: getAdminAuthHeaders()
     }, { retries: 1, timeoutMs: 8000 });
     renderAdminOverview();
+    renderSiteStudioOperationsSummary();
     setText("#adminStatus", `${authUser.name} 관리자 페이지 정보가 업데이트되었습니다.`);
   } catch (error) {
     setText("#adminStatus", error.message || "내부관리자 정보를 불러오지 못했습니다.");

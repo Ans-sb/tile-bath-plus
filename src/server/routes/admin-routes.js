@@ -1,4 +1,55 @@
 async function handleAdminRoutes(request, response, context) {
+  if (request.method === "GET" && request.url.startsWith("/api/site-settings")) {
+    context.sendJson(response, 200, {
+      ok: true,
+      settings: await context.readSiteSettings()
+    });
+    return true;
+  }
+
+  if (request.method === "GET" && request.url.startsWith("/api/admin/site-settings")) {
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+    context.sendJson(response, 200, {
+      ok: true,
+      settings: await context.readSiteSettings(),
+      defaults: context.getDefaultSiteSettings()
+    });
+    return true;
+  }
+
+  if (request.method === "POST" && request.url === "/api/admin/site-settings") {
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+    const payload = JSON.parse(await context.readRequestBody(request) || "{}");
+    context.sendJson(response, 200, {
+      ok: true,
+      ...(await context.saveSiteSettings(payload.settings || payload, adminCredentials.adminUsername))
+    });
+    return true;
+  }
+
+  if (request.method === "POST" && request.url === "/api/admin/site-settings/reset") {
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+    context.sendJson(response, 200, {
+      ok: true,
+      ...(await context.resetSiteSettings(adminCredentials.adminUsername))
+    });
+    return true;
+  }
+
+  if (request.method === "POST" && request.url === "/api/admin/site-media") {
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+    const payload = JSON.parse(await context.readRequestBody(request) || "{}");
+    context.sendJson(response, 200, {
+      ok: true,
+      ...(await context.saveSiteStudioImage(payload, adminCredentials.adminUsername))
+    });
+    return true;
+  }
+
   if (request.method === "GET" && request.url.startsWith("/api/admin/search-training/stats")) {
     const adminCredentials = context.readAdminCredentialsFromRequest(request);
     context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);

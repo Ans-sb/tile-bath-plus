@@ -32,6 +32,7 @@ const { createAdminProductService } = require("./src/server/services/admin-produ
 const { createApprovalRulesService } = require("./src/server/services/approval-rules-service");
 const { createCartStore } = require("./src/server/services/cart-store");
 const { createOrderStore } = require("./src/server/services/order-store");
+const { createSiteSettingsService } = require("./src/server/services/site-settings-service");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -46,6 +47,8 @@ const renderFeedbackPath = path.join(root, "data", "render-feedback.jsonl");
 const renderFeedbackAssetDir = path.join(root, "outputs", "render-feedback-assets");
 const adminActionRequestsPath = path.join(root, "data", "admin-action-requests.jsonl");
 const ordersPath = path.join(root, "data", "orders.json");
+const siteSettingsPath = path.join(root, "data", "site-settings.json");
+const siteStudioUploadDir = path.join(root, "uploads", "site-studio");
 const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
 const proposalOutputDir = path.join(root, "outputs", "proposals");
 const proposalTmpDir = path.join(root, "tmp", "proposal-ppt");
@@ -218,6 +221,7 @@ const orderStore = createOrderStore({
   ordersPath,
   requestSupabase
 });
+const siteSettingsService = createSiteSettingsService({ settingsPath: siteSettingsPath });
 const searchLogStore = createSearchLogStore({ root });
 
 const server = http.createServer(async (request, response) => {
@@ -332,7 +336,12 @@ function getAdminRouteContext() {
     updateAdminOrderStatus,
     readAdminOverview,
     readTile114SampleProducts,
-    readAllOrders
+    readAllOrders,
+    readSiteSettings: () => siteSettingsService.read(),
+    saveSiteSettings: (settings, reviewer) => siteSettingsService.save(settings, reviewer),
+    resetSiteSettings: (reviewer) => siteSettingsService.reset(reviewer),
+    getDefaultSiteSettings: () => siteSettingsService.defaults,
+    saveSiteStudioImage
   };
 }
 
@@ -1053,6 +1062,36 @@ function shouldBlockStaticPath(pathname) {
     "vendor/",
     "정보서류/"
   ].some((prefix) => normalized.startsWith(prefix.toLowerCase()));
+}
+
+async function saveSiteStudioImage(payload = {}, reviewer = "admin") {
+  const dataUrl = String(payload.dataUrl || "").trim();
+  const match = dataUrl.match(/^data:image\/(png|jpeg|webp);base64,([a-z0-9+/=\s]+)$/i);
+  if (!match) {
+    throw createHttpError(400, "PNG, JPG, WEBP 이미지 파일만 업로드할 수 있습니다.");
+  }
+
+  const extension = match[1].toLowerCase() === "jpeg" ? "jpg" : match[1].toLowerCase();
+  const buffer = Buffer.from(match[2].replace(/\s+/g, ""), "base64");
+  if (!buffer.length || buffer.length > 8 * 1024 * 1024) {
+    throw createHttpError(400, "이미지는 8MB 이하로 업로드해주세요.");
+  }
+
+  const requestedName = path.basename(String(payload.fileName || `site-image.${extension}`))
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-z0-9가-힣_-]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "site-image";
+  const reviewerKey = String(reviewer || "admin").replace(/[^a-z0-9_-]+/gi, "").slice(0, 20) || "admin";
+  const fileName = `${Date.now()}-${reviewerKey}-${requestedName}-${crypto.randomBytes(3).toString("hex")}.${extension}`;
+
+  await fs.promises.mkdir(siteStudioUploadDir, { recursive: true });
+  await fs.promises.writeFile(path.join(siteStudioUploadDir, fileName), buffer);
+  return {
+    url: `/uploads/site-studio/${fileName}`,
+    fileName,
+    size: buffer.length
+  };
 }
 
 async function readLocalNormalizedTaxonomy(view = "admin") {

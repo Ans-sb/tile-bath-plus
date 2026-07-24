@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260724-hybrid-catalog3" />
+    <link rel="stylesheet" href="styles.css?v=20260724-site-studio7" />
   </head>
   <body>
     <!-- build: homeheroslider3 -->
@@ -37,6 +37,7 @@
             <button class="secondary-action" id="logoutBtn" type="button">로그아웃</button>
           </div>
           <button class="secondary-action admin-nav-button admin-console-link hidden" type="button" data-page-target="adminPage">관리자 콘솔</button>
+          <button class="secondary-action admin-nav-button admin-console-link hidden" type="button" data-page-target="siteStudioPage">운영·디자인</button>
         </div>
       </header>
 
@@ -86,6 +87,10 @@
             <span class="nav-glyph">운영</span>
             <span class="nav-copy">내부관리</span>
           </button>
+          <button class="hidden admin-nav-button" id="siteStudioNavBtn" type="button" data-page-target="siteStudioPage">
+            <span class="nav-glyph">UI</span>
+            <span class="nav-copy">운영·디자인</span>
+          </button>
           <button class="hidden admin-nav-button" id="tile114NavBtn" type="button" data-page-target="tile114TestPage">
             <span class="nav-glyph">수집</span>
             <span class="nav-copy">거래사이트</span>
@@ -109,9 +114,9 @@
                 <section class="square-main-intro">
                   <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" />
                   <div>
-                    <h1>자재GO,</h1>
-                    <p>현장 자재를 찾는 가장 빠르고 명확한 방법.</p>
-                    <small>타일 · 위생도기 · 수전금구 · 욕실자재<br />검색부터 주문과 시공 이미지까지</small>
+                    <h1 data-site-text="homeHeadline">자재GO,</h1>
+                    <p data-site-text="homeDescription">현장 자재를 찾는 가장 빠르고 명확한 방법.</p>
+                    <small data-site-text="homeDetails">타일 · 위생도기 · 수전금구 · 욕실자재<br />검색부터 주문과 시공 이미지까지</small>
                   </div>
                 </section>
 
@@ -122,19 +127,19 @@
                   </span>
                   <span class="square-main-label">
                     <span>
-                      <strong>타일GO</strong>
-                      <small>사이즈·마감·스타일로 찾기</small>
+                      <strong data-site-text="homeTileGoTitle">타일GO</strong>
+                      <small data-site-text="homeTileGoSubtitle">사이즈·마감·스타일로 찾기</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
                 </button>
 
                 <button class="square-main-tile square-main-photo" type="button" data-page-target="aiTileFinderPage">
-                  <img src="images/catalog/catalog_p16_img01.jpg" alt="" loading="eager" />
+                  <img src="images/catalog/catalog_p16_img01.jpg" alt="" loading="eager" data-site-image="homeAi" />
                   <span class="square-main-label">
                     <span>
-                      <strong>AI 타일검색</strong>
-                      <small>사진과 자연어로 비슷한 타일 찾기</small>
+                      <strong data-site-text="homeAiTitle">AI 타일검색</strong>
+                      <small data-site-text="homeAiSubtitle">사진과 자연어로 비슷한 타일 찾기</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -147,19 +152,19 @@
                   </span>
                   <span class="square-main-label">
                     <span>
-                      <strong>바스GO</strong>
-                      <small>욕실 자재 한 번에 찾기</small>
+                      <strong data-site-text="homeBathTitle">바스GO</strong>
+                      <small data-site-text="homeBathSubtitle">욕실 자재 한 번에 찾기</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
                 </button>
 
                 <button class="square-main-tile square-main-photo" type="button" data-main-category="sanitary">
-                  <img src="images/catalog/catalog_p04_img00.jpg" alt="" loading="lazy" />
+                  <img src="images/catalog/catalog_p04_img00.jpg" alt="" loading="lazy" data-site-image="homeBathroom" />
                   <span class="square-main-label">
                     <span>
-                      <strong>욕실 공간</strong>
-                      <small>위생도기·수전·욕실장</small>
+                      <strong data-site-text="homeBathroomTitle">욕실 공간</strong>
+                      <small data-site-text="homeBathroomSubtitle">위생도기·수전·욕실장</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -177,8 +182,8 @@
                   </span>
                   <span class="square-main-label square-main-label-dark">
                     <span>
-                      <strong>상품검색</strong>
-                      <small>필요한 조건만 빠르게 선택</small>
+                      <strong data-site-text="homeSearchTitle">상품검색</strong>
+                      <small data-site-text="homeSearchSubtitle">필요한 조건만 빠르게 선택</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -191,19 +196,19 @@
                   </span>
                   <span class="square-main-label square-main-label-dark">
                     <span>
-                      <strong>샘플GO</strong>
-                      <small>SNT 샘플을 현장에서 확인</small>
+                      <strong data-site-text="homeSampleTitle">샘플GO</strong>
+                      <small data-site-text="homeSampleSubtitle">SNT 샘플을 현장에서 확인</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
                 </button>
 
                 <button class="square-main-tile square-main-photo" type="button" data-page-target="plannerPage">
-                  <img src="images/catalog/catalog_p05_img00.jpg" alt="" loading="lazy" />
+                  <img src="images/catalog/catalog_p05_img00.jpg" alt="" loading="lazy" data-site-image="homePlanner" />
                   <span class="square-main-label">
                     <span>
-                      <strong>시공보기</strong>
-                      <small>공간에 자재를 미리 적용</small>
+                      <strong data-site-text="homePlannerTitle">시공보기</strong>
+                      <small data-site-text="homePlannerSubtitle">공간에 자재를 미리 적용</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -218,19 +223,19 @@
                   <span class="square-main-delivery-number" aria-hidden="true">16:00</span>
                   <span class="square-main-label">
                     <span>
-                      <strong>장바구니·배송</strong>
-                      <small>주문 수량과 현장 배송 확인</small>
+                      <strong data-site-text="homeCartTitle">장바구니·배송</strong>
+                      <small data-site-text="homeCartSubtitle">주문 수량과 현장 배송 확인</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
                 </button>
 
                 <button class="square-main-tile square-main-photo" type="button" data-main-category="tile">
-                  <img src="images/catalog/catalog_p12_img01.jpg" alt="" loading="lazy" />
+                  <img src="images/catalog/catalog_p12_img01.jpg" alt="" loading="lazy" data-site-image="homeRecommended" />
                   <span class="square-main-label">
                     <span>
-                      <strong>추천 타일</strong>
-                      <small>현장에서 자주 찾는 디자인</small>
+                      <strong data-site-text="homeRecommendTitle">추천 타일</strong>
+                      <small data-site-text="homeRecommendSubtitle">현장에서 자주 찾는 디자인</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -243,8 +248,8 @@
                   </span>
                   <span class="square-main-label">
                     <span>
-                      <strong>마이페이지</strong>
-                      <small>주문·등급·거래처 관리</small>
+                      <strong data-site-text="homeMyTitle">마이페이지</strong>
+                      <small data-site-text="homeMySubtitle">주문·등급·거래처 관리</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -943,17 +948,17 @@
         <section class="commerce-panel catalog-panel customer-catalog-panel">
           <div class="catalog-toolbar customer-catalog-hero tile-search-stage">
             <div class="catalog-toolbar-copy">
-              <p class="eyebrow">TileGO Search</p>
-              <h3>찾는 타일을 말하듯 입력하세요.</h3>
-              <p>규격, 용도, 마감, 스타일과 색상을 해석하고 조건에 맞는 상품을 이미지 중심으로 보여드립니다.</p>
+              <p class="eyebrow" data-site-text="tileHeroEyebrow">TileGO Search</p>
+              <h3 data-site-text="tileHeroTitle">찾는 타일을 말하듯 입력하세요.</h3>
+              <p data-site-text="tileHeroDescription">규격, 용도, 마감, 스타일과 색상을 해석하고 조건에 맞는 상품을 이미지 중심으로 보여드립니다.</p>
             </div>
             <div class="tile-search-natural">
-              <label for="productSearch">AI 자연어 상품검색</label>
+              <label for="productSearch" data-site-text="tileSearchLabel">AI 자연어 상품검색</label>
               <div class="tile-search-control">
                 <input id="productSearch" type="search" placeholder="예: 욕실 바닥 베이지 600각 무광, 화이트 마블 유광" />
                 <button class="tile-search-submit" id="productSearchBtn" type="button">검색</button>
               </div>
-              <span>검색 후 사이즈·용도·마감·스타일·색상을 바로 조정할 수 있습니다.</span>
+              <span data-site-text="tileSearchHint">검색 후 사이즈·용도·마감·스타일·색상을 바로 조정할 수 있습니다.</span>
             </div>
           </div>
           <div class="customer-chip-row customer-filter-shortcuts tile-catalog-links">
@@ -1082,13 +1087,13 @@
         </section>
         <section class="commerce-panel bath-catalog-panel">
           <section class="bath-editorial-hero">
-            <img src="images/catalog/catalog_p04_img00.jpg" alt="" />
+            <img src="images/catalog/catalog_p04_img00.jpg" alt="" data-site-image="bathHero" />
             <div class="bath-editorial-overlay">
-              <p class="eyebrow">BathGO Collection</p>
-              <h3>욕실에 필요한 자재를<br />한 번에 찾으세요.</h3>
-              <p>수전, 세면대, 욕조, 양변기, 욕실장과 액세서리를 품목과 모델명으로 빠르게 검색할 수 있습니다.</p>
+              <p class="eyebrow" data-site-text="bathHeroEyebrow">BathGO Collection</p>
+              <h3 data-site-text="bathHeroTitle">욕실에 필요한 자재를<br />한 번에 찾으세요.</h3>
+              <p data-site-text="bathHeroDescription">수전, 세면대, 욕조, 양변기, 욕실장과 액세서리를 품목과 모델명으로 빠르게 검색할 수 있습니다.</p>
               <div class="bath-search-field bath-editorial-search">
-                <label for="bathProductSearch">바스GO 상품 검색</label>
+                <label for="bathProductSearch" data-site-text="bathSearchLabel">바스GO 상품 검색</label>
                 <div class="bath-search-control">
                   <input id="bathProductSearch" type="search" placeholder="상품명 또는 모델명 검색" />
                   <button class="primary-action" id="bathProductSearchBtn" type="button">검색</button>
@@ -2342,6 +2347,142 @@
         </section>
       </main>
 
+      <main class="app-page page-panel site-studio-page" id="siteStudioPage">
+        <section class="page-heading site-studio-heading">
+          <div>
+            <p class="eyebrow">Operations & Design Studio</p>
+            <h2>운영·디자인 통합 스튜디오</h2>
+            <p>운영 현황을 확인하고 고객 화면의 폰트, 문구, 이미지, 레이아웃과 메뉴를 한곳에서 관리합니다.</p>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" id="siteStudioOpenPreviewBtn" type="button">고객 화면 보기</button>
+            <button class="primary-action" id="siteStudioSaveBtn" type="button">변경사항 저장</button>
+          </div>
+        </section>
+
+        <section class="site-studio-command">
+          <div>
+            <p class="eyebrow">Command Center</p>
+            <h3>운영과 화면 관리를 한 번에 처리합니다.</h3>
+            <p>운영 데이터는 기존 관리자 기능으로 연결되고, 디자인 변경은 저장 즉시 메인·타일GO·바스GO에 적용됩니다.</p>
+          </div>
+          <div class="site-studio-command-actions">
+            <button type="button" data-studio-admin-view="operations">운영 대시보드</button>
+            <button type="button" data-studio-admin-view="orders">회원·주문</button>
+            <button type="button" data-studio-admin-view="products">상품 현황</button>
+            <button type="button" data-studio-admin-view="quality">DB 품질</button>
+            <button type="button" data-studio-admin-view="searchTraining">검색엔진 강화</button>
+          </div>
+        </section>
+
+        <section class="site-studio-ops-summary" id="siteStudioOpsSummary" aria-label="운영 요약">
+          <article><span>전체 상품</span><strong>-</strong></article>
+          <article><span>타일 상품</span><strong>-</strong></article>
+          <article><span>승인 대기</span><strong>-</strong></article>
+          <article><span>주문·장바구니</span><strong>-</strong></article>
+        </section>
+
+        <section class="site-studio-workspace">
+          <aside class="site-studio-sidebar">
+            <strong>화면 설정</strong>
+            <button type="button" data-site-studio-section="siteStudioAppearanceSection">폰트·컬러</button>
+            <button type="button" data-site-studio-section="siteStudioTextSection">문구</button>
+            <button type="button" data-site-studio-section="siteStudioImageSection">이미지</button>
+            <button type="button" data-site-studio-section="siteStudioLayoutSection">레이아웃</button>
+            <button type="button" data-site-studio-section="siteStudioMenuSection">메뉴</button>
+            <hr />
+            <button type="button" id="siteStudioExportBtn">설정 내보내기</button>
+            <button type="button" id="siteStudioImportBtn">설정 가져오기</button>
+            <input class="hidden" id="siteStudioImportInput" type="file" accept="application/json,.json" />
+          </aside>
+
+          <div class="site-studio-editor">
+            <section class="site-studio-editor-section" id="siteStudioAppearanceSection">
+              <header>
+                <div>
+                  <p class="eyebrow">Brand System</p>
+                  <h3>폰트·컬러</h3>
+                </div>
+                <p>고객 화면 전체에 적용되는 기본 서체와 색상을 설정합니다.</p>
+              </header>
+              <div class="site-studio-form-grid" id="siteStudioAppearanceFields"></div>
+            </section>
+
+            <section class="site-studio-editor-section" id="siteStudioTextSection">
+              <header>
+                <div>
+                  <p class="eyebrow">Content</p>
+                  <h3>화면 문구</h3>
+                </div>
+                <p>메인, 타일GO, 바스GO의 핵심 문구를 직접 수정합니다.</p>
+              </header>
+              <div class="site-studio-text-list" id="siteStudioTextFields"></div>
+            </section>
+
+            <section class="site-studio-editor-section" id="siteStudioImageSection">
+              <header>
+                <div>
+                  <p class="eyebrow">Media</p>
+                  <h3>대표 이미지</h3>
+                </div>
+                <p>이미지를 업로드하거나 HTTPS 이미지 주소를 입력할 수 있습니다.</p>
+              </header>
+              <div class="site-studio-image-list" id="siteStudioImageFields"></div>
+            </section>
+
+            <section class="site-studio-editor-section" id="siteStudioLayoutSection">
+              <header>
+                <div>
+                  <p class="eyebrow">Layout</p>
+                  <h3>구성·밀도</h3>
+                </div>
+                <p>콘텐츠 너비, 카드 간격, 상품 열 수와 모서리 형태를 조절합니다.</p>
+              </header>
+              <div class="site-studio-layout-list" id="siteStudioLayoutFields"></div>
+            </section>
+
+            <section class="site-studio-editor-section" id="siteStudioMenuSection">
+              <header>
+                <div>
+                  <p class="eyebrow">Navigation</p>
+                  <h3>고객 메뉴</h3>
+                </div>
+                <p>메뉴명을 수정하고 노출 여부와 순서를 변경합니다.</p>
+              </header>
+              <div class="site-studio-menu-list" id="siteStudioMenuFields"></div>
+            </section>
+          </div>
+
+          <aside class="site-studio-preview-panel">
+            <div class="site-studio-preview-head">
+              <div>
+                <p class="eyebrow">Live Preview</p>
+                <h3>실시간 미리보기</h3>
+              </div>
+              <select id="siteStudioPreviewPage" aria-label="미리보기 화면">
+                <option value="home">메인</option>
+                <option value="tile">타일GO</option>
+                <option value="bath">바스GO</option>
+              </select>
+            </div>
+            <div class="site-studio-live-preview" id="siteStudioLivePreview"></div>
+            <div class="site-studio-draft-state" id="siteStudioDraftState">운영 서버에 저장된 상태입니다.</div>
+          </aside>
+        </section>
+
+        <section class="site-studio-savebar">
+          <div>
+            <strong>화면 변경사항</strong>
+            <span class="signup-status-bar" id="siteStudioStatus">설정을 불러올 준비가 되었습니다.</span>
+          </div>
+          <div>
+            <button class="secondary-action" id="siteStudioDiscardBtn" type="button">변경 취소</button>
+            <button class="secondary-action" id="siteStudioResetBtn" type="button">기본값 복원</button>
+            <button class="primary-action" id="siteStudioSaveBottomBtn" type="button">변경사항 저장</button>
+          </div>
+        </section>
+      </main>
+
       <main class="app-page page-panel" id="adminPage">
         <section class="page-heading">
           <div>
@@ -2791,7 +2932,8 @@
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
+    <script src="src/client/features/admin/site-studio.js?v=20260724-site-studio3"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260724-hybrid-catalog1"></script>
+    <script src="app.js?v=20260724-site-studio2"></script>
   </body>
 </html>

@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "appearance": {
+    "fontFamily": "system",
+    "fontScale": "default",
+    "primaryColor": "#0b5cff",
+    "inkColor": "#141922",
+    "pageColor": "#ffffff",
+    "surfaceColor": "#ffffff",
+    "cornerRadius": 8,
+    "contentWidth": 1480,
+    "productColumnsDesktop": 4,
+    "productColumnsMobile": 2,
+    "homeTileGap": 18
+  },
+  "text": {
+    "homeHeadline": "자재GO,",
+    "homeDescription": "현장 자재를 찾는 가장 빠르고 명확한 방법.",
+    "homeDetails": "타일 · 위생도기 · 수전금구 · 욕실자재\n검색부터 주문과 시공 이미지까지",
+    "homeTileGoTitle": "타일GO",
+    "homeTileGoSubtitle": "사이즈·마감·스타일로 찾기",
+    "homeAiTitle": "AI 타일검색",
+    "homeAiSubtitle": "사진과 자연어로 비슷한 타일 찾기",
+    "homeBathTitle": "바스GO",
+    "homeBathSubtitle": "욕실 자재 한 번에 찾기",
+    "homeBathroomTitle": "욕실 공간",
+    "homeBathroomSubtitle": "위생도기·수전·욕실장",
+    "homeSearchTitle": "상품검색",
+    "homeSearchSubtitle": "필요한 조건만 빠르게 선택",
+    "homeSampleTitle": "샘플GO",
+    "homeSampleSubtitle": "SNT 샘플을 현장에서 확인",
+    "homePlannerTitle": "시공보기",
+    "homePlannerSubtitle": "공간에 자재를 미리 적용",
+    "homeCartTitle": "장바구니·배송",
+    "homeCartSubtitle": "주문 수량과 현장 배송 확인",
+    "homeRecommendTitle": "추천 타일",
+    "homeRecommendSubtitle": "현장에서 자주 찾는 디자인",
+    "homeMyTitle": "마이페이지",
+    "homeMySubtitle": "주문·등급·거래처 관리",
+    "tileHeroEyebrow": "TileGO Search",
+    "tileHeroTitle": "찾는 타일을 말하듯 입력하세요.",
+    "tileHeroDescription": "규격, 용도, 마감, 스타일과 색상을 해석하고 조건에 맞는 상품을 이미지 중심으로 보여드립니다.",
+    "tileSearchLabel": "AI 자연어 상품검색",
+    "tileSearchHint": "검색 후 사이즈·용도·마감·스타일·색상을 바로 조정할 수 있습니다.",
+    "bathHeroEyebrow": "BathGO Collection",
+    "bathHeroTitle": "욕실에 필요한 자재를\n한 번에 찾으세요.",
+    "bathHeroDescription": "수전, 세면대, 욕조, 양변기, 욕실장과 액세서리를 품목과 모델명으로 빠르게 검색할 수 있습니다.",
+    "bathSearchLabel": "바스GO 상품 검색"
+  },
+  "images": {
+    "homeAi": "images/catalog/catalog_p16_img01.jpg",
+    "homeBathroom": "images/catalog/catalog_p04_img00.jpg",
+    "homePlanner": "images/catalog/catalog_p05_img00.jpg",
+    "homeRecommended": "images/catalog/catalog_p12_img01.jpg",
+    "bathHero": "images/catalog/catalog_p04_img00.jpg"
+  },
+  "menu": [
+    {
+      "id": "homePage",
+      "label": "메인",
+      "visible": true,
+      "order": 1
+    },
+    {
+      "id": "taxonomyTestPage",
+      "label": "상품검색",
+      "visible": true,
+      "order": 2
+    },
+    {
+      "id": "productsPage",
+      "label": "타일GO",
+      "visible": true,
+      "order": 3
+    },
+    {
+      "id": "bathProductsPage",
+      "label": "바스GO",
+      "visible": true,
+      "order": 4
+    },
+    {
+      "id": "cartPage",
+      "label": "장바구니",
+      "visible": true,
+      "order": 5
+    },
+    {
+      "id": "myPage",
+      "label": "마이페이지",
+      "visible": true,
+      "order": 6
+    },
+    {
+      "id": "plannerPage",
+      "label": "시공보기",
+      "visible": true,
+      "order": 7
+    }
+  ],
+  "updatedAt": "2026-07-24T07:07:34.873Z",
+  "updatedBy": "admin"
+}
