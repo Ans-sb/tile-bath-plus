@@ -1,0 +1,6 @@
+Dockerfile text eol=lf
+docker-compose.vps.yml text eol=lf
+deploy/vps/*.sh text eol=lf
+deploy/vps/*.conf text eol=lf
+deploy/vps/*.service text eol=lf
+deploy/vps/*.timer text eol=lf

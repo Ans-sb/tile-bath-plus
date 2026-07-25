@@ -1,0 +1,43 @@
+name: jajaego
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jajaego-app:${JAJAEGO_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ${JAJAEGO_ENV_FILE:-.env.vps}
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4173
+    ports:
+      - "127.0.0.1:${JAJAEGO_HOST_PORT:-4173}:4173"
+    volumes:
+      - type: bind
+        source: ${JAJAEGO_DATA_DIR:-./data}
+        target: /app/data
+      - type: bind
+        source: ${JAJAEGO_UPLOADS_DIR:-./uploads}
+        target: /app/uploads
+      - type: bind
+        source: ${JAJAEGO_OUTPUTS_DIR:-./outputs}
+        target: /app/outputs
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:4173/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
