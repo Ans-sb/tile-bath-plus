@@ -121,3 +121,22 @@ node scripts\sync-products-to-supabase.mjs
 ```powershell
 npm.cmd run check
 ```
+
+## Hermes 내부 연결
+
+Hermes는 고객 브라우저에서 직접 호출하지 않고 자재GO 서버가 내부 API로만 호출합니다.
+Railway에서는 Hermes를 별도 서비스로 배포하고 자재GO 서비스에 아래 환경변수를 설정합니다.
+
+```env
+HERMES_API_BASE_URL=http://hermes-agent.railway.internal:8642/v1
+HERMES_API_KEY=Hermes_API_SERVER_KEY와_동일한_비밀값
+HERMES_MODEL=hermes-agent
+HERMES_TIMEOUT_MS=30000
+```
+
+관리자 인증이 적용된 연결 확인 경로:
+
+- `GET /api/admin/hermes/status`
+- `POST /api/admin/hermes/test`
+
+고객 화면과 고객용 API에는 Hermes 내부 주소, 키, 브랜드·공급처·원가 정보를 노출하지 않습니다.

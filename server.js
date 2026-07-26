@@ -33,6 +33,7 @@ const { createApprovalRulesService } = require("./src/server/services/approval-r
 const { createCartStore } = require("./src/server/services/cart-store");
 const { createOrderStore } = require("./src/server/services/order-store");
 const { createSiteSettingsService } = require("./src/server/services/site-settings-service");
+const { createHermesClient } = require("./src/server/services/hermes-client");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -64,6 +65,10 @@ const openAiRenderSize = normalizeOpenAiRenderSize(process.env.OPENAI_RENDER_SIZ
 const openAiRenderQuality = String(process.env.OPENAI_RENDER_QUALITY || "high").trim();
 const openAiRenderOutputFormat = normalizeOpenAiRenderOutputFormat(process.env.OPENAI_RENDER_OUTPUT_FORMAT || "jpeg");
 const openAiRenderOutputCompression = Math.max(0, Math.min(100, Number(process.env.OPENAI_RENDER_OUTPUT_COMPRESSION || 92) || 92));
+const hermesApiBaseUrl = String(process.env.HERMES_API_BASE_URL || "").trim().replace(/\/+$/, "");
+const hermesApiKey = String(process.env.HERMES_API_KEY || "").trim();
+const hermesModel = String(process.env.HERMES_MODEL || "hermes-agent").trim() || "hermes-agent";
+const hermesTimeoutMs = Math.max(1000, Number(process.env.HERMES_TIMEOUT_MS || 30000) || 30000);
 const supabaseUrl = String(process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const supabaseSecretKey = String(
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -223,6 +228,12 @@ const orderStore = createOrderStore({
 });
 const siteSettingsService = createSiteSettingsService({ settingsPath: siteSettingsPath });
 const searchLogStore = createSearchLogStore({ root });
+const hermesClient = createHermesClient({
+  baseUrl: hermesApiBaseUrl,
+  apiKey: hermesApiKey,
+  model: hermesModel,
+  timeoutMs: hermesTimeoutMs
+});
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -337,11 +348,52 @@ function getAdminRouteContext() {
     readAdminOverview,
     readTile114SampleProducts,
     readAllOrders,
+    readHermesStatus,
+    testHermesConnection,
     readSiteSettings: () => siteSettingsService.read(),
     saveSiteSettings: (settings, reviewer) => siteSettingsService.save(settings, reviewer),
     resetSiteSettings: (reviewer) => siteSettingsService.reset(reviewer),
     getDefaultSiteSettings: () => siteSettingsService.defaults,
     saveSiteStudioImage
+  };
+}
+
+async function readHermesStatus() {
+  if (!hermesClient.hasConfig()) {
+    return {
+      ok: true,
+      configured: false,
+      connected: false,
+      status: "not_configured"
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      ...(await hermesClient.health())
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      configured: true,
+      connected: false,
+      status: "unavailable",
+      error: error.message
+    };
+  }
+}
+
+async function testHermesConnection(payload) {
+  const message = String(payload?.message || "자재GO Hermes 연결 상태를 한 문장으로 확인해 주세요.")
+    .trim()
+    .slice(0, 1000);
+  return {
+    ok: true,
+    ...(await hermesClient.chat({
+      message,
+      systemPrompt: "당신은 자재GO 내부 운영 보조 AI입니다. 한국어로 짧고 명확하게 답하세요."
+    }))
   };
 }
 

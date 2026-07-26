@@ -50,6 +50,21 @@ async function handleAdminRoutes(request, response, context) {
     return true;
   }
 
+  if (request.method === "GET" && request.url.startsWith("/api/admin/hermes/status")) {
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+    context.sendJson(response, 200, await context.readHermesStatus());
+    return true;
+  }
+
+  if (request.method === "POST" && request.url === "/api/admin/hermes/test") {
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+    const payload = JSON.parse(await context.readRequestBody(request) || "{}");
+    context.sendJson(response, 200, await context.testHermesConnection(payload));
+    return true;
+  }
+
   if (request.method === "GET" && request.url.startsWith("/api/admin/search-training/stats")) {
     const adminCredentials = context.readAdminCredentialsFromRequest(request);
     context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
