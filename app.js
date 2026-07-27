@@ -418,7 +418,33 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage"]);
+const QUANTITY_ADHESIVE_PRESETS = {
+  "cement-floor": {
+    label: "압착시멘트",
+    packageUnit: "포",
+    application: "바닥",
+    coverage: { 7: 4.8, 10: 3.3 }
+  },
+  "cerafix-wall": {
+    label: "세라픽스",
+    packageUnit: "캔",
+    application: "벽",
+    coverage: { 7: 6.7, 10: 5.7 }
+  },
+  "tilebond-wall": {
+    label: "타일본드",
+    packageUnit: "포",
+    application: "벽",
+    coverage: { 10: 3 }
+  },
+  "tilebond-floor": {
+    label: "타일본드",
+    packageUnit: "포",
+    application: "바닥",
+    coverage: { 10: 2 }
+  }
+};
 const pageHistory = [];
 const pageScrollPositions = new Map([[currentPageId, 0]]);
 let productListReturnState = { scrollY: 0, productId: "", viewportTop: 0, sourcePageId: "productsPage" };
@@ -629,6 +655,170 @@ function syncTopbarControls(pageId = currentPageId) {
   printButton.classList.toggle("hidden", pageId !== "proposalPage");
 }
 
+function getQuantityInputValue(id, fallback = 0) {
+  const value = Number(document.querySelector(`#${id}`)?.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function formatQuantityNumber(value, maximumFractionDigits = 2) {
+  return new Intl.NumberFormat("ko-KR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits
+  }).format(Number(value) || 0);
+}
+
+function syncQuantityAreaMode() {
+  const mode = document.querySelector('input[name="quantityAreaMode"]:checked')?.value || "direct";
+  document.querySelectorAll("[data-quantity-area-panel]").forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.quantityAreaPanel !== mode);
+  });
+}
+
+function syncQuantityAdhesiveOptions() {
+  const typeControl = document.querySelector("#quantityAdhesiveType");
+  const thicknessControl = document.querySelector("#quantityAdhesiveThickness");
+  if (!typeControl || !thicknessControl) return;
+
+  const preset = QUANTITY_ADHESIVE_PRESETS[typeControl.value] || QUANTITY_ADHESIVE_PRESETS["cement-floor"];
+  const previousValue = Number(thicknessControl.value);
+  const thicknesses = Object.keys(preset.coverage).map(Number).sort((a, b) => a - b);
+  thicknessControl.innerHTML = thicknesses
+    .map((thickness) => `<option value="${thickness}">${thickness}mm</option>`)
+    .join("");
+  thicknessControl.value = String(thicknesses.includes(previousValue) ? previousValue : thicknesses[thicknesses.length - 1]);
+}
+
+function getQuantityInstallArea() {
+  const mode = document.querySelector('input[name="quantityAreaMode"]:checked')?.value || "direct";
+  if (mode === "dimensions") {
+    return getQuantityInputValue("quantityAreaWidth")
+      * getQuantityInputValue("quantityAreaHeight")
+      * Math.max(1, Math.floor(getQuantityInputValue("quantityAreaCount", 1)));
+  }
+  return getQuantityInputValue("quantityDirectArea");
+}
+
+function setQuantityCalculationStatus(message, isError = false) {
+  const status = document.querySelector("#quantityCalculationStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("is-error", isError);
+}
+
+function calculateQuantityEstimate() {
+  const form = document.querySelector("#quantityCalculatorForm");
+  if (!form) return null;
+
+  const installArea = getQuantityInstallArea();
+  const tileWidth = getQuantityInputValue("quantityTileWidth");
+  const tileHeight = getQuantityInputValue("quantityTileHeight");
+  const piecesPerBox = Math.max(0, Math.floor(getQuantityInputValue("quantityPiecesPerBox")));
+  if (installArea <= 0 || tileWidth <= 0 || tileHeight <= 0 || piecesPerBox <= 0) {
+    setQuantityCalculationStatus("면적, 타일 규격과 박스당 장수를 확인해주세요.", true);
+    return null;
+  }
+
+  const tileWasteRate = Math.max(0, getQuantityInputValue("quantityTileWaste")) / 100;
+  const tileArea = (tileWidth * tileHeight) / 1_000_000;
+  const netPieces = Math.ceil(installArea / tileArea);
+  const orderAreaTarget = installArea * (1 + tileWasteRate);
+  const orderPieces = Math.ceil(orderAreaTarget / tileArea);
+  const boxes = Math.ceil(orderPieces / piecesPerBox);
+  const purchasedPieces = boxes * piecesPerBox;
+  const purchasedArea = purchasedPieces * tileArea;
+  const sparePieces = Math.max(0, purchasedPieces - orderPieces);
+
+  const adhesiveType = document.querySelector("#quantityAdhesiveType")?.value || "cement-floor";
+  const adhesivePreset = QUANTITY_ADHESIVE_PRESETS[adhesiveType] || QUANTITY_ADHESIVE_PRESETS["cement-floor"];
+  const adhesiveThickness = getQuantityInputValue("quantityAdhesiveThickness", 10);
+  const adhesiveCoverage = adhesivePreset.coverage[adhesiveThickness]
+    || Object.values(adhesivePreset.coverage)[0];
+  const adhesiveWasteRate = Math.max(0, getQuantityInputValue("quantityAdhesiveWaste")) / 100;
+  const adhesiveArea = installArea * (1 + adhesiveWasteRate);
+  const adhesivePackages = Math.ceil(adhesiveArea / adhesiveCoverage);
+
+  const tileDepth = getQuantityInputValue("quantityTileDepth");
+  const jointWidth = getQuantityInputValue("quantityJointWidth");
+  const groutPackageWeight = getQuantityInputValue("quantityGroutPackage");
+  const groutWasteRate = Math.max(0, getQuantityInputValue("quantityGroutWaste")) / 100;
+  if (tileDepth <= 0 || jointWidth <= 0 || groutPackageWeight <= 0) {
+    setQuantityCalculationStatus("타일 두께, 줄눈 간격과 줄눈재 포장 중량을 확인해주세요.", true);
+    return null;
+  }
+
+  // Mapei volume formula: ((A+B)/(A*B))*C*D*1.6, dimensions in millimetres.
+  const groutKgPerSqm = ((tileWidth + tileHeight) / (tileWidth * tileHeight))
+    * tileDepth
+    * jointWidth
+    * 1.6;
+  const groutKg = groutKgPerSqm * installArea * (1 + groutWasteRate);
+  const groutPackages = Math.max(1, Math.ceil(groutKg / groutPackageWeight));
+
+  const result = {
+    installArea,
+    tileWidth,
+    tileHeight,
+    tileWasteRate,
+    netPieces,
+    orderPieces,
+    boxes,
+    purchasedPieces,
+    purchasedArea,
+    sparePieces,
+    adhesivePreset,
+    adhesiveThickness,
+    adhesiveCoverage,
+    adhesivePackages,
+    groutKgPerSqm,
+    groutKg,
+    groutPackageWeight,
+    groutPackages
+  };
+
+  setText("#quantityResultArea", `${formatQuantityNumber(installArea)}㎡`);
+  setText("#quantityResultBoxes", `${formatQuantityNumber(boxes, 0)} BOX`);
+  setText("#quantityResultTiles", `${formatQuantityNumber(purchasedPieces, 0)}장 · 주문 면적 ${formatQuantityNumber(purchasedArea)}㎡`);
+  setText("#quantityResultNetPieces", `${formatQuantityNumber(netPieces, 0)}장`);
+  setText("#quantityResultOrderPieces", `${formatQuantityNumber(orderPieces, 0)}장`);
+  setText("#quantityResultSparePieces", `${formatQuantityNumber(sparePieces, 0)}장`);
+  setText("#quantityResultAdhesiveLabel", adhesivePreset.label);
+  setText("#quantityResultAdhesive", `${formatQuantityNumber(adhesivePackages, 0)}${adhesivePreset.packageUnit}`);
+  setText("#quantityResultAdhesiveDetail", `${adhesivePreset.application} · ${adhesiveThickness}mm · 1${adhesivePreset.packageUnit}당 ${formatQuantityNumber(adhesiveCoverage)}㎡`);
+  setText("#quantityAdhesiveReference", `쌍곰 공식 계산 기준: ${adhesivePreset.label} ${adhesiveThickness}mm · 1${adhesivePreset.packageUnit}당 ${formatQuantityNumber(adhesiveCoverage)}㎡`);
+  setText("#quantityResultGrout", `${formatQuantityNumber(groutPackages, 0)}포`);
+  setText("#quantityResultGroutDetail", `예상 ${formatQuantityNumber(groutKg)}kg · ${formatQuantityNumber(groutPackageWeight)}kg 포장 · ㎡당 ${formatQuantityNumber(groutKgPerSqm, 3)}kg`);
+  setQuantityCalculationStatus("입력값을 기준으로 주문 물량을 계산했습니다.");
+  form.dataset.quantityResult = JSON.stringify(result);
+  return result;
+}
+
+function initializeQuantityCalculator() {
+  if (!document.querySelector("#quantityCalculatorForm")) return;
+  syncQuantityAreaMode();
+  syncQuantityAdhesiveOptions();
+  calculateQuantityEstimate();
+}
+
+async function copyQuantityEstimate() {
+  const result = calculateQuantityEstimate();
+  if (!result) return;
+  const lines = [
+    `[자재GO 물량계산]`,
+    `시공 면적: ${formatQuantityNumber(result.installArea)}㎡`,
+    `타일: ${result.tileWidth}×${result.tileHeight}mm`,
+    `타일 주문: ${formatQuantityNumber(result.boxes, 0)}BOX / ${formatQuantityNumber(result.purchasedPieces, 0)}장 / ${formatQuantityNumber(result.purchasedArea)}㎡`,
+    `접착제: ${result.adhesivePreset.label} ${formatQuantityNumber(result.adhesivePackages, 0)}${result.adhesivePreset.packageUnit} (${result.adhesiveThickness}mm 기준)`,
+    `줄눈재: ${formatQuantityNumber(result.groutPackages, 0)}포 / 예상 ${formatQuantityNumber(result.groutKg)}kg`,
+    `참고: 현장 상태와 제품 시방에 따라 실제 사용량은 달라질 수 있습니다.`
+  ];
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    setQuantityCalculationStatus("계산 결과를 클립보드에 복사했습니다.");
+  } catch {
+    setQuantityCalculationStatus("브라우저에서 복사를 허용하지 않았습니다.", true);
+  }
+}
+
 function bindEvents() {
   document.querySelectorAll("[data-page-target]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -677,6 +867,23 @@ function bindEvents() {
     renderProducts();
     document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  document.querySelector("#quantityCalculatorForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    calculateQuantityEstimate();
+  });
+  document.querySelector("#quantityCalculatorForm")?.addEventListener("input", () => {
+    calculateQuantityEstimate();
+  });
+  document.querySelector("#quantityCalculatorForm")?.addEventListener("change", (event) => {
+    if (event.target.matches('input[name="quantityAreaMode"]')) syncQuantityAreaMode();
+    if (event.target.matches("#quantityAdhesiveType")) syncQuantityAdhesiveOptions();
+    calculateQuantityEstimate();
+  });
+  document.querySelector("#quantityCalculatorReset")?.addEventListener("click", () => {
+    setTimeout(initializeQuantityCalculator, 0);
+  });
+  document.querySelector("#quantityCopyResult")?.addEventListener("click", copyQuantityEstimate);
 
   document.querySelector("#productPageSize")?.addEventListener("change", () => {
     productCurrentPage = 1;
@@ -1259,6 +1466,9 @@ async function loadProducts() {
   }
   if (currentPageId === "samplePage") {
     renderSamplePage();
+  }
+  if (currentPageId === "quantityCalculatorPage") {
+    initializeQuantityCalculator();
   }
 
   try {
@@ -13795,6 +14005,10 @@ function switchPage(pageId, options = {}) {
   if (pageId === "samplePage") {
     renderSamplePage();
     void ensureProductsReady();
+  }
+
+  if (pageId === "quantityCalculatorPage") {
+    initializeQuantityCalculator();
   }
 
   if (pageId === "aiTileFinderPage") {

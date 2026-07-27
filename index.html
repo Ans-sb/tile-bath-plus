@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260727-best-image1" />
+    <link rel="stylesheet" href="styles.css?v=20260727-quantity-calculator2" />
   </head>
   <body>
     <!-- build: home-mosaic-20260727 -->
@@ -270,18 +270,17 @@
                   <span class="mosaic-promo-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
                 </button>
 
-                <button class="square-main-tile mosaic-icon-tile mosaic-tile-purple" type="button" data-main-category="tile">
+                <button class="square-main-tile mosaic-icon-tile mosaic-tile-purple" type="button" data-page-target="quantityCalculatorPage">
                   <span class="mosaic-main-icon mosaic-style-icon" aria-hidden="true">
                     <svg viewBox="0 0 96 96">
-                      <path d="M13 72 38 47l19 19 26-31M13 82h70"></path>
-                      <circle cx="30" cy="27" r="11"></circle>
-                      <path d="M59 16h24v24H59z"></path>
+                      <rect x="20" y="13" width="56" height="70" rx="6"></rect>
+                      <path d="M31 25h34v13H31zM31 49h8v8h-8zM44 49h8v8h-8zM57 49h8v8h-8zM31 62h8v8h-8zM44 62h8v8h-8zM57 62h8v8h-8z"></path>
                     </svg>
                   </span>
                   <span class="square-main-label">
                     <span>
-                      <strong>스타일 찾기</strong>
-                      <small>마블·스톤·시멘트·솔리드</small>
+                      <strong>물량계산</strong>
+                      <small>타일·접착제·줄눈 계산</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -614,6 +613,238 @@
             <button class="secondary-action" type="button" data-page-target="dbPage">상품 DB 관리</button>
           </div>
           <div class="signup-status-bar" id="serverControlStatus">서버와 데이터 상태는 관리자 도구 영역에서 계속 확인할 수 있습니다.</div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel customer-page quantity-calculator-page" id="quantityCalculatorPage">
+        <section class="page-heading customer-page-heading">
+          <div>
+            <p class="eyebrow">Quantity Calculator</p>
+            <h2>타일·부자재 물량계산</h2>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="primary-action" type="button" data-page-target="productsPage">상품 보기</button>
+          </div>
+        </section>
+
+        <section class="quantity-calculator-shell">
+          <form class="quantity-calculator-form" id="quantityCalculatorForm">
+            <div class="quantity-form-section">
+              <div class="quantity-section-heading">
+                <span>01</span>
+                <div>
+                  <h3>시공 면적</h3>
+                  <p>전체 면적을 직접 입력하거나 가로·세로 치수로 계산합니다.</p>
+                </div>
+              </div>
+              <div class="quantity-segmented" role="radiogroup" aria-label="면적 입력 방식">
+                <label>
+                  <input type="radio" name="quantityAreaMode" value="direct" checked />
+                  <span>면적 직접 입력</span>
+                </label>
+                <label>
+                  <input type="radio" name="quantityAreaMode" value="dimensions" />
+                  <span>가로 × 세로</span>
+                </label>
+              </div>
+              <div class="quantity-field-grid" data-quantity-area-panel="direct">
+                <label class="quantity-field quantity-field--wide">
+                  <span>총 시공 면적</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityDirectArea" type="number" min="0.01" step="0.01" value="10" inputmode="decimal" />
+                    <b>㎡</b>
+                  </span>
+                </label>
+              </div>
+              <div class="quantity-field-grid hidden" data-quantity-area-panel="dimensions">
+                <label class="quantity-field">
+                  <span>가로</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityAreaWidth" type="number" min="0.01" step="0.01" value="3" inputmode="decimal" />
+                    <b>m</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>세로·높이</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityAreaHeight" type="number" min="0.01" step="0.01" value="2.4" inputmode="decimal" />
+                    <b>m</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>동일 면 수</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityAreaCount" type="number" min="1" step="1" value="1" inputmode="numeric" />
+                    <b>면</b>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="quantity-form-section">
+              <div class="quantity-section-heading">
+                <span>02</span>
+                <div>
+                  <h3>타일</h3>
+                  <p>타일 규격과 박스당 장수를 기준으로 주문 박스를 계산합니다.</p>
+                </div>
+              </div>
+              <div class="quantity-field-grid">
+                <label class="quantity-field">
+                  <span>타일 가로</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityTileWidth" type="number" min="1" step="1" value="600" inputmode="numeric" />
+                    <b>mm</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>타일 세로</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityTileHeight" type="number" min="1" step="1" value="600" inputmode="numeric" />
+                    <b>mm</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>박스당 장수</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityPiecesPerBox" type="number" min="1" step="1" value="4" inputmode="numeric" />
+                    <b>장</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>재단·파손 여유율</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityTileWaste" type="number" min="0" max="30" step="1" value="10" inputmode="numeric" />
+                    <b>%</b>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="quantity-form-section">
+              <div class="quantity-section-heading">
+                <span>03</span>
+                <div>
+                  <h3>접착 부자재</h3>
+                  <p>시공 방식에 맞는 한 종류를 선택합니다. 서로 더해서 사용량을 계산하지 않습니다.</p>
+                </div>
+              </div>
+              <div class="quantity-field-grid">
+                <label class="quantity-field quantity-field--wide">
+                  <span>접착 방식</span>
+                  <select id="quantityAdhesiveType">
+                    <option value="cement-floor">압착시멘트 · 바닥</option>
+                    <option value="cerafix-wall">세라픽스 · 벽</option>
+                    <option value="tilebond-wall">타일본드 · 벽</option>
+                    <option value="tilebond-floor">타일본드 · 바닥</option>
+                  </select>
+                </label>
+                <label class="quantity-field">
+                  <span>도포 기준</span>
+                  <select id="quantityAdhesiveThickness">
+                    <option value="7">7mm</option>
+                    <option value="10" selected>10mm</option>
+                  </select>
+                </label>
+                <label class="quantity-field">
+                  <span>현장 여유율</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityAdhesiveWaste" type="number" min="0" max="30" step="1" value="0" inputmode="numeric" />
+                    <b>%</b>
+                  </span>
+                </label>
+              </div>
+              <p class="quantity-field-note" id="quantityAdhesiveReference">쌍곰 공식 계산 기준: 압착시멘트 10mm · 1포당 3.3㎡</p>
+            </div>
+
+            <div class="quantity-form-section">
+              <div class="quantity-section-heading">
+                <span>04</span>
+                <div>
+                  <h3>줄눈</h3>
+                  <p>타일 규격, 두께, 줄눈 폭과 줄눈재 밀도를 이용해 필요 중량을 계산합니다.</p>
+                </div>
+              </div>
+              <div class="quantity-field-grid">
+                <label class="quantity-field">
+                  <span>타일 두께</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityTileDepth" type="number" min="1" step="0.1" value="9" inputmode="decimal" />
+                    <b>mm</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>줄눈 간격</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityJointWidth" type="number" min="0.5" step="0.5" value="3" inputmode="decimal" />
+                    <b>mm</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>줄눈재 포장</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityGroutPackage" type="number" min="0.1" step="0.1" value="2" inputmode="decimal" />
+                    <b>kg</b>
+                  </span>
+                </label>
+                <label class="quantity-field">
+                  <span>현장 여유율</span>
+                  <span class="quantity-input-unit">
+                    <input id="quantityGroutWaste" type="number" min="0" max="30" step="1" value="10" inputmode="numeric" />
+                    <b>%</b>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="quantity-form-actions">
+              <button class="primary-action" type="submit">물량 계산하기</button>
+              <button class="secondary-action" id="quantityCalculatorReset" type="reset">초기화</button>
+            </div>
+          </form>
+
+          <aside class="quantity-result-panel" aria-live="polite">
+            <div class="quantity-result-heading">
+              <span>계산 결과</span>
+              <strong id="quantityResultArea">10.00㎡</strong>
+              <small id="quantityCalculationStatus">입력값을 기준으로 주문 물량을 계산했습니다.</small>
+            </div>
+            <div class="quantity-result-list">
+              <article>
+                <span>타일 주문</span>
+                <strong id="quantityResultBoxes">8 BOX</strong>
+                <small id="quantityResultTiles">32장 · 주문 면적 11.52㎡</small>
+              </article>
+              <article>
+                <span id="quantityResultAdhesiveLabel">압착시멘트</span>
+                <strong id="quantityResultAdhesive">4포</strong>
+                <small id="quantityResultAdhesiveDetail">10mm · 1포당 3.3㎡</small>
+              </article>
+              <article>
+                <span>줄눈재</span>
+                <strong id="quantityResultGrout">1포</strong>
+                <small id="quantityResultGroutDetail">예상 1.58kg · 2kg 포장</small>
+              </article>
+            </div>
+            <div class="quantity-result-summary">
+              <div><span>순수 필요 타일</span><strong id="quantityResultNetPieces">28장</strong></div>
+              <div><span>여유 포함 타일</span><strong id="quantityResultOrderPieces">31장</strong></div>
+              <div><span>박스 구매 후 잔여</span><strong id="quantityResultSparePieces">1장</strong></div>
+            </div>
+            <button class="secondary-action quantity-copy-button" id="quantityCopyResult" type="button">계산 결과 복사</button>
+            <p class="quantity-caution">
+              본 결과는 견적용 예상치입니다. 실제 사용량은 바탕면 평활도, 타일 뒷면, 흙손 각도, 시공 손실과 제품별 시방에 따라 달라질 수 있습니다.
+            </p>
+            <details class="quantity-source-details">
+              <summary>계산 기준 및 공식 출처</summary>
+              <ul>
+                <li><a href="https://ssangkom.co.kr/description/calculator.php" target="_blank" rel="noopener noreferrer">쌍곰 제품사용량계산</a> · 접착제 제품별 ㎡/포·캔 기준</li>
+                <li><a href="https://www.mapei.com/in/en/tools-and-downloads/product-calculator" target="_blank" rel="noopener noreferrer">Mapei 제품 계산기</a> · 줄눈 체적과 밀도 기준</li>
+                <li><a href="https://cdn-global.laticrete.com/-/media/project/laticrete-international/north-america/product-documents/product-data-sheets/ds-800" target="_blank" rel="noopener noreferrer">LATICRETE 접착제 자료</a> · 흙손 크기별 도포 면적 참고</li>
+              </ul>
+            </details>
+          </aside>
         </section>
       </main>
 
@@ -3141,6 +3372,6 @@
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/admin/site-studio.js?v=20260727-home-planner1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260727-home-best1"></script>
+    <script src="app.js?v=20260727-quantity-calculator1"></script>
   </body>
 </html>
