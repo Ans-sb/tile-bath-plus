@@ -58,7 +58,7 @@
       homeBathroom: "images/catalog/catalog_p04_img00.jpg",
       homePlanner: "images/branding/home-construction-preview-blue-20260728.png",
       homeRecommended: "images/branding/home-best-tiles-stacked-20260727-v2.png",
-      homeMaterial: "images/branding/home-materials-20260727.png",
+      homeMaterial: "images/branding/home-materials-installation-20260728.png",
       homeQuantity: "images/branding/home-quantity-calculator-20260728.png",
       bathHero: "images/catalog/catalog_p04_img00.jpg"
     },
