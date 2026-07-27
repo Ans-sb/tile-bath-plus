@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260727-quantity-calculator2" />
+    <link rel="stylesheet" href="styles.css?v=20260727-bath-interior6" />
   </head>
   <body>
     <!-- build: home-mosaic-20260727 -->
@@ -171,7 +171,7 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-photo mosaic-bath-photo" type="button" data-main-category="sanitary">
+                <button class="square-main-tile square-main-photo mosaic-bath-photo" type="button" data-page-target="bathInteriorPage">
                   <img src="images/catalog/catalog_p04_img00.jpg" alt="" loading="lazy" data-site-image="homeBathroom" />
                   <span class="square-main-label">
                     <span>
@@ -1433,6 +1433,55 @@
           </div>
           <div class="product-list product-page-list bath-product-list" id="bathProductList"></div>
           <div class="product-pagination" id="bathProductPagination"></div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel customer-page bath-interior-page" id="bathInteriorPage">
+        <section class="page-heading customer-page-heading bath-interior-heading">
+          <div>
+            <p class="eyebrow">Shoppable Bathroom</p>
+            <h2>욕실 인테리어</h2>
+            <p>마음에 드는 욕실을 고르고 사진 속 자재를 바로 확인해보세요.</p>
+          </div>
+          <div class="detail-actions">
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+            <button class="secondary-action" type="button" data-page-target="bathProductsPage">바스GO</button>
+            <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
+          </div>
+        </section>
+
+        <section class="bath-interior-shell">
+          <nav class="bath-interior-scene-tabs" id="bathInteriorSceneTabs" aria-label="욕실 인테리어 스타일"></nav>
+          <div class="bath-interior-layout">
+            <section class="bath-interior-visual">
+              <div class="bath-interior-stage" id="bathInteriorStage">
+                <div class="bath-interior-loading">욕실 인테리어를 준비하고 있습니다.</div>
+              </div>
+              <div class="bath-interior-scene-copy">
+                <div>
+                  <span id="bathInteriorSceneMood">욕실 스타일</span>
+                  <h3 id="bathInteriorSceneTitle">욕실 인테리어</h3>
+                </div>
+                <p id="bathInteriorSceneDescription">사진 속 번호를 누르면 연결된 상품을 바로 확인할 수 있습니다.</p>
+              </div>
+            </section>
+
+            <aside class="bath-interior-products" aria-labelledby="bathInteriorProductTitle">
+              <div class="bath-interior-products-head">
+                <div>
+                  <span>이 공간에 사용된 상품</span>
+                  <h3 id="bathInteriorProductTitle">자재 구성</h3>
+                </div>
+                <button class="bath-interior-add-all" id="bathInteriorAddAll" type="button">전체 담기</button>
+              </div>
+              <div class="bath-interior-product-list" id="bathInteriorProducts">
+                <div class="empty-state">상품 DB를 연결하고 있습니다.</div>
+              </div>
+              <p class="bath-interior-cart-status" id="bathInteriorCartStatus" aria-live="polite">
+                상품을 누르면 상세 사양을 확인하고 바로 장바구니에 담을 수 있습니다.
+              </p>
+            </aside>
+          </div>
         </section>
       </main>
 
@@ -3372,6 +3421,6 @@
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/admin/site-studio.js?v=20260727-home-planner1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260727-quantity-calculator1"></script>
+    <script src="app.js?v=20260727-bath-interior2"></script>
   </body>
 </html>

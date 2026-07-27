@@ -14352,3 +14352,463 @@ body[data-page="adminPage"] {
     font-size: 28px;
   }
 }
+
+/* Shoppable bathroom inspiration */
+.bath-interior-page {
+  width: min(var(--site-content-width), calc(100% - 42px));
+  margin: 0 auto;
+  padding-bottom: 64px;
+}
+
+.bath-interior-heading {
+  align-items: end;
+  border-bottom: 1px solid #dfe4ec;
+}
+
+.bath-interior-heading > div:first-child > p:last-child {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: #647084;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.bath-interior-shell {
+  padding: 26px 0 0;
+}
+
+.bath-interior-scene-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.bath-interior-scene-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 16px;
+  border: 1px solid #d9dee8;
+  border-radius: 6px;
+  color: #637085;
+  background: #fff;
+  text-align: left;
+}
+
+.bath-interior-scene-tabs button:hover,
+.bath-interior-scene-tabs button.is-active {
+  border-color: #081957;
+  color: #fff;
+  background: #081957;
+}
+
+.bath-interior-scene-tabs span {
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.bath-interior-scene-tabs strong {
+  overflow: hidden;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bath-interior-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(360px, 0.82fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.bath-interior-visual {
+  min-width: 0;
+}
+
+.bath-interior-stage {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  min-height: 560px;
+  border-radius: 6px;
+  background: #edf0f4;
+}
+
+.bath-interior-stage > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bath-interior-loading {
+  display: grid;
+  min-height: 560px;
+  place-items: center;
+  color: #647084;
+  font-size: 14px;
+}
+
+.bath-interior-hotspots {
+  position: absolute;
+  inset: 0;
+}
+
+.bath-interior-hotspot {
+  position: absolute;
+  left: var(--bath-hotspot-x);
+  top: var(--bath-hotspot-y);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px;
+  border: 0;
+  border-radius: 999px;
+  color: #081957;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 18px rgba(8, 25, 87, 0.2);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(8px);
+}
+
+.bath-interior-hotspot b {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #fff;
+  background: #081957;
+  place-items: center;
+  font-size: 13px;
+}
+
+.bath-interior-hotspot span {
+  max-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  transition: max-width 180ms ease, padding 180ms ease, opacity 180ms ease;
+}
+
+.bath-interior-hotspot:hover span,
+.bath-interior-hotspot.is-active span {
+  max-width: 86px;
+  padding-right: 9px;
+  opacity: 1;
+}
+
+.bath-interior-hotspot.is-active {
+  outline: 3px solid rgba(18, 104, 255, 0.38);
+}
+
+.bath-interior-hotspot.is-active b {
+  background: #1268ff;
+}
+
+.bath-interior-scene-copy {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.7fr) minmax(0, 1fr);
+  gap: 28px;
+  align-items: end;
+  padding: 18px 2px 0;
+}
+
+.bath-interior-scene-copy span,
+.bath-interior-products-head span,
+.bath-interior-product-copy > span {
+  color: #1268ff;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.bath-interior-scene-copy h3,
+.bath-interior-products-head h3 {
+  margin: 5px 0 0;
+  color: #081957;
+  font-size: 24px;
+}
+
+.bath-interior-scene-copy p {
+  margin: 0;
+  color: #667287;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.bath-interior-products {
+  position: sticky;
+  top: 20px;
+  min-width: 0;
+}
+
+.bath-interior-products-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0 15px;
+  border-bottom: 1px solid #dfe4ec;
+}
+
+.bath-interior-add-all {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #081957;
+  border-radius: 5px;
+  color: #fff;
+  background: #081957;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.bath-interior-add-all:disabled {
+  opacity: 0.42;
+}
+
+.bath-interior-product-list {
+  display: grid;
+  gap: 0;
+  max-height: min(720px, calc(100vh - 230px));
+  overflow: auto;
+}
+
+.bath-interior-product {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: center;
+  padding: 14px 4px;
+  border-bottom: 1px solid #e2e6ed;
+  transition: background 160ms ease, padding 160ms ease;
+}
+
+.bath-interior-product.is-active {
+  padding-right: 10px;
+  padding-left: 10px;
+  background: #f1f6ff;
+}
+
+.bath-interior-product-media {
+  position: relative;
+  overflow: hidden;
+  width: 86px;
+  height: 86px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: #eef1f5;
+}
+
+.bath-interior-product-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bath-interior-product-media > span {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+  background: #081957;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.bath-interior-product-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.bath-interior-product-copy strong {
+  overflow: hidden;
+  color: #121a2a;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bath-interior-product-copy small {
+  overflow: hidden;
+  color: #69758a;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bath-interior-product-price {
+  min-height: 19px;
+  color: #081957;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.bath-interior-product-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(48px, 1fr));
+  gap: 5px;
+}
+
+.bath-interior-product-actions button {
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #d6dce7;
+  border-radius: 5px;
+  color: #081957;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bath-interior-product-actions .primary-action {
+  border-color: #1268ff;
+  color: #fff;
+  background: #1268ff;
+}
+
+.bath-interior-cart-status {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 5px;
+  color: #536078;
+  background: #f5f7fa;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1000px) {
+  .bath-interior-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .bath-interior-products {
+    position: static;
+  }
+
+  .bath-interior-product-list {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 720px) {
+  .bath-interior-page {
+    width: 100%;
+    padding: 0 12px 112px;
+  }
+
+  .bath-interior-heading {
+    align-items: start;
+  }
+
+  .bath-interior-heading .detail-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .bath-interior-heading .detail-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 7px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .bath-interior-heading .detail-actions button:last-child {
+    grid-column: auto;
+  }
+
+  .bath-interior-heading > div:first-child > p:last-child {
+    font-size: 13px;
+  }
+
+  .bath-interior-shell {
+    padding-top: 14px;
+  }
+
+  .bath-interior-scene-tabs {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .bath-interior-scene-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .bath-interior-scene-tabs button {
+    flex: 0 0 72%;
+    scroll-snap-align: start;
+  }
+
+  .bath-interior-layout {
+    gap: 18px;
+  }
+
+  .bath-interior-stage {
+    min-height: 0;
+  }
+
+  .bath-interior-scene-copy {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-top: 14px;
+  }
+
+  .bath-interior-scene-copy h3,
+  .bath-interior-products-head h3 {
+    font-size: 20px;
+  }
+
+  .bath-interior-hotspot span,
+  .bath-interior-hotspot:hover span {
+    display: none;
+  }
+
+  .bath-interior-hotspot b {
+    flex-basis: 31px;
+    width: 31px;
+    height: 31px;
+  }
+
+  .bath-interior-products-head {
+    align-items: center;
+  }
+
+  .bath-interior-product {
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 11px;
+    padding: 12px 0;
+  }
+
+  .bath-interior-product-media {
+    width: 74px;
+    height: 74px;
+  }
+
+  .bath-interior-product-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bath-interior-product-actions button {
+    min-height: 42px;
+  }
+}
