@@ -30,8 +30,8 @@
       homeSearchSubtitle: "세면·샤워·주방 수전 한 번에 보기",
       homeSampleTitle: "샘플GO",
       homeSampleSubtitle: "SNT 샘플을 현장에서 확인",
-      homePlannerTitle: "시공보기",
-      homePlannerSubtitle: "공간에 자재를 미리 적용",
+      homePlannerTitle: "시공 미리보기",
+      homePlannerSubtitle: "내 공간에 자재를 적용해 미리 확인",
       homeCartTitle: "장바구니·배송",
       homeCartSubtitle: "주문 수량과 현장 배송 확인",
       homeRecommendTitle: "베스트 타일",
@@ -56,7 +56,7 @@
       homeFaucet: "images/branding/home-faucet-20260727.png",
       homeBath: "images/branding/home-bathgo-toilet-20260727.png",
       homeBathroom: "images/catalog/catalog_p04_img00.jpg",
-      homePlanner: "images/catalog/catalog_p05_img00.jpg",
+      homePlanner: "images/branding/home-construction-preview-20260727.png",
       homeRecommended: "images/catalog/catalog_p12_img01.jpg",
       homeMaterial: "images/branding/home-materials-20260727.png",
       bathHero: "images/catalog/catalog_p04_img00.jpg"
@@ -68,7 +68,7 @@
       { id: "bathProductsPage", label: "바스GO", visible: true, order: 4 },
       { id: "cartPage", label: "장바구니", visible: true, order: 5 },
       { id: "myPage", label: "마이페이지", visible: true, order: 6 },
-      { id: "plannerPage", label: "시공보기", visible: true, order: 7 }
+      { id: "plannerPage", label: "시공 미리보기", visible: true, order: 7 }
     ]
   };
 
@@ -88,8 +88,8 @@
     ["메인 카드", "homeSearchSubtitle", "수전금구 설명", "input"],
     ["메인 카드", "homeSampleTitle", "샘플GO 제목", "input"],
     ["메인 카드", "homeSampleSubtitle", "샘플GO 설명", "input"],
-    ["메인 카드", "homePlannerTitle", "시공보기 제목", "input"],
-    ["메인 카드", "homePlannerSubtitle", "시공보기 설명", "input"],
+    ["메인 카드", "homePlannerTitle", "시공 미리보기 제목", "input"],
+    ["메인 카드", "homePlannerSubtitle", "시공 미리보기 설명", "input"],
     ["메인 카드", "homeCartTitle", "장바구니 제목", "input"],
     ["메인 카드", "homeCartSubtitle", "장바구니 설명", "input"],
     ["메인 카드", "homeRecommendTitle", "베스트 타일 제목", "input"],
@@ -115,7 +115,7 @@
     ["homeFaucet", "메인 수전금구", "권장 1200×1200 이상"],
     ["homeBath", "메인 바스GO", "권장 1200×1200 이상"],
     ["homeBathroom", "메인 욕실 인테리어", "권장 1200×1200 이상"],
-    ["homePlanner", "메인 시공보기", "권장 1200×1200 이상"],
+    ["homePlanner", "메인 시공 미리보기", "권장 1200×1200 이상"],
     ["homeRecommended", "메인 베스트 타일", "권장 1200×1200 이상"],
     ["homeMaterial", "메인 부자재", "권장 1200×1200 이상"],
     ["bathHero", "바스GO 대표 이미지", "권장 1800×900 이상"]
