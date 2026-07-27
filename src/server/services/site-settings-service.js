@@ -61,6 +61,7 @@ const DEFAULT_SITE_SETTINGS = {
     homePlanner: "images/branding/home-construction-preview-20260727.png",
     homeRecommended: "images/branding/home-best-tiles-stacked-20260727-v2.png",
     homeMaterial: "images/branding/home-materials-20260727.png",
+    homeQuantity: "images/branding/home-quantity-calculator-20260728.png",
     bathHero: "images/catalog/catalog_p04_img00.jpg"
   },
   menu: [

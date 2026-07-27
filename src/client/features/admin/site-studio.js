@@ -59,6 +59,7 @@
       homePlanner: "images/branding/home-construction-preview-20260727.png",
       homeRecommended: "images/branding/home-best-tiles-stacked-20260727-v2.png",
       homeMaterial: "images/branding/home-materials-20260727.png",
+      homeQuantity: "images/branding/home-quantity-calculator-20260728.png",
       bathHero: "images/catalog/catalog_p04_img00.jpg"
     },
     menu: [
@@ -118,6 +119,7 @@
     ["homePlanner", "메인 시공 미리보기", "권장 1200×1200 이상"],
     ["homeRecommended", "메인 베스트 타일", "권장 1200×1200 이상"],
     ["homeMaterial", "메인 부자재", "권장 1200×1200 이상"],
+    ["homeQuantity", "메인 물량계산", "권장 1200×1200 이상"],
     ["bathHero", "바스GO 대표 이미지", "권장 1800×900 이상"]
   ];
 
