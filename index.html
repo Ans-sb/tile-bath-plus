@@ -247,17 +247,12 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile mosaic-icon-tile mosaic-tile-green" type="button" data-page-target="bathProductsPage">
-                  <span class="mosaic-category-icons" aria-hidden="true">
-                    <svg viewBox="0 0 48 48"><path d="M6 6h14v14H6zM28 6h14v14H28zM6 28h14v14H6zM28 28h14v14H28z"></path></svg>
-                    <svg viewBox="0 0 48 48"><path d="M12 8h13v17H12zM30 10v15M6 26h36v5c0 8-6 12-18 12S7 39 7 31v-5"></path></svg>
-                    <svg viewBox="0 0 48 48"><path d="M10 36h28M17 36V23c0-9 4-14 12-14h7M28 9v8M24 13h8"></path></svg>
-                    <svg viewBox="0 0 48 48"><path d="M7 32h34M12 32V15h24v17M17 20h14M24 15v17"></path></svg>
-                  </span>
+                <button class="square-main-tile square-main-photo mosaic-material-tile" type="button" data-main-category="material">
+                  <img src="images/branding/home-materials-20260727.png" alt="" loading="lazy" data-site-image="homeMaterial" />
                   <span class="square-main-label">
                     <span>
-                      <strong>욕실 자재</strong>
-                      <small>위생도기부터 수전·욕실장까지</small>
+                      <strong data-site-text="homeMaterialTitle">부자재</strong>
+                      <small data-site-text="homeMaterialSubtitle">접착제·줄눈·실리콘·시공도구</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -1039,29 +1034,30 @@
               </select>
             </label>
             <label>
-              사이즈
+              <span data-product-filter-label="size">사이즈</span>
               <select id="sizeFilter"></select>
             </label>
             <label class="visually-hidden" aria-hidden="true">
               대분류
               <select id="mainCategoryFilter" tabindex="-1">
                 <option value="tile" selected>타일</option>
+                <option value="material">부자재</option>
               </select>
             </label>
             <label>
-              용도
+              <span data-product-filter-label="option">용도</span>
               <select id="optionFilter"></select>
             </label>
             <label>
-              마감
+              <span data-product-filter-label="finish">마감</span>
               <select id="finishFilter"></select>
             </label>
             <label>
-              스타일
+              <span data-product-filter-label="style">스타일</span>
               <select id="patternCategoryFilter"></select>
             </label>
             <label>
-              색상
+              <span data-product-filter-label="color">색상</span>
               <select id="colorFilter"></select>
             </label>
           </div>
@@ -3152,8 +3148,8 @@
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
-    <script src="src/client/features/admin/site-studio.js?v=20260724-admin-center5"></script>
+    <script src="src/client/features/admin/site-studio.js?v=20260727-home-material1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260727-home-mosaic1"></script>
+    <script src="app.js?v=20260727-home-material3"></script>
   </body>
 </html>

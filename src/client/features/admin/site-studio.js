@@ -38,6 +38,8 @@
       homeRecommendSubtitle: "현장에서 자주 찾는 디자인",
       homeMyTitle: "마이페이지",
       homeMySubtitle: "주문·등급·거래처 관리",
+      homeMaterialTitle: "부자재",
+      homeMaterialSubtitle: "접착제·줄눈·실리콘·시공도구",
       tileHeroEyebrow: "TileGO Search",
       tileHeroTitle: "찾는 타일을 말하듯 입력하세요.",
       tileHeroDescription: "규격, 용도, 마감, 스타일과 색상을 해석하고 조건에 맞는 상품을 이미지 중심으로 보여드립니다.",
@@ -53,6 +55,7 @@
       homeBathroom: "images/catalog/catalog_p04_img00.jpg",
       homePlanner: "images/catalog/catalog_p05_img00.jpg",
       homeRecommended: "images/catalog/catalog_p12_img01.jpg",
+      homeMaterial: "images/branding/home-materials-20260727.png",
       bathHero: "images/catalog/catalog_p04_img00.jpg"
     },
     menu: [
@@ -90,6 +93,8 @@
     ["메인 카드", "homeRecommendSubtitle", "추천 타일 설명", "input"],
     ["메인 카드", "homeMyTitle", "마이페이지 제목", "input"],
     ["메인 카드", "homeMySubtitle", "마이페이지 설명", "input"],
+    ["메인 카드", "homeMaterialTitle", "부자재 제목", "input"],
+    ["메인 카드", "homeMaterialSubtitle", "부자재 설명", "input"],
     ["타일GO", "tileHeroEyebrow", "검색 영문 라벨", "input"],
     ["타일GO", "tileHeroTitle", "검색 제목", "input"],
     ["타일GO", "tileHeroDescription", "검색 설명", "textarea"],
@@ -106,6 +111,7 @@
     ["homeBathroom", "메인 욕실 공간", "권장 1200×1200 이상"],
     ["homePlanner", "메인 시공보기", "권장 1200×1200 이상"],
     ["homeRecommended", "메인 추천 타일", "권장 1200×1200 이상"],
+    ["homeMaterial", "메인 부자재", "권장 1200×1200 이상"],
     ["bathHero", "바스GO 대표 이미지", "권장 1800×900 이상"]
   ];
 

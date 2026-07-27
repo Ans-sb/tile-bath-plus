@@ -2205,12 +2205,68 @@ function renderSiteStudioOperationsSummary() {
   });
 }
 
+function setProductCatalogMode(productType = "tile") {
+  const page = document.querySelector("#productsPage");
+  if (!page) return;
+  const isMaterial = productType === "material";
+  page.classList.toggle("is-material-catalog", isMaterial);
+
+  const copyTargets = [
+    ["#productsPage .customer-page-heading .eyebrow", "MaterialGO"],
+    ["#productsPage .customer-page-heading h2", "부자재"],
+    ['#productsPage [data-site-text="tileHeroEyebrow"]', "Material Search"],
+    ['#productsPage [data-site-text="tileHeroTitle"]', "현장에 필요한 부자재를 찾으세요."],
+    ['#productsPage [data-site-text="tileHeroDescription"]', "접착제, 줄눈, 실리콘과 시공도구를 종류와 규격에 맞춰 빠르게 보여드립니다."],
+    ['#productsPage [data-site-text="tileSearchLabel"]', "부자재 상품검색"],
+    ['#productsPage [data-site-text="tileSearchHint"]', "검색 후 종류와 규격을 바로 조정할 수 있습니다."],
+    ['#productsPage .tile-catalog-links [data-page-target="productsPage"]', "부자재"]
+  ];
+  copyTargets.forEach(([selector, materialCopy]) => {
+    const node = document.querySelector(selector);
+    if (!node) return;
+    if (!node.dataset.tileCatalogCopy) node.dataset.tileCatalogCopy = node.textContent;
+    node.textContent = isMaterial ? materialCopy : node.dataset.tileCatalogCopy;
+  });
+
+  const searchInput = document.querySelector("#productSearch");
+  if (searchInput) {
+    if (!searchInput.dataset.tileCatalogPlaceholder) {
+      searchInput.dataset.tileCatalogPlaceholder = searchInput.getAttribute("placeholder") || "";
+    }
+    searchInput.setAttribute(
+      "placeholder",
+      isMaterial ? "예: 타일본드 20kg, 화이트 줄눈, 방수 실리콘" : searchInput.dataset.tileCatalogPlaceholder
+    );
+  }
+
+  document.querySelector('#productsPage .tile-catalog-links [data-page-target="aiTileFinderPage"]')
+    ?.classList.toggle("hidden", isMaterial);
+  document.querySelector("#productsPage .tile-finder-panel--shortcut")
+    ?.classList.toggle("hidden", isMaterial);
+  document.querySelector("#productsPage #productExpertGuide")
+    ?.classList.toggle("hidden", isMaterial);
+
+  const materialFilterLabels = {
+    size: "규격",
+    option: "종류",
+    finish: "형태",
+    style: "분류",
+    color: "색상"
+  };
+  document.querySelectorAll("#productsPage [data-product-filter-label]").forEach((node) => {
+    if (!node.dataset.tileCatalogLabel) node.dataset.tileCatalogLabel = node.textContent;
+    const key = node.dataset.productFilterLabel;
+    node.textContent = isMaterial ? (materialFilterLabels[key] || node.textContent) : node.dataset.tileCatalogLabel;
+  });
+}
+
 function openProductCategory(productType) {
-  if (productType === "tile") {
+  if (["tile", "material"].includes(productType)) {
     const categoryFilter = document.querySelector("#mainCategoryFilter");
     const searchInput = document.querySelector("#productSearch");
-    if (categoryFilter) categoryFilter.value = "tile";
+    if (categoryFilter) categoryFilter.value = productType;
     if (searchInput) searchInput.value = "";
+    setProductCatalogMode(productType);
     syncProductFilters({ resetSubFilters: true });
     renderProducts();
     switchPage("productsPage");
