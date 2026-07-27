@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const { buildRequestHistory } = require("../../../src/client/features/tile-assistant/tile-ai-assistant");
 
@@ -15,4 +17,14 @@ test("tile assistant client sends only the eight most recent completed messages"
   assert.equal(result.length, 8);
   assert.equal(result[0].content, "메시지 3");
   assert.equal(result[7].content, "메시지 10");
+});
+
+test("tile assistant mobile launcher stays above the fixed bottom navigation", () => {
+  const css = fs.readFileSync(
+    path.join(__dirname, "../../../src/client/features/tile-assistant/tile-ai-assistant.css"),
+    "utf8"
+  );
+
+  assert.match(css, /bottom:\s*calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.match(css, /height:\s*calc\(100dvh - 188px - env\(safe-area-inset-bottom\)\)/);
 });
