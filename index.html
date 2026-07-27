@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260728-home-logo1" />
+    <link rel="stylesheet" href="styles.css?v=20260728-planner-photo2" />
   </head>
   <body>
     <!-- build: home-mosaic-20260727 -->
@@ -2017,157 +2017,135 @@
         </section>
       </main>
 
-      <main class="app-page page-panel customer-page planner-page" id="plannerPage">
-        <section class="page-heading customer-page-heading">
+      <main class="app-page page-panel customer-page planner-page planner-photo-page" id="plannerPage">
+        <section class="page-heading customer-page-heading planner-photo-heading">
           <div>
-            <p class="eyebrow">Photo Real Tile Renderer</p>
-            <h2>현장 사진 실사 렌더</h2>
+            <p class="eyebrow">IMAGE BASED TILE PREVIEW</p>
+            <h2>시공 미리보기</h2>
+            <p>현장 사진에 선택한 타일을 적용해 원본과 결과를 바로 비교합니다.</p>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
-            <button class="primary-action" type="button" data-page-target="taxonomyTestPage">AI검색</button>
+            <button class="secondary-action" type="button" data-page-target="productsPage">타일 선택하기</button>
             <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
           </div>
         </section>
 
-        <section class="planner-layout">
-          <form class="commerce-panel planner-control-panel" id="plannerForm">
-            <div class="cart-heading">
-              <strong>공간 입력</strong>
-              <span id="plannerStatus">현장 사진을 올리면 벽과 바닥 전체 영역을 자동으로 잡아 실사 렌더로 확인합니다.</span>
-            </div>
-            <div class="planner-field-grid">
-              <label>
-                바닥 가로(m)
-                <input id="plannerWidth" name="plannerWidth" type="number" min="1" max="12" step="0.1" value="2.4" />
-              </label>
-              <label>
-                바닥 세로(m)
-                <input id="plannerDepth" name="plannerDepth" type="number" min="1" max="12" step="0.1" value="1.8" />
-              </label>
-              <label>
-                높이(m)
-                <input id="plannerHeight" name="plannerHeight" type="number" min="1.8" max="4" step="0.1" value="2.3" />
-              </label>
-              <label>
-                줄눈 간격(mm)
-                <input id="plannerGrout" name="plannerGrout" type="number" min="1" max="12" step="1" value="3" />
-              </label>
-              <label class="wide">
-                공간 프리셋
-                <select id="plannerRoomPreset">
-                  <option value="reference-room" selected>업로드 사진 공간</option>
-                  <option value="empty-room">기본 빈 공간</option>
-                </select>
-              </label>
-              <label>
-                바닥 타일
-                <select id="plannerFloorTile"></select>
-              </label>
-              <label>
-                바닥 시공 방향
-                <select id="plannerFloorOrientation">
-                  <option value="horizontal" selected>가로 시공</option>
-                  <option value="vertical">세로 시공</option>
-                </select>
-              </label>
-              <label>
-                벽 타일
-                <select id="plannerWallTile"></select>
-              </label>
-              <label>
-                벽 시공 방향
-                <select id="plannerWallOrientation">
-                  <option value="horizontal" selected>가로 시공</option>
-                  <option value="vertical">세로 시공</option>
-                </select>
-              </label>
-              <label class="wide">
-                현장 이미지
+        <div class="planner-photo-progress" aria-label="시공 미리보기 진행 단계">
+          <div class="active"><span>01</span><strong>현장 사진</strong></div>
+          <div><span>02</span><strong>타일 선택</strong></div>
+          <div><span>03</span><strong>영역 설정</strong></div>
+          <div><span>04</span><strong>결과 비교</strong></div>
+        </div>
+
+        <section class="planner-photo-shell">
+          <form class="planner-photo-controls" id="plannerForm">
+            <input id="plannerWidth" type="hidden" value="2.4" />
+            <input id="plannerDepth" type="hidden" value="1.8" />
+            <input id="plannerHeight" type="hidden" value="2.3" />
+
+            <section class="planner-photo-section planner-photo-source-section">
+              <div class="planner-photo-section-heading">
+                <div>
+                  <span>01</span>
+                  <strong>현장 사진</strong>
+                </div>
+                <small>JPG · PNG · 모바일 사진</small>
+              </div>
+              <label class="planner-photo-upload-zone" for="plannerSiteImage">
                 <input id="plannerSiteImage" type="file" accept="image/*" />
+                <strong>현장 사진 업로드</strong>
+                <span>사진을 선택하거나 촬영한 이미지를 올려주세요.</span>
               </label>
-              <div class="wide planner-surface-guide">
-                <div class="planner-plan-heading">
-                  <strong>실사 시공 영역</strong>
-                  <span>사진을 올리면 기본 영역이 자동 적용됩니다. 필요하면 벽 전체 또는 바닥 전체를 다시 선택하세요.</span>
+              <div class="planner-photo-canvas-wrap">
+                <canvas id="plannerSurfaceGuideCanvas" width="640" height="420" aria-label="현장 사진 시공 영역"></canvas>
+              </div>
+            </section>
+
+            <section class="planner-photo-section">
+              <div class="planner-photo-section-heading">
+                <div>
+                  <span>02</span>
+                  <strong>타일 선택</strong>
                 </div>
-                <div class="planner-plan-canvas-wrap">
-                  <canvas id="plannerSurfaceGuideCanvas" width="640" height="420" aria-label="실사 시공 영역 선택"></canvas>
+                <button class="planner-inline-link" type="button" data-page-target="productsPage">타일GO에서 추가</button>
+              </div>
+              <div class="planner-photo-selection-grid">
+                <label>
+                  벽 타일
+                  <select id="plannerWallTile"></select>
+                </label>
+                <label>
+                  벽 시공 방향
+                  <select id="plannerWallOrientation">
+                    <option value="horizontal" selected>가로 시공</option>
+                    <option value="vertical">세로 시공</option>
+                  </select>
+                </label>
+                <label>
+                  바닥 타일
+                  <select id="plannerFloorTile"></select>
+                </label>
+                <label>
+                  바닥 시공 방향
+                  <select id="plannerFloorOrientation">
+                    <option value="horizontal" selected>가로 시공</option>
+                    <option value="vertical">세로 시공</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  줄눈 간격
+                  <select id="plannerGrout">
+                    <option value="1">1mm</option>
+                    <option value="2">2mm</option>
+                    <option value="3" selected>3mm</option>
+                    <option value="4">4mm</option>
+                    <option value="5">5mm</option>
+                  </select>
+                </label>
+              </div>
+              <div class="planner-cart-products" id="plannerCartProducts"></div>
+              <button class="secondary-action planner-cart-auto-button" id="plannerApplyCartBtn" type="button">장바구니 타일 자동선택</button>
+            </section>
+
+            <section class="planner-photo-section">
+              <div class="planner-photo-section-heading">
+                <div>
+                  <span>03</span>
+                  <strong>적용 영역</strong>
                 </div>
-                <div class="planner-actions compact-actions">
-                  <button class="secondary-action active" id="plannerGuideFloorBtn" type="button">바닥 전체 선택</button>
-                  <button class="secondary-action" id="plannerGuideWallBtn" type="button">벽 전체 선택</button>
-                  <button class="secondary-action" id="plannerGuideClearBtn" type="button">영역 초기화</button>
-                </div>
+                <small>파랑 벽 · 초록 바닥</small>
               </div>
-              <label class="wide planner-plan-upload-field">
-                도면 이미지
-                <input id="plannerPlanImage" type="file" accept="image/*" />
-              </label>
-            </div>
-            <div class="planner-plan-tool">
-              <div class="planner-plan-heading">
-                <strong>도면 적용</strong>
-                <span>도면이 있으면 외곽 모서리를 순서대로 찍어 3D 바닥 형태에 적용합니다.</span>
+              <div class="planner-photo-surface-actions">
+                <button class="secondary-action active" id="plannerGuideWallBtn" type="button">벽 영역</button>
+                <button class="secondary-action" id="plannerGuideFloorBtn" type="button">바닥 영역</button>
+                <button class="secondary-action" id="plannerGuideClearBtn" type="button">초기화</button>
               </div>
-              <div class="planner-plan-canvas-wrap">
-                <canvas id="plannerPlanCanvas" width="640" height="420" aria-label="도면 외곽선 선택"></canvas>
-              </div>
-              <div class="planner-actions">
-                <button class="secondary-action" id="plannerClearPlanBtn" type="button">도면점 초기화</button>
-                <button class="secondary-action" id="plannerApplyPlanBtn" type="button">도면 적용</button>
-              </div>
-            </div>
-            <p class="planner-plan-mobile-note">도면 적용은 PC 화면에서만 사용할 수 있습니다. 모바일에서는 공간 치수 입력으로 3D를 생성해주세요.</p>
-            <div class="planner-actions">
-              <button class="secondary-action" id="plannerApplyCartBtn" type="button">타일 자동 적용</button>
-              <button class="secondary-action" id="plannerResetCameraBtn" type="button">시점 초기화</button>
-              <button class="primary-action" id="plannerRealRenderBtn" type="button">자체 실사 엔진 렌더 만들기</button>
-            </div>
-            <div class="planner-summary" id="plannerSummary"></div>
-            <div class="planner-cart-products" id="plannerCartProducts"></div>
+            </section>
+
+            <section class="planner-photo-section planner-photo-status-section">
+              <div class="planner-summary" id="plannerSummary"></div>
+              <div class="planner-photo-status" id="plannerStatus">현장 사진을 올리고 적용할 타일을 선택해주세요.</div>
+            </section>
           </form>
 
-          <section class="commerce-panel planner-stage-panel">
-            <div class="planner-stage-toolbar planner-graphic-preview-toolbar">
+          <section class="planner-photo-result-panel">
+            <div class="planner-photo-result-heading">
               <div>
-                  <strong>보조 3D 공간</strong>
-                  <span>치수와 타일 배치 확인용입니다. 최종 렌더는 아래 현장 사진 기준으로 생성됩니다.</span>
-              </div>
-              <span id="plannerSceneMeta"></span>
-            </div>
-            <div class="planner-canvas-mount" id="plannerCanvasMount">
-              <div class="planner-canvas-empty">3D 장면을 준비하고 있습니다.</div>
-            </div>
-            <div class="planner-real-render">
-              <div class="planner-stage-toolbar">
+                <span>04</span>
                 <div>
-                  <strong>자체 실사 엔진 렌더</strong>
-                  <span>업로드한 현장 이미지를 유지하고 선택 타일을 원근, 줄눈, 조명 기준으로 반영합니다.</span>
+                  <strong>적용 결과</strong>
+                  <small>원본 사진과 타일 적용 이미지를 비교합니다.</small>
                 </div>
-                <a class="hidden" id="plannerRealRenderDownload" download="tile-bath-real-render.png">다운로드</a>
               </div>
-              <div class="render-preview render-preview-large" id="plannerRealRenderPreview">실사 렌더 결과 없음</div>
+              <a class="hidden" id="plannerRealRenderDownload" download="jajaego-tile-preview.png">다운로드</a>
             </div>
-            <div class="planner-panorama-viewer">
-              <div class="planner-stage-toolbar">
-                <div>
-                  <strong>360 현장 보기</strong>
-                  <span>자체 실사 엔진 결과 이미지를 기준으로 3D화해서 둘러봅니다.</span>
-                  <small class="planner-panorama-source" id="plannerPanoramaSourceLabel">렌더 생성 후 3D화됩니다.</small>
-                </div>
-                <div class="planner-panorama-actions" aria-label="360 현장 보기 방향">
-                  <button class="secondary-action" type="button" data-planner-panorama-view="front">앞</button>
-                  <button class="secondary-action" type="button" data-planner-panorama-view="back">뒤</button>
-                  <button class="secondary-action" type="button" data-planner-panorama-view="ceiling">천장</button>
-                  <button class="secondary-action" type="button" data-planner-panorama-view="floor">바닥</button>
-                </div>
-              </div>
-              <div class="planner-panorama-shell" id="plannerPanoramaShell">
-                <canvas id="plannerPanoramaCanvas" width="960" height="540" aria-label="360 현장 보기"></canvas>
-                <div class="planner-panorama-empty" id="plannerPanoramaEmpty">현장 사진을 올리면 360 현장 보기가 준비됩니다.</div>
-              </div>
+            <div class="render-preview render-preview-large planner-photo-result" id="plannerRealRenderPreview">현장 사진을 올리면 결과가 여기에 표시됩니다.</div>
+            <div class="planner-photo-result-actions">
+              <button class="primary-action" id="plannerRealRenderBtn" type="button">타일 적용 미리보기 만들기</button>
+              <button class="secondary-action" id="plannerOpenPreviewBtn" type="button">크게 보기</button>
             </div>
+            <p class="planner-photo-result-note">선택한 타일 이미지와 줄눈·시공 방향을 현장 사진에 맞춰 적용합니다.</p>
           </section>
         </section>
       </main>
@@ -3416,6 +3394,6 @@
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/admin/site-studio.js?v=20260727-home-planner1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260727-snt-random-best1"></script>
+    <script src="app.js?v=20260728-planner-photo1"></script>
   </body>
 </html>

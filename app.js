@@ -398,7 +398,8 @@ let plannerPanoramaTexture = null;
 let plannerRealRenderRunning = false;
 let plannerRealRenderStartedAt = 0;
 let plannerRealRenderProgressTimer = null;
-let plannerSurfaceGuideMode = "floor";
+let plannerCompareSliderValue = 50;
+let plannerSurfaceGuideMode = "wall";
 let plannerSurfaceRegions = { floor: [], wall: [] };
 
 const RENDER_ROOM_TYPES = {
@@ -1371,14 +1372,16 @@ function bindEvents() {
   document.querySelector("#plannerSiteImage")?.addEventListener("change", async (event) => {
     pendingPlannerSiteImage = await readImageFile(event.target.files[0], 1400);
     plannerSurfaceRegions = pendingPlannerSiteImage ? createPlannerDefaultSurfaceRegions() : { floor: [], wall: [] };
+    plannerSurfaceGuideMode = "wall";
+    plannerCompareSliderValue = 50;
     pendingPlannerRealRenderImage = "";
     pendingPlannerPhotoPreviewImage = "";
     if (pendingPlannerSiteImage) {
       autoSelectPlannerCartTiles();
       const tiles = getPlannerCartTiles();
       setText("#plannerStatus", tiles.length
-        ? "현장 사진 기준으로 벽/바닥 전체 영역과 장바구니 타일을 자동 적용했습니다."
-        : "현장 사진 기준으로 벽/바닥 전체 영역을 자동 선택했습니다. 적용할 타일을 먼저 장바구니에 담아주세요.");
+        ? "현장 사진과 장바구니 타일을 불러왔습니다. 벽·바닥 선택을 확인해주세요."
+        : "현장 사진을 불러왔습니다. 타일GO에서 적용할 타일을 장바구니에 담아주세요.");
     }
     renderPlannerWorkspace();
   });
@@ -1401,7 +1404,7 @@ function bindEvents() {
     plannerSurfaceRegions = { floor: [], wall: [] };
     pendingPlannerRealRenderImage = "";
     pendingPlannerPhotoPreviewImage = "";
-    setText("#plannerStatus", "실사 시공 영역을 초기화했습니다.");
+    setText("#plannerStatus", "타일 적용 영역을 초기화했습니다.");
     renderPlannerWorkspace();
   });
   document.querySelector("#plannerClearPlanBtn")?.addEventListener("click", () => {
@@ -1425,7 +1428,12 @@ function bindEvents() {
     schedulePlannerRender();
   });
   document.querySelector("#plannerRealRenderBtn")?.addEventListener("click", generatePlannerRealRender);
-  document.querySelector("#plannerRealRenderPreview")?.addEventListener("click", openPlannerRealRenderPreview);
+  document.querySelector("#plannerOpenPreviewBtn")?.addEventListener("click", openPlannerRealRenderPreview);
+  document.querySelector("#plannerRealRenderPreview")?.addEventListener("click", (event) => {
+    if (event.target.closest("#plannerCompareSlider")) return;
+    openPlannerRealRenderPreview();
+  });
+  document.querySelector("#plannerRealRenderPreview")?.addEventListener("input", handlePlannerCompareSliderInput);
   document.querySelector("#plannerPanoramaCanvas")?.addEventListener("pointerdown", startPlannerPanoramaDrag);
   document.addEventListener("pointermove", movePlannerPanoramaDrag);
   document.addEventListener("pointerup", endPlannerPanoramaDrag);
@@ -12730,23 +12738,42 @@ function renderPlannerWorkspace() {
   autoSelectPlannerCartTiles({ onlyEmpty: true });
 
   const config = readPlannerConfig();
-  const footprint = getPlannerFootprint(config);
-  const floorArea = footprint.area;
-  const wallArea = footprint.perimeter * config.height;
+  const floorTile = getPlannerSelectedTile("floor");
+  const wallTile = getPlannerSelectedTile("wall");
+  const activeSurfaceCount = ["floor", "wall"].filter((surface) => (plannerSurfaceRegions[surface] || []).length >= 3).length;
   renderPlannerSurfaceGuide();
   renderPlannerPlanEditor();
   summary.innerHTML = [
-    `<div><span>바닥 면적</span><strong>${number(floorArea)}㎡</strong></div>`,
-    `<div><span>벽 면적</span><strong>${number(wallArea)}㎡</strong></div>`,
-    `<div><span>줄눈</span><strong>${number(config.grout)}mm</strong></div>`,
-    `<div><span>시공 방향</span><strong>바닥 ${config.floorOrientation === "vertical" ? "세로" : "가로"} · 벽 ${config.wallOrientation === "vertical" ? "세로" : "가로"}</strong></div>`
+    `<div><span>현장 사진</span><strong>${pendingPlannerSiteImage ? "업로드됨" : "필요"}</strong></div>`,
+    `<div><span>적용 영역</span><strong>${activeSurfaceCount}개</strong></div>`,
+    `<div><span>벽 타일</span><strong title="${escapeHtml(wallTile?.name || "")}">${escapeHtml(wallTile?.name || "선택 필요")}</strong></div>`,
+    `<div><span>바닥 타일</span><strong title="${escapeHtml(floorTile?.name || "")}">${escapeHtml(floorTile?.name || "선택 필요")}</strong></div>`
   ].join("");
 
-  cartProducts.innerHTML = '<div class="planner-empty-note">현장 이미지를 올리면 벽과 바닥 전체 영역이 자동 선택되고, 선택 타일이 사진 기준으로 적용됩니다. 그래픽 3D 모델 렌더는 사용하지 않습니다.</div>';
+  cartProducts.innerHTML = tiles.length
+    ? tiles.map((tile) => {
+      const appliedTo = [
+        wallTile?.id === tile.id ? "벽" : "",
+        floorTile?.id === tile.id ? "바닥" : ""
+      ].filter(Boolean);
+      return `
+        <div class="planner-product-chip${appliedTo.length ? " is-selected" : ""}">
+          ${tile.image
+            ? `<img src="${escapeHtml(tile.image)}" alt="${escapeHtml(tile.name)}" />`
+            : '<div class="planner-product-empty">이미지 없음</div>'}
+          <div>
+            <strong>${escapeHtml(tile.name)}</strong>
+            <span>${escapeHtml(tile.size || "규격 미확인")} · ${escapeHtml(tile.finish || "마감 미확인")}</span>
+          </div>
+          ${appliedTo.length ? `<em>${escapeHtml(appliedTo.join(" · "))}</em>` : ""}
+        </div>
+      `;
+    }).join("")
+    : '<div class="planner-empty-note">장바구니에 담긴 타일이 없습니다.</div>';
 
   if (realRenderButton) {
     realRenderButton.disabled = plannerRealRenderRunning;
-    realRenderButton.textContent = plannerRealRenderRunning ? "자체 실사 엔진 렌더링 중..." : "자체 실사 엔진 렌더 만들기";
+    realRenderButton.textContent = plannerRealRenderRunning ? "미리보기 만드는 중..." : "타일 적용 미리보기 만들기";
   }
   updatePlannerRealRenderPreviewDisplay();
   if (realRenderDownload) {
@@ -12761,8 +12788,6 @@ function renderPlannerWorkspace() {
   }
 
   if (meta) {
-    const floorTile = getPlannerSelectedTile("floor");
-    const wallTile = getPlannerSelectedTile("wall");
     meta.textContent = `${floorTile?.name || "바닥 타일 없음"} / ${wallTile?.name || "벽 타일 없음"}`;
   }
 
@@ -12880,7 +12905,7 @@ function createPlannerDefaultSurfaceRegions() {
 
 function selectPlannerWholeSurface(surface) {
   if (!pendingPlannerSiteImage) {
-    setText("#plannerStatus", "먼저 현장 이미지를 올려주세요.");
+    setText("#plannerStatus", "먼저 현장 사진을 올려주세요.");
     return;
   }
   plannerSurfaceGuideMode = surface === "wall" ? "wall" : "floor";
@@ -12912,9 +12937,9 @@ function renderPlannerSurfaceGuide() {
     context.fillStyle = "#7b7469";
     context.font = "700 18px sans-serif";
     context.textAlign = "center";
-    context.fillText("현장 이미지를 올리면 시공 영역이 자동 선택됩니다.", canvas.width / 2, canvas.height / 2 - 10);
+    context.fillText("현장 사진을 올리면 적용 영역이 표시됩니다.", canvas.width / 2, canvas.height / 2 - 10);
     context.font = "500 13px sans-serif";
-    context.fillText("필요하면 바닥 전체 선택 또는 벽 전체 선택을 누르세요.", canvas.width / 2, canvas.height / 2 + 18);
+    context.fillText("벽 또는 바닥 영역 버튼으로 적용면을 확인하세요.", canvas.width / 2, canvas.height / 2 + 18);
     return;
   }
 
@@ -12975,8 +13000,8 @@ function drawPlannerSurfaceRegion(context, canvas, surface, color, label) {
 }
 
 function handlePlannerSurfaceGuideCanvasClick(event) {
-  if (!pendingPlannerSiteImage) setText("#plannerStatus", "먼저 현장 이미지를 올려주세요.");
-  else setText("#plannerStatus", "점 선택 없이 바닥 전체 선택 또는 벽 전체 선택 버튼으로 영역을 적용합니다.");
+  if (!pendingPlannerSiteImage) setText("#plannerStatus", "먼저 현장 사진을 올려주세요.");
+  else setText("#plannerStatus", "벽 또는 바닥 영역 버튼으로 적용면을 전환할 수 있습니다.");
 }
 
 function getPlannerSurfaceGuideFrame(canvas) {
@@ -13157,7 +13182,7 @@ function applyCartToPlanner() {
   const tiles = getPlannerCartTiles();
   autoSelectPlannerCartTiles({ onlyEmpty: false });
   resetPlannerPhotoRenderResults();
-  setText("#plannerStatus", tiles.length ? "장바구니 타일을 현장 사진 기반 렌더에 적용했습니다." : "먼저 장바구니에 타일을 담아주세요.");
+  setText("#plannerStatus", tiles.length ? "장바구니 타일을 벽과 바닥에 자동선택했습니다." : "먼저 장바구니에 타일을 담아주세요.");
   renderPlannerWorkspace();
 }
 
@@ -13165,6 +13190,7 @@ function resetPlannerPhotoRenderResults() {
   if (plannerRealRenderRunning) return;
   pendingPlannerRealRenderImage = "";
   pendingPlannerPhotoPreviewImage = "";
+  plannerCompareSliderValue = 50;
   pendingPlannerPanoramaSource = "";
   pendingPlannerPanoramaImage = "";
   plannerPanoramaTexture = null;
@@ -13175,14 +13201,16 @@ function updatePlannerRealRenderPreviewDisplay() {
   if (!realRenderPreview) return;
   const image = pendingPlannerRealRenderImage || pendingPlannerPhotoPreviewImage;
   if (image) {
-    const label = pendingPlannerRealRenderImage ? "자체 실사 엔진 결과 이미지" : "현장 사진 기반 타일 투영 미리보기";
-    realRenderPreview.innerHTML = `<img src="${escapeHtml(image)}" alt="${escapeHtml(label)}" />`;
+    realRenderPreview.innerHTML = pendingPlannerSiteImage
+      ? buildPlannerComparisonHtml(image)
+      : `<img src="${escapeHtml(image)}" alt="타일 적용 미리보기" />`;
   } else if (pendingPlannerSiteImage) {
-    realRenderPreview.innerHTML = "현장 사진에 자동 선택된 벽/바닥 전체 영역 기준으로 사진 기반 미리보기가 표시됩니다.";
+    realRenderPreview.innerHTML = "벽 또는 바닥 타일을 선택하면 적용 결과가 표시됩니다.";
   } else {
-    realRenderPreview.innerHTML = "현장 이미지를 올리면 사진 기반 렌더 미리보기가 표시됩니다.";
+    realRenderPreview.innerHTML = "현장 사진을 올리면 결과가 여기에 표시됩니다.";
   }
   realRenderPreview.classList.toggle("has-image", Boolean(image));
+  realRenderPreview.classList.toggle("has-comparison", Boolean(image && pendingPlannerSiteImage));
   realRenderPreview.classList.toggle("is-ai-result", Boolean(pendingPlannerRealRenderImage));
   realRenderPreview.classList.toggle("is-photo-preview", Boolean(!pendingPlannerRealRenderImage && pendingPlannerPhotoPreviewImage));
   realRenderPreview.classList.toggle("is-render-loading", Boolean(plannerRealRenderRunning));
@@ -13190,6 +13218,31 @@ function updatePlannerRealRenderPreviewDisplay() {
     realRenderPreview.insertAdjacentHTML("beforeend", buildPlannerRenderLoadingOverlayHtml());
   }
   schedulePlannerPanoramaRender();
+}
+
+function buildPlannerComparisonHtml(resultImage) {
+  const value = Math.max(0, Math.min(100, Number(plannerCompareSliderValue) || 50));
+  return `
+    <div class="render-before-after" style="--compare: ${value}%">
+      <img class="render-before-image" src="${escapeHtml(pendingPlannerSiteImage)}" alt="원본 현장 사진" />
+      <div class="render-after-layer">
+        <img class="render-after-image" src="${escapeHtml(resultImage)}" alt="타일 적용 결과" />
+      </div>
+      <span class="render-compare-label render-compare-label-before">원본</span>
+      <span class="render-compare-label render-compare-label-after">적용</span>
+      <span class="render-compare-divider" aria-hidden="true"></span>
+    </div>
+    <input class="render-compare-range" id="plannerCompareSlider" type="range" min="0" max="100" value="${value}" aria-label="원본과 타일 적용 결과 비교" />
+  `;
+}
+
+function handlePlannerCompareSliderInput(event) {
+  const slider = event.target.closest("#plannerCompareSlider");
+  if (!slider) return;
+  event.stopPropagation();
+  plannerCompareSliderValue = Math.max(0, Math.min(100, Number(slider.value) || 50));
+  const compare = document.querySelector("#plannerRealRenderPreview .render-before-after");
+  if (compare) compare.style.setProperty("--compare", `${plannerCompareSliderValue}%`);
 }
 
 function buildPlannerRenderLoadingOverlayHtml() {
@@ -13201,9 +13254,9 @@ function buildPlannerRenderLoadingOverlayHtml() {
   return `
     <div class="planner-render-loading" role="status" aria-live="polite">
       <div class="planner-render-spinner" aria-hidden="true"></div>
-      <strong>자체 실사 엔진 렌더링 중</strong>
+      <strong>타일 적용 이미지 생성 중</strong>
       <span>${escapeHtml(stage)}</span>
-      <small>평균 소요시간 약 90~180초 · 최대 5분까지 대기 · 현재 ${number(elapsedSeconds)}초 경과</small>
+      <small>현장 사진의 조명과 원근을 유지하며 타일을 적용하고 있습니다.</small>
       <div class="planner-render-progress" aria-hidden="true">
         <i style="width: ${progress}%"></i>
       </div>
@@ -13212,12 +13265,9 @@ function buildPlannerRenderLoadingOverlayHtml() {
 }
 
 function getPlannerRenderLoadingStage(elapsedSeconds) {
-  if (elapsedSeconds < 12) return "현장 사진과 시공 영역을 분석하고 있습니다.";
-  if (elapsedSeconds < 32) return "타일 규격, 줄눈, 가로/세로 시공 방향을 맞추는 중입니다.";
-  if (elapsedSeconds < 68) return "조명, 그림자, 질감을 실제 시공 사진처럼 보정하고 있습니다.";
-  if (elapsedSeconds < 105) return "문, 창문, 가구를 보존하면서 타일 마감을 정리하고 있습니다.";
-  if (elapsedSeconds < 180) return "고해상도 결과 이미지를 마무리하고 있습니다. 고품질 렌더는 시간이 더 걸릴 수 있습니다.";
-  return "서버가 아직 AI 응답을 기다리고 있습니다. 5분을 넘기면 자동으로 오류를 표시합니다.";
+  if (elapsedSeconds < 2) return "현장 사진과 적용 영역을 확인하고 있습니다.";
+  if (elapsedSeconds < 4) return "타일 규격과 줄눈 방향을 맞추고 있습니다.";
+  return "원본 사진과 비교할 결과를 마무리하고 있습니다.";
 }
 
 function startPlannerRenderLoadingTimer() {
@@ -13678,41 +13728,41 @@ async function generatePlannerRealRender() {
   ].filter(Boolean);
 
   if (!pendingPlannerSiteImage) {
-    setText("#plannerStatus", "실사 렌더를 만들 현장 이미지를 먼저 올려주세요.");
+    setText("#plannerStatus", "미리보기에 사용할 현장 사진을 먼저 올려주세요.");
     return;
   }
   if (!selectedTiles.length) {
-    setText("#plannerStatus", "실사 렌더에 적용할 바닥 또는 벽 타일을 선택해주세요.");
+    setText("#plannerStatus", "적용할 바닥 또는 벽 타일을 선택해주세요.");
     return;
   }
   if (selectedTiles.some(({ tile }) => !tile.image)) {
-    setText("#plannerStatus", "선택한 타일 중 이미지가 없는 상품이 있어 실사 렌더를 만들 수 없습니다.");
+    setText("#plannerStatus", "선택한 타일 중 이미지가 없는 상품이 있어 미리보기를 만들 수 없습니다.");
     return;
   }
 
   plannerRealRenderRunning = true;
   pendingPlannerRealRenderImage = "";
+  plannerCompareSliderValue = 50;
   startPlannerRenderLoadingTimer();
   renderPlannerWorkspace();
-  setText("#plannerStatus", "현장 사진, 타일 규격, 줄눈, 시공 방향을 기준으로 자체 실사 엔진 렌더를 생성하고 있습니다...");
+  setText("#plannerStatus", "현장 사진에 선택한 타일을 적용하고 있습니다.");
 
   try {
     const compositionImageDataUrl = await createPlannerPhotoMaterialPreviewDataUrl();
     pendingPlannerRealRenderImage = String(compositionImageDataUrl || "");
-    if (!pendingPlannerRealRenderImage) throw new Error("실사 렌더 결과 이미지를 받지 못했습니다.");
+    if (!pendingPlannerRealRenderImage) throw new Error("타일 적용 결과 이미지를 만들지 못했습니다.");
     pendingPlannerPanoramaSource = "";
     pendingPlannerPanoramaImage = "";
     plannerPanoramaTexture = null;
     plannerPanoramaYaw = 0.5;
     plannerPanoramaPitch = 0;
-    setText("#plannerStatus", "자체 실사 엔진 렌더가 생성되었습니다. 결과 이미지를 기준으로 360 현장 보기를 준비합니다.");
+    setText("#plannerStatus", "타일 적용 미리보기가 완성되었습니다. 슬라이더로 원본과 비교해보세요.");
     renderPlannerWorkspace();
-    schedulePlannerPanoramaRender();
     window.setTimeout(() => {
-      document.querySelector("#plannerPanoramaShell")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.querySelector("#plannerRealRenderPreview")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 260);
   } catch (error) {
-    setText("#plannerStatus", error?.message || "실사 렌더 생성 중 오류가 발생했습니다.");
+    setText("#plannerStatus", error?.message || "타일 적용 미리보기 생성 중 오류가 발생했습니다.");
   } finally {
     plannerRealRenderRunning = false;
     stopPlannerRenderLoadingTimer();
@@ -13769,15 +13819,16 @@ async function createPlannerSurfaceGuideImageDataUrl() {
 }
 
 function openPlannerRealRenderPreview() {
-  if (!pendingPlannerRealRenderImage) {
-    setText("#plannerStatus", "먼저 실사 렌더를 생성해주세요.");
+  const previewImage = pendingPlannerRealRenderImage || pendingPlannerPhotoPreviewImage;
+  if (!previewImage) {
+    setText("#plannerStatus", "먼저 타일 적용 미리보기를 만들어주세요.");
     return;
   }
   const modal = document.querySelector("#imagePreviewModal");
   const modalImage = document.querySelector("#imagePreviewModalImage");
   const modalTitle = document.querySelector("#imagePreviewTitle");
-  modalTitle.textContent = "실사 렌더 결과";
-  modalImage.src = pendingPlannerRealRenderImage;
+  modalTitle.textContent = "타일 적용 미리보기";
+  modalImage.src = previewImage;
   modal.classList.remove("hidden");
   modal.setAttribute("aria-hidden", "false");
 }
