@@ -31,7 +31,7 @@ const DEFAULT_SITE_SETTINGS = {
     homeSearchTitle: "수전금구",
     homeSearchSubtitle: "세면·샤워·주방 수전 한 번에 보기",
     homeSampleTitle: "샘플GO",
-    homeSampleSubtitle: "SNT 샘플을 현장에서 확인",
+    homeSampleSubtitle: "클릭으로 샘플받기",
     homePlannerTitle: "시공 미리보기",
     homePlannerSubtitle: "내 공간에 자재를 적용해 미리 확인",
     homeCartTitle: "장바구니·배송",
