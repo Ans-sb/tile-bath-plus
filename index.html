@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
-    <link rel="stylesheet" href="styles.css?v=20260724-admin-center5" />
+    <link rel="stylesheet" href="styles.css?v=20260727-home-mosaic2" />
   </head>
   <body>
-    <!-- build: homeheroslider3 -->
+    <!-- build: home-mosaic-20260727 -->
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar-brand">
@@ -114,16 +114,19 @@
                 <section class="square-main-intro">
                   <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" />
                   <div>
-                    <h1 data-site-text="homeHeadline">자재GO,</h1>
                     <p data-site-text="homeDescription">현장 자재를 찾는 가장 빠르고 명확한 방법.</p>
                     <small data-site-text="homeDetails">타일 · 위생도기 · 수전금구 · 욕실자재<br />검색부터 주문과 시공 이미지까지</small>
                   </div>
                 </section>
 
-                <button class="square-main-tile square-main-dark" type="button" data-main-category="tile">
-                  <span class="square-main-symbol">
-                    <strong>600</strong>
-                    <small>SIZE FIRST TILE SEARCH</small>
+                <button class="square-main-tile mosaic-icon-tile mosaic-tile-blue" type="button" data-main-category="tile">
+                  <span class="mosaic-main-icon" aria-hidden="true">
+                    <svg viewBox="0 0 96 96">
+                      <rect x="13" y="13" width="29" height="29" rx="3"></rect>
+                      <rect x="54" y="13" width="29" height="29" rx="3"></rect>
+                      <rect x="13" y="54" width="29" height="29" rx="3"></rect>
+                      <path d="M57 57h23v23H57zM58 79l21-21M68 80l12-12"></path>
+                    </svg>
                   </span>
                   <span class="square-main-label">
                     <span>
@@ -134,8 +137,9 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-photo" type="button" data-page-target="aiTileFinderPage">
-                  <img src="images/catalog/catalog_p16_img01.jpg" alt="" loading="eager" data-site-image="homeAi" />
+                <button class="square-main-tile square-main-photo mosaic-ai-tile" type="button" data-page-target="aiTileFinderPage">
+                  <img src="images/branding/web-storefront-hero-20260706.png" alt="" loading="eager" data-site-image="homeAi" />
+                  <span class="mosaic-ai-badge">AI</span>
                   <span class="square-main-label">
                     <span>
                       <strong data-site-text="homeAiTitle">AI 타일검색</strong>
@@ -145,10 +149,12 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-blue" type="button" data-page-target="bathProductsPage">
-                  <span class="square-main-symbol square-main-symbol-bath">
-                    <strong>BATH</strong>
-                    <small>COMPLETE BATHROOM MATERIALS</small>
+                <button class="square-main-tile mosaic-icon-tile mosaic-tile-teal" type="button" data-page-target="bathProductsPage">
+                  <span class="mosaic-main-icon" aria-hidden="true">
+                    <svg viewBox="0 0 96 96">
+                      <path d="M31 14h22v28H31zM31 23h22M60 16v25M19 43h58v8c0 18-10 29-28 29S21 69 21 51v-8"></path>
+                      <path d="M49 80v7M37 87h24M68 13v14M61 20h14"></path>
+                    </svg>
                   </span>
                   <span class="square-main-label">
                     <span>
@@ -159,7 +165,7 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-photo" type="button" data-main-category="sanitary">
+                <button class="square-main-tile square-main-photo mosaic-bath-photo" type="button" data-main-category="sanitary">
                   <img src="images/catalog/catalog_p04_img00.jpg" alt="" loading="lazy" data-site-image="homeBathroom" />
                   <span class="square-main-label">
                     <span>
@@ -170,17 +176,13 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-search" type="button" data-page-target="taxonomyTestPage">
-                  <span class="square-main-search-copy">
-                    <small>SEARCH</small>
-                    <strong>바로 찾기</strong>
-                    <span>규격·마감·제품명으로 검색</span>
+                <button class="square-main-tile square-main-photo mosaic-search-photo" type="button" data-page-target="taxonomyTestPage">
+                  <img src="images/catalog/catalog_p16_img01.jpg" alt="" loading="lazy" />
+                  <span class="mosaic-search-pill">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 5 5"></path></svg>
+                    <span>타일 검색</span>
                   </span>
-                  <span class="square-main-search-line">
-                    <span>600각 무광 스톤</span>
-                    <b aria-hidden="true">⌕</b>
-                  </span>
-                  <span class="square-main-label square-main-label-dark">
+                  <span class="square-main-label">
                     <span>
                       <strong data-site-text="homeSearchTitle">상품검색</strong>
                       <small data-site-text="homeSearchSubtitle">필요한 조건만 빠르게 선택</small>
@@ -189,12 +191,27 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-white" type="button" data-page-target="samplePage">
-                  <span class="square-main-symbol square-main-symbol-sample">
-                    <strong>SAMPLE</strong>
-                    <small>CHECK THE REAL COLOR AND TEXTURE</small>
+                <button class="square-main-tile mosaic-icon-tile mosaic-tile-coral" type="button" data-page-target="taxonomyTestPage">
+                  <span class="mosaic-main-icon mosaic-filter-icon" aria-hidden="true">
+                    <svg viewBox="0 0 96 96">
+                      <path d="M16 25h64M16 48h64M16 71h64"></path>
+                      <circle cx="35" cy="25" r="7"></circle>
+                      <circle cx="62" cy="48" r="7"></circle>
+                      <circle cx="43" cy="71" r="7"></circle>
+                    </svg>
                   </span>
-                  <span class="square-main-label square-main-label-dark">
+                  <span class="square-main-label">
+                    <span>
+                      <strong>직접찾기</strong>
+                      <small>사이즈·용도·마감·스타일·색상</small>
+                    </span>
+                    <b aria-hidden="true">&rarr;</b>
+                  </span>
+                </button>
+
+                <button class="square-main-tile square-main-photo mosaic-sample-tile" type="button" data-page-target="samplePage">
+                  <img src="images/branding/home-tile-samples-20260727.png" alt="" loading="lazy" />
+                  <span class="square-main-label">
                     <span>
                       <strong data-site-text="homeSampleTitle">샘플GO</strong>
                       <small data-site-text="homeSampleSubtitle">SNT 샘플을 현장에서 확인</small>
@@ -203,34 +220,7 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-photo" type="button" data-page-target="plannerPage">
-                  <img src="images/catalog/catalog_p05_img00.jpg" alt="" loading="lazy" data-site-image="homePlanner" />
-                  <span class="square-main-label">
-                    <span>
-                      <strong data-site-text="homePlannerTitle">시공보기</strong>
-                      <small data-site-text="homePlannerSubtitle">공간에 자재를 미리 적용</small>
-                    </span>
-                    <b aria-hidden="true">&rarr;</b>
-                  </span>
-                </button>
-
-                <button class="square-main-tile square-main-wide square-main-dark" type="button" data-page-target="cartPage">
-                  <span class="square-main-delivery">
-                    <small>FAST DELIVERY</small>
-                    <strong>현장 일정에 맞춘<br />빠른 자재 연결</strong>
-                    <span>검색한 상품을 장바구니에 담고 주문 수량과 배송을 확인하세요.</span>
-                  </span>
-                  <span class="square-main-delivery-number" aria-hidden="true">16:00</span>
-                  <span class="square-main-label">
-                    <span>
-                      <strong data-site-text="homeCartTitle">장바구니·배송</strong>
-                      <small data-site-text="homeCartSubtitle">주문 수량과 현장 배송 확인</small>
-                    </span>
-                    <b aria-hidden="true">&rarr;</b>
-                  </span>
-                </button>
-
-                <button class="square-main-tile square-main-photo" type="button" data-main-category="tile">
+                <button class="square-main-tile square-main-photo mosaic-recommend-tile" type="button" data-main-category="tile">
                   <img src="images/catalog/catalog_p12_img01.jpg" alt="" loading="lazy" data-site-image="homeRecommended" />
                   <span class="square-main-label">
                     <span>
@@ -241,15 +231,71 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-dark" type="button" data-page-target="myPage">
-                  <span class="square-main-symbol square-main-symbol-my">
-                    <strong>MY</strong>
-                    <small>ORDERS · GRADE · CLIENTS</small>
+                <button class="square-main-tile mosaic-icon-tile mosaic-tile-navy" type="button" data-page-target="myPage">
+                  <span class="mosaic-main-icon mosaic-my-icon" aria-hidden="true">
+                    <svg viewBox="0 0 96 96">
+                      <circle cx="48" cy="31" r="17"></circle>
+                      <path d="M18 83c3-20 14-30 30-30s27 10 30 30"></path>
+                    </svg>
                   </span>
                   <span class="square-main-label">
                     <span>
                       <strong data-site-text="homeMyTitle">마이페이지</strong>
                       <small data-site-text="homeMySubtitle">주문·등급·거래처 관리</small>
+                    </span>
+                    <b aria-hidden="true">&rarr;</b>
+                  </span>
+                </button>
+
+                <button class="square-main-tile mosaic-icon-tile mosaic-tile-green" type="button" data-page-target="bathProductsPage">
+                  <span class="mosaic-category-icons" aria-hidden="true">
+                    <svg viewBox="0 0 48 48"><path d="M6 6h14v14H6zM28 6h14v14H28zM6 28h14v14H6zM28 28h14v14H28z"></path></svg>
+                    <svg viewBox="0 0 48 48"><path d="M12 8h13v17H12zM30 10v15M6 26h36v5c0 8-6 12-18 12S7 39 7 31v-5"></path></svg>
+                    <svg viewBox="0 0 48 48"><path d="M10 36h28M17 36V23c0-9 4-14 12-14h7M28 9v8M24 13h8"></path></svg>
+                    <svg viewBox="0 0 48 48"><path d="M7 32h34M12 32V15h24v17M17 20h14M24 15v17"></path></svg>
+                  </span>
+                  <span class="square-main-label">
+                    <span>
+                      <strong>욕실 자재</strong>
+                      <small>위생도기부터 수전·욕실장까지</small>
+                    </span>
+                    <b aria-hidden="true">&rarr;</b>
+                  </span>
+                </button>
+
+                <button class="square-main-tile square-main-wide mosaic-promo-tile" type="button" data-page-target="cartPage" aria-label="장바구니, 배송, 실사 보정 및 제안서 안내">
+                  <span class="mosaic-promo-track" aria-hidden="true">
+                    <span class="mosaic-promo-slide"><img src="images/branding/home-slides/slide-1.png" alt="" loading="eager" /></span>
+                    <span class="mosaic-promo-slide"><img src="images/branding/home-slides/slide-2.png" alt="" loading="eager" /></span>
+                    <span class="mosaic-promo-slide"><img src="images/branding/home-slides/slide-3.png" alt="" loading="eager" /></span>
+                    <span class="mosaic-promo-slide"><img src="images/branding/home-slides/slide-4.png" alt="" loading="eager" /></span>
+                  </span>
+                  <span class="mosaic-promo-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                </button>
+
+                <button class="square-main-tile square-main-photo mosaic-planner-tile" type="button" data-page-target="plannerPage">
+                  <img src="images/catalog/catalog_p05_img00.jpg" alt="" loading="lazy" data-site-image="homePlanner" />
+                  <span class="square-main-label">
+                    <span>
+                      <strong data-site-text="homePlannerTitle">시공보기</strong>
+                      <small data-site-text="homePlannerSubtitle">공간에 자재를 미리 적용</small>
+                    </span>
+                    <b aria-hidden="true">&rarr;</b>
+                  </span>
+                </button>
+
+                <button class="square-main-tile mosaic-icon-tile mosaic-tile-purple" type="button" data-main-category="tile">
+                  <span class="mosaic-main-icon mosaic-style-icon" aria-hidden="true">
+                    <svg viewBox="0 0 96 96">
+                      <path d="M13 72 38 47l19 19 26-31M13 82h70"></path>
+                      <circle cx="30" cy="27" r="11"></circle>
+                      <path d="M59 16h24v24H59z"></path>
+                    </svg>
+                  </span>
+                  <span class="square-main-label">
+                    <span>
+                      <strong>스타일 찾기</strong>
+                      <small>마블·스톤·시멘트·솔리드</small>
                     </span>
                     <b aria-hidden="true">&rarr;</b>
                   </span>
@@ -3108,6 +3154,6 @@
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/admin/site-studio.js?v=20260724-admin-center5"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
-    <script src="app.js?v=20260724-admin-center5"></script>
+    <script src="app.js?v=20260727-home-mosaic1"></script>
   </body>
 </html>
