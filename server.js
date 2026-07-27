@@ -34,6 +34,7 @@ const { createCartStore } = require("./src/server/services/cart-store");
 const { createOrderStore } = require("./src/server/services/order-store");
 const { createSiteSettingsService } = require("./src/server/services/site-settings-service");
 const { createHermesClient } = require("./src/server/services/hermes-client");
+const { createHermesAdminService } = require("./src/server/features/hermes/hermes-admin-service");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -235,6 +236,7 @@ const hermesClient = createHermesClient({
   model: hermesModel,
   timeoutMs: hermesTimeoutMs
 });
+const hermesAdminService = createHermesAdminService({ hermesClient });
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -350,52 +352,13 @@ function getAdminRouteContext() {
     readAdminOverview,
     readTile114SampleProducts,
     readAllOrders,
-    readHermesStatus,
-    testHermesConnection,
+    readHermesStatus: () => hermesAdminService.readStatus(),
+    testHermesConnection: (payload) => hermesAdminService.testConnection(payload),
     readSiteSettings: () => siteSettingsService.read(),
     saveSiteSettings: (settings, reviewer) => siteSettingsService.save(settings, reviewer),
     resetSiteSettings: (reviewer) => siteSettingsService.reset(reviewer),
     getDefaultSiteSettings: () => siteSettingsService.defaults,
     saveSiteStudioImage
-  };
-}
-
-async function readHermesStatus() {
-  if (!hermesClient.hasConfig()) {
-    return {
-      ok: true,
-      configured: false,
-      connected: false,
-      status: "not_configured"
-    };
-  }
-
-  try {
-    return {
-      ok: true,
-      ...(await hermesClient.health())
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      configured: true,
-      connected: false,
-      status: "unavailable",
-      error: error.message
-    };
-  }
-}
-
-async function testHermesConnection(payload) {
-  const message = String(payload?.message || "자재GO Hermes 연결 상태를 한 문장으로 확인해 주세요.")
-    .trim()
-    .slice(0, 1000);
-  return {
-    ok: true,
-    ...(await hermesClient.chat({
-      message,
-      systemPrompt: "당신은 자재GO 내부 운영 보조 AI입니다. 한국어로 짧고 명확하게 답하세요."
-    }))
   };
 }
 

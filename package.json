@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node scripts/prepare-runtime.cjs && node server.js",
+    "test": "node --test test/server/features/*.test.js",
     "code:products": "node scripts/apply-management-codes.mjs",
     "products:public": "node scripts/build-public-products-db.mjs",
     "taxonomy:normalize": "node scripts/build-normalized-taxonomy.mjs",
