@@ -35,6 +35,11 @@ const { createOrderStore } = require("./src/server/services/order-store");
 const { createSiteSettingsService } = require("./src/server/services/site-settings-service");
 const { createHermesClient } = require("./src/server/services/hermes-client");
 const { createHermesAdminService } = require("./src/server/features/hermes/hermes-admin-service");
+const {
+  createTileAssistantRateLimiter,
+  handleTileAssistantRoutes
+} = require("./src/server/features/tile-assistant/tile-assistant-routes");
+const { createTileAssistantService } = require("./src/server/features/tile-assistant/tile-assistant-service");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -237,6 +242,8 @@ const hermesClient = createHermesClient({
   timeoutMs: hermesTimeoutMs
 });
 const hermesAdminService = createHermesAdminService({ hermesClient });
+const tileAssistantService = createTileAssistantService({ chatClient: hermesClient });
+const allowTileAssistantRequest = createTileAssistantRateLimiter();
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -249,6 +256,10 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (await handleSearchRoutes(request, response, getSearchRouteContext())) {
+      return;
+    }
+
+    if (await handleTileAssistantRoutes(request, response, getTileAssistantRouteContext())) {
       return;
     }
 
@@ -386,6 +397,26 @@ function getSearchRouteContext() {
     appendTaxonomySearchLog,
     searchTileCatalog
   };
+}
+
+function getTileAssistantRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    allowTileAssistantRequest,
+    isTileAssistantOriginAllowed,
+    answerTileQuestion: (payload) => tileAssistantService.answer(payload)
+  };
+}
+
+function isTileAssistantOriginAllowed(request) {
+  const origin = String(request.headers?.origin || "").trim();
+  if (!origin) return isLocalRequest(request);
+  try {
+    return new URL(origin).host === String(request.headers?.host || "");
+  } catch {
+    return false;
+  }
 }
 
 process.on("unhandledRejection", (error) => {

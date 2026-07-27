@@ -43,6 +43,7 @@ function createHermesClient({
         model: normalizedModel,
         messages,
         temperature: 0.2,
+        max_tokens: 800,
         stream: false
       })
     });

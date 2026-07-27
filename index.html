@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>자재GO 바스GO 플랫폼</title>
     <link rel="stylesheet" href="styles.css?v=20260728-planner-photo2" />
+    <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai1" />
   </head>
   <body>
     <!-- build: home-mosaic-20260727 -->
@@ -3381,6 +3382,55 @@
       </main>
     </div>
 
+    <aside class="tile-ai-assistant" id="tileAiAssistant" aria-label="타일 전문 AI 상담">
+      <section class="tile-ai-panel" id="tileAiPanel" role="dialog" aria-modal="false" aria-labelledby="tileAiTitle" hidden>
+        <header class="tile-ai-header">
+          <div class="tile-ai-avatar" aria-hidden="true">
+            <svg viewBox="0 0 64 64">
+              <rect x="14" y="18" width="36" height="32" rx="11" />
+              <path d="M32 18V10m-5 0h10" />
+              <circle cx="25" cy="33" r="3" />
+              <circle cx="39" cy="33" r="3" />
+              <path d="M25 42h14M14 29H9v12h5m36-12h5v12h-5" />
+            </svg>
+          </div>
+          <div>
+            <strong id="tileAiTitle">타일GO AI</strong>
+            <span><i aria-hidden="true"></i> 타일 전문 상담</span>
+          </div>
+          <button class="tile-ai-close" id="tileAiClose" type="button" aria-label="AI 상담창 닫기">×</button>
+        </header>
+        <div class="tile-ai-messages" id="tileAiMessages" aria-live="polite">
+          <article class="tile-ai-message is-assistant">
+            <div>안녕하세요. 타일의 종류, 스타일, 마감, 표면, 규격과 시공에 대해 질문해 주세요. 가격·재고·납기는 실제 조회 정보가 없으면 추측하지 않습니다.</div>
+          </article>
+        </div>
+        <div class="tile-ai-suggestions" aria-label="추천 질문">
+          <button type="button" data-tile-ai-question="포세린 타일이 정확히 뭐예요?">포세린이란?</button>
+          <button type="button" data-tile-ai-question="무광 타일이면 논슬립인가요?">무광과 논슬립</button>
+          <button type="button" data-tile-ai-question="욕실 바닥 타일을 고를 때 무엇을 확인해야 하나요?">욕실 바닥 선택</button>
+        </div>
+        <form class="tile-ai-form" id="tileAiForm">
+          <label class="sr-only" for="tileAiInput">타일 질문</label>
+          <textarea id="tileAiInput" rows="1" maxlength="2000" placeholder="타일에 대해 물어보세요" required></textarea>
+          <button id="tileAiSend" type="submit" aria-label="질문 보내기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 17 8-17 8 3-8-3-8Zm3.5 7h8.2L7 6.9 8.5 11Zm0 2L7 17.1l8.7-4.1H7.5Z" /></svg>
+          </button>
+        </form>
+        <p class="tile-ai-disclaimer">질문은 외부 AI 서비스로 전달될 수 있습니다. 개인정보는 입력하지 마시고, 제품 성능·시공 적합성은 기술자료와 현장조건을 확인하세요.</p>
+      </section>
+      <button class="tile-ai-launcher" id="tileAiLauncher" type="button" aria-label="타일 전문 AI 상담 열기" aria-controls="tileAiPanel" aria-expanded="false">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <rect x="14" y="18" width="36" height="32" rx="11" />
+          <path d="M32 18V10m-5 0h10" />
+          <circle cx="25" cy="33" r="3" />
+          <circle cx="39" cy="33" r="3" />
+          <path d="M25 42h14M14 29H9v12h5m36-12h5v12h-5" />
+        </svg>
+        <span>타일 AI</span>
+      </button>
+    </aside>
+
     <script src="products-db.js?v=20260710-products-db-sync1"></script>
     <script src="src/client/shared/product-dto.js?v=20260724-sample-snt3"></script>
     <script src="src/client/features/products/filter-snapshot.js?v=20260723-size-thickness1"></script>
@@ -3394,6 +3444,7 @@
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/admin/site-studio.js?v=20260727-home-planner1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
+    <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="app.js?v=20260728-planner-photo1"></script>
   </body>
 </html>

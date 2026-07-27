@@ -1,0 +1,333 @@
+.tile-ai-assistant {
+  position: fixed;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 3000;
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+  font-family: var(--site-font-family, "Segoe UI", "Noto Sans KR", sans-serif);
+}
+
+.tile-ai-assistant .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tile-ai-launcher {
+  min-width: 82px;
+  min-height: 82px;
+  padding: 9px 13px 8px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 26px;
+  color: #fff;
+  background: linear-gradient(145deg, #1268ff, #081957);
+  box-shadow: 0 16px 34px rgb(8 25 87 / 28%);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.tile-ai-launcher:hover,
+.tile-ai-launcher:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 42px rgb(8 25 87 / 36%);
+}
+
+.tile-ai-launcher.is-open {
+  transform: scale(.94);
+}
+
+.tile-ai-launcher svg,
+.tile-ai-avatar svg {
+  width: 43px;
+  height: 43px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tile-ai-launcher circle,
+.tile-ai-avatar circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.tile-ai-launcher span {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+
+.tile-ai-panel {
+  width: min(390px, calc(100vw - 28px));
+  height: min(650px, calc(100dvh - 130px));
+  max-height: min(650px, calc(100vh - 130px));
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  border: 1px solid #d9e3f2;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgb(8 25 87 / 24%);
+}
+
+.tile-ai-panel[hidden] {
+  display: none;
+}
+
+.tile-ai-header {
+  min-height: 76px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  color: #fff;
+  background: linear-gradient(135deg, #081957, #1268ff);
+}
+
+.tile-ai-avatar {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: #1268ff;
+  background: #fff;
+}
+
+.tile-ai-avatar svg {
+  width: 35px;
+  height: 35px;
+}
+
+.tile-ai-header strong,
+.tile-ai-header span {
+  display: block;
+}
+
+.tile-ai-header strong {
+  font-size: 17px;
+}
+
+.tile-ai-header span {
+  margin-top: 3px;
+  color: #d8e5ff;
+  font-size: 12px;
+}
+
+.tile-ai-header span i {
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  display: inline-block;
+  border-radius: 50%;
+  background: #62e59d;
+  box-shadow: 0 0 0 3px rgb(98 229 157 / 18%);
+}
+
+.tile-ai-close {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  color: #fff;
+  background: rgb(255 255 255 / 12%);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tile-ai-messages {
+  min-height: 0;
+  padding: 18px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #f6f8fc;
+}
+
+.tile-ai-message {
+  max-width: 88%;
+  display: flex;
+}
+
+.tile-ai-message div {
+  padding: 11px 13px;
+  border-radius: 17px;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tile-ai-message.is-assistant,
+.tile-ai-message.is-error {
+  align-self: flex-start;
+}
+
+.tile-ai-message.is-assistant div {
+  border: 1px solid #dce5f2;
+  border-bottom-left-radius: 5px;
+  color: #17213e;
+  background: #fff;
+}
+
+.tile-ai-message.is-user {
+  align-self: flex-end;
+}
+
+.tile-ai-message.is-user div {
+  border-bottom-right-radius: 5px;
+  color: #fff;
+  background: #1268ff;
+}
+
+.tile-ai-message.is-error div {
+  border: 1px solid #ffd1d1;
+  color: #a21b1b;
+  background: #fff2f2;
+}
+
+.tile-ai-message.is-pending div {
+  color: #687493;
+  animation: tile-ai-pulse 1.15s ease-in-out infinite;
+}
+
+.tile-ai-suggestions {
+  padding: 11px 12px 3px;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  background: #fff;
+}
+
+.tile-ai-suggestions button {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid #d9e4f5;
+  border-radius: 999px;
+  color: #24406e;
+  background: #f4f8ff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.tile-ai-form {
+  margin: 8px 12px 0;
+  padding: 6px 6px 6px 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 8px;
+  border: 1px solid #ccd8e9;
+  border-radius: 17px;
+  background: #fff;
+}
+
+.tile-ai-form:focus-within {
+  border-color: #1268ff;
+  box-shadow: 0 0 0 3px rgb(18 104 255 / 10%);
+}
+
+.tile-ai-form textarea {
+  min-height: 38px;
+  max-height: 100px;
+  padding: 9px 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  color: #17213e;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+}
+
+.tile-ai-form button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 13px;
+  color: #fff;
+  background: #1268ff;
+  cursor: pointer;
+}
+
+.tile-ai-form button:disabled {
+  cursor: wait;
+  opacity: .55;
+}
+
+.tile-ai-form button svg {
+  width: 23px;
+  height: 23px;
+  fill: currentColor;
+}
+
+.tile-ai-disclaimer {
+  margin: 0;
+  padding: 8px 14px 12px;
+  color: #7a849a;
+  background: #fff;
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@keyframes tile-ai-pulse {
+  50% { opacity: .48; }
+}
+
+@media (max-width: 720px) {
+  .tile-ai-assistant {
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .tile-ai-launcher {
+    min-width: 68px;
+    min-height: 68px;
+    border-radius: 22px;
+  }
+
+  .tile-ai-launcher svg {
+    width: 35px;
+    height: 35px;
+  }
+
+  .tile-ai-panel {
+    width: calc(100vw - 20px);
+    height: calc(100dvh - 92px);
+    max-height: calc(100dvh - 92px);
+    border-radius: 20px;
+  }
+
+  .tile-ai-messages {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-ai-launcher,
+  .tile-ai-message.is-pending div {
+    transition: none;
+    animation: none;
+  }
+}
