@@ -11610,7 +11610,7 @@ body[data-page="homePage"] .customer-category-section {
   }
 }
 
-/* 2026-07-27: reference-led five-column mosaic home */
+/* 2026-07-27: reference-led four-column mosaic home */
 body[data-page="homePage"] .square-main-home {
   width: min(1500px, calc(100% - 48px));
   padding-bottom: 76px;
@@ -11627,7 +11627,7 @@ body[data-page="homePage"] .square-main-header-mark {
 }
 
 body[data-page="homePage"] .square-main-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
 }
 
