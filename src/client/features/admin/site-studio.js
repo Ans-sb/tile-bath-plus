@@ -52,6 +52,7 @@
     },
     images: {
       homeAi: "images/branding/home-ai-tile-robot-20260727.png",
+      homeSample: "images/branding/home-tile-samples-pastel-20260727.png",
       homeBathroom: "images/catalog/catalog_p04_img00.jpg",
       homePlanner: "images/catalog/catalog_p05_img00.jpg",
       homeRecommended: "images/catalog/catalog_p12_img01.jpg",
@@ -108,6 +109,7 @@
 
   const IMAGE_FIELDS = [
     ["homeAi", "메인 AI 타일검색", "권장 1200×1200 이상"],
+    ["homeSample", "메인 샘플GO", "권장 1200×1200 이상"],
     ["homeBathroom", "메인 욕실 공간", "권장 1200×1200 이상"],
     ["homePlanner", "메인 시공보기", "권장 1200×1200 이상"],
     ["homeRecommended", "메인 추천 타일", "권장 1200×1200 이상"],

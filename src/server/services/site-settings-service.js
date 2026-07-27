@@ -54,6 +54,7 @@ const DEFAULT_SITE_SETTINGS = {
   },
   images: {
     homeAi: "images/branding/home-ai-tile-robot-20260727.png",
+    homeSample: "images/branding/home-tile-samples-pastel-20260727.png",
     homeBathroom: "images/catalog/catalog_p04_img00.jpg",
     homePlanner: "images/catalog/catalog_p05_img00.jpg",
     homeRecommended: "images/catalog/catalog_p12_img01.jpg",
