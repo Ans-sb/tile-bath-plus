@@ -11677,6 +11677,11 @@ body[data-page="homePage"] .square-main-tile::after {
   border-color: rgb(8 25 87 / 12%);
 }
 
+body[data-page="homePage"] .square-main-intro,
+body[data-page="homePage"] .mosaic-ai-tile::after {
+  border: 0;
+}
+
 body[data-page="homePage"] .square-main-photo::before {
   inset: 44% 0 0;
   background: linear-gradient(180deg, transparent, rgb(7 16 37 / 82%));
