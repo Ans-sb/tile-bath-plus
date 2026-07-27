@@ -11766,6 +11766,18 @@ body[data-page="homePage"] .square-main-label > b {
   object-position: center;
 }
 
+.mosaic-bath-go-tile {
+  background: #ffe500;
+}
+
+body[data-page="homePage"] .mosaic-bath-go-tile::before {
+  display: none;
+}
+
+.mosaic-bath-go-tile .square-main-label {
+  color: #081957;
+}
+
 .mosaic-ai-badge {
   position: absolute;
   top: 16px;
