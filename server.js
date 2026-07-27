@@ -138,6 +138,7 @@ const tileImageFetchTimeoutMs = Math.max(1000, Number(process.env.TILE_IMAGE_FET
 const tileVisionAnalysisTimeoutMs = Math.max(5000, Number(process.env.TILE_VISION_ANALYSIS_TIMEOUT_MS || 15000));
 let productImageIndexCache = null;
 let productImageIndexMtimeMs = 0;
+let bestTileProductsCache = null;
 const publicStockExcludeThresholdQty = Math.max(0, Number(
   process.env.PUBLIC_STOCK_EXCLUDE_THRESHOLD_QTY
   || process.env.STOCK_EXCLUDE_THRESHOLD_QTY
@@ -305,6 +306,7 @@ function getProductRouteContext() {
     readMemberProductCredentialsFromRequest,
     verifyMemberProductAccess,
     readProducts,
+    readBestTileProducts,
     isPublicCatalogProduct,
     mapMemberProduct,
     readAdminCredentialsFromRequest,
@@ -443,6 +445,7 @@ function setCachedProducts(rows, source, ttlMs = productReadCacheTtlMs) {
 
 function invalidateProductsReadCache() {
   productCache.invalidate();
+  bestTileProductsCache = null;
 }
 
 async function withTimeout(promise, timeoutMs, message) {
@@ -1641,6 +1644,132 @@ async function readMemberOrders(businessNumber, memberCredentials = {}) {
 
 async function readAllOrders() {
   return orderStore.readAllOrders();
+}
+
+function normalizeBestTileLookupKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_\-./()[\]{}]+/g, "");
+}
+
+function getBestTileCatalogScore(product) {
+  const populatedFields = [
+    product?.image,
+    product?.size,
+    product?.finish,
+    product?.color,
+    product?.patternCategory,
+    product?.material,
+    product?.countryOfOrigin
+  ].filter((value) => String(value || "").trim()).length;
+  const stockQty = Math.max(0, getProductStockQty(product));
+  return (String(product?.image || "").trim() ? 100000 : 0)
+    + populatedFields * 1000
+    + Math.min(stockQty, 10000);
+}
+
+async function readBestTileProducts(limit = 30) {
+  const boundedLimit = Math.min(30, Math.max(1, Number(limit) || 30));
+  const now = Date.now();
+  if (
+    bestTileProductsCache
+    && bestTileProductsCache.expiresAt > now
+    && bestTileProductsCache.limit === boundedLimit
+  ) {
+    return bestTileProductsCache.value;
+  }
+
+  const [allProducts, orders] = await Promise.all([
+    readProducts(),
+    readAllOrders().catch((error) => {
+      console.warn("[products] Best tile order data could not be read.", error.message);
+      return [];
+    })
+  ]);
+  const tiles = allProducts.filter((product) => (
+    isPublicCatalogProduct(product)
+    && String(product?.productType || "").toLowerCase() === "tile"
+  ));
+  const productByLookupKey = new Map();
+  tiles.forEach((product) => {
+    [
+      product.id,
+      product.managementCode,
+      product.modelName,
+      product.sourceProductId
+    ].forEach((value) => {
+      const key = normalizeBestTileLookupKey(value);
+      if (key && !productByLookupKey.has(key)) productByLookupKey.set(key, product);
+    });
+  });
+
+  const salesByProductId = new Map();
+  (Array.isArray(orders) ? orders : [])
+    .filter((order) => String(order?.status || order?.statusLabel || "") !== "취소")
+    .forEach((order) => {
+      const orderProductIds = new Set();
+      const orderedAt = Date.parse(order?.createdAt || order?.updatedAt || "") || 0;
+      (Array.isArray(order?.items) ? order.items : []).forEach((item) => {
+        const product = [item?.id, item?.managementCode, item?.modelName]
+          .map(normalizeBestTileLookupKey)
+          .filter(Boolean)
+          .map((key) => productByLookupKey.get(key))
+          .find(Boolean);
+        if (!product) return;
+        const current = salesByProductId.get(product.id) || {
+          quantity: 0,
+          orderCount: 0,
+          latestOrderAt: 0
+        };
+        current.quantity += Math.max(0, Number(item?.qty) || 0);
+        current.latestOrderAt = Math.max(current.latestOrderAt, orderedAt);
+        if (!orderProductIds.has(product.id)) {
+          current.orderCount += 1;
+          orderProductIds.add(product.id);
+        }
+        salesByProductId.set(product.id, current);
+      });
+    });
+
+  const compareCatalogFallback = (left, right) => (
+    getBestTileCatalogScore(right) - getBestTileCatalogScore(left)
+    || String(left?.name || left?.managementCode || "").localeCompare(
+      String(right?.name || right?.managementCode || ""),
+      "ko",
+      { numeric: true }
+    )
+  );
+  const orderedTiles = tiles
+    .filter((product) => salesByProductId.has(product.id))
+    .sort((left, right) => {
+      const leftSales = salesByProductId.get(left.id);
+      const rightSales = salesByProductId.get(right.id);
+      return rightSales.quantity - leftSales.quantity
+        || rightSales.orderCount - leftSales.orderCount
+        || rightSales.latestOrderAt - leftSales.latestOrderAt
+        || compareCatalogFallback(left, right);
+    });
+  const rankedIds = orderedTiles.map((product) => product.id);
+  const rankedIdSet = new Set(rankedIds);
+  tiles
+    .filter((product) => !rankedIdSet.has(product.id))
+    .sort(compareCatalogFallback)
+    .forEach((product) => rankedIds.push(product.id));
+
+  const ids = rankedIds.slice(0, boundedLimit);
+  const value = {
+    ids,
+    total: ids.length,
+    source: salesByProductId.size ? "orders-and-catalog" : "catalog-readiness",
+    generatedAt: new Date().toISOString()
+  };
+  bestTileProductsCache = {
+    limit: boundedLimit,
+    expiresAt: now + 5 * 60 * 1000,
+    value
+  };
+  return value;
 }
 
 async function updateAdminOrderStatus(payload, adminUsernameValue = "") {

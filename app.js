@@ -279,6 +279,8 @@ const shortDate = new Intl.DateTimeFormat("ko-KR", {
 
 let products = [];
 let productCurrentPage = 1;
+let productCollectionMode = "all";
+let bestTileProductIds = [];
 let bathProductCurrentPage = 1;
 let sampleProductCurrentPage = 1;
 let bathProductCategory = "all";
@@ -630,6 +632,9 @@ function syncTopbarControls(pageId = currentPageId) {
 function bindEvents() {
   document.querySelectorAll("[data-page-target]").forEach((button) => {
     button.addEventListener("click", () => {
+      if (button.dataset.pageTarget === "productsPage" && productCollectionMode !== "all") {
+        resetProductCollectionMode();
+      }
       switchPage(button.dataset.pageTarget);
     });
   });
@@ -641,6 +646,12 @@ function bindEvents() {
   document.querySelectorAll("[data-main-category]").forEach((button) => {
     button.addEventListener("click", () => {
       openProductCategory(button.dataset.mainCategory);
+    });
+  });
+
+  document.querySelectorAll("[data-product-collection]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.dataset.productCollection === "best-tiles") openBestTileCollection();
     });
   });
 
@@ -2205,27 +2216,33 @@ function renderSiteStudioOperationsSummary() {
   });
 }
 
-function setProductCatalogMode(productType = "tile") {
+function setProductCatalogMode(catalogMode = "tile") {
   const page = document.querySelector("#productsPage");
   if (!page) return;
-  const isMaterial = productType === "material";
+  const isMaterial = catalogMode === "material";
+  const isBestTiles = catalogMode === "best-tiles";
   page.classList.toggle("is-material-catalog", isMaterial);
+  page.classList.toggle("is-best-tile-catalog", isBestTiles);
 
   const copyTargets = [
-    ["#productsPage .customer-page-heading .eyebrow", "MaterialGO"],
-    ["#productsPage .customer-page-heading h2", "부자재"],
-    ['#productsPage [data-site-text="tileHeroEyebrow"]', "Material Search"],
-    ['#productsPage [data-site-text="tileHeroTitle"]', "현장에 필요한 부자재를 찾으세요."],
-    ['#productsPage [data-site-text="tileHeroDescription"]', "접착제, 줄눈, 실리콘과 시공도구를 종류와 규격에 맞춰 빠르게 보여드립니다."],
-    ['#productsPage [data-site-text="tileSearchLabel"]', "부자재 상품검색"],
-    ['#productsPage [data-site-text="tileSearchHint"]', "검색 후 종류와 규격을 바로 조정할 수 있습니다."],
-    ['#productsPage .tile-catalog-links [data-page-target="productsPage"]', "부자재"]
+    ["#productsPage .customer-page-heading .eyebrow", "MaterialGO", "BEST 30"],
+    ["#productsPage .customer-page-heading h2", "부자재", "베스트 타일"],
+    ['#productsPage [data-site-text="tileHeroEyebrow"]', "Material Search", "TileGO Best"],
+    ['#productsPage [data-site-text="tileHeroTitle"]', "현장에 필요한 부자재를 찾으세요.", "현재 많이 찾는 타일 TOP 30"],
+    ['#productsPage [data-site-text="tileHeroDescription"]', "접착제, 줄눈, 실리콘과 시공도구를 종류와 규격에 맞춰 빠르게 보여드립니다.", "실제 주문 수량과 상품 준비도를 반영해 지금 가장 주목할 타일을 순서대로 보여드립니다."],
+    ['#productsPage [data-site-text="tileSearchLabel"]', "부자재 상품검색", "베스트 타일 내 검색"],
+    ['#productsPage [data-site-text="tileSearchHint"]', "검색 후 종류와 규격을 바로 조정할 수 있습니다.", "베스트 30 안에서 사이즈, 용도, 마감, 스타일과 색상을 더 좁힐 수 있습니다."],
+    ['#productsPage .tile-catalog-links [data-page-target="productsPage"]', "부자재", "베스트 타일"]
   ];
-  copyTargets.forEach(([selector, materialCopy]) => {
+  copyTargets.forEach(([selector, materialCopy, bestCopy]) => {
     const node = document.querySelector(selector);
     if (!node) return;
     if (!node.dataset.tileCatalogCopy) node.dataset.tileCatalogCopy = node.textContent;
-    node.textContent = isMaterial ? materialCopy : node.dataset.tileCatalogCopy;
+    node.textContent = isMaterial
+      ? materialCopy
+      : isBestTiles
+        ? bestCopy
+        : node.dataset.tileCatalogCopy;
   });
 
   const searchInput = document.querySelector("#productSearch");
@@ -2235,16 +2252,20 @@ function setProductCatalogMode(productType = "tile") {
     }
     searchInput.setAttribute(
       "placeholder",
-      isMaterial ? "예: 타일본드 20kg, 화이트 줄눈, 방수 실리콘" : searchInput.dataset.tileCatalogPlaceholder
+      isMaterial
+        ? "예: 타일본드 20kg, 화이트 줄눈, 방수 실리콘"
+        : isBestTiles
+          ? "베스트 타일 30개 안에서 검색"
+          : searchInput.dataset.tileCatalogPlaceholder
     );
   }
 
   document.querySelector('#productsPage .tile-catalog-links [data-page-target="aiTileFinderPage"]')
     ?.classList.toggle("hidden", isMaterial);
   document.querySelector("#productsPage .tile-finder-panel--shortcut")
-    ?.classList.toggle("hidden", isMaterial);
+    ?.classList.toggle("hidden", isMaterial || isBestTiles);
   document.querySelector("#productsPage #productExpertGuide")
-    ?.classList.toggle("hidden", isMaterial);
+    ?.classList.toggle("hidden", isMaterial || isBestTiles);
 
   const materialFilterLabels = {
     size: "규격",
@@ -2260,12 +2281,77 @@ function setProductCatalogMode(productType = "tile") {
   });
 }
 
+function resetProductCollectionMode() {
+  productCollectionMode = "all";
+  bestTileProductIds = [];
+  invalidateProductPageCache();
+  setProductCatalogMode(document.querySelector("#mainCategoryFilter")?.value || "tile");
+}
+
+function getLocalBestTileCatalogScore(product) {
+  const populatedFields = [
+    product?.image,
+    product?.size,
+    product?.finish,
+    product?.color,
+    product?.patternCategory,
+    product?.material
+  ].filter((value) => String(value || "").trim()).length;
+  return (String(product?.image || "").trim() ? 100000 : 0)
+    + populatedFields * 1000
+    + Math.min(Math.max(0, Number(product?.stockQty) || 0), 10000);
+}
+
+function getLocalBestTileProductIds(limit = 30) {
+  return products
+    .filter((product) => String(product?.productType || "").toLowerCase() === "tile")
+    .sort((left, right) => (
+      getLocalBestTileCatalogScore(right) - getLocalBestTileCatalogScore(left)
+        || compareProductsForDisplay(left, right)
+    ))
+    .slice(0, Math.min(30, Math.max(1, Number(limit) || 30)))
+    .map((product) => product.id);
+}
+
+async function openBestTileCollection() {
+  const categoryFilter = document.querySelector("#mainCategoryFilter");
+  const searchInput = document.querySelector("#productSearch");
+  if (categoryFilter) categoryFilter.value = "tile";
+  if (searchInput) searchInput.value = "";
+  productCollectionMode = "best-tiles";
+  bestTileProductIds = getLocalBestTileProductIds(30);
+  setProductCatalogMode("best-tiles");
+  syncProductFilters({ resetSubFilters: true });
+  productCurrentPage = 1;
+  invalidateProductPageCache();
+  renderProducts();
+  switchPage("productsPage");
+
+  try {
+    const payload = await requestJson("/api/products/best?limit=30", {}, { retries: 1, timeoutMs: 15000 });
+    if (productCollectionMode !== "best-tiles") return;
+    const ids = Array.isArray(payload?.ids)
+      ? payload.ids.map((value) => String(value || "").trim()).filter(Boolean).slice(0, 30)
+      : [];
+    if (!ids.length) return;
+    bestTileProductIds = ids;
+    productCurrentPage = 1;
+    invalidateProductPageCache();
+    renderProducts();
+  } catch (error) {
+    console.warn("[products] 베스트 타일 순위를 불러오지 못해 상품 준비도 순위를 사용합니다.", error);
+  }
+}
+
 function openProductCategory(productType) {
   if (["tile", "material"].includes(productType)) {
     const categoryFilter = document.querySelector("#mainCategoryFilter");
     const searchInput = document.querySelector("#productSearch");
     if (categoryFilter) categoryFilter.value = productType;
     if (searchInput) searchInput.value = "";
+    productCollectionMode = "all";
+    bestTileProductIds = [];
+    invalidateProductPageCache();
     setProductCatalogMode(productType);
     syncProductFilters({ resetSubFilters: true });
     renderProducts();
@@ -2758,11 +2844,13 @@ function getProductPageState() {
     first: products[0]?.id || "",
     last: products[products.length - 1]?.id || "",
     price: getProductPriceCacheKey(),
+    collection: productCollectionMode,
+    collectionIds: productCollectionMode === "best-tiles" ? bestTileProductIds : [],
     ...snapshot
   });
   if (productPageStateCache?.key === cacheKey) return productPageStateCache.state;
 
-  const filtered = window.TbpProductPageState.filterProductsForPage({
+  let filtered = window.TbpProductPageState.filterProductsForPage({
     products,
     snapshot,
     callbacks: {
@@ -2783,6 +2871,15 @@ function getProductPageState() {
       compareProductsForDisplay
     }
   });
+  if (productCollectionMode === "best-tiles") {
+    const rankById = new Map(bestTileProductIds.map((id, index) => [String(id), index]));
+    filtered = filtered
+      .filter((product) => rankById.has(String(product?.id || "")))
+      .sort((left, right) => (
+        rankById.get(String(left?.id || "")) - rankById.get(String(right?.id || ""))
+      ))
+      .slice(0, 30);
+  }
 
   const pageSize = getProductPageSize();
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -2846,7 +2943,10 @@ function commitProductPageView(page) {
   productCurrentPage = normalizedPage;
   renderProductPageList(getProductPageHtml(normalizedPage), normalizedPage, state.totalPages);
   if (state.filtered.length) {
-    updateProductListStatus(`총 ${number(state.filtered.length)}개 상품 · ${number(normalizedPage)}/${number(state.totalPages)}페이지${state.activeFilters ? ` · 필터 ${state.activeFilters}개 적용` : ""}`);
+    const listLabel = productCollectionMode === "best-tiles"
+      ? `베스트 타일 ${number(state.filtered.length)}개`
+      : `총 ${number(state.filtered.length)}개 상품`;
+    updateProductListStatus(`${listLabel} · ${number(normalizedPage)}/${number(state.totalPages)}페이지${state.activeFilters ? ` · 필터 ${state.activeFilters}개 적용` : ""}`);
   } else if (products.length) {
     updateProductListStatus(state.activeFilters ? "필터 조건에 맞는 상품이 없습니다. 조건을 넓혀보세요." : "등록된 상품은 있지만 현재 표시할 목록이 없습니다.");
   } else {

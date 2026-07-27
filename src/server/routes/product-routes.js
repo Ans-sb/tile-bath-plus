@@ -1,4 +1,15 @@
 async function handleProductRoutes(request, response, context) {
+  if (request.method === "GET" && request.url.startsWith("/api/products/best")) {
+    if (context.areProductsHiddenFromStorefront()) {
+      context.sendJson(response, 200, { ids: [], total: 0, source: "hidden" });
+      return true;
+    }
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const limit = Math.min(30, Math.max(1, Number(url.searchParams.get("limit")) || 30));
+    context.sendJson(response, 200, await context.readBestTileProducts(limit));
+    return true;
+  }
+
   if (request.method === "GET" && request.url === "/api/products") {
     if (context.areProductsHiddenFromStorefront()) {
       context.sendJson(response, 200, []);
