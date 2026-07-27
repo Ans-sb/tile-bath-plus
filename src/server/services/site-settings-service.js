@@ -58,7 +58,7 @@ const DEFAULT_SITE_SETTINGS = {
     homeFaucet: "images/branding/home-faucet-20260727.png",
     homeBath: "images/branding/home-bathgo-toilet-white.png",
     homeBathroom: "images/catalog/catalog_p04_img00.jpg",
-    homePlanner: "images/branding/home-construction-preview-20260727.png",
+    homePlanner: "images/branding/home-construction-preview-20260728.png",
     homeRecommended: "images/branding/home-best-tiles-stacked-20260727-v2.png",
     homeMaterial: "images/branding/home-materials-20260727.png",
     homeQuantity: "images/branding/home-quantity-calculator-20260728.png",
