@@ -8745,6 +8745,18 @@ body.customer-experience-mode .product-pagination-toolbar label {
   align-items: center;
   min-width: 0;
   gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.topbar-brand:focus-visible {
+  outline: 3px solid #0b5cff;
+  outline-offset: 3px;
 }
 
 .brand-logo-mark {
