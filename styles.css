@@ -11763,7 +11763,7 @@ body[data-page="homePage"] .square-main-label > b {
 }
 
 .mosaic-ai-tile > img {
-  object-position: 68% center;
+  object-position: center;
 }
 
 .mosaic-ai-badge {

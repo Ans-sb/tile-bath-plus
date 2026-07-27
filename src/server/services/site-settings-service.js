@@ -51,7 +51,7 @@ const DEFAULT_SITE_SETTINGS = {
     bathSearchLabel: "바스GO 상품 검색"
   },
   images: {
-    homeAi: "images/catalog/catalog_p16_img01.jpg",
+    homeAi: "images/branding/home-ai-tile-robot-20260727.png",
     homeBathroom: "images/catalog/catalog_p04_img00.jpg",
     homePlanner: "images/catalog/catalog_p05_img00.jpg",
     homeRecommended: "images/catalog/catalog_p12_img01.jpg",
