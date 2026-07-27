@@ -35,7 +35,7 @@
       homeCartTitle: "장바구니·배송",
       homeCartSubtitle: "주문 수량과 현장 배송 확인",
       homeRecommendTitle: "베스트 타일",
-      homeRecommendSubtitle: "실제 주문을 반영한 인기 상품 TOP 30",
+      homeRecommendSubtitle: "새롭게 만나는 타일 30개",
       homeMyTitle: "마이페이지",
       homeMySubtitle: "주문·등급·거래처 관리",
       homeMaterialTitle: "부자재",
@@ -57,7 +57,7 @@
       homeBath: "images/branding/home-bathgo-toilet-white.png",
       homeBathroom: "images/catalog/catalog_p04_img00.jpg",
       homePlanner: "images/branding/home-construction-preview-20260727.png",
-      homeRecommended: "images/branding/home-best-tiles-stacked-20260727.png",
+      homeRecommended: "images/branding/home-best-tiles-stacked-20260727-v2.png",
       homeMaterial: "images/branding/home-materials-20260727.png",
       bathHero: "images/catalog/catalog_p04_img00.jpg"
     },
