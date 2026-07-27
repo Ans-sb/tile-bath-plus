@@ -1,0 +1,162 @@
+{
+  "version": "2026-07-27-v1",
+  "scope": "tile-visual-knowledge",
+  "principles": {
+    "separateAppearanceMaterialFinishPerformance": true,
+    "sizeAndFinishAreHardFilters": true,
+    "hardFiltersMayAutoRelax": false,
+    "unknownWhenNotSupportedByEvidence": true,
+    "multiLabelVisualEffects": true
+  },
+  "visualEffects": [
+    "marble",
+    "stone",
+    "travertine",
+    "concrete",
+    "wood",
+    "terrazzo",
+    "metal",
+    "fabric",
+    "solid",
+    "brick",
+    "glass",
+    "zellige"
+  ],
+  "patternFamilies": [
+    "plain",
+    "organic_vein",
+    "aggregate",
+    "speckled",
+    "mottled",
+    "linear_grain",
+    "woven",
+    "geometric",
+    "encaustic",
+    "floral"
+  ],
+  "patternMotifs": [
+    "bookmatch",
+    "chevron",
+    "herringbone",
+    "hexagon",
+    "circle",
+    "arabesque",
+    "stripe",
+    "ribbed",
+    "fluted",
+    "arch",
+    "leaf",
+    "star"
+  ],
+  "finish": {
+    "canonical": [
+      "glossy",
+      "polished",
+      "matte",
+      "honed",
+      "satin",
+      "lappato",
+      "natural",
+      "unknown"
+    ],
+    "aliases": {
+      "glossy": ["유광", "글로시", "gloss", "glossy"],
+      "polished": ["폴리싱", "폴리쉬", "polished", "polishing"],
+      "matte": ["무광", "매트", "맷", "matte", "matt"],
+      "honed": ["혼드", "honed"],
+      "satin": ["새틴", "반무광", "세미무광", "satin", "satinato"],
+      "lappato": ["라파토", "lappato", "lapato", "semi-polished"],
+      "natural": ["내추럴", "natural", "naturale"]
+    },
+    "doNotMerge": [
+      ["glossy", "polished"],
+      ["matte", "honed"],
+      ["honed", "satin"],
+      ["satin", "lappato"],
+      ["lappato", "polished"]
+    ]
+  },
+  "surfaceTexture": {
+    "canonical": [
+      "smooth",
+      "microtexture",
+      "textured",
+      "structured",
+      "ribbed",
+      "fluted",
+      "embossed",
+      "carved",
+      "hammered",
+      "rough",
+      "unknown"
+    ],
+    "rules": {
+      "structuredIsSubtypeOfTextured": true,
+      "textureDoesNotProveSlipResistance": true
+    }
+  },
+  "performance": {
+    "slipResistance": {
+      "searchAliases": ["논슬립", "미끄럼방지", "anti-slip", "antislip", "non-slip", "slip-resistant", "grip"],
+      "imageOnlyInferenceAllowed": false,
+      "requiredEvidence": ["explicit_product_spec", "technical_sheet", "test_report"]
+    },
+    "imageOnlyInferenceForbidden": [
+      "body_material",
+      "water_absorption",
+      "slip_rating",
+      "dcof",
+      "r_rating",
+      "pei",
+      "mohs",
+      "breaking_strength",
+      "frost_resistance",
+      "chemical_resistance",
+      "exact_size",
+      "thickness",
+      "rectification",
+      "lot",
+      "shade_code",
+      "caliber"
+    ]
+  },
+  "installationDimensions": {
+    "surface": ["wall", "floor"],
+    "environment": ["interior", "exterior", "wet", "submerged"],
+    "space": ["bathroom", "kitchen", "entrance", "living", "commercial", "pool", "terrace"],
+    "object": ["table", "countertop", "facade", "stair"]
+  },
+  "imageRoles": [
+    "front_single",
+    "front_multi_face",
+    "detail_macro",
+    "oblique_product",
+    "installed_scene",
+    "scale_with_person_or_object",
+    "collection_composite",
+    "packaging_or_sample",
+    "render"
+  ],
+  "evidenceLevels": {
+    "explicit_product_spec": 0.98,
+    "manufacturer_collection_spec": 0.95,
+    "retailer_structured_spec": 0.9,
+    "product_title": 0.85,
+    "category_context": 0.75,
+    "marketing_copy": 0.65,
+    "image_observation": 0.5
+  },
+  "decisionStates": ["accept", "partial", "abstain"],
+  "abstainRules": [
+    "tile_roi_too_small",
+    "multiple_surfaces_without_dominant_target",
+    "severe_blur_or_compression",
+    "excessive_glare_or_clipping",
+    "unreliable_white_balance",
+    "perspective_not_rectifiable",
+    "hard_filter_has_no_candidates",
+    "visual_evidence_conflicts_with_selected_filters",
+    "out_of_domain_surface",
+    "top_results_are_not_stable"
+  ]
+}
