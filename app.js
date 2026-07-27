@@ -2542,8 +2542,8 @@ function setProductCatalogMode(catalogMode = "tile") {
     ["#productsPage .customer-page-heading .eyebrow", "MaterialGO", "BEST 30"],
     ["#productsPage .customer-page-heading h2", "부자재", "베스트 타일"],
     ['#productsPage [data-site-text="tileHeroEyebrow"]', "Material Search", "TileGO Best"],
-    ['#productsPage [data-site-text="tileHeroTitle"]', "현장에 필요한 부자재를 찾으세요.", "현재 많이 찾는 타일 TOP 30"],
-    ['#productsPage [data-site-text="tileHeroDescription"]', "접착제, 줄눈, 실리콘과 시공도구를 종류와 규격에 맞춰 빠르게 보여드립니다.", "실제 주문 수량과 상품 준비도를 반영해 지금 가장 주목할 타일을 순서대로 보여드립니다."],
+    ['#productsPage [data-site-text="tileHeroTitle"]', "현장에 필요한 부자재를 찾으세요.", "오늘의 타일 셀렉션 30"],
+    ['#productsPage [data-site-text="tileHeroDescription"]', "접착제, 줄눈, 실리콘과 시공도구를 종류와 규격에 맞춰 빠르게 보여드립니다.", "현재 준비된 타일 가운데 30개를 새롭게 골라 한눈에 보여드립니다."],
     ['#productsPage [data-site-text="tileSearchLabel"]', "부자재 상품검색", "베스트 타일 내 검색"],
     ['#productsPage [data-site-text="tileSearchHint"]', "검색 후 종류와 규격을 바로 조정할 수 있습니다.", "베스트 30 안에서 사이즈, 용도, 마감, 스타일과 색상을 더 좁힐 수 있습니다."],
     ['#productsPage .tile-catalog-links [data-page-target="productsPage"]', "부자재", "베스트 타일"]
@@ -2602,59 +2602,31 @@ function resetProductCollectionMode() {
   setProductCatalogMode(document.querySelector("#mainCategoryFilter")?.value || "tile");
 }
 
-function getLocalBestTileCatalogScore(product) {
-  const populatedFields = [
-    product?.image,
-    product?.size,
-    product?.finish,
-    product?.color,
-    product?.patternCategory,
-    product?.material
-  ].filter((value) => String(value || "").trim()).length;
-  return (String(product?.image || "").trim() ? 100000 : 0)
-    + populatedFields * 1000
-    + Math.min(Math.max(0, Number(product?.stockQty) || 0), 10000);
-}
-
-function getLocalBestTileProductIds(limit = 30) {
-  return products
-    .filter((product) => String(product?.productType || "").toLowerCase() === "tile")
-    .sort((left, right) => (
-      getLocalBestTileCatalogScore(right) - getLocalBestTileCatalogScore(left)
-        || compareProductsForDisplay(left, right)
-    ))
+function getRandomSntBestTileProductIds(limit = 30) {
+  const candidates = products.filter(isSntSampleProduct);
+  const shuffled = [...candidates];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled
     .slice(0, Math.min(30, Math.max(1, Number(limit) || 30)))
     .map((product) => product.id);
 }
 
-async function openBestTileCollection() {
+function openBestTileCollection() {
   const categoryFilter = document.querySelector("#mainCategoryFilter");
   const searchInput = document.querySelector("#productSearch");
   if (categoryFilter) categoryFilter.value = "tile";
   if (searchInput) searchInput.value = "";
   productCollectionMode = "best-tiles";
-  bestTileProductIds = getLocalBestTileProductIds(30);
+  bestTileProductIds = getRandomSntBestTileProductIds(30);
   setProductCatalogMode("best-tiles");
   syncProductFilters({ resetSubFilters: true });
   productCurrentPage = 1;
   invalidateProductPageCache();
   renderProducts();
   switchPage("productsPage");
-
-  try {
-    const payload = await requestJson("/api/products/best?limit=30", {}, { retries: 1, timeoutMs: 15000 });
-    if (productCollectionMode !== "best-tiles") return;
-    const ids = Array.isArray(payload?.ids)
-      ? payload.ids.map((value) => String(value || "").trim()).filter(Boolean).slice(0, 30)
-      : [];
-    if (!ids.length) return;
-    bestTileProductIds = ids;
-    productCurrentPage = 1;
-    invalidateProductPageCache();
-    renderProducts();
-  } catch (error) {
-    console.warn("[products] 베스트 타일 순위를 불러오지 못해 상품 준비도 순위를 사용합니다.", error);
-  }
 }
 
 function openProductCategory(productType) {
