@@ -59,7 +59,7 @@ const DEFAULT_SITE_SETTINGS = {
     homeBath: "images/branding/home-bathgo-toilet-white.png",
     homeBathroom: "images/catalog/catalog_p04_img00.jpg",
     homePlanner: "images/branding/home-construction-preview-20260727.png",
-    homeRecommended: "images/catalog/catalog_p12_img01.jpg",
+    homeRecommended: "images/branding/home-best-tiles-stacked-20260727.png",
     homeMaterial: "images/branding/home-materials-20260727.png",
     bathHero: "images/catalog/catalog_p04_img00.jpg"
   },

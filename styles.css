@@ -11834,7 +11834,8 @@ body[data-page="homePage"] .mosaic-bath-go-tile::before {
 }
 
 .mosaic-recommend-tile > img {
-  filter: saturate(0.86) contrast(1.02);
+  object-position: center;
+  filter: none;
 }
 
 .mosaic-category-icons {
