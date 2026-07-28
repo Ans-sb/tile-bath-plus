@@ -3668,7 +3668,28 @@ textarea:focus {
   display: flex;
   justify-content: space-between;
   gap: 14px;
-  align-items: flex-start;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.expert-search-head::-webkit-details-marker {
+  display: none;
+}
+
+.expert-search-head::after {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-right: 2px solid var(--accent-strong);
+  border-bottom: 2px solid var(--accent-strong);
+  content: "";
+  transform: rotate(45deg);
+  transition: transform 180ms ease;
+}
+
+.expert-search-panel[open] > .expert-search-head::after {
+  transform: rotate(225deg);
 }
 
 .expert-search-head h3 {
@@ -3689,6 +3710,11 @@ textarea:focus {
   font-size: 15.6px;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.expert-search-body {
+  display: grid;
+  gap: 14px;
 }
 
 .expert-search-grid {
@@ -9103,6 +9129,7 @@ body.customer-experience-mode .product-pagination-toolbar label {
 @media (max-width: 720px) {
   .expert-search-head {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
 
   .expert-search-grid {
