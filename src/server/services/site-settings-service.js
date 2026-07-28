@@ -49,7 +49,6 @@ const DEFAULT_SITE_SETTINGS = {
     tileSearchHint: "검색 후 사이즈·용도·마감·스타일·색상을 바로 조정할 수 있습니다.",
     bathHeroEyebrow: "BathGO Collection",
     bathHeroTitle: "욕실에 필요한 자재를\n한 번에 찾으세요.",
-    bathHeroDescription: "수전, 세면대, 욕조, 양변기, 욕실장과 액세서리를 품목과 모델명으로 빠르게 검색할 수 있습니다.",
     bathSearchLabel: "바스GO 상품 검색"
   },
   images: {
