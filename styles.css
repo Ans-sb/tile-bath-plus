@@ -12644,31 +12644,12 @@ body.customer-experience-mode .tile-search-stage .catalog-toolbar-copy,
 body[data-page="productsPage"] .tile-finder-panel--shortcut {
   min-height: 0;
   margin: 16px 0;
-  padding: 15px 18px;
+  padding: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  border: 1px solid #dce3e9;
-  border-radius: 6px;
-  background: #f5f7f9;
-}
-
-body[data-page="productsPage"] .tile-finder-panel--shortcut .tile-finder-copy {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-body[data-page="productsPage"] .tile-finder-panel--shortcut .tile-finder-copy h3 {
-  margin: 0;
-  font-size: 19px;
-}
-
-body[data-page="productsPage"] .tile-finder-panel--shortcut .tile-finder-copy p:last-child,
-body[data-page="productsPage"] .tile-finder-panel--shortcut .tile-finder-copy .eyebrow {
-  margin: 0;
-  font-size: 12px;
+  justify-content: flex-end;
+  border: 0;
+  background: transparent;
 }
 
 body[data-page="productsPage"] .filter-grid-catalog {
@@ -13033,14 +13014,11 @@ body[data-page="bathProductsPage"] .bath-result-header {
   }
 
   body[data-page="productsPage"] .tile-finder-panel--shortcut {
-    align-items: stretch;
-    flex-direction: column;
-    padding: 13px;
+    justify-content: stretch;
   }
 
-  body[data-page="productsPage"] .tile-finder-panel--shortcut .tile-finder-copy {
-    display: grid;
-    gap: 5px;
+  body[data-page="productsPage"] .tile-finder-panel--shortcut .primary-action {
+    width: 100%;
   }
 
   body[data-page="productsPage"] .filter-grid-catalog {
