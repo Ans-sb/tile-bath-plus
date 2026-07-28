@@ -1715,6 +1715,13 @@ function isClientVisibleStockProduct(product) {
 }
 
 async function loadStoredNormalizedTaxonomyProducts() {
+  if (!["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)) {
+    storedNormalizedTaxonomyProducts = [];
+    normalizedTaxonomyProducts = [];
+    normalizedTaxonomySourceKey = "";
+    return;
+  }
+
   try {
     const view = isAdminUser() ? "admin" : "customer";
     const response = await fetch(`/api/local/normalized-taxonomy?view=${encodeURIComponent(view)}&v=${Date.now()}`, { cache: "no-store" });
