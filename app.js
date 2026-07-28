@@ -2889,7 +2889,7 @@ function renderBathProductsPage() {
     ].join("");
   } else {
     bathProductSubcategory = "all";
-    subcategoryList.innerHTML = `<span class="bath-subcategory-empty">세부 품목을 선택하지 않아도 전체 상품을 볼 수 있습니다.</span>`;
+    subcategoryList.innerHTML = "";
   }
 
   const filtered = getFilteredBathProducts(allBathProducts, selectedBrand);
