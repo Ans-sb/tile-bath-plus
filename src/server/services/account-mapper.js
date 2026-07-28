@@ -6,6 +6,7 @@ function normalizeSocialProvider(value) {
   const provider = String(value || "").trim().toLowerCase();
   if (provider === "google") return "google";
   if (provider === "kakao" || provider === "kakaotalk" || provider === "카카오" || provider === "카카오톡") return "kakao";
+  if (provider === "naver" || provider === "네이버" || provider === "custom:naver") return "naver";
   const error = new Error("지원하지 않는 소셜 가입 방식입니다.");
   error.statusCode = 400;
   throw error;
@@ -19,7 +20,11 @@ function normalizeSocialProviderOptional(value) {
 
 function formatSocialProviderLabel(providerValue, emailValue) {
   const provider = normalizeSocialProvider(providerValue);
-  const label = provider === "kakao" ? "카카오톡 가입" : "Google 가입";
+  const label = {
+    google: "Google 가입",
+    kakao: "카카오톡 가입",
+    naver: "네이버 가입"
+  }[provider];
   const email = normalizeEmail(emailValue);
   return email ? `${label} <${email}>` : label;
 }
@@ -27,7 +32,7 @@ function formatSocialProviderLabel(providerValue, emailValue) {
 function normalizeSignupProvider(payload) {
   const socialEmail = normalizeEmail(payload?.socialEmail);
   const socialProvider = String(payload?.socialProvider || "").trim();
-  if (socialEmail && socialProvider) return formatSocialProviderLabel(socialProvider, socialEmail);
+  if (socialProvider) return formatSocialProviderLabel(socialProvider, socialEmail);
   return String(payload?.provider || "일반 회원가입").trim();
 }
 

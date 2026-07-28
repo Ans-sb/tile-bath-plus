@@ -12,12 +12,34 @@ async function handleSystemRoutes(request, response, context) {
 
   if (request.method === "GET" && request.url.startsWith("/api/social-auth/start")) {
     const url = new URL(request.url, `http://${request.headers.host}`);
-    response.writeHead(302, {
-      Location: context.buildSocialAuthStartUrl(
+    const redirect = context.startSocialAuth(
         String(url.searchParams.get("provider") || ""),
         String(url.searchParams.get("mode") || "signup"),
         request
-      )
+    );
+    const headers = { Location: redirect.location };
+    if (redirect.setCookie) headers["Set-Cookie"] = redirect.setCookie;
+    response.writeHead(302, headers);
+    response.end();
+    return true;
+  }
+
+  if (
+    request.method === "GET"
+    && (
+      request.url.startsWith("/api/social-auth/naver/callback")
+      || request.url.startsWith("/api/auth/naver/callback")
+    )
+  ) {
+    let redirect;
+    try {
+      redirect = await context.completeNaverSocialAuth(request);
+    } catch (error) {
+      redirect = context.buildNaverSocialAuthErrorRedirect(request, error);
+    }
+    response.writeHead(302, {
+      Location: redirect.location,
+      "Set-Cookie": redirect.setCookie
     });
     response.end();
     return true;

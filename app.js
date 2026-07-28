@@ -1485,6 +1485,7 @@ function bindEvents() {
   document.querySelector("#socialBusinessUploadBtn")?.addEventListener("click", focusBusinessCertificateUpload);
   document.querySelector("#googleSignupBtn").addEventListener("click", () => startSocialSignup("Google"));
   document.querySelector("#kakaoSignupBtn").addEventListener("click", () => startSocialSignup("카카오톡"));
+  document.querySelector("#naverSignupBtn").addEventListener("click", () => startSocialSignup("네이버"));
   document.querySelector("#openLoginBtn").addEventListener("click", () => switchPage("loginPage"));
   document.querySelector("#openSignupBtn").addEventListener("click", () => switchPage("signupPage"));
   document.querySelector("#createProProposalBtn").addEventListener("click", generateProfessionalProposalDeck);
@@ -1547,6 +1548,7 @@ function bindEvents() {
   document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
   document.querySelector("#googleLoginBtn").addEventListener("click", () => startSocialLogin("Google"));
   document.querySelector("#kakaoLoginBtn").addEventListener("click", () => startSocialLogin("카카오톡"));
+  document.querySelector("#naverLoginBtn").addEventListener("click", () => startSocialLogin("네이버"));
   window.addEventListener("popstate", handleBrowserBack);
   window.addEventListener("focus", handleServerReconnectCheck);
   window.addEventListener("resize", handlePlannerViewportChange);
@@ -11828,8 +11830,8 @@ function startSocialLogin(provider) {
 }
 
 function isSocialSignupSelected() {
-  return Boolean(socialSignupProfile?.provider && socialSignupProfile?.email)
-    || /google|kakao|카카오/i.test(selectedSignupProvider);
+  return Boolean(socialSignupProfile?.provider && (socialSignupProfile?.providerId || socialSignupProfile?.email))
+    || /google|kakao|카카오|naver|네이버/i.test(selectedSignupProvider);
 }
 
 function readSocialAuthRedirect() {
@@ -11857,7 +11859,7 @@ function readSocialAuthRedirect() {
 }
 
 async function completeSocialAuthRedirect({ accessToken, provider, mode, error = "" }) {
-  const providerLabel = provider === "kakao" ? "카카오톡" : "Google";
+  const providerLabel = getSocialProviderLabel(provider);
   if (!accessToken) {
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(String(window.location.hash || "").replace(/^#/, ""));
@@ -11928,7 +11930,7 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
     switchPage("signupPage");
     const emailNotice = profile.email
       ? `${providerLabel} 계정(${profile.email})이 확인되었습니다.`
-      : `${providerLabel} 계정은 확인됐지만 이메일이 전달되지 않았습니다. 카카오 동의항목의 이메일 제공 설정을 확인해주세요.`;
+      : `${providerLabel} 계정은 확인됐지만 이메일이 전달되지 않았습니다. 해당 서비스의 이메일 제공 동의 설정을 확인해주세요.`;
     setText("#authStatus", `${emailNotice} 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
     setText("#signupStatus", `${getSocialWelcomeName()}님 안녕하세요. 이제 사업자 인증이 필요합니다. 사업자등록증을 업로드해 가입을 완료해주세요.`);
     renderSignupSummary();
@@ -11939,6 +11941,13 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
   } finally {
     history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   }
+}
+
+function getSocialProviderLabel(providerValue) {
+  const provider = String(providerValue || "").trim().toLowerCase();
+  if (provider === "kakao" || provider === "카카오" || provider === "카카오톡") return "카카오톡";
+  if (provider === "naver" || provider === "네이버") return "네이버";
+  return "Google";
 }
 
 function applyPendingSocialUser(profile, message = "") {

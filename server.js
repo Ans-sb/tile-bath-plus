@@ -34,6 +34,7 @@ const { createCartStore } = require("./src/server/services/cart-store");
 const { createOrderStore } = require("./src/server/services/order-store");
 const { createSiteSettingsService } = require("./src/server/services/site-settings-service");
 const { createHermesClient } = require("./src/server/services/hermes-client");
+const { createNaverOAuthService } = require("./src/server/services/naver-oauth-service");
 const { createHermesAdminService } = require("./src/server/features/hermes/hermes-admin-service");
 const {
   createTileAssistantRateLimiter,
@@ -86,6 +87,17 @@ const publicSiteUrl = String(
   || process.env.APP_PUBLIC_URL
   || ""
 ).trim().replace(/\/+$/, "");
+const naverClientId = String(
+  process.env.NAVER_LOGIN_CLIENT_ID
+  || process.env.NAVER_CLIENT_ID
+  || ""
+).trim();
+const naverClientSecret = String(
+  process.env.NAVER_LOGIN_CLIENT_SECRET
+  || process.env.NAVER_CLIENT_SECRET
+  || ""
+).trim();
+const naverRedirectUri = String(process.env.NAVER_LOGIN_REDIRECT_URI || "").trim();
 const businessDocumentBucket = String(process.env.SUPABASE_BUSINESS_DOCUMENT_BUCKET || "business-documents").trim();
 const forceLocalProducts = /^(1|true|yes)$/i.test(String(process.env.FORCE_LOCAL_PRODUCTS || "").trim());
 const productReadCacheTtlMs = Math.max(0, Number(process.env.PRODUCT_READ_CACHE_TTL_MS || 5 * 60 * 1000));
@@ -108,6 +120,13 @@ const memberTokenSecret = crypto
   .createHash("sha256")
   .update([supabaseSecretKey, adminPassword, "tile-bath-plus-member-token"].filter(Boolean).join(":"))
   .digest("hex");
+const naverOAuthService = createNaverOAuthService({
+  clientId: naverClientId,
+  clientSecret: naverClientSecret,
+  redirectUri: naverRedirectUri,
+  tokenSecret: memberTokenSecret,
+  requestTimeoutMs: process.env.NAVER_LOGIN_TIMEOUT_MS
+});
 let businessDocumentBucketReady = false;
 let tileSearchEnginePromise = null;
 const productCache = createProductCache({ defaultTtlMs: productReadCacheTtlMs });
@@ -302,7 +321,10 @@ function getSystemRouteContext() {
     sendJson,
     startedAt,
     getStorageMode,
+    startSocialAuth,
     buildSocialAuthStartUrl,
+    completeNaverSocialAuth,
+    buildNaverSocialAuthErrorRedirect,
     readSocialAuthProfile,
     loginWithSocialAuth
   };
@@ -2111,6 +2133,7 @@ function normalizeSocialProvider(value) {
   const provider = String(value || "").trim().toLowerCase();
   if (provider === "google") return "google";
   if (provider === "kakao" || provider === "kakaotalk" || provider === "카카오" || provider === "카카오톡") return "kakao";
+  if (provider === "naver" || provider === "네이버" || provider === "custom:naver") return "naver";
   throw createHttpError(400, "지원하지 않는 소셜 가입 방식입니다.");
 }
 
@@ -2133,6 +2156,7 @@ function parseSocialProviderLabel(value) {
   try {
     if (/google/i.test(text)) provider = normalizeSocialProvider("google");
     else if (/kakao|카카오/i.test(text)) provider = normalizeSocialProvider("kakao");
+    else if (/naver|네이버/i.test(text)) provider = normalizeSocialProvider("naver");
   } catch {
     provider = "";
   }
@@ -2157,8 +2181,11 @@ function getRequestOrigin(request) {
 }
 
 function buildSocialAuthStartUrl(providerValue, modeValue, request) {
-  if (!supabaseUrl) throw createHttpError(500, "Supabase URL이 설정되어 있지 않습니다.");
   const provider = normalizeSocialProvider(providerValue);
+  if (provider === "naver") {
+    return startSocialAuth(provider, modeValue, request).location;
+  }
+  if (!supabaseUrl) throw createHttpError(500, "Supabase URL이 설정되어 있지 않습니다.");
   const mode = String(modeValue || "signup").trim() === "login" ? "login" : "signup";
   const redirectTo = new URL(getRequestOrigin(request));
   redirectTo.searchParams.set("socialProvider", provider);
@@ -2170,9 +2197,45 @@ function buildSocialAuthStartUrl(providerValue, modeValue, request) {
   return authUrl.toString();
 }
 
+function startSocialAuth(providerValue, modeValue, request) {
+  const provider = normalizeSocialProvider(providerValue);
+  if (provider === "naver") {
+    return naverOAuthService.buildAuthorizationRequest({
+      mode: modeValue,
+      requestOrigin: getRequestOrigin(request)
+    });
+  }
+  return {
+    location: buildSocialAuthStartUrl(provider, modeValue, request),
+    setCookie: ""
+  };
+}
+
+async function completeNaverSocialAuth(request) {
+  return naverOAuthService.completeAuthorization({
+    requestUrl: new URL(request.url, getRequestOrigin(request)).toString(),
+    cookieHeader: request.headers.cookie || "",
+    requestOrigin: getRequestOrigin(request)
+  });
+}
+
+function buildNaverSocialAuthErrorRedirect(request, error) {
+  return naverOAuthService.buildErrorRedirect({
+    requestUrl: new URL(request.url, getRequestOrigin(request)).toString(),
+    requestOrigin: getRequestOrigin(request),
+    error
+  });
+}
+
 async function readSocialAuthProfile(accessToken) {
   const cleanToken = String(accessToken || "").trim();
   if (!cleanToken) throw createHttpError(400, "소셜 로그인 토큰을 확인하지 못했습니다.");
+  if (naverOAuthService.isProfileToken(cleanToken)) {
+    const profile = naverOAuthService.readProfileToken(cleanToken);
+    const account = await upsertCustomerAccountFromSocialProfile(profile);
+    profile.accountId = account?.id || "";
+    return profile;
+  }
   if (!supabaseUrl) throw createHttpError(500, "Supabase URL이 설정되어 있지 않습니다.");
 
   const response = await fetch(`${supabaseUrl}/auth/v1/user`, {

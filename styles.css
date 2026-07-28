@@ -2521,7 +2521,7 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
 
 .social-signup-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-top: 16px;
 }
@@ -2556,8 +2556,18 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
 }
 
 .kakao-signup {
-  border-color: #ecd25b;
-  background: linear-gradient(180deg, #eaf2ff 0%, #dbe9ff 100%);
+  border-color: #f2d600;
+  background: #fee500;
+}
+
+.naver-signup {
+  border-color: #03b95f;
+  background: #03c75a;
+  color: #fff;
+}
+
+.naver-signup span {
+  color: rgba(255, 255, 255, 0.86);
 }
 
 .filter-grid,
