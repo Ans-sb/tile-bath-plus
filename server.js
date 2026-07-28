@@ -84,7 +84,6 @@ const supabaseSecretKey = String(
 const publicSiteUrl = String(
   process.env.PUBLIC_SITE_URL
   || process.env.APP_PUBLIC_URL
-  || process.env.RAILWAY_PUBLIC_DOMAIN
   || ""
 ).trim().replace(/\/+$/, "");
 const businessDocumentBucket = String(process.env.SUPABASE_BUSINESS_DOCUMENT_BUCKET || "business-documents").trim();
