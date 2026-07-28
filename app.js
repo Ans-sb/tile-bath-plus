@@ -1170,24 +1170,6 @@ function bindEvents() {
     bathProductCurrentPage = 1;
     renderBathProductsPage();
   });
-  document.querySelector("#bathEditorialCategories")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-bath-category]");
-    if (!button) return;
-    bathProductCategory = button.dataset.bathCategory || "all";
-    bathProductSubcategory = "all";
-    bathProductCurrentPage = 1;
-    renderBathProductsPage();
-    document.querySelector("#bathCatalogBreadcrumb")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-
-  document.querySelector("#bathSubcategoryList")?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-bath-subcategory]");
-    if (!button) return;
-    bathProductSubcategory = button.dataset.bathSubcategory || "all";
-    bathProductCurrentPage = 1;
-    renderBathProductsPage();
-  });
-
   ["#bathProductBrandFilter", "#bathProductSearch"].forEach((selector) => {
     document.querySelector(selector)?.addEventListener("input", () => {
       bathProductCurrentPage = 1;
@@ -2871,16 +2853,15 @@ function getFilteredBathProducts(allBathProducts, selectedBrand) {
 
 function renderBathProductsPage() {
   const tabs = document.querySelector("#bathCategoryTabs");
-  const subcategoryList = document.querySelector("#bathSubcategoryList");
   const productList = document.querySelector("#bathProductList");
-  if (!tabs || !subcategoryList || !productList) return;
+  if (!tabs || !productList) return;
 
   const allBathProducts = products.filter(isBathProduct);
   const selectedBrand = syncBathProductBrandFilter(allBathProducts);
   const category = getBathProductCategory(bathProductCategory);
+  bathProductSubcategory = "all";
   if (category.id !== bathProductCategory) {
     bathProductCategory = category.id;
-    bathProductSubcategory = "all";
   }
 
   tabs.innerHTML = BATH_PRODUCT_CATEGORIES.map((item) => {
@@ -2890,34 +2871,6 @@ function renderBathProductsPage() {
       <span>${escapeHtml(item.label)}</span><small>${number(count)}</small>
     </button>`;
   }).join("");
-  document.querySelectorAll("#bathEditorialCategories [data-bath-category]").forEach((button) => {
-    const active = button.dataset.bathCategory === bathProductCategory;
-    button.classList.toggle("is-active", active);
-    button.toggleAttribute("aria-current", active);
-  });
-
-  setText("#bathCategoryTitle", category.title);
-  setText("#bathCategoryDescription", category.description);
-  setText("#bathCatalogBreadcrumb", `바스GO > ${category.label}${bathProductSubcategory !== "all" ? ` > ${category.subcategories.find((item) => item.id === bathProductSubcategory)?.label || ""}` : ""}`);
-  const categoryProducts = allBathProducts.filter((product) => productMatchesBathCategory(product, category.id));
-  const subcategoryButtons = category.subcategories.map((subcategory) => {
-    const count = categoryProducts.filter((product) => getBathProductSubcategoryId(product, category.id) === subcategory.id).length;
-    const active = bathProductSubcategory === subcategory.id;
-    return `<button type="button" class="bath-subcategory-button ${active ? "is-active" : ""}" data-bath-subcategory="${escapeHtml(subcategory.id)}">
-      <span>${escapeHtml(subcategory.label)}</span><small>${number(count)}</small>
-    </button>`;
-  });
-  if (category.subcategories.length) {
-    const allActive = bathProductSubcategory === "all";
-    subcategoryList.innerHTML = [
-      `<button type="button" class="bath-subcategory-button ${allActive ? "is-active" : ""}" data-bath-subcategory="all"><span>전체</span><small>${number(categoryProducts.length)}</small></button>`,
-      ...subcategoryButtons
-    ].join("");
-  } else {
-    bathProductSubcategory = "all";
-    subcategoryList.innerHTML = "";
-  }
-
   const filtered = getFilteredBathProducts(allBathProducts, selectedBrand);
   const totalPages = Math.max(1, Math.ceil(filtered.length / BATH_PRODUCT_PAGE_SIZE));
   bathProductCurrentPage = Math.min(Math.max(bathProductCurrentPage, 1), totalPages);
