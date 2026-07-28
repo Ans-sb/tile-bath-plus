@@ -50,16 +50,16 @@
     "bathSearchLabel": "바스GO 상품 검색"
   },
   "images": {
-    "homeAi": "images/branding/home-ai-tile-robot-gold-20260728.png",
-    "homeSample": "images/branding/home-tile-samples-pastel-20260727.png",
-    "homeFaucet": "images/branding/home-faucet-20260727.png",
+    "homeAi": "images/branding/home-ai-tile-robot-gold-20260728.webp?v=20260728-performance1",
+    "homeSample": "images/branding/home-tile-samples-pastel-20260727.webp?v=20260728-performance1",
+    "homeFaucet": "images/branding/home-faucet-20260727.webp?v=20260728-performance1",
     "homeBath": "images/branding/home-bathgo-toilet-white.png",
-    "homeBathroom": "images/catalog/catalog_p04_img00.jpg",
-    "homePlanner": "images/branding/home-construction-preview-blue-20260728.png",
-    "homeRecommended": "images/branding/home-best-tiles-stacked-20260727-v2.png",
-    "homeMaterial": "images/branding/home-materials-installation-20260728.png",
-    "homeQuantity": "images/branding/home-quantity-calculator-20260728.png",
-    "bathHero": "images/catalog/catalog_p04_img00.jpg"
+    "homeBathroom": "images/catalog/catalog_p04_img00.webp?v=20260728-performance1",
+    "homePlanner": "images/branding/home-construction-preview-blue-20260728.webp?v=20260728-performance1",
+    "homeRecommended": "images/branding/home-best-tiles-stacked-20260727-v2.webp?v=20260728-performance1",
+    "homeMaterial": "images/branding/home-materials-installation-20260728.webp?v=20260728-performance1",
+    "homeQuantity": "images/branding/home-quantity-calculator-20260728.webp?v=20260728-performance1",
+    "bathHero": "images/catalog/catalog_p04_img00.webp?v=20260728-performance1"
   },
   "menu": [
     {

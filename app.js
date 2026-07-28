@@ -473,6 +473,22 @@ let extractedBusinessInfo = {
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
 const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage"]);
+const PRODUCT_DATA_PAGE_IDS = new Set([
+  "productsPage",
+  "bathProductsPage",
+  "bathInteriorPage",
+  "aiTileFinderPage",
+  "taxonomyTestPage",
+  "productDetailPage",
+  "cartPage",
+  "renderPage",
+  "plannerPage",
+  "proposalPage",
+  "samplePage",
+  "dbPage",
+  "adminPage",
+  "siteStudioPage"
+]);
 const QUANTITY_ADHESIVE_PRESETS = {
   "cement-floor": {
     label: "압착시멘트",
@@ -508,6 +524,8 @@ let serverConnectionTimer = null;
 let businessScanRequestId = 0;
 let cartSyncTimer = null;
 let productsLoadedFromRemote = false;
+let productsLoadPromise = null;
+let memberPricingHydratedFor = "";
 const productForm = document.querySelector("#productForm");
 const proposalForm = document.querySelector("#proposalForm");
 const signupForm = document.querySelector("#signupForm");
@@ -674,12 +692,17 @@ async function init() {
   setupDbForm();
   syncDefaultApprovalRules();
   renderApprovalRules();
-  await loadProducts();
-  await hydrateApprovalRulesFromServer();
-  await refreshServerConnection();
+  const initialTasks = [
+    hydrateApprovalRulesFromServer(),
+    refreshServerConnection(),
+    hydrateCartFromServer(),
+    hydrateOrdersFromServer()
+  ];
+  if (pageRequiresProducts(currentPageId)) {
+    initialTasks.push(loadProducts());
+  }
+  await Promise.allSettled(initialTasks);
   startServerConnectionWatcher();
-  await hydrateCartFromServer();
-  await hydrateOrdersFromServer();
   renderAll();
   if (currentPageId === "adminPage") {
     loadAdminOverview();
@@ -1543,6 +1566,14 @@ function bindEvents() {
 }
 
 async function loadProducts() {
+  if (productsLoadPromise) return productsLoadPromise;
+  productsLoadPromise = loadProductsInternal().finally(() => {
+    productsLoadPromise = null;
+  });
+  return productsLoadPromise;
+}
+
+async function loadProductsInternal() {
   const localProducts = loadLocalProducts();
   const bundledProducts = Array.isArray(window.PRODUCTS_DB) ? window.PRODUCTS_DB : [];
   products = mergeProducts(
@@ -1579,6 +1610,9 @@ async function loadProducts() {
       await hydrateAdminProducts({ render: false });
     }
     await hydrateMemberPricingProducts({ render: false });
+    if (productCollectionMode === "best-tiles" && !bestTileProductIds.length) {
+      bestTileProductIds = getRandomSntBestTileProductIds(30);
+    }
     if (["productsPage", "taxonomyTestPage"].includes(currentPageId)) {
       await loadStoredNormalizedTaxonomyProducts();
     }
@@ -1636,6 +1670,8 @@ async function loadProducts() {
 
 async function hydrateMemberPricingProducts(options = {}) {
   if (!authUser?.businessNumber || !authUser?.memberToken || authUser?.approvalStatus !== "승인") return false;
+  const pricingIdentity = `${authUser.businessNumber}:${authUser.memberToken}`;
+  if (memberPricingHydratedFor === pricingIdentity) return true;
 
   try {
     const payload = await requestJson("/api/member/products", {
@@ -1654,6 +1690,7 @@ async function hydrateMemberPricingProducts(options = {}) {
       memberGrade: payload.user?.memberGrade || authUser.memberGrade || "사업자",
       priceTier: payload.user?.priceTier || authUser.priceTier || "wholesale"
     };
+    memberPricingHydratedFor = pricingIdentity;
     saveAuthSession(authUser);
     syncProductFilters();
     if (options.render) renderAll();
@@ -1704,7 +1741,10 @@ async function ensureProductsReady() {
       : "#productList";
   const currentMarkup = document.querySelector(listSelector)?.innerHTML?.trim() || "";
   const needsReload = !products.length || (!productsLoadedFromRemote && (!currentMarkup || currentMarkup.includes("상품 DB를 불러오지 못했습니다")));
-  if (!needsReload) return;
+  if (!needsReload) {
+    await hydrateMemberPricingProducts({ render: false });
+    return;
+  }
 
   if (currentPageId === "bathProductsPage") {
     setText("#bathProductStatus", "상품 목록을 다시 불러오는 중입니다.");
@@ -1720,6 +1760,10 @@ async function ensureProductsReady() {
   else if (currentPageId === "bathInteriorPage") renderBathInteriorPage();
   else if (currentPageId === "samplePage") renderSamplePage();
   else renderProducts();
+}
+
+function pageRequiresProducts(pageId = currentPageId) {
+  return PRODUCT_DATA_PAGE_IDS.has(pageId);
 }
 
 function loadLocalProducts() {
@@ -2622,19 +2666,21 @@ function getRandomSntBestTileProductIds(limit = 30) {
     .map((product) => product.id);
 }
 
-function openBestTileCollection() {
+async function openBestTileCollection() {
   const categoryFilter = document.querySelector("#mainCategoryFilter");
   const searchInput = document.querySelector("#productSearch");
   if (categoryFilter) categoryFilter.value = "tile";
   if (searchInput) searchInput.value = "";
   productCollectionMode = "best-tiles";
-  bestTileProductIds = getRandomSntBestTileProductIds(30);
+  bestTileProductIds = [];
   setProductCatalogMode("best-tiles");
+  switchPage("productsPage");
+  await ensureProductsReady();
+  bestTileProductIds = getRandomSntBestTileProductIds(30);
   syncProductFilters({ resetSubFilters: true });
   productCurrentPage = 1;
   invalidateProductPageCache();
   renderProducts();
-  switchPage("productsPage");
 }
 
 function openProductCategory(productType) {
@@ -9784,7 +9830,7 @@ async function refreshServerConnection() {
     };
   }
 
-  if (!wasOnline && serverConnection.online) {
+  if (!wasOnline && serverConnection.online && pageRequiresProducts()) {
     try {
       await loadProducts();
       renderProducts();
@@ -12243,7 +12289,10 @@ async function applyAuthenticatedUser(matchedUser, message = "") {
     priceTier: matchedUser.priceTier || matchedUser.pricingTier || matchedUser.memberPriceTier || ""
   };
   saveAuthSession(authUser);
-  await hydrateMemberPricingProducts({ render: false });
+  memberPricingHydratedFor = "";
+  if (pageRequiresProducts() && productsLoadedFromRemote) {
+    await hydrateMemberPricingProducts({ render: false });
+  }
   if (authUser.role !== "admin") {
     await hydrateCartFromServer({ mergeLocal: true });
     await hydrateOrdersFromServer();
@@ -12306,14 +12355,19 @@ function saveAuthSession(user) {
 }
 
 async function logoutUser() {
+  if (productsLoadPromise) {
+    await productsLoadPromise.catch(() => {});
+  }
   authUser = null;
   adminOverview = null;
   adminProductsHydrated = false;
+  memberPricingHydratedFor = "";
+  products = [];
+  productsLoadedFromRemote = false;
+  productsLoadPromise = null;
   localStorage.removeItem("tbpAuthSession");
   if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
-  await loadProducts();
   renderAuthControls();
-  if (currentPageId === "productsPage") renderProducts();
   renderCart();
   switchPage("homePage");
 }
@@ -14309,6 +14363,9 @@ function switchPage(pageId, options = {}) {
 
   currentPageId = pageId;
   syncExperienceMode(pageId);
+  if (pageRequiresProducts(pageId)) {
+    void loadProducts();
+  }
   const activeNavPage = pageId === "productDetailPage"
     ? productListReturnState.sourcePageId || "taxonomyTestPage"
     : pageId === "samplePage"

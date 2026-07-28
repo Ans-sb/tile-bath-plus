@@ -287,7 +287,7 @@ const server = http.createServer(async (request, response) => {
 
 server.keepAliveTimeout = 65000;
 server.headersTimeout = 66000;
-server.requestTimeout = 0;
+server.requestTimeout = 120000;
 
 server.listen(port, host, () => {
   console.log(`Tile & Bath Plus app: http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
