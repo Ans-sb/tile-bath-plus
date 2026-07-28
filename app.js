@@ -782,6 +782,28 @@ function setQuantityCalculationStatus(message, isError = false) {
   status.classList.toggle("is-error", isError);
 }
 
+function syncQuantitySizePresets() {
+  const width = getQuantityInputValue("quantityTileWidth");
+  const height = getQuantityInputValue("quantityTileHeight");
+  document.querySelectorAll("[data-quantity-size]").forEach((button) => {
+    const [presetWidth, presetHeight] = String(button.dataset.quantitySize || "")
+      .split("x")
+      .map(Number);
+    button.classList.toggle("is-active", width === presetWidth && height === presetHeight);
+  });
+}
+
+function applyQuantitySizePreset(size) {
+  const [width, height] = String(size || "").split("x").map(Number);
+  const widthInput = document.querySelector("#quantityTileWidth");
+  const heightInput = document.querySelector("#quantityTileHeight");
+  if (!widthInput || !heightInput || width <= 0 || height <= 0) return;
+  widthInput.value = String(width);
+  heightInput.value = String(height);
+  syncQuantitySizePresets();
+  calculateQuantityEstimate();
+}
+
 function calculateQuantityEstimate() {
   const form = document.querySelector("#quantityCalculatorForm");
   if (!form) return null;
@@ -789,6 +811,7 @@ function calculateQuantityEstimate() {
   const installArea = getQuantityInstallArea();
   const tileWidth = getQuantityInputValue("quantityTileWidth");
   const tileHeight = getQuantityInputValue("quantityTileHeight");
+  syncQuantitySizePresets();
   const piecesPerBox = Math.max(0, Math.floor(getQuantityInputValue("quantityPiecesPerBox")));
   if (installArea <= 0 || tileWidth <= 0 || tileHeight <= 0 || piecesPerBox <= 0) {
     setQuantityCalculationStatus("면적, 타일 규격과 박스당 장수를 확인해주세요.", true);
@@ -959,6 +982,9 @@ function bindEvents() {
   });
   document.querySelector("#quantityCalculatorReset")?.addEventListener("click", () => {
     setTimeout(initializeQuantityCalculator, 0);
+  });
+  document.querySelectorAll("[data-quantity-size]").forEach((button) => {
+    button.addEventListener("click", () => applyQuantitySizePreset(button.dataset.quantitySize));
   });
   document.querySelector("#quantityCopyResult")?.addEventListener("click", copyQuantityEstimate);
 
