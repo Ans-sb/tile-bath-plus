@@ -7526,6 +7526,15 @@ function getMemberGradeLabel(user = authUser) {
   return "사업자등록증 등록 필요";
 }
 
+function getCompactMemberGradeLabel(user = authUser) {
+  if (!user) return "";
+  if (user.role === "admin") return "관리자";
+  if (user.memberGrade) return user.memberGrade;
+  if (user.approvalStatus === "승인") return "사업자";
+  if (user.approvalStatus === "보류") return "승인 대기";
+  return "미인증";
+}
+
 function renderMemberHomeBoard() {
   const board = document.querySelector("#memberHomeBoard");
   if (!board) return;
@@ -12373,12 +12382,15 @@ function renderAuthControls() {
   const authBadge = document.querySelector("#authBadge");
   const adminNavBtn = document.querySelector("#adminNavBtn");
   const tile114NavBtn = document.querySelector("#tile114NavBtn");
+  const homeMemberQuickActions = document.querySelector("#homeMemberQuickActions");
 
   const isLoggedIn = Boolean(authUser);
   const isAdmin = isAdminUser();
   document.body.classList.toggle("admin-authenticated", isAdmin);
   authActions.classList.toggle("hidden", isLoggedIn);
   authSession.classList.toggle("hidden", !isLoggedIn);
+  homeMemberQuickActions?.classList.toggle("hidden", !isLoggedIn);
+  if (isLoggedIn) setText("#homeMemberGrade", getCompactMemberGradeLabel());
   document.querySelectorAll(".admin-nav-button").forEach((button) => {
     button.classList.toggle("hidden", !isAdmin);
   });

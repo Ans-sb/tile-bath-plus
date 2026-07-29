@@ -105,9 +105,12 @@
             <section class="square-main-home" aria-label="자재GO 메인">
               <header class="square-main-header">
                 <span class="square-main-header-mark" aria-hidden="true"></span>
-                <div class="square-main-header-actions">
-                  <button type="button" data-page-target="taxonomyTestPage">상품 검색</button>
-                  <button class="square-main-header-primary" type="button" data-page-target="myPage">사업자 회원</button>
+                <div class="square-main-header-actions home-member-quick-actions hidden" id="homeMemberQuickActions">
+                  <button class="home-member-page-button" type="button" data-page-target="myPage">마이페이지</button>
+                  <span class="home-member-grade">
+                    <small>나의 등급</small>
+                    <strong id="homeMemberGrade">미인증</strong>
+                  </span>
                 </div>
               </header>
 
@@ -3368,6 +3371,6 @@
     <script src="src/client/features/admin/site-studio.js?v=20260729-bath-copy-clean2"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
-    <script src="app.js?v=20260729-bath-sections-clean1"></script>
+    <script src="app.js?v=20260729-home-member-grade1"></script>
   </body>
 </html>

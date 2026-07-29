@@ -11512,6 +11512,40 @@ body[data-page="homePage"] .customer-category-section {
   color: #ffffff;
 }
 
+.square-main-header-actions .home-member-page-button {
+  min-height: 34px;
+  padding: 0 13px;
+  border-color: #141922;
+  background: #141922;
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.home-member-grade {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #dce2e7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #141922;
+  white-space: nowrap;
+}
+
+.home-member-grade small {
+  color: #7a8491;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.home-member-grade strong {
+  color: #081957;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .square-main-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
