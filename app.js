@@ -929,6 +929,15 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll("[data-scroll-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.getElementById(button.dataset.scrollTarget)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  });
+
   document.querySelectorAll("[data-back-action]").forEach((button) => {
     button.addEventListener("click", goBackPage);
   });

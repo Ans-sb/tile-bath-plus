@@ -11,7 +11,7 @@
     <title>자재GO 바스GO 플랫폼</title>
     <link rel="manifest" href="manifest.webmanifest?v=20260729-app-shell1" />
     <link rel="apple-touch-icon" href="images/branding/app-icon-jajaego-512.png" />
-    <link rel="stylesheet" href="styles.css?v=20260729-member-home-gate2" />
+    <link rel="stylesheet" href="styles.css?v=20260729-guest-promotion2" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
   <body>
@@ -175,22 +175,95 @@
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
         <section class="hero-panel hero-panel-shell customer-hero-panel">
           <div class="customer-home-entry">
-            <section class="guest-home-gate" id="guestHomeGate" aria-label="자재GO 회원 시작">
-              <div class="guest-home-copy">
-                <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" decoding="async" />
-                <p class="eyebrow">BUSINESS MEMBER</p>
-                <h1>현장 자재 검색과 주문은<br />로그인 후 시작됩니다.</h1>
-                <p>사업자 회원 전용 가격과 주문, 배차 현황을 한 곳에서 확인하세요.</p>
-                <div class="guest-home-actions">
-                  <button class="guest-home-login" type="button" data-page-target="loginPage">로그인</button>
-                  <button class="guest-home-signup" type="button" data-page-target="signupPage">회원가입</button>
+            <section class="guest-home-gate" id="guestHomeGate" aria-label="자재GO 사업자 회원 시작">
+              <section class="guest-promotion-hero" aria-labelledby="guestPromotionTitle">
+                <img
+                  class="guest-promotion-hero-image"
+                  src="images/branding/web-storefront-hero-20260706.png"
+                  alt=""
+                  fetchpriority="high"
+                  decoding="async"
+                />
+                <div class="guest-promotion-hero-copy">
+                  <span class="guest-promotion-kicker">현장 자재를 위한 올인원 B2B 플랫폼</span>
+                  <h1 id="guestPromotionTitle">현장에 필요한 모든 자재,<br /><strong>자재GO 하나로</strong></h1>
+                  <p>타일·위생도기·수전금구·부자재를 빠르게 찾고 주문과 배차까지 한곳에서 관리하세요.</p>
+                  <div class="guest-home-actions">
+                    <button class="guest-home-login" type="button" data-page-target="loginPage">로그인</button>
+                    <button class="guest-home-signup" type="button" data-page-target="signupPage">사업자 회원가입</button>
+                  </div>
+                  <button class="guest-promotion-scroll" type="button" data-scroll-target="guestPromotionServices">서비스 둘러보기</button>
                 </div>
-                <div class="guest-home-benefits" aria-label="회원 기능">
-                  <span>빠른 상품검색</span>
-                  <span>회원 등급별 가격</span>
-                  <span>주문·배차 확인</span>
-                </div>
+                <div class="guest-promotion-badge guest-promotion-badge-top">AI 타일검색</div>
+                <div class="guest-promotion-badge guest-promotion-badge-bottom">타일 · 바스 · 부자재</div>
+              </section>
+
+              <div class="guest-promotion-benefits" aria-label="자재GO 주요 기능">
+                <div><strong>빠른 상품 검색</strong><span>규격과 조건으로 바로 찾기</span></div>
+                <div><strong>사업자 등급가</strong><span>인증 후 등급별 가격 확인</span></div>
+                <div><strong>한 번에 주문</strong><span>타일과 부자재를 함께 담기</span></div>
+                <div><strong>주문·배차 확인</strong><span>마이페이지에서 진행 확인</span></div>
               </div>
+
+              <section class="guest-promotion-services" id="guestPromotionServices" aria-labelledby="guestPromotionServicesTitle">
+                <div class="guest-promotion-section-heading">
+                  <span>SERVICES</span>
+                  <h2 id="guestPromotionServicesTitle">현장에 필요한 흐름을<br />한곳에 모았습니다.</h2>
+                </div>
+                <div class="guest-promotion-service-grid">
+                  <button class="guest-promotion-service guest-promotion-service-primary" type="button" data-page-target="signupPage">
+                    <span class="guest-promotion-service-copy">
+                      <small>01 · PRODUCT SEARCH</small>
+                      <strong>타일과 욕실자재를<br />빠르게 검색</strong>
+                      <span>사이즈·용도·마감·스타일·색상으로 필요한 상품을 좁혀보세요.</span>
+                      <b>회원가입 후 시작 &rarr;</b>
+                    </span>
+                    <img src="images/branding/home-tile-samples-pastel-20260727.webp?v=20260728-performance1" alt="" loading="lazy" decoding="async" />
+                  </button>
+                  <button class="guest-promotion-service" type="button" data-page-target="signupPage">
+                    <span class="guest-promotion-service-copy">
+                      <small>02 · AI TILE FINDER</small>
+                      <strong>사진과 자연어로<br />비슷한 타일 찾기</strong>
+                      <span>이미지의 색상과 패턴을 분석해 조건에 맞는 타일을 보여드립니다.</span>
+                      <b>AI 검색 시작 &rarr;</b>
+                    </span>
+                    <img src="images/branding/home-ai-tile-robot-gold-20260728.webp?v=20260728-performance1" alt="" loading="lazy" decoding="async" />
+                  </button>
+                  <button class="guest-promotion-service guest-promotion-service-dark" type="button" data-page-target="signupPage">
+                    <span class="guest-promotion-service-copy">
+                      <small>03 · FIELD WORKFLOW</small>
+                      <strong>담고, 주문하고,<br />배차까지 확인</strong>
+                      <span>현장별 자재를 장바구니에 담고 주문과 배송 상태를 이어서 관리하세요.</span>
+                      <b>사업자 회원가입 &rarr;</b>
+                    </span>
+                    <img src="images/branding/home-construction-preview-blue-20260728.webp?v=20260728-performance1" alt="" loading="lazy" decoding="async" />
+                  </button>
+                </div>
+              </section>
+
+              <section class="guest-promotion-flow" aria-labelledby="guestPromotionFlowTitle">
+                <div class="guest-promotion-flow-copy">
+                  <span>HOW IT WORKS</span>
+                  <h2 id="guestPromotionFlowTitle">현장 자재 주문,<br />복잡할 필요 없습니다.</h2>
+                  <p>사업자 인증 후 상품 가격과 주문 기능을 이용할 수 있습니다.</p>
+                </div>
+                <ol>
+                  <li><b>01</b><strong>회원가입·인증</strong><span>사업자등록증으로 회원 등급을 확인합니다.</span></li>
+                  <li><b>02</b><strong>상품 검색·담기</strong><span>필요한 타일과 욕실자재를 한 번에 담습니다.</span></li>
+                  <li><b>03</b><strong>주문·배차 확인</strong><span>마이페이지에서 주문 진행과 배차를 확인합니다.</span></li>
+                </ol>
+              </section>
+
+              <section class="guest-promotion-cta" aria-label="자재GO 회원가입">
+                <div>
+                  <span>JAJAEGO FOR BUSINESS</span>
+                  <h2>오늘의 현장 자재를<br />자재GO에서 시작하세요.</h2>
+                </div>
+                <div class="guest-promotion-cta-actions">
+                  <button type="button" data-page-target="signupPage">사업자 회원가입</button>
+                  <button type="button" data-page-target="loginPage">로그인</button>
+                </div>
+              </section>
             </section>
 
             <section class="square-main-home hidden" id="memberHomeExperience" aria-label="자재GO 회원 메인">
@@ -3440,7 +3513,7 @@
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260729-mobile-auth1"></script>
-    <script src="app.js?v=20260729-member-home-gate2"></script>
+    <script src="app.js?v=20260729-guest-promotion2"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260729-mobile-auth1"></script>
   </body>
 </html>
