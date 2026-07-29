@@ -14052,8 +14052,8 @@ body.admin-authenticated .top-actions {
     width: calc(100% + 64px);
     margin-left: -32px;
     display: block;
-    color: #ffffff;
-    background: #111111;
+    color: #101319;
+    background: #ffe500;
   }
 
   body.customer-experience-mode .commerce-utility-inner {
@@ -14082,7 +14082,7 @@ body.admin-authenticated .top-actions {
 
   .commerce-utility-language span {
     padding-left: 10px;
-    border-left: 1px solid rgb(255 255 255 / 35%);
+    border-left: 1px solid rgb(16 19 25 / 32%);
   }
 
   .commerce-utility-notice {
