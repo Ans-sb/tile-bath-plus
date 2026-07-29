@@ -11,7 +11,7 @@
     <title>자재GO 바스GO 플랫폼</title>
     <link rel="manifest" href="manifest.webmanifest?v=20260729-app-shell1" />
     <link rel="apple-touch-icon" href="images/branding/app-icon-jajaego-512.png" />
-    <link rel="stylesheet" href="styles.css?v=20260729-home-five-grid1" />
+    <link rel="stylesheet" href="styles.css?v=20260729-member-home-gate2" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
   <body>
@@ -175,7 +175,25 @@
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
         <section class="hero-panel hero-panel-shell customer-hero-panel">
           <div class="customer-home-entry">
-            <section class="square-main-home" aria-label="자재GO 메인">
+            <section class="guest-home-gate" id="guestHomeGate" aria-label="자재GO 회원 시작">
+              <div class="guest-home-copy">
+                <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" decoding="async" />
+                <p class="eyebrow">BUSINESS MEMBER</p>
+                <h1>현장 자재 검색과 주문은<br />로그인 후 시작됩니다.</h1>
+                <p>사업자 회원 전용 가격과 주문, 배차 현황을 한 곳에서 확인하세요.</p>
+                <div class="guest-home-actions">
+                  <button class="guest-home-login" type="button" data-page-target="loginPage">로그인</button>
+                  <button class="guest-home-signup" type="button" data-page-target="signupPage">회원가입</button>
+                </div>
+                <div class="guest-home-benefits" aria-label="회원 기능">
+                  <span>빠른 상품검색</span>
+                  <span>회원 등급별 가격</span>
+                  <span>주문·배차 확인</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="square-main-home hidden" id="memberHomeExperience" aria-label="자재GO 회원 메인">
               <header class="square-main-header">
                 <span class="square-main-header-mark" aria-hidden="true"></span>
                 <div class="square-main-header-actions home-member-quick-actions hidden" id="homeMemberQuickActions">
@@ -3422,7 +3440,7 @@
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260729-mobile-auth1"></script>
-    <script src="app.js?v=20260729-home-five-grid1"></script>
+    <script src="app.js?v=20260729-member-home-gate2"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260729-mobile-auth1"></script>
   </body>
 </html>

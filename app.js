@@ -12399,6 +12399,8 @@ function renderAuthControls() {
   const tile114NavBtn = document.querySelector("#tile114NavBtn");
   const homeMemberQuickActions = document.querySelector("#homeMemberQuickActions");
   const headerMemberActions = document.querySelector("#headerMemberActions");
+  const guestHomeGate = document.querySelector("#guestHomeGate");
+  const memberHomeExperience = document.querySelector("#memberHomeExperience");
 
   const isLoggedIn = Boolean(authUser);
   const isAdmin = isAdminUser();
@@ -12407,6 +12409,8 @@ function renderAuthControls() {
   authSession.classList.toggle("hidden", !isLoggedIn);
   headerMemberActions?.classList.toggle("hidden", !isLoggedIn);
   homeMemberQuickActions?.classList.toggle("hidden", !isLoggedIn);
+  guestHomeGate?.classList.toggle("hidden", isLoggedIn);
+  memberHomeExperience?.classList.toggle("hidden", !isLoggedIn);
   if (isLoggedIn) setText("#homeMemberGrade", getCompactMemberGradeLabel());
   document.querySelectorAll(".admin-nav-button").forEach((button) => {
     button.classList.toggle("hidden", !isAdmin);
