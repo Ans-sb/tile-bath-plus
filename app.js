@@ -9377,6 +9377,7 @@ function renderCartSummary() {
   const itemCount = cart.length;
   const totalQuote = cart.reduce((sum, item) => sum + Number(item.quotePrice || 0) * Number(item.qty || 0), 0);
   document.querySelector("#navCartCount").textContent = String(itemCount);
+  setText("#headerCartCount", String(itemCount));
   const stickyCartCount = document.querySelector("#stickyCartCount");
   if (stickyCartCount) stickyCartCount.textContent = String(itemCount);
   document.querySelector("#cartSummary").textContent = `${itemCount}개 품목 · 견적 ${money.format(totalQuote)}`;
@@ -12392,12 +12393,14 @@ function renderAuthControls() {
   const adminNavBtn = document.querySelector("#adminNavBtn");
   const tile114NavBtn = document.querySelector("#tile114NavBtn");
   const homeMemberQuickActions = document.querySelector("#homeMemberQuickActions");
+  const headerMemberActions = document.querySelector("#headerMemberActions");
 
   const isLoggedIn = Boolean(authUser);
   const isAdmin = isAdminUser();
   document.body.classList.toggle("admin-authenticated", isAdmin);
   authActions.classList.toggle("hidden", isLoggedIn);
   authSession.classList.toggle("hidden", !isLoggedIn);
+  headerMemberActions?.classList.toggle("hidden", !isLoggedIn);
   homeMemberQuickActions?.classList.toggle("hidden", !isLoggedIn);
   if (isLoggedIn) setText("#homeMemberGrade", getCompactMemberGradeLabel());
   document.querySelectorAll(".admin-nav-button").forEach((button) => {
