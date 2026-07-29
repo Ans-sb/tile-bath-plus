@@ -32,6 +32,14 @@ test("clicking an inspiration image opens the existing shoppable detail", () => 
   assert.match(appJs, /bathInteriorViewMode = "gallery"/);
 });
 
+test("bathroom detail keeps bounded desktop and mobile image ratios", () => {
+  assert.match(stylesCss, /\.bath-interior-page\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+  assert.match(stylesCss, /\.bath-interior-detail-view\s*\{[^}]*max-width:\s*100%/s);
+  assert.match(stylesCss, /\.bath-interior-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1\.55fr\)\s+minmax\(330px,\s*0\.75fr\)/s);
+  assert.match(stylesCss, /\.bath-interior-stage\s*\{[^}]*aspect-ratio:\s*4\s*\/\s*3/s);
+  assert.match(stylesCss, /@media \(max-width:\s*720px\)[\s\S]*?\.bath-interior-stage\s*\{[^}]*aspect-ratio:\s*4\s*\/\s*5/s);
+});
+
 test("bathroom scenes stay customer safe and contain no internal brand metadata", () => {
   const scenesStart = appJs.indexOf("const BATH_INTERIOR_SCENES = [");
   const scenesEnd = appJs.indexOf("const PLANNER_THREE_URL", scenesStart);
