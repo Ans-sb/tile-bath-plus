@@ -19,6 +19,7 @@ npm.cmd run app:sync
 npm.cmd run app:doctor
 npm.cmd run app:open:android
 npm.cmd run app:build:debug
+npm.cmd run app:build:signed
 ```
 
 실기기 실행에는 Android Studio, Android SDK, JDK가 필요합니다.
@@ -42,19 +43,21 @@ npm.cmd run app:signing:create
 `outputs/mobile/jajaego-release.aab`를 생성합니다. Google Play에 올리기
 전에 키 파일과 비밀번호를 서로 다른 안전한 위치에 백업해야 합니다.
 
-기존 업로드 키로 다시 빌드할 때는 다음 순서를 사용합니다.
+기존 업로드 키로 다시 빌드할 때는 아래 명령을 사용합니다.
 
-1. `android/keystore.properties.example`을 `android/keystore.properties`로 복사합니다.
-2. `storeFile`과 `keyAlias`를 실제 업로드 키 정보로 변경합니다.
-3. `JAJAEGO_KEYSTORE_PASSWORD`와 `JAJAEGO_KEY_PASSWORD`를 현재 터미널에 설정합니다.
-4. `npm.cmd run app:build:release`를 실행합니다.
+```powershell
+npm.cmd run app:build:signed
+```
+
+서명 비밀번호는 보안 입력으로 한 번만 받고 파일이나 환경 설정에 남기지
+않습니다.
 
 완성된 AAB는 프로젝트의 `outputs/mobile/jajaego-release.aab`에 생성됩니다.
 
 ## 출시 전 필수 작업
 
-1. Google, Kakao, Naver 로그인을 시스템 브라우저와 앱 링크 방식으로 전환
-2. `https://jajaego.com` Android App Links 검증 파일 배포
+1. Google, Kakao, Naver 로그인의 시스템 브라우저와 앱 복귀를 실기기에서 검수
+2. Play Console 앱 서명 인증서 지문을 Android App Links에 추가
 3. 푸시 알림 및 알림 동의 화면 연결
 4. 개인정보처리방침, 회원탈퇴, 계정삭제 흐름 검수
 5. 실제 Android 기기에서 카메라, 사진 업로드, 뒤로가기, 다운로드 검수

@@ -25,15 +25,17 @@ function createNaverOAuthService(options = {}) {
     return Boolean(clientId && clientSecret);
   }
 
-  function buildAuthorizationRequest({ mode, requestOrigin }) {
+  function buildAuthorizationRequest({ mode, requestOrigin, client = "" }) {
     assertConfigured();
     const normalizedMode = normalizeMode(mode);
+    const normalizedClient = normalizeClient(client);
     const redirectUri = resolveRedirectUri(configuredRedirectUri, requestOrigin);
     const nonce = randomBytes(24).toString("base64url");
     const issuedAt = now();
     const state = signPayload({
       nonce,
       mode: normalizedMode,
+      client: normalizedClient,
       redirectUri,
       issuedAt,
       expiresAt: issuedAt + authTtlMs
@@ -93,6 +95,7 @@ function createNaverOAuthService(options = {}) {
     const location = buildAppRedirect({
       requestOrigin,
       mode: state.mode,
+      client: state.client,
       accessToken
     });
 
@@ -105,7 +108,7 @@ function createNaverOAuthService(options = {}) {
   function buildErrorRedirect({ requestUrl, requestOrigin, error }) {
     const callbackUrl = new URL(requestUrl);
     const state = verifyPayload(callbackUrl.searchParams.get("state"), signingSecret, now());
-    const url = new URL(requestOrigin);
+    const url = createClientRedirectUrl(requestOrigin, state?.client);
     url.searchParams.set("socialProvider", "naver");
     url.searchParams.set("socialMode", normalizeMode(state?.mode));
     url.searchParams.set(
@@ -233,12 +236,20 @@ async function readResponsePayload(response) {
   }
 }
 
-function buildAppRedirect({ requestOrigin, mode, accessToken }) {
-  const url = new URL(requestOrigin);
+function buildAppRedirect({ requestOrigin, mode, client, accessToken }) {
+  const url = createClientRedirectUrl(requestOrigin, client);
   url.searchParams.set("socialProvider", "naver");
   url.searchParams.set("socialMode", normalizeMode(mode));
   url.hash = new URLSearchParams({ access_token: accessToken }).toString();
   return url.toString();
+}
+
+function createClientRedirectUrl(requestOrigin, client) {
+  const url = new URL(requestOrigin);
+  if (normalizeClient(client) === "android") {
+    url.searchParams.set("mobileClient", "android");
+  }
+  return url;
 }
 
 function resolveRedirectUri(configuredRedirectUri, requestOrigin) {
@@ -252,6 +263,10 @@ function resolveRedirectUri(configuredRedirectUri, requestOrigin) {
 
 function normalizeMode(value) {
   return String(value || "").trim().toLowerCase() === "login" ? "login" : "signup";
+}
+
+function normalizeClient(value) {
+  return String(value || "").trim().toLowerCase() === "android" ? "android" : "web";
 }
 
 function serializeOAuthCookie(nonce, ttlMs, requestOrigin) {

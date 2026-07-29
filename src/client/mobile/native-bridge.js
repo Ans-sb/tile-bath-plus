@@ -8,6 +8,23 @@
   const appPlugin = capacitor.Plugins?.App;
   const browserPlugin = capacitor.Plugins?.Browser;
 
+  window.JajaegoNative = {
+    isNative: true,
+    async startSocialAuth(value) {
+      const url = new URL(value, window.location.origin);
+      url.searchParams.set("client", "android");
+      if (!browserPlugin?.open) {
+        window.location.assign(url.toString());
+        return;
+      }
+      try {
+        await browserPlugin.open({ url: url.toString() });
+      } catch {
+        window.location.assign(url.toString());
+      }
+    }
+  };
+
   appPlugin?.addListener?.("backButton", () => {
     const pageId = String(window.location.hash || "").replace(/^#/, "");
     if (pageId && pageId !== "homePage") {
@@ -25,11 +42,17 @@
     appPlugin.exitApp?.();
   });
 
-  appPlugin?.addListener?.("appUrlOpen", ({ url }) => {
+  const handleIncomingAppUrl = ({ url } = {}) => {
     const parsed = parseAppUrl(url);
     if (!parsed) return;
+    Promise.resolve(browserPlugin?.close?.()).catch(() => {});
     window.location.assign(`${parsed.pathname}${parsed.search}${parsed.hash || "#homePage"}`);
-  });
+  };
+
+  appPlugin?.addListener?.("appUrlOpen", handleIncomingAppUrl);
+  appPlugin?.getLaunchUrl?.()
+    .then((launch) => handleIncomingAppUrl(launch))
+    .catch(() => {});
 
   document.addEventListener("click", (event) => {
     const anchor = event.target.closest?.("a[href]");
@@ -46,9 +69,11 @@
     try {
       const url = new URL(value);
       if (url.protocol === "jajaego:") {
-        return new URL(`https://jajaego.com${url.pathname || "/"}${url.search}${url.hash}`);
+        return new URL(`https://jajaego.com/${url.search}${url.hash}`);
       }
-      if (url.hostname === "jajaego.com" || url.hostname === "www.jajaego.com") return url;
+      if (url.hostname === "jajaego.com" || url.hostname === "www.jajaego.com") {
+        return new URL(`https://jajaego.com/${url.search}${url.hash}`);
+      }
     } catch {
       return null;
     }

@@ -11810,11 +11810,20 @@ function selectSignupProvider(provider) {
 
 function startSocialSignup(provider) {
   selectedSignupProvider = `${provider} 가입`;
-  window.location.href = `/api/social-auth/start?provider=${encodeURIComponent(provider)}&mode=signup`;
+  startSocialAuthFlow(provider, "signup");
 }
 
 function startSocialLogin(provider) {
-  window.location.href = `/api/social-auth/start?provider=${encodeURIComponent(provider)}&mode=login`;
+  startSocialAuthFlow(provider, "login");
+}
+
+function startSocialAuthFlow(provider, mode) {
+  const path = `/api/social-auth/start?provider=${encodeURIComponent(provider)}&mode=${encodeURIComponent(mode)}`;
+  if (window.JajaegoNative?.startSocialAuth) {
+    window.JajaegoNative.startSocialAuth(path);
+    return;
+  }
+  window.location.href = path;
 }
 
 function isSocialSignupSelected() {

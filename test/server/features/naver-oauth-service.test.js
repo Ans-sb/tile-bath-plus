@@ -73,6 +73,48 @@ test("Naver OAuth callback exchanges code and creates an encrypted profile token
   assert.match(callback.setCookie, /Max-Age=0/);
 });
 
+test("Naver OAuth callback preserves the Android app return target", async () => {
+  const service = createTestService({
+    fetchImpl: async (url) => {
+      if (String(url).includes("/oauth2.0/token")) {
+        return jsonResponse({ access_token: "naver-access-token" });
+      }
+      return jsonResponse({
+        resultcode: "00",
+        message: "success",
+        response: {
+          id: "naver-member-android",
+          email: "android@example.com",
+          name: "안드로이드 회원"
+        }
+      });
+    }
+  });
+  const start = service.buildAuthorizationRequest({
+    mode: "login",
+    requestOrigin: "https://jajaego.com",
+    client: "android"
+  });
+  const state = new URL(start.location).searchParams.get("state");
+  const callbackUrl = new URL("https://jajaego.com/api/social-auth/naver/callback");
+  callbackUrl.searchParams.set("code", "authorization-code");
+  callbackUrl.searchParams.set("state", state);
+
+  const callback = await service.completeAuthorization({
+    requestUrl: callbackUrl.toString(),
+    cookieHeader: start.setCookie.split(";")[0],
+    requestOrigin: "https://jajaego.com"
+  });
+  const appUrl = new URL(callback.location);
+
+  assert.equal(appUrl.origin, "https://jajaego.com");
+  assert.equal(appUrl.pathname, "/");
+  assert.equal(appUrl.searchParams.get("mobileClient"), "android");
+  assert.equal(appUrl.searchParams.get("socialProvider"), "naver");
+  assert.equal(appUrl.searchParams.get("socialMode"), "login");
+  assert.ok(new URLSearchParams(appUrl.hash.slice(1)).get("access_token"));
+});
+
 test("Naver OAuth callback rejects a state that is not bound to the browser cookie", async () => {
   const service = createTestService();
   const start = service.buildAuthorizationRequest({

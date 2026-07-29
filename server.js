@@ -87,6 +87,9 @@ const publicSiteUrl = String(
   || process.env.APP_PUBLIC_URL
   || ""
 ).trim().replace(/\/+$/, "");
+const androidAppLinkFingerprints = parseAndroidAppLinkFingerprints(
+  process.env.ANDROID_APP_LINK_SHA256_CERT_FINGERPRINTS
+);
 const naverClientId = String(
   process.env.NAVER_LOGIN_CLIENT_ID
   || process.env.NAVER_CLIENT_ID
@@ -321,6 +324,7 @@ function getSystemRouteContext() {
     sendJson,
     startedAt,
     getStorageMode,
+    getAndroidAssetLinks,
     startSocialAuth,
     buildSocialAuthStartUrl,
     completeNaverSocialAuth,
@@ -2180,16 +2184,19 @@ function getRequestOrigin(request) {
   return `${safeProto}://${hostHeader}`;
 }
 
-function buildSocialAuthStartUrl(providerValue, modeValue, request) {
+function buildSocialAuthStartUrl(providerValue, modeValue, request, clientValue = "") {
   const provider = normalizeSocialProvider(providerValue);
   if (provider === "naver") {
-    return startSocialAuth(provider, modeValue, request).location;
+    return startSocialAuth(provider, modeValue, request, clientValue).location;
   }
   if (!supabaseUrl) throw createHttpError(500, "Supabase URL이 설정되어 있지 않습니다.");
   const mode = String(modeValue || "signup").trim() === "login" ? "login" : "signup";
   const redirectTo = new URL(getRequestOrigin(request));
   redirectTo.searchParams.set("socialProvider", provider);
   redirectTo.searchParams.set("socialMode", mode);
+  if (normalizeSocialAuthClient(clientValue) === "android") {
+    redirectTo.searchParams.set("mobileClient", "android");
+  }
 
   const authUrl = new URL(`${supabaseUrl}/auth/v1/authorize`);
   authUrl.searchParams.set("provider", provider);
@@ -2197,18 +2204,45 @@ function buildSocialAuthStartUrl(providerValue, modeValue, request) {
   return authUrl.toString();
 }
 
-function startSocialAuth(providerValue, modeValue, request) {
+function startSocialAuth(providerValue, modeValue, request, clientValue = "") {
   const provider = normalizeSocialProvider(providerValue);
+  const client = normalizeSocialAuthClient(clientValue);
   if (provider === "naver") {
     return naverOAuthService.buildAuthorizationRequest({
       mode: modeValue,
-      requestOrigin: getRequestOrigin(request)
+      requestOrigin: getRequestOrigin(request),
+      client
     });
   }
   return {
-    location: buildSocialAuthStartUrl(provider, modeValue, request),
+    location: buildSocialAuthStartUrl(provider, modeValue, request, client),
     setCookie: ""
   };
+}
+
+function normalizeSocialAuthClient(value) {
+  return String(value || "").trim().toLowerCase() === "android" ? "android" : "web";
+}
+
+function parseAndroidAppLinkFingerprints(value) {
+  const configured = String(value || "")
+    .split(/[\n,;]+/)
+    .map((entry) => entry.trim().toUpperCase())
+    .filter(Boolean);
+  return configured.length
+    ? [...new Set(configured)]
+    : ["9C:88:CA:5C:B2:CB:7C:79:BC:70:C2:44:3C:E1:96:26:A6:33:4F:79:59:C4:45:2A:24:C1:D9:10:01:C3:D6:70"];
+}
+
+function getAndroidAssetLinks() {
+  return [{
+    relation: ["delegate_permission/common.handle_all_urls"],
+    target: {
+      namespace: "android_app",
+      package_name: "com.jajaego.app",
+      sha256_cert_fingerprints: androidAppLinkFingerprints
+    }
+  }];
 }
 
 async function completeNaverSocialAuth(request) {

@@ -16,6 +16,7 @@
     "app:open:android": "npm --prefix mobile run open:android",
     "app:run:android": "npm --prefix mobile run run:android",
     "app:signing:create": "npm --prefix mobile run signing:create",
+    "app:build:signed": "npm --prefix mobile run build:signed",
     "app:build:debug": "npm --prefix mobile run build:debug",
     "app:build:release": "npm --prefix mobile run build:release",
     "code:products": "node scripts/apply-management-codes.mjs",
