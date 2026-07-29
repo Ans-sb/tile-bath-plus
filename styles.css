@@ -17174,3 +17174,58 @@ body[data-page="adminPage"] {
     min-height: 42px;
   }
 }
+
+/* Guest landing: approved promotion design; the signed-in member workspace stays unchanged. */
+.guest-home-gate[data-promo-source]:not(.promo-home-mounted):not(.promo-home-fallback) {
+  min-height: 100vh;
+  visibility: hidden;
+}
+
+body.guest-session[data-page="homePage"] {
+  overflow-x: hidden;
+  background: #ffffff;
+}
+
+body.guest-session[data-page="homePage"] .commerce-utility-bar,
+body.guest-session[data-page="homePage"] .app-shell > .topbar,
+body.guest-session[data-page="homePage"] .app-shell > .app-nav {
+  display: none !important;
+}
+
+body.guest-session[data-page="homePage"] .app-shell {
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+}
+
+body.guest-session[data-page="homePage"] #homePage {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: block;
+}
+
+body.guest-session[data-page="homePage"] .customer-hero-panel,
+body.guest-session[data-page="homePage"] .customer-home-entry,
+body.guest-session[data-page="homePage"] #guestHomeGate {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+body.guest-session[data-page="homePage"] #guestHomeGate {
+  color: var(--promo-ink);
+  font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
+  line-height: 1.5;
+  background: var(--promo-white);
+  -webkit-font-smoothing: antialiased;
+}
+
+body.guest-session[data-page="homePage"] #guestHomeGate .promo-main {
+  display: block;
+}
+
+body.guest-session[data-page="homePage"] .tile-ai-assistant {
+  display: none;
+}

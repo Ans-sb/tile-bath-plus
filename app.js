@@ -12840,6 +12840,7 @@ function renderAuthControls() {
   const isLoggedIn = Boolean(authUser);
   const isAdmin = isAdminUser();
   document.body.classList.toggle("admin-authenticated", isAdmin);
+  document.body.classList.toggle("guest-session", !isLoggedIn);
   authActions.classList.toggle("hidden", isLoggedIn);
   authSession.classList.toggle("hidden", !isLoggedIn);
   headerMemberActions?.classList.toggle("hidden", !isLoggedIn);
