@@ -7543,15 +7543,20 @@ function renderMemberHomeBoard() {
   if (!showBoard) return;
 
   const pastOrders = mergeOrderHistory(loadPastOrders(), remoteOrders);
-  const returnOrders = loadReturnOrders();
   const currentOrderCount = cart.length ? 1 : 0;
   const totalOrderCount = pastOrders.length + currentOrderCount;
+  const dispatchOrders = pastOrders.filter((order) => {
+    const status = String(order?.status || "");
+    return /배차|배송|출고/.test(status) && !/완료|취소|반품/.test(status);
+  });
+  const latestDispatchStatus = dispatchOrders[0]?.status || "대기 없음";
   setText("#memberBoardTitle", `${authUser.companyName || authUser.name || "회원"}님 현황`);
   setText("#memberBoardGrade", getMemberGradeLabel());
   setText("#memberBoardPriceAccess", hasMemberPriceAccess() ? "상품 금액 확인 가능" : "사업자 승인 후 금액 공개");
   setText("#memberBoardOrderCount", `${number(totalOrderCount)}건`);
   setText("#memberBoardCartSummary", cart.length ? `장바구니 ${number(cart.length)}개 품목` : "장바구니 비어 있음");
-  setText("#memberBoardReturnCount", `${number(returnOrders.length)}건`);
+  setText("#memberBoardDispatchStatus", latestDispatchStatus);
+  setText("#memberBoardDispatchCount", `진행 ${number(dispatchOrders.length)}건`);
 }
 
 function renderMyPage() {

@@ -12110,7 +12110,7 @@ body[data-page="homePage"] .customer-category-section {
   }
 }
 
-/* 2026-07-27: reference-led four-column mosaic home */
+/* 2026-07-29: five-column commerce mosaic home */
 body[data-page="homePage"] .square-main-home {
   width: min(1500px, calc(100% - 48px));
   padding-bottom: 76px;
@@ -12127,7 +12127,7 @@ body[data-page="homePage"] .square-main-header-mark {
 }
 
 body[data-page="homePage"] .square-main-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -12142,6 +12142,68 @@ body[data-page="homePage"] .square-main-tile {
   aspect-ratio: 1;
   visibility: hidden;
   pointer-events: none;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board {
+  grid-column: span 3;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-grid {
+  height: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card {
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1;
+  align-content: end;
+  padding: 20px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #081957;
+  box-shadow: none;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card:nth-child(2) {
+  background: #1464f4;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card:nth-child(3) {
+  color: #111111;
+  background: #ffe500;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card span,
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card small {
+  color: inherit;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card span {
+  font-size: 13px;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card strong {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: clamp(20px, 1.9vw, 29px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card small {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 body[data-page="homePage"] .square-main-intro {
@@ -12482,6 +12544,30 @@ body[data-page="homePage"] .mosaic-promo-tile {
   body[data-page="homePage"] .square-main-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 11px;
+  }
+
+  body[data-page="homePage"] .square-main-grid > .member-home-board {
+    grid-column: span 2;
+  }
+
+  body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-grid {
+    gap: 7px;
+  }
+
+  body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card {
+    padding: 10px;
+  }
+
+  body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card span {
+    font-size: 10px;
+  }
+
+  body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card strong {
+    font-size: 14px;
+  }
+
+  body[data-page="homePage"] .square-main-grid > .member-home-board .member-board-card small {
+    font-size: 8px;
   }
 
   body[data-page="homePage"] .square-main-intro {
