@@ -7440,45 +7440,48 @@ function getUserContactInfo(user = authUser) {
 function renderMyContactInfoPanel(user = authUser) {
   const contact = getUserContactInfo(user);
   return `
-    <section class="my-contact-info-panel" id="myContactInfoPanel">
-      <div class="my-contact-info-head">
+    <details class="my-contact-info-panel" id="myContactInfoPanel">
+      <summary class="my-contact-info-summary">
         <div>
-          <span>담당자정보</span>
-          <strong>명함 정보</strong>
+          <strong>담당자 정보</strong>
+          <span>연락처와 명함 정보 수정</span>
         </div>
-        <small>${contact.businessCardFileName ? `명함: ${escapeHtml(contact.businessCardFileName)}` : "명함 파일 없음"}</small>
+        <span class="my-contact-info-edit">수정</span>
+      </summary>
+      <div class="my-contact-info-body">
+        <p class="my-contact-card-file">${contact.businessCardFileName ? `명함 · ${escapeHtml(contact.businessCardFileName)}` : "등록된 명함 없음"}</p>
+        <div class="my-contact-info-grid">
+          <label>
+            이름
+            <input name="contactName" type="text" value="${escapeHtml(contact.name)}" />
+          </label>
+          <label>
+            직함
+            <input name="contactTitle" type="text" value="${escapeHtml(contact.title)}" />
+          </label>
+          <label>
+            회사명
+            <input name="contactCompanyName" type="text" value="${escapeHtml(contact.companyName)}" />
+          </label>
+          <label>
+            연락처
+            <input name="contactPhone" type="text" value="${escapeHtml(contact.phone)}" />
+          </label>
+          <label>
+            이메일
+            <input name="contactEmail" type="email" value="${escapeHtml(contact.email)}" />
+          </label>
+          <label class="wide">
+            주소
+            <input name="contactAddress" type="text" value="${escapeHtml(contact.address)}" />
+          </label>
+        </div>
+        <div class="my-contact-info-actions">
+          <span id="myContactInfoStatus">${contact.updatedAt ? `${escapeHtml(formatDateTime(contact.updatedAt))} 저장` : "저장 전"}</span>
+          <button class="secondary-action compact-action" id="saveMyContactInfoBtn" type="button">저장</button>
+        </div>
       </div>
-      <div class="my-contact-info-grid">
-        <label>
-          이름
-          <input name="contactName" type="text" value="${escapeHtml(contact.name)}" />
-        </label>
-        <label>
-          직함
-          <input name="contactTitle" type="text" value="${escapeHtml(contact.title)}" />
-        </label>
-        <label>
-          회사명
-          <input name="contactCompanyName" type="text" value="${escapeHtml(contact.companyName)}" />
-        </label>
-        <label>
-          번호
-          <input name="contactPhone" type="text" value="${escapeHtml(contact.phone)}" />
-        </label>
-        <label>
-          이메일
-          <input name="contactEmail" type="email" value="${escapeHtml(contact.email)}" />
-        </label>
-        <label class="wide">
-          주소
-          <input name="contactAddress" type="text" value="${escapeHtml(contact.address)}" />
-        </label>
-      </div>
-      <div class="my-contact-info-actions">
-        <span id="myContactInfoStatus">${contact.updatedAt ? `${escapeHtml(formatDateTime(contact.updatedAt))} 저장됨` : "저장된 담당자정보를 확인하세요."}</span>
-        <button class="secondary-action compact-action" id="saveMyContactInfoBtn" type="button">담당자정보 저장</button>
-      </div>
-    </section>
+    </details>
   `;
 }
 
@@ -7569,6 +7572,7 @@ function renderMemberHomeBoard() {
 }
 
 function renderMyPage() {
+  const page = document.querySelector("#myPage");
   const profile = document.querySelector("#myProfileSummary");
   const current = document.querySelector("#myCurrentOrderSummary");
   const myCart = document.querySelector("#myCartList");
@@ -7576,10 +7580,14 @@ function renderMyPage() {
   const past = document.querySelector("#myPastOrderList");
   if (!profile || !current || !myCart || !clientPanel || !past) return;
 
+  page?.classList.toggle("is-signed-out", !authUser);
+  page?.classList.toggle("is-signed-in", Boolean(authUser));
+
   if (!authUser) {
     const loginPrompt = `
-      <div class="empty-state">
-        마이페이지는 회원 로그인 후 사용할 수 있습니다.
+      <div class="my-page-login-gate">
+        <strong>로그인이 필요합니다</strong>
+        <span>주문과 회원 정보를 확인하려면 로그인해주세요.</span>
         <div class="my-empty-actions">
           <button class="primary-action" type="button" data-page-target="loginPage">로그인</button>
           <button class="secondary-action" type="button" data-page-target="signupPage">회원가입</button>
@@ -7587,51 +7595,49 @@ function renderMyPage() {
       </div>
     `;
     profile.innerHTML = loginPrompt;
-    current.innerHTML = `<div class="empty-state">로그인 후 현재 주문내역을 확인할 수 있습니다.</div>`;
-    myCart.innerHTML = `<div class="empty-state">로그인 후 내 장바구니를 확인할 수 있습니다.</div>`;
-    clientPanel.innerHTML = `<div class="empty-state">로그인 후 거래처 요구사항과 현장정보를 관리할 수 있습니다.</div>`;
-    past.innerHTML = `<div class="empty-state">로그인 후 지난 주문내역을 확인할 수 있습니다.</div>`;
+    current.innerHTML = "";
+    myCart.innerHTML = "";
+    clientPanel.innerHTML = "";
+    past.innerHTML = "";
     return;
   }
 
   const totalQuote = getCartQuoteTotal(cart);
   const pastOrders = mergeOrderHistory(loadPastOrders(), remoteOrders);
   profile.innerHTML = `
-    <div class="my-profile-card">
-      <div>
+    <div class="my-account-overview">
+      <div class="my-account-identity">
         <span>회원</span>
         <strong>${escapeHtml(authUser.companyName || authUser.name || "-")}</strong>
+        <small>담당자 ${escapeHtml(authUser.name || "-")}</small>
       </div>
+      <span class="my-account-grade">${escapeHtml(getCompactMemberGradeLabel())}</span>
+    </div>
+    <div class="my-profile-card">
       <div>
-        <span>담당자</span>
-        <strong>${escapeHtml(authUser.name || "-")}</strong>
-      </div>
-      <div>
-        <span>사업자등록번호</span>
+        <span>사업자번호</span>
         <strong>${escapeHtml(authUser.businessNumber || "-")}</strong>
       </div>
       <div>
-        <span>내 등급</span>
-        <strong>${escapeHtml(getMemberGradeLabel())}</strong>
-      </div>
-      <div>
-        <span>가입 방식</span>
-        <strong>${escapeHtml(authUser.provider || "일반 회원가입")}</strong>
-      </div>
-      <div>
-        <span>가격 공개</span>
+        <span>가격 열람</span>
         <strong>${hasMemberPriceAccess() ? "가능" : "승인 필요"}</strong>
+      </div>
+      <div>
+        <span>가입</span>
+        <strong>${escapeHtml(authUser.provider || "일반")}</strong>
       </div>
     </div>
     ${renderMyContactInfoPanel(authUser)}
   `;
 
   current.innerHTML = `
+    <div class="my-current-order-status">
+      <span>${cart.length ? "주문 준비 중" : "새 주문 없음"}</span>
+    </div>
     <div class="my-current-order-summary">
-      <div><span>현재 품목</span><strong>${number(cart.length)}개</strong></div>
-      <div><span>현재 견적 합계</span><strong>${money.format(totalQuote)}</strong></div>
-      <div><span>지난 주문</span><strong>${number(pastOrders.length)}건</strong></div>
-      <div><span>상태</span><strong>${cart.length ? "주문 저장 가능" : "장바구니 비어 있음"}</strong></div>
+      <div><span>담긴 품목</span><strong>${number(cart.length)}개</strong></div>
+      <div><span>예상 합계</span><strong>${money.format(totalQuote)}</strong></div>
+      <div><span>전체 주문</span><strong>${number(pastOrders.length)}건</strong></div>
     </div>
   `;
 
@@ -7655,8 +7661,7 @@ function renderClientManagementPanel() {
     <div class="client-management-grid">
       <article class="client-management-card">
         <div>
-          <span>클라이언트 요구사항</span>
-          <strong>요청 내용</strong>
+          <strong>요청사항</strong>
         </div>
         <label>
           고객명
@@ -7674,8 +7679,7 @@ function renderClientManagementPanel() {
 
       <article class="client-management-card">
         <div>
-          <span>현장정보</span>
-          <strong>시공/배송 현장</strong>
+          <strong>현장</strong>
         </div>
         <label>
           현장명
@@ -7693,8 +7697,8 @@ function renderClientManagementPanel() {
 
       <article class="client-management-card">
         <div>
-          <span>거래현황</span>
-          <strong>${escapeHtml(tradeStatus)}</strong>
+          <strong>거래 상태</strong>
+          <span>${escapeHtml(tradeStatus)}</span>
         </div>
         <div class="client-status-strip">
           <div><span>장바구니</span><strong>${number(cart.length)}개</strong></div>

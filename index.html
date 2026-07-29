@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-    <link rel="stylesheet" href="styles.css?v=20260729-yellow-utility1" />
+    <link rel="stylesheet" href="styles.css?v=20260730-mypage-clean1" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
   <body>
@@ -2022,8 +2022,8 @@
       <main class="app-page page-panel customer-page customer-my-page" id="myPage">
         <section class="page-heading customer-page-heading">
           <div>
-            <p class="eyebrow">My Page</p>
             <h2>마이페이지</h2>
+            <p class="my-page-heading-copy">내 정보와 주문 현황을 한곳에서 관리합니다.</p>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
@@ -2034,57 +2034,56 @@
         <section class="my-page-grid">
           <article class="commerce-panel my-profile-panel">
             <div class="section-header-inline">
-              <div>
-                <p class="eyebrow">Membership</p>
-                <h3>내 등급</h3>
-              </div>
+              <h3>내 정보</h3>
             </div>
             <div id="myProfileSummary"></div>
           </article>
 
           <article class="commerce-panel my-current-order-panel">
             <div class="section-header-inline">
-              <div>
-                <p class="eyebrow">Current Order</p>
-                <h3>현재 주문내역</h3>
-              </div>
-              <button class="secondary-action" id="saveCurrentOrderBtn" type="button">주문 접수하기</button>
+              <h3>주문 현황</h3>
+              <button class="secondary-action" id="saveCurrentOrderBtn" type="button">주문 접수</button>
             </div>
             <div id="myCurrentOrderSummary"></div>
           </article>
         </section>
 
-        <section class="commerce-panel">
+        <section class="commerce-panel my-cart-panel">
           <div class="section-header-inline">
-            <div>
-              <p class="eyebrow">Cart</p>
-              <h3>내 장바구니</h3>
-            </div>
+            <h3>장바구니</h3>
             <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 수정</button>
           </div>
           <div class="my-order-list" id="myCartList"></div>
         </section>
 
-        <section class="commerce-panel">
-          <div class="section-header-inline">
+        <details class="commerce-panel my-page-disclosure my-client-panel">
+          <summary class="my-page-disclosure-summary">
             <div>
-              <p class="eyebrow">Client Management</p>
-              <h3>거래처관리</h3>
+              <h3>거래처 관리</h3>
+              <span>요청사항·현장·거래 상태</span>
             </div>
-            <button class="primary-action" id="saveClientManagementBtn" type="button">저장</button>
+            <span class="my-page-disclosure-state" aria-hidden="true">열기</span>
+          </summary>
+          <div class="my-page-disclosure-body">
+            <div id="myClientManagementPanel"></div>
+            <div class="my-page-section-actions">
+              <button class="primary-action" id="saveClientManagementBtn" type="button">거래처 정보 저장</button>
+            </div>
           </div>
-          <div id="myClientManagementPanel"></div>
-        </section>
+        </details>
 
-        <section class="commerce-panel">
-          <div class="section-header-inline">
+        <details class="commerce-panel my-page-disclosure my-past-orders-panel">
+          <summary class="my-page-disclosure-summary">
             <div>
-              <p class="eyebrow">Order History</p>
-              <h3>지난 주문내역</h3>
+              <h3>지난 주문</h3>
+              <span>접수·배송·완료 내역</span>
             </div>
+            <span class="my-page-disclosure-state" aria-hidden="true">열기</span>
+          </summary>
+          <div class="my-page-disclosure-body">
+            <div class="my-order-list" id="myPastOrderList"></div>
           </div>
-          <div class="my-order-list" id="myPastOrderList"></div>
-        </section>
+        </details>
       </main>
 
       <main class="app-page page-panel customer-page planner-page planner-photo-page" id="plannerPage">
@@ -3515,7 +3514,7 @@
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260729-mobile-auth1"></script>
-    <script src="app.js?v=20260729-naver-auth-fix1"></script>
+    <script src="app.js?v=20260730-mypage-clean1"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260729-mobile-auth1"></script>
   </body>
 </html>
