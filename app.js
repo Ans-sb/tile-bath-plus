@@ -14804,6 +14804,10 @@ function updatePlannerCamera(camera, config) {
 }
 
 function switchPage(pageId, options = {}) {
+  if (pageId === "loginPage" && currentPageId === "homePage" && !authUser) {
+    clearAuthReturnPage();
+  }
+
   if (AUTH_REQUIRED_PAGE_IDS.has(pageId) && !authUser) {
     rememberAuthReturnPage(pageId);
     renderAuthRequiredPage(pageId);

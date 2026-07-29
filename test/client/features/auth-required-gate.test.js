@@ -32,3 +32,11 @@ test("successful login returns to the originally requested member page", () => {
   assert.match(appJs, /switchPage\(consumeAuthReturnPage\(\), \{ pushHistory: false \}\)/);
   assert.match(appJs, /loginForm\.reset\(\);\s*switchPage\(consumeAuthReturnPage\(\)\);/);
 });
+
+test("login started from the public home always opens the member home", () => {
+  assert.match(
+    appJs,
+    /pageId === "loginPage" && currentPageId === "homePage" && !authUser[\s\S]*?clearAuthReturnPage\(\)/
+  );
+  assert.match(appJs, /return AUTH_REQUIRED_PAGE_IDS\.has\(pageId\) \? pageId : "homePage"/);
+});
