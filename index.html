@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-    <link rel="stylesheet" href="styles.css?v=20260730-auth-gate1" />
+    <link rel="stylesheet" href="styles.css?v=20260730-bath-gallery1" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
   <body>
@@ -200,11 +200,11 @@
                 <div class="guest-promotion-badge guest-promotion-badge-bottom">타일 · 바스 · 부자재</div>
               </section>
 
-              <div class="guest-promotion-benefits" aria-label="자재GO 주요 기능">
-                <div><strong>빠른 상품 검색</strong><span>규격과 조건으로 바로 찾기</span></div>
-                <div><strong>사업자 등급가</strong><span>인증 후 등급별 가격 확인</span></div>
-                <div><strong>한 번에 주문</strong><span>타일과 부자재를 함께 담기</span></div>
-                <div><strong>주문·배차 확인</strong><span>마이페이지에서 진행 확인</span></div>
+              <div class="guest-promotion-benefits" aria-label="자재GO 핵심 강점">
+                <div><strong>빠른 출고·현장 도착</strong><span>재고 확인부터 출고와 배차까지 현장 일정에 맞춰 연결</span></div>
+                <div><strong>10,000+ 제품</strong><span>타일·위생도기·수전금구·부자재를 한곳에서 검색</span></div>
+                <div><strong>실사 시공 이미지</strong><span>선택한 자재가 현장에 시공된 모습을 미리 확인</span></div>
+                <div><strong>제안서·견적서 제작</strong><span>장바구니 상품을 바탕으로 자재GO가 대신 제작</span></div>
               </div>
 
               <section class="guest-promotion-services" id="guestPromotionServices" aria-labelledby="guestPromotionServicesTitle">
@@ -1502,9 +1502,9 @@
       <main class="app-page page-panel customer-page bath-interior-page" id="bathInteriorPage">
         <section class="page-heading customer-page-heading bath-interior-heading">
           <div>
-            <p class="eyebrow">Shoppable Bathroom</p>
+            <p class="eyebrow">Bathroom Inspiration</p>
             <h2>욕실 인테리어</h2>
-            <p>마음에 드는 욕실을 고르고 사진 속 자재를 바로 확인해보세요.</p>
+            <p>마음에 드는 공간을 고르면 사진 속 타일과 욕실 자재를 바로 확인할 수 있습니다.</p>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
@@ -1513,38 +1513,67 @@
           </div>
         </section>
 
-        <section class="bath-interior-shell">
-          <nav class="bath-interior-scene-tabs" id="bathInteriorSceneTabs" aria-label="욕실 인테리어 스타일"></nav>
-          <div class="bath-interior-layout">
-            <section class="bath-interior-visual">
-              <div class="bath-interior-stage" id="bathInteriorStage">
-                <div class="bath-interior-loading">욕실 인테리어를 준비하고 있습니다.</div>
-              </div>
-              <div class="bath-interior-scene-copy">
-                <div>
-                  <span id="bathInteriorSceneMood">욕실 스타일</span>
-                  <h3 id="bathInteriorSceneTitle">욕실 인테리어</h3>
-                </div>
-                <p id="bathInteriorSceneDescription">사진 속 번호를 누르면 연결된 상품을 바로 확인할 수 있습니다.</p>
-              </div>
-            </section>
-
-            <aside class="bath-interior-products" aria-labelledby="bathInteriorProductTitle">
-              <div class="bath-interior-products-head">
-                <div>
-                  <span>이 공간에 사용된 상품</span>
-                  <h3 id="bathInteriorProductTitle">자재 구성</h3>
-                </div>
-                <button class="bath-interior-add-all" id="bathInteriorAddAll" type="button">전체 담기</button>
-              </div>
-              <div class="bath-interior-product-list" id="bathInteriorProducts">
-                <div class="empty-state">상품 DB를 연결하고 있습니다.</div>
-              </div>
-              <p class="bath-interior-cart-status" id="bathInteriorCartStatus" aria-live="polite">
-                상품을 누르면 상세 사양을 확인하고 바로 장바구니에 담을 수 있습니다.
-              </p>
-            </aside>
+        <section class="bath-interior-gallery-view" id="bathInteriorGalleryView">
+          <div class="bath-interior-gallery-toolbar">
+            <label class="bath-interior-gallery-search">
+              <span class="sr-only">욕실 인테리어 검색</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.5 4a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13Zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Zm5.2 8.3 4.2 4.2-1.4 1.4-4.2-4.2 1.4-1.4Z"></path>
+              </svg>
+              <input id="bathInteriorGallerySearch" type="search" placeholder="화이트 욕실, 그레이 타일, 테라조" autocomplete="off" />
+            </label>
+            <div class="bath-interior-gallery-filters" id="bathInteriorGalleryFilters" aria-label="욕실 분위기 필터">
+              <button class="is-active" type="button" data-bath-interior-filter="all">전체</button>
+              <button type="button" data-bath-interior-filter="modern">모던</button>
+              <button type="button" data-bath-interior-filter="minimal">미니멀</button>
+              <button type="button" data-bath-interior-filter="warm">웜톤</button>
+              <button type="button" data-bath-interior-filter="pattern">패턴</button>
+            </div>
           </div>
+          <div class="bath-interior-gallery" id="bathInteriorGallery" aria-live="polite"></div>
+          <p class="bath-interior-gallery-status" id="bathInteriorGalleryStatus"></p>
+        </section>
+
+        <section class="bath-interior-detail-view hidden" id="bathInteriorDetailView">
+          <div class="bath-interior-detail-toolbar">
+            <button class="bath-interior-gallery-back" id="bathInteriorGalleryBack" type="button" aria-label="욕실 인테리어 전체 사진으로 돌아가기">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.7 5.3-1.4-1.4L5.2 12l8.1 8.1 1.4-1.4L9 13h10v-2H9l5.7-5.7Z"></path></svg>
+              전체 사진으로
+            </button>
+          </div>
+          <section class="bath-interior-shell">
+            <nav class="bath-interior-scene-tabs" id="bathInteriorSceneTabs" aria-label="욕실 인테리어 스타일"></nav>
+            <div class="bath-interior-layout">
+              <section class="bath-interior-visual">
+                <div class="bath-interior-stage" id="bathInteriorStage">
+                  <div class="bath-interior-loading">욕실 인테리어를 준비하고 있습니다.</div>
+                </div>
+                <div class="bath-interior-scene-copy">
+                  <div>
+                    <span id="bathInteriorSceneMood">욕실 스타일</span>
+                    <h3 id="bathInteriorSceneTitle">욕실 인테리어</h3>
+                  </div>
+                  <p id="bathInteriorSceneDescription">사진 속 번호를 누르면 연결된 상품을 바로 확인할 수 있습니다.</p>
+                </div>
+              </section>
+
+              <aside class="bath-interior-products" aria-labelledby="bathInteriorProductTitle">
+                <div class="bath-interior-products-head">
+                  <div>
+                    <span>이 공간에 사용된 상품</span>
+                    <h3 id="bathInteriorProductTitle">자재 구성</h3>
+                  </div>
+                  <button class="bath-interior-add-all" id="bathInteriorAddAll" type="button">전체 담기</button>
+                </div>
+                <div class="bath-interior-product-list" id="bathInteriorProducts">
+                  <div class="empty-state">상품 DB를 연결하고 있습니다.</div>
+                </div>
+                <p class="bath-interior-cart-status" id="bathInteriorCartStatus" aria-live="polite">
+                  상품을 누르면 상세 사양을 확인하고 바로 장바구니에 담을 수 있습니다.
+                </p>
+              </aside>
+            </div>
+          </section>
         </section>
       </main>
 
@@ -3510,7 +3539,7 @@
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260729-mobile-auth1"></script>
-    <script src="app.js?v=20260730-auth-gate1"></script>
+    <script src="app.js?v=20260730-bath-gallery1"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260729-mobile-auth1"></script>
   </body>
 </html>

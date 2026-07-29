@@ -16448,19 +16448,248 @@ body[data-page="adminPage"] {
   line-height: 1.6;
 }
 
+.bath-interior-gallery-view {
+  padding: 22px 0 0;
+}
+
+.bath-interior-gallery-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0 16px;
+  background: #fff;
+}
+
+.bath-interior-gallery-search {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  background: #f2f3f3;
+}
+
+.bath-interior-gallery-search svg {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin-right: 10px;
+  fill: #131925;
+}
+
+.bath-interior-gallery-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #121825;
+  background: transparent;
+  font: inherit;
+  font-size: 15px;
+}
+
+.bath-interior-gallery-search input::placeholder {
+  color: #7a828e;
+}
+
+.bath-interior-gallery-filters {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0;
+  scrollbar-width: none;
+}
+
+.bath-interior-gallery-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.bath-interior-gallery-filters button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #dce1e8;
+  border-radius: 999px;
+  color: #4f5a6c;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bath-interior-gallery-filters button:hover,
+.bath-interior-gallery-filters button.is-active {
+  border-color: #081957;
+  color: #fff;
+  background: #081957;
+}
+
+.bath-interior-gallery {
+  column-count: 5;
+  column-gap: 14px;
+}
+
+.bath-interior-gallery-card {
+  position: relative;
+  display: inline-grid;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 0;
+  overflow: hidden;
+  break-inside: avoid;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #e9edf2;
+  text-align: left;
+  box-shadow: none;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.bath-interior-gallery-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(8, 25, 87, 0.14);
+}
+
+.bath-interior-gallery-card:focus-visible {
+  outline: 3px solid #1268ff;
+  outline-offset: 3px;
+}
+
+.bath-interior-gallery-card-media {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  background: #e9edf2;
+}
+
+.bath-interior-gallery-card-media.is-portrait {
+  aspect-ratio: 4 / 5;
+}
+
+.bath-interior-gallery-card-media.is-standard {
+  aspect-ratio: 1 / 1;
+}
+
+.bath-interior-gallery-card-media.is-wide {
+  aspect-ratio: 4 / 3;
+}
+
+.bath-interior-gallery-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bath-interior-gallery-card-copy {
+  display: grid;
+  gap: 3px;
+  padding: 13px 14px 14px;
+  color: #151b28;
+  background: #fff;
+}
+
+.bath-interior-gallery-card-copy small {
+  color: #687487;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.bath-interior-gallery-card-copy strong {
+  overflow: hidden;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bath-interior-gallery-empty {
+  display: grid;
+  width: 100%;
+  min-height: 240px;
+  padding: 24px;
+  place-content: center;
+  break-inside: avoid;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  color: #657084;
+  background: #f6f7f9;
+  text-align: center;
+}
+
+.bath-interior-gallery-empty strong {
+  color: #081957;
+  font-size: 17px;
+}
+
+.bath-interior-gallery-empty span {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.bath-interior-gallery-status {
+  margin: 10px 0 0;
+  color: #788296;
+  font-size: 12px;
+  text-align: right;
+}
+
+.bath-interior-detail-view {
+  padding-top: 18px;
+}
+
+.bath-interior-detail-toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.bath-interior-gallery-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 15px 0 12px;
+  border: 1px solid #dce1e8;
+  border-radius: 6px;
+  color: #081957;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.bath-interior-gallery-back svg {
+  width: 19px;
+  height: 19px;
+  margin-right: 7px;
+  fill: currentColor;
+}
+
+.bath-interior-gallery-back:hover {
+  border-color: #081957;
+  background: #f4f7ff;
+}
+
 .bath-interior-shell {
   padding: 26px 0 0;
 }
 
 .bath-interior-scene-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
   gap: 8px;
+  overflow-x: auto;
   margin-bottom: 18px;
+  padding-bottom: 5px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
 }
 
 .bath-interior-scene-tabs button {
   display: flex;
+  flex: 0 0 210px;
   align-items: center;
   gap: 12px;
   min-height: 56px;
@@ -16470,6 +16699,7 @@ body[data-page="adminPage"] {
   color: #637085;
   background: #fff;
   text-align: left;
+  scroll-snap-align: start;
 }
 
 .bath-interior-scene-tabs button:hover,
@@ -16763,6 +16993,14 @@ body[data-page="adminPage"] {
 }
 
 @media (max-width: 1000px) {
+  .bath-interior-gallery {
+    column-count: 3;
+  }
+
+  .bath-interior-gallery-toolbar {
+    grid-template-columns: 1fr;
+  }
+
   .bath-interior-layout {
     grid-template-columns: 1fr;
   }
@@ -16810,6 +17048,55 @@ body[data-page="adminPage"] {
 
   .bath-interior-heading > div:first-child > p:last-child {
     font-size: 13px;
+  }
+
+  .bath-interior-gallery-view {
+    padding-top: 10px;
+  }
+
+  .bath-interior-gallery-toolbar {
+    position: static;
+    gap: 9px;
+    padding: 8px 0 12px;
+  }
+
+  .bath-interior-gallery-search {
+    min-height: 46px;
+    padding: 0 13px;
+  }
+
+  .bath-interior-gallery-search input {
+    font-size: 14px;
+  }
+
+  .bath-interior-gallery-filters {
+    margin-right: -12px;
+    padding-right: 12px;
+  }
+
+  .bath-interior-gallery {
+    column-count: 2;
+    column-gap: 9px;
+  }
+
+  .bath-interior-gallery-card {
+    margin-bottom: 9px;
+  }
+
+  .bath-interior-gallery-card-copy {
+    padding: 10px 10px 11px;
+  }
+
+  .bath-interior-gallery-card-copy strong {
+    font-size: 13px;
+  }
+
+  .bath-interior-gallery-card-copy small {
+    font-size: 10px;
+  }
+
+  .bath-interior-detail-view {
+    padding-top: 12px;
   }
 
   .bath-interior-shell {

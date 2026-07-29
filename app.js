@@ -185,6 +185,7 @@ const BATH_INTERIOR_SCENES = [
     id: "urban-gray",
     title: "어반 그레이 욕실",
     mood: "차분한 모던",
+    galleryGroup: "modern",
     description: "그레이 스톤 타일과 간결한 위생도기로 구성한 관리하기 쉬운 욕실입니다.",
     image: "images/catalog/catalog_p15_img00.jpg",
     colorTerms: ["그레이", "회색", "gray", "grey", "gr"],
@@ -201,6 +202,7 @@ const BATH_INTERIOR_SCENES = [
     id: "soft-white",
     title: "소프트 화이트 욕실",
     mood: "밝고 넓어 보이는",
+    galleryGroup: "minimal",
     description: "아이보리 타일과 화이트 도기로 작은 욕실도 정돈되고 넓어 보이게 구성했습니다.",
     image: "images/catalog/catalog_p22_img00.jpg",
     colorTerms: ["화이트", "아이보리", "백색", "white", "ivory"],
@@ -217,6 +219,7 @@ const BATH_INTERIOR_SCENES = [
     id: "clean-terrazzo",
     title: "클린 테라조 욕실",
     mood: "산뜻한 실용형",
+    galleryGroup: "pattern",
     description: "밝은 테라조 계열 타일과 크롬 수전, 화이트 도기를 함께 구성한 실용적인 욕실입니다.",
     image: "images/catalog/catalog_p38_img00.jpg",
     colorTerms: ["화이트", "아이보리", "크림", "white", "ivory"],
@@ -227,6 +230,214 @@ const BATH_INTERIOR_SCENES = [
       { role: "grout", label: "줄눈", x: 41, y: 42 },
       { role: "toilet", label: "양변기", x: 57, y: 66 },
       { role: "basin", label: "세면기", x: 88, y: 31 }
+    ]
+  },
+  {
+    id: "ivory-bath",
+    title: "내추럴 아이보리 욕실",
+    mood: "편안한 웜톤",
+    galleryGroup: "warm",
+    description: "부드러운 아이보리 타일과 우드 포인트로 따뜻하게 완성한 욕실입니다.",
+    image: "images/catalog/catalog_p04_img00.jpg",
+    colorTerms: ["아이보리", "베이지", "크림", "ivory", "beige"],
+    styleTerms: ["내추럴", "스톤", "솔리드"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 72, y: 28 },
+      { role: "floorTile", label: "바닥 타일", x: 54, y: 88 },
+      { role: "grout", label: "줄눈", x: 43, y: 50 },
+      { role: "basin", label: "세면기", x: 23, y: 67 }
+    ]
+  },
+  {
+    id: "calm-gray-vanity",
+    title: "캄 그레이 세면 공간",
+    mood: "정돈된 모던",
+    galleryGroup: "modern",
+    description: "밝은 그레이 벽타일과 간결한 세면기로 실용성을 높인 공간입니다.",
+    image: "images/catalog/catalog_p08_img00.jpg",
+    colorTerms: ["그레이", "라이트그레이", "화이트", "gray", "grey"],
+    styleTerms: ["스톤", "시멘트", "솔리드"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 74, y: 30 },
+      { role: "floorTile", label: "바닥 타일", x: 48, y: 90 },
+      { role: "grout", label: "줄눈", x: 42, y: 42 },
+      { role: "basin", label: "세면기", x: 50, y: 67 }
+    ]
+  },
+  {
+    id: "clean-white-vanity",
+    title: "클린 화이트 세면 공간",
+    mood: "맑은 미니멀",
+    galleryGroup: "minimal",
+    description: "화이트 타일과 탑볼 세면대를 중심으로 가볍고 깨끗하게 구성했습니다.",
+    image: "images/catalog/catalog_p09_img00.jpg",
+    colorTerms: ["화이트", "오프화이트", "white", "ivory"],
+    styleTerms: ["솔리드", "내추럴", "미니멀"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 72, y: 27 },
+      { role: "grout", label: "줄눈", x: 38, y: 46 },
+      { role: "basin", label: "세면기", x: 56, y: 67 }
+    ]
+  },
+  {
+    id: "bright-bath",
+    title: "브라이트 욕조 공간",
+    mood: "햇살 드는 미니멀",
+    galleryGroup: "minimal",
+    description: "밝은 벽타일과 욕조를 중심으로 편안한 휴식 분위기를 만든 욕실입니다.",
+    image: "images/catalog/catalog_p16_img00.jpg",
+    colorTerms: ["화이트", "아이보리", "크림", "white", "ivory"],
+    styleTerms: ["솔리드", "스톤", "내추럴"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 78, y: 29 },
+      { role: "floorTile", label: "바닥 타일", x: 38, y: 91 },
+      { role: "grout", label: "줄눈", x: 54, y: 48 },
+      { role: "basin", label: "세면기", x: 20, y: 55 }
+    ]
+  },
+  {
+    id: "hotel-gray-bath",
+    title: "호텔 그레이 욕실",
+    mood: "차분한 호텔 무드",
+    galleryGroup: "modern",
+    description: "딥 그레이 타일과 독립형 욕조를 조합해 깊이감 있게 연출했습니다.",
+    image: "images/catalog/catalog_p18_img00.jpg",
+    colorTerms: ["그레이", "다크그레이", "차콜", "gray", "charcoal"],
+    styleTerms: ["스톤", "시멘트", "콘크리트"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 70, y: 25 },
+      { role: "floorTile", label: "바닥 타일", x: 35, y: 89 },
+      { role: "grout", label: "줄눈", x: 52, y: 42 },
+      { role: "basin", label: "세면기", x: 77, y: 65 }
+    ]
+  },
+  {
+    id: "sunlit-white",
+    title: "선라이트 화이트 욕실",
+    mood: "햇살과 여백",
+    galleryGroup: "minimal",
+    description: "화이트 타일과 자연광을 활용해 작은 공간도 넓어 보이게 구성했습니다.",
+    image: "images/catalog/catalog_p21_img00.jpg",
+    colorTerms: ["화이트", "오프화이트", "아이보리", "white"],
+    styleTerms: ["솔리드", "내추럴", "미니멀"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 70, y: 26 },
+      { role: "floorTile", label: "바닥 타일", x: 38, y: 91 },
+      { role: "grout", label: "줄눈", x: 48, y: 44 },
+      { role: "toilet", label: "양변기", x: 62, y: 70 }
+    ]
+  },
+  {
+    id: "gallery-beige",
+    title: "갤러리 베이지 욕실",
+    mood: "부드러운 웜 미니멀",
+    galleryGroup: "warm",
+    description: "베이지 계열 타일과 단정한 가구를 조합해 편안한 인상을 완성했습니다.",
+    image: "images/catalog/catalog_p25_img00.jpg",
+    colorTerms: ["베이지", "아이보리", "크림", "beige", "ivory"],
+    styleTerms: ["스톤", "내추럴", "솔리드"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 74, y: 26 },
+      { role: "floorTile", label: "바닥 타일", x: 35, y: 90 },
+      { role: "grout", label: "줄눈", x: 46, y: 45 },
+      { role: "basin", label: "세면기", x: 54, y: 69 }
+    ]
+  },
+  {
+    id: "charcoal-shower",
+    title: "차콜 스톤 샤워룸",
+    mood: "깊이 있는 모던",
+    galleryGroup: "modern",
+    description: "차콜 스톤룩 타일을 벽과 바닥에 이어 시공해 통일감을 높였습니다.",
+    image: "images/catalog/catalog_p27_img00.jpg",
+    colorTerms: ["차콜", "다크그레이", "그레이", "charcoal", "gray"],
+    styleTerms: ["스톤", "시멘트", "콘크리트"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 72, y: 28 },
+      { role: "floorTile", label: "바닥 타일", x: 34, y: 90 },
+      { role: "grout", label: "줄눈", x: 47, y: 46 },
+      { role: "basin", label: "세면기", x: 77, y: 70 }
+    ]
+  },
+  {
+    id: "compact-shower",
+    title: "컴팩트 샤워 욕실",
+    mood: "실용적인 미니멀",
+    galleryGroup: "minimal",
+    description: "밝은 벽타일과 샤워 공간, 양변기, 세면기를 효율적으로 배치했습니다.",
+    image: "images/catalog/catalog_p36_img00.jpg",
+    colorTerms: ["화이트", "아이보리", "라이트그레이", "white", "gray"],
+    styleTerms: ["솔리드", "스톤", "내추럴"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 25, y: 27 },
+      { role: "floorTile", label: "바닥 타일", x: 36, y: 89 },
+      { role: "grout", label: "줄눈", x: 44, y: 42 },
+      { role: "toilet", label: "양변기", x: 67, y: 68 },
+      { role: "basin", label: "세면기", x: 88, y: 39 }
+    ]
+  },
+  {
+    id: "practical-white",
+    title: "프랙티컬 화이트 욕실",
+    mood: "간결한 실용형",
+    galleryGroup: "minimal",
+    description: "화이트 도기와 밝은 타일로 관리하기 쉽고 단정한 욕실을 만들었습니다.",
+    image: "images/catalog/catalog_p37_img00.jpg",
+    colorTerms: ["화이트", "아이보리", "라이트그레이", "white"],
+    styleTerms: ["솔리드", "스톤", "내추럴"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 24, y: 26 },
+      { role: "floorTile", label: "바닥 타일", x: 39, y: 90 },
+      { role: "grout", label: "줄눈", x: 45, y: 45 },
+      { role: "toilet", label: "양변기", x: 58, y: 70 },
+      { role: "basin", label: "세면기", x: 85, y: 31 }
+    ]
+  },
+  {
+    id: "warm-ivory-vanity",
+    title: "웜 아이보리 세면 공간",
+    mood: "따뜻한 내추럴",
+    galleryGroup: "warm",
+    description: "크림빛 타일과 우드 톤을 더해 차분하고 편안한 세면 공간으로 구성했습니다.",
+    image: "images/catalog/catalog_p39_img00.jpg",
+    colorTerms: ["아이보리", "크림", "베이지", "ivory", "beige"],
+    styleTerms: ["내추럴", "스톤", "솔리드"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 72, y: 26 },
+      { role: "floorTile", label: "바닥 타일", x: 45, y: 90 },
+      { role: "grout", label: "줄눈", x: 46, y: 45 },
+      { role: "basin", label: "세면기", x: 52, y: 67 }
+    ]
+  },
+  {
+    id: "round-mirror",
+    title: "라운드 미러 욕실",
+    mood: "부드러운 모던",
+    galleryGroup: "modern",
+    description: "라운드 거울과 밝은 타일을 조합해 선이 단정한 세면 공간을 완성했습니다.",
+    image: "images/catalog/catalog_p44_img00.jpg",
+    colorTerms: ["화이트", "아이보리", "크림", "white", "ivory"],
+    styleTerms: ["솔리드", "내추럴", "스톤"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 76, y: 28 },
+      { role: "grout", label: "줄눈", x: 42, y: 45 },
+      { role: "basin", label: "세면기", x: 49, y: 74 }
+    ]
+  },
+  {
+    id: "white-grid",
+    title: "화이트 그리드 욕실",
+    mood: "경쾌한 패턴",
+    galleryGroup: "pattern",
+    description: "작은 정사각 타일의 반복감으로 밝고 경쾌한 포인트를 만든 욕실입니다.",
+    image: "images/catalog/catalog_p45_img00.jpg",
+    colorTerms: ["화이트", "오프화이트", "white"],
+    styleTerms: ["패턴", "모자이크", "솔리드"],
+    spots: [
+      { role: "wallTile", label: "벽 타일", x: 72, y: 28 },
+      { role: "floorTile", label: "바닥 타일", x: 34, y: 90 },
+      { role: "grout", label: "줄눈", x: 48, y: 47 },
+      { role: "basin", label: "세면기", x: 53, y: 70 }
     ]
   }
 ];
@@ -339,6 +550,9 @@ let bathProductSortMode = "recommended";
 let bathInteriorSceneId = BATH_INTERIOR_SCENES[0].id;
 let bathInteriorSelectedRole = BATH_INTERIOR_SCENES[0].spots[0].role;
 let bathInteriorSceneProducts = [];
+let bathInteriorViewMode = "gallery";
+let bathInteriorGalleryQuery = "";
+let bathInteriorGalleryFilter = "all";
 let productPageTransitioning = false;
 let productPageCacheVersion = 0;
 let productPageStateCache = null;
@@ -1306,6 +1520,30 @@ function bindEvents() {
     if (!productCard) return;
     event.preventDefault();
     openProductDetail(productCard.dataset.viewProduct, productCard);
+  });
+
+  document.querySelector("#bathInteriorGallerySearch")?.addEventListener("input", (event) => {
+    bathInteriorGalleryQuery = String(event.target.value || "").trim();
+    renderBathInteriorGallery();
+  });
+
+  document.querySelector("#bathInteriorGalleryFilters")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-bath-interior-filter]");
+    if (!button) return;
+    bathInteriorGalleryFilter = button.dataset.bathInteriorFilter || "all";
+    renderBathInteriorGallery();
+  });
+
+  document.querySelector("#bathInteriorGallery")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-bath-interior-open]");
+    if (!button) return;
+    openBathInteriorScene(button.dataset.bathInteriorOpen || "");
+  });
+
+  document.querySelector("#bathInteriorGalleryBack")?.addEventListener("click", () => {
+    bathInteriorViewMode = "gallery";
+    renderBathInteriorPage();
+    document.querySelector("#bathInteriorGalleryView")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   document.querySelector("#bathInteriorSceneTabs")?.addEventListener("click", (event) => {
@@ -3203,7 +3441,77 @@ function renderBathInteriorProductCard(entry) {
   `;
 }
 
+function renderBathInteriorGallery() {
+  const gallery = document.querySelector("#bathInteriorGallery");
+  const status = document.querySelector("#bathInteriorGalleryStatus");
+  if (!gallery) return;
+
+  const normalizedQuery = normalizeSearchText(bathInteriorGalleryQuery);
+  const visibleScenes = BATH_INTERIOR_SCENES.filter((scene) => {
+    if (bathInteriorGalleryFilter !== "all" && scene.galleryGroup !== bathInteriorGalleryFilter) return false;
+    if (!normalizedQuery) return true;
+    const searchText = normalizeSearchText([
+      scene.title,
+      scene.mood,
+      scene.description,
+      scene.galleryGroup,
+      ...(scene.colorTerms || []),
+      ...(scene.styleTerms || [])
+    ].join(" "));
+    return normalizedQuery.split(/\s+/).filter(Boolean).every((term) => searchText.includes(term));
+  });
+
+  document.querySelectorAll("[data-bath-interior-filter]").forEach((button) => {
+    const isActive = button.dataset.bathInteriorFilter === bathInteriorGalleryFilter;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+
+  gallery.innerHTML = visibleScenes.map((scene, index) => `
+    <button
+      class="bath-interior-gallery-card"
+      type="button"
+      data-bath-interior-open="${escapeHtml(scene.id)}"
+      aria-label="${escapeHtml(scene.title)} 자세히 보기"
+    >
+      <span class="bath-interior-gallery-card-media is-${["portrait", "standard", "wide"][index % 3]}">
+        <img src="${escapeHtml(scene.image)}" alt="${escapeHtml(scene.title)}" loading="lazy" decoding="async" />
+      </span>
+      <span class="bath-interior-gallery-card-copy">
+        <small>${escapeHtml(scene.mood)}</small>
+        <strong>${escapeHtml(scene.title)}</strong>
+      </span>
+    </button>
+  `).join("") || `
+    <div class="bath-interior-gallery-empty">
+      <strong>조건에 맞는 공간이 없습니다.</strong>
+      <span>다른 검색어나 분위기를 선택해보세요.</span>
+    </div>
+  `;
+  if (status) {
+    status.textContent = `${number(visibleScenes.length)}개 욕실 공간`;
+  }
+}
+
+function openBathInteriorScene(sceneId) {
+  const scene = BATH_INTERIOR_SCENES.find((item) => item.id === sceneId);
+  if (!scene) return;
+  bathInteriorSceneId = scene.id;
+  bathInteriorSelectedRole = scene.spots[0].role;
+  bathInteriorViewMode = "detail";
+  renderBathInteriorPage();
+  document.querySelector("#bathInteriorDetailView")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderBathInteriorPage() {
+  const galleryView = document.querySelector("#bathInteriorGalleryView");
+  const detailView = document.querySelector("#bathInteriorDetailView");
+  const isDetailView = bathInteriorViewMode === "detail";
+  galleryView?.classList.toggle("hidden", isDetailView);
+  detailView?.classList.toggle("hidden", !isDetailView);
+  renderBathInteriorGallery();
+  if (!isDetailView) return;
+
   const sceneTabs = document.querySelector("#bathInteriorSceneTabs");
   const stage = document.querySelector("#bathInteriorStage");
   const productList = document.querySelector("#bathInteriorProducts");
@@ -14509,6 +14817,10 @@ function switchPage(pageId, options = {}) {
   if (pageId === currentPageId) {
     restorePageScroll(pageId, options.scrollY ?? window.scrollY);
     return;
+  }
+
+  if (pageId === "bathInteriorPage" && currentPageId !== "bathInteriorPage") {
+    bathInteriorViewMode = "gallery";
   }
 
   if (currentPageId) {
