@@ -2711,6 +2711,117 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   line-height: 1.65;
 }
 
+.auth-required-page {
+  width: min(100%, 1180px);
+  margin-inline: auto;
+  background: #fff;
+}
+
+.auth-required-panel {
+  display: grid;
+  min-height: min(640px, 72vh);
+  padding: clamp(48px, 9vw, 120px) clamp(24px, 8vw, 104px);
+  align-content: center;
+  justify-items: start;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.auth-required-mark {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 26px;
+  border-radius: 50%;
+  background: #ffe500;
+}
+
+.auth-required-mark::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  width: 18px;
+  height: 15px;
+  border: 3px solid #081957;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+}
+
+.auth-required-mark span {
+  position: absolute;
+  left: 14px;
+  top: 27px;
+  width: 26px;
+  height: 20px;
+  border-radius: 4px;
+  background: #081957;
+}
+
+.auth-required-panel h2 {
+  max-width: 720px;
+  margin: 8px 0 14px;
+  color: #081957;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  line-height: 1.16;
+}
+
+.auth-required-panel > p:not(.eyebrow) {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.auth-required-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 34px;
+}
+
+.auth-required-actions .primary-action,
+.auth-required-actions .secondary-action {
+  min-width: 132px;
+  min-height: 48px;
+  justify-content: center;
+}
+
+.auth-required-actions .text-action {
+  min-height: 48px;
+  padding-inline: 12px;
+  color: #536172;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .auth-required-panel {
+    min-height: calc(100dvh - 190px);
+    padding: 42px 20px 70px;
+  }
+
+  .auth-required-panel h2 {
+    font-size: 2rem;
+  }
+
+  .auth-required-panel > p:not(.eyebrow) {
+    font-size: 15px;
+  }
+
+  .auth-required-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .auth-required-actions .text-action {
+    grid-column: 1 / -1;
+  }
+}
+
 .filter-grid,
 .form-grid,
 .render-grid {

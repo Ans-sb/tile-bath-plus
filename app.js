@@ -475,7 +475,84 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage", "signupPage", "partnerApplicationPage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage", "loginPage", "signupPage", "partnerApplicationPage", "authRequiredPage"]);
+const AUTH_REQUIRED_PAGE_IDS = new Set([
+  "productsPage",
+  "bathProductsPage",
+  "bathInteriorPage",
+  "aiTileFinderPage",
+  "taxonomyTestPage",
+  "productDetailPage",
+  "cartPage",
+  "myPage",
+  "renderPage",
+  "plannerPage",
+  "samplePage",
+  "quantityCalculatorPage"
+]);
+const AUTH_RETURN_PAGE_KEY = "tbpAuthReturnPage";
+const AUTH_REQUIRED_PAGE_COPY = {
+  productsPage: {
+    eyebrow: "TileGO",
+    title: "상품은 로그인 후 볼 수 있습니다.",
+    message: "타일 상품과 상세 정보는 로그인 또는 회원가입 후 이용해주세요."
+  },
+  taxonomyTestPage: {
+    eyebrow: "Product Search",
+    title: "상품검색은 로그인 후 이용할 수 있습니다.",
+    message: "자연어 검색과 상세 필터를 이용하려면 로그인 또는 회원가입이 필요합니다."
+  },
+  productDetailPage: {
+    eyebrow: "Product Detail",
+    title: "상품 상세는 로그인 후 볼 수 있습니다.",
+    message: "상품 이미지와 상세 규격을 확인하려면 로그인 또는 회원가입이 필요합니다."
+  },
+  bathProductsPage: {
+    eyebrow: "BathGO",
+    title: "바스GO 상품은 회원 전용입니다.",
+    message: "욕실 상품을 보려면 로그인 또는 회원가입이 필요합니다."
+  },
+  bathInteriorPage: {
+    eyebrow: "Bathroom Interior",
+    title: "욕실 인테리어 보기는 회원 전용입니다.",
+    message: "시공 이미지와 구성 상품을 보려면 로그인 또는 회원가입이 필요합니다."
+  },
+  aiTileFinderPage: {
+    eyebrow: "AI Tile Finder",
+    title: "AI 타일검색은 회원 전용입니다.",
+    message: "사진과 조건으로 타일을 찾으려면 로그인 또는 회원가입이 필요합니다."
+  },
+  plannerPage: {
+    eyebrow: "Construction Preview",
+    title: "시공 미리보기는 회원 전용입니다.",
+    message: "현장 사진에 타일을 적용하려면 로그인 또는 회원가입이 필요합니다."
+  },
+  renderPage: {
+    eyebrow: "Photo Rendering",
+    title: "실사 보정은 회원 전용입니다.",
+    message: "장바구니 상품을 현장에 적용하려면 로그인 또는 회원가입이 필요합니다."
+  },
+  samplePage: {
+    eyebrow: "SampleGO",
+    title: "샘플 신청은 회원 전용입니다.",
+    message: "샘플 상품을 확인하고 신청하려면 로그인 또는 회원가입이 필요합니다."
+  },
+  quantityCalculatorPage: {
+    eyebrow: "Quantity Calculator",
+    title: "물량계산은 회원 전용입니다.",
+    message: "타일과 부자재 물량을 계산하려면 로그인 또는 회원가입이 필요합니다."
+  },
+  cartPage: {
+    eyebrow: "Cart",
+    title: "장바구니는 로그인 후 이용할 수 있습니다.",
+    message: "담은 상품과 제안서를 관리하려면 로그인 또는 회원가입이 필요합니다."
+  },
+  myPage: {
+    eyebrow: "My Page",
+    title: "마이페이지는 로그인 후 이용할 수 있습니다.",
+    message: "등급과 주문 내역을 확인하려면 로그인 또는 회원가입이 필요합니다."
+  }
+};
 const PRODUCT_DATA_PAGE_IDS = new Set([
   "productsPage",
   "bathProductsPage",
@@ -1586,6 +1663,11 @@ function bindEvents() {
 }
 
 async function loadProducts() {
+  if (!authUser) {
+    products = [];
+    productsLoadedFromRemote = false;
+    return [];
+  }
   if (productsLoadPromise) return productsLoadPromise;
   productsLoadPromise = loadProductsInternal().finally(() => {
     productsLoadPromise = null;
@@ -1759,6 +1841,7 @@ async function loadStoredNormalizedTaxonomyProducts() {
 }
 
 async function ensureProductsReady() {
+  if (!authUser) return;
   const listSelector = currentPageId === "bathProductsPage"
     ? "#bathProductList"
     : currentPageId === "bathInteriorPage"
@@ -1790,7 +1873,7 @@ async function ensureProductsReady() {
 }
 
 function pageRequiresProducts(pageId = currentPageId) {
-  return PRODUCT_DATA_PAGE_IDS.has(pageId);
+  return Boolean(authUser) && PRODUCT_DATA_PAGE_IDS.has(pageId);
 }
 
 function loadLocalProducts() {
@@ -3184,6 +3267,11 @@ function applyInitialPageFromHash() {
   if (!requestedPageId) return;
   const targetPage = document.getElementById(requestedPageId);
   if (!targetPage || !targetPage.classList.contains("app-page")) return;
+  if (AUTH_REQUIRED_PAGE_IDS.has(requestedPageId) && !authUser) {
+    rememberAuthReturnPage(requestedPageId);
+    renderAuthRequiredPage(requestedPageId);
+    requestedPageId = "authRequiredPage";
+  }
   if (ADMIN_ONLY_PAGE_IDS.has(requestedPageId) && !isAdminUser()) {
     setText("#loginStatus", "관리자 권한이 지정된 네이버 계정으로 로그인해주세요.");
     requestedPageId = "loginPage";
@@ -11929,7 +12017,7 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
         }, { retries: 1, timeoutMs: 10000 });
         await applyAuthenticatedUser(result.user, `${providerLabel} 계정으로 로그인되었습니다.`);
         loginForm?.reset();
-        switchPage("homePage", { pushHistory: false });
+        switchPage(consumeAuthReturnPage(), { pushHistory: false });
         return;
       } catch (loginError) {
         setPendingSocialSignupProfile({
@@ -12354,7 +12442,7 @@ async function submitLoginForm(event) {
 
   await applyAuthenticatedUser(matchedUser, `${matchedUser.companyName} 계정으로 로그인되었습니다.`);
   loginForm.reset();
-  switchPage("homePage");
+  switchPage(consumeAuthReturnPage());
 }
 
 async function applyAuthenticatedUser(matchedUser, message = "") {
@@ -12421,6 +12509,7 @@ async function logoutUser() {
   productsLoadedFromRemote = false;
   productsLoadPromise = null;
   localStorage.removeItem("tbpAuthSession");
+  clearAuthReturnPage();
   setPendingSocialSignupProfile(null);
   selectedSignupProvider = "간편가입 대기";
   if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
@@ -14406,6 +14495,12 @@ function updatePlannerCamera(camera, config) {
 }
 
 function switchPage(pageId, options = {}) {
+  if (AUTH_REQUIRED_PAGE_IDS.has(pageId) && !authUser) {
+    rememberAuthReturnPage(pageId);
+    renderAuthRequiredPage(pageId);
+    pageId = "authRequiredPage";
+  }
+
   if (ADMIN_ONLY_PAGE_IDS.has(pageId) && !isAdminUser()) {
     setText("#loginStatus", "관리자 권한이 지정된 네이버 계정으로 로그인해주세요.");
     pageId = "loginPage";
@@ -14492,6 +14587,10 @@ function switchPage(pageId, options = {}) {
     renderSignupSummary();
   }
 
+  if (pageId === "authRequiredPage") {
+    renderAuthRequiredPage(readAuthReturnPage("productsPage"));
+  }
+
   if (pageId === "taxonomyTestPage") {
     prepareTaxonomyProducts();
     syncTaxonomyFilters();
@@ -14522,6 +14621,49 @@ function switchPage(pageId, options = {}) {
     renderTile114SampleGrid([]);
     setText("#tile114Status", authUser?.role === "admin" ? "카테고리와 개수를 선택한 뒤 샘플 가져오기를 눌러주세요." : "관리자 로그인 후 사용할 수 있습니다.");
   }
+}
+
+function rememberAuthReturnPage(pageId) {
+  if (!AUTH_REQUIRED_PAGE_IDS.has(pageId)) return;
+  try {
+    window.sessionStorage.setItem(AUTH_RETURN_PAGE_KEY, pageId);
+  } catch {
+    // The login gate remains usable when storage is restricted.
+  }
+}
+
+function readAuthReturnPage(fallbackPageId = "") {
+  try {
+    const pageId = String(window.sessionStorage.getItem(AUTH_RETURN_PAGE_KEY) || "");
+    return AUTH_REQUIRED_PAGE_IDS.has(pageId) ? pageId : fallbackPageId;
+  } catch {
+    return fallbackPageId;
+  }
+}
+
+function consumeAuthReturnPage() {
+  const pageId = readAuthReturnPage();
+  clearAuthReturnPage();
+  return AUTH_REQUIRED_PAGE_IDS.has(pageId) ? pageId : "homePage";
+}
+
+function clearAuthReturnPage() {
+  try {
+    window.sessionStorage.removeItem(AUTH_RETURN_PAGE_KEY);
+  } catch {
+    // Session storage can be unavailable in privacy-restricted webviews.
+  }
+}
+
+function renderAuthRequiredPage(targetPageId = "productsPage") {
+  const copy = AUTH_REQUIRED_PAGE_COPY[targetPageId] || {
+    eyebrow: "Members Only",
+    title: "로그인 후 이용할 수 있습니다.",
+    message: "이 기능은 로그인 또는 회원가입 후 이용해주세요."
+  };
+  setText("#authRequiredEyebrow", copy.eyebrow);
+  setText("#authRequiredTitle", copy.title);
+  setText("#authRequiredMessage", copy.message);
 }
 
 function restorePageScroll(pageId, scrollY) {
