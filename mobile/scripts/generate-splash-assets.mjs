@@ -28,6 +28,7 @@ const targets = [
 
 await createSplash(path.join(mobileRoot, "assets", "splash.png"), 2732, 2732);
 await createSystemSplashLogo(path.join(resourceRoot, "drawable", "splash_logo.png"));
+await fs.copyFile(logoPath, path.join(resourceRoot, "drawable", "splash_wordmark.png"));
 
 for (const [directory, width, height] of targets) {
   const outputDirectory = path.join(resourceRoot, directory);
