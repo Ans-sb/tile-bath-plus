@@ -12085,6 +12085,13 @@ body[data-page="homePage"] .square-main-tile {
   border-radius: 8px;
 }
 
+.square-main-empty {
+  display: block;
+  aspect-ratio: 1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 body[data-page="homePage"] .square-main-intro {
   min-width: 0;
   padding: 24px 20px 22px;
