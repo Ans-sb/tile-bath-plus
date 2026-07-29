@@ -18,9 +18,24 @@ npm.cmd run app:install
 npm.cmd run app:sync
 npm.cmd run app:doctor
 npm.cmd run app:open:android
+npm.cmd run app:build:debug
 ```
 
 실기기 실행에는 Android Studio, Android SDK, JDK가 필요합니다.
+
+## 출시 빌드
+
+앱 버전은 `android/version.properties`에서 관리합니다. Google Play에 새
+버전을 올릴 때마다 `VERSION_CODE`를 반드시 증가시킵니다.
+
+출시용 서명 파일과 비밀번호는 Git에 저장하지 않습니다.
+
+1. `android/keystore.properties.example`을 `android/keystore.properties`로 복사합니다.
+2. `storeFile`과 `keyAlias`를 실제 업로드 키 정보로 변경합니다.
+3. `JAJAEGO_KEYSTORE_PASSWORD`와 `JAJAEGO_KEY_PASSWORD`를 현재 터미널에 설정합니다.
+4. `npm.cmd run app:build:release`를 실행합니다.
+
+완성된 AAB는 프로젝트의 `outputs/mobile/jajaego-release.aab`에 생성됩니다.
 
 ## 출시 전 필수 작업
 
