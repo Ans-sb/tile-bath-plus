@@ -18,6 +18,7 @@ npm.cmd run app:install
 npm.cmd run app:sync
 npm.cmd run app:doctor
 npm.cmd run app:open:android
+npm.cmd run app:assets:splash
 npm.cmd run app:build:debug
 npm.cmd run app:build:signed
 ```
