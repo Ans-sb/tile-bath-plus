@@ -530,7 +530,6 @@ const productForm = document.querySelector("#productForm");
 const proposalForm = document.querySelector("#proposalForm");
 const signupForm = document.querySelector("#signupForm");
 const loginForm = document.querySelector("#loginForm");
-const adminLoginForm = document.querySelector("#adminLoginForm");
 let adminOverview = null;
 let currentAdminView = "operations";
 const adminProductFilters = {
@@ -1578,7 +1577,6 @@ function bindEvents() {
   signupForm.addEventListener("input", renderSignupSummary);
   signupForm.addEventListener("submit", submitSignupForm);
   loginForm.addEventListener("submit", submitLoginForm);
-  adminLoginForm?.addEventListener("submit", submitAdminLoginForm);
   document.querySelector("#dbProductType").addEventListener("change", setupDbForm);
   document.querySelector("#resetCartBtn").addEventListener("click", clearCart);
   document.querySelector("#printBtn").addEventListener("click", () => window.print());
@@ -3184,7 +3182,7 @@ function applyInitialPageFromHash() {
   const targetPage = document.getElementById(requestedPageId);
   if (!targetPage || !targetPage.classList.contains("app-page")) return;
   if (ADMIN_ONLY_PAGE_IDS.has(requestedPageId) && !isAdminUser()) {
-    setText("#adminLoginStatus", "관리자 페이지는 관리자 로그인 후 사용할 수 있습니다.");
+    setText("#loginStatus", "관리자 권한이 지정된 네이버 계정으로 로그인해주세요.");
     requestedPageId = "loginPage";
   }
 
@@ -12325,6 +12323,8 @@ async function applyAuthenticatedUser(matchedUser, message = "") {
     companyAddress: matchedUser.companyAddress,
     provider: matchedUser.provider || "일반 회원가입",
     role: matchedUser.role || "member",
+    adminUsername: matchedUser.adminUsername || "",
+    adminToken: matchedUser.adminToken || "",
     approvalStatus: matchedUser.approvalStatus || "승인",
     pricingAccess: matchedUser.pricingAccess || "approved",
     memberToken: matchedUser.memberToken || "",
@@ -12343,38 +12343,6 @@ async function applyAuthenticatedUser(matchedUser, message = "") {
   renderAuthControls();
   renderMyPage();
   if (message) setText("#loginStatus", message);
-}
-
-async function submitAdminLoginForm(event) {
-  event.preventDefault();
-  const formData = new FormData(adminLoginForm);
-  const adminUsername = String(formData.get("adminUsername") || "").trim();
-  const adminPassword = String(formData.get("adminPassword") || "");
-
-  try {
-    const result = await requestJson("/api/admin/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adminUsername, adminPassword })
-    }, { retries: 1, timeoutMs: 8000 });
-
-    authUser = {
-      role: "admin",
-      adminUsername: result.user.adminUsername,
-      adminToken: result.user.adminToken,
-      name: result.user.name,
-      companyName: result.user.companyName,
-      provider: "관리자 로그인"
-    };
-    saveAuthSession(authUser);
-    adminProductsHydrated = false;
-    renderAuthControls();
-    setText("#adminLoginStatus", `${result.user.name} 계정으로 관리자 로그인이 완료되었습니다.`);
-    adminLoginForm.reset();
-    switchPage("adminPage");
-  } catch (error) {
-    setText("#adminLoginStatus", error.message || "관리자 아이디 또는 비밀번호가 일치하지 않습니다.");
-  }
 }
 
 function loadSignupRequests() {
@@ -14393,7 +14361,7 @@ function updatePlannerCamera(camera, config) {
 
 function switchPage(pageId, options = {}) {
   if (ADMIN_ONLY_PAGE_IDS.has(pageId) && !isAdminUser()) {
-    setText("#adminLoginStatus", "관리자 페이지는 관리자 로그인 후 사용할 수 있습니다.");
+    setText("#loginStatus", "관리자 권한이 지정된 네이버 계정으로 로그인해주세요.");
     pageId = "loginPage";
   }
 

@@ -116,6 +116,11 @@ const productReadMode = String(process.env.PRODUCT_READ_MODE || "local-only").tr
 const adminUsername = String(process.env.ADMIN_USERNAME || "admin").trim();
 const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
 const adminDisplayName = String(process.env.ADMIN_DISPLAY_NAME || "내부관리자").trim();
+const adminNaverIdentifiers = [
+  process.env.ADMIN_NAVER_IDENTIFIERS,
+  process.env.ADMIN_NAVER_EMAIL,
+  process.env.ADMIN_NAVER_PROVIDER_ID
+].filter(Boolean).join(",");
 const tile114UserId = String(process.env.TILE114_USER_ID || "").trim();
 const tile114Password = String(process.env.TILE114_PASSWORD || "").trim();
 const tile114LoginUrl = String(process.env.TILE114_LOGIN_URL || "https://vgtns.tile114.co.kr/Web/ExInDex.asp?PopTF=2").trim();
@@ -362,7 +367,6 @@ function getAccountRouteContext() {
     saveApprovalRules,
     saveSignupRequestRecord,
     loginWithSignupRequest,
-    loginAsAdmin,
     readMemberProductCredentialsFromRequest,
     verifyMemberSessionAccess,
     readCartRecord,
@@ -692,8 +696,13 @@ function toLegacySupabaseProduct(product) {
   return productSupabaseMapper.toLegacySupabaseProduct(product);
 }
 
-function createAdminToken() {
-  return accountSession.createAdminToken({ adminUsername, adminPassword, adminDisplayName });
+function getAdminAuthConfig() {
+  return {
+    adminUsername,
+    adminPassword,
+    adminDisplayName,
+    adminNaverIdentifiers
+  };
 }
 
 function safeEqualText(left, right) {
@@ -705,7 +714,7 @@ function readAdminCredentialsFromRequest(request) {
 }
 
 function readOptionalAdminContextFromRequest(request) {
-  return authService.readOptionalAdminContextFromRequest(request, { adminUsername, adminPassword, adminDisplayName });
+  return authService.readOptionalAdminContextFromRequest(request, getAdminAuthConfig());
 }
 
 function readMemberProductCredentialsFromRequest(request) {
@@ -713,7 +722,7 @@ function readMemberProductCredentialsFromRequest(request) {
 }
 
 function assertAdminCredentials(value, token) {
-  return authService.assertAdminCredentials(value, token, { adminUsername, adminPassword, adminDisplayName });
+  return authService.assertAdminCredentials(value, token, getAdminAuthConfig());
 }
 
 async function readAdminProduct(adminUsernameValue, adminTokenValue, id) {
@@ -1472,6 +1481,9 @@ async function updateSignupPasswordHash(businessNumber, passwordHash) {
 
 async function loginWithSocialAuth(accessToken) {
   const profile = await readSocialAuthProfile(accessToken);
+  const socialAdminSession = authService.loginAsConfiguredSocialAdmin(profile, getAdminAuthConfig());
+  if (socialAdminSession) return socialAdminSession;
+
   const record = await readSignupRequestBySocialProfile(profile);
   if (!record) {
     throw createHttpError(404, "이 소셜 계정으로 가입된 사업자 회원이 없습니다. 먼저 사업자등록증을 등록해 회원가입을 완료해주세요.");
@@ -2088,10 +2100,6 @@ function absolutizeTile114Url(value) {
   if (!value) return "";
   const login = new URL(tile114LoginUrl || "https://vgtns.tile114.co.kr/Web/ExInDex.asp?PopTF=2");
   return new URL(value, `${login.origin}/Web/`).toString();
-}
-
-function loginAsAdmin(payload) {
-  return authService.loginAsAdmin(payload, { adminUsername, adminPassword, adminDisplayName });
 }
 
 async function readAllSignupRequests() {

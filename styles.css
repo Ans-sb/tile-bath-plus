@@ -2588,6 +2588,50 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   color: rgba(255, 255, 255, 0.86);
 }
 
+.login-workspace {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 1040px;
+}
+
+.login-option-panel {
+  display: grid;
+  gap: 22px;
+  align-content: start;
+  min-height: 390px;
+}
+
+.login-social-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.login-social-grid .social-signup-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 14px 18px;
+  text-align: center;
+  box-shadow: none;
+}
+
+.login-social-grid .social-signup-button strong {
+  font-size: 18px;
+}
+
+.login-business-form {
+  grid-template-columns: 1fr;
+}
+
+.login-business-form label {
+  min-width: 0;
+}
+
+.login-business-form input {
+  width: 100%;
+}
+
 .filter-grid,
 .form-grid,
 .render-grid {
@@ -4852,7 +4896,6 @@ body.customer-experience-mode .taxonomy-image-results .tile-match-actions button
 }
 
 .customer-my-page {
-  display: grid;
   gap: 14px;
 }
 

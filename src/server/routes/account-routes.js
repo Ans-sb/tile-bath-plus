@@ -22,12 +22,6 @@ async function handleAccountRoutes(request, response, context) {
     return true;
   }
 
-  if (request.method === "POST" && request.url === "/api/admin/login") {
-    const payload = JSON.parse(await context.readRequestBody(request));
-    context.sendJson(response, 200, context.loginAsAdmin(payload));
-    return true;
-  }
-
   if (request.method === "GET" && request.url.startsWith("/api/cart")) {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const memberCredentials = context.readMemberProductCredentialsFromRequest(request);

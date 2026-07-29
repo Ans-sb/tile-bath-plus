@@ -1,4 +1,5 @@
 const accountSession = require("./account-session");
+const { normalizeEmail, normalizeSocialProviderOptional } = require("./account-mapper");
 const { createHttpError } = require("../http-errors");
 
 function readAdminCredentialsFromRequest(request) {
@@ -38,18 +39,20 @@ function readOptionalAdminContextFromRequest(request, config) {
   };
 }
 
-function loginAsAdmin(payload, config) {
-  const username = String(payload?.adminUsername || "").trim();
-  const password = String(payload?.adminPassword || "");
+function loginAsConfiguredSocialAdmin(profile, config) {
+  if (normalizeSocialProviderOptional(profile?.provider) !== "naver") return null;
 
-  if (!username || !password) {
-    throw new Error("관리자 아이디와 비밀번호가 필요합니다.");
-  }
-  if (!config.adminPassword) {
-    throw new Error("관리자 계정이 아직 설정되지 않았습니다.");
-  }
-  if (username !== config.adminUsername || password !== config.adminPassword) {
-    throw new Error("관리자 아이디 또는 비밀번호가 일치하지 않습니다.");
+  const allowedIdentifiers = parseAdminNaverIdentifiers(config?.adminNaverIdentifiers);
+  if (!allowedIdentifiers.length) return null;
+
+  const providerId = String(profile?.providerId || "").trim();
+  const email = normalizeEmail(profile?.email);
+  const matched = allowedIdentifiers.some((identifier) => (
+    identifier === providerId || identifier.toLowerCase() === email
+  ));
+  if (!matched) return null;
+  if (!config?.adminPassword) {
+    throw createHttpError(503, "관리자 계정 보안키가 아직 설정되지 않았습니다.");
   }
 
   return {
@@ -57,16 +60,27 @@ function loginAsAdmin(payload, config) {
     user: {
       role: "admin",
       adminUsername: config.adminUsername,
-      name: config.adminDisplayName,
+      name: String(profile?.name || config.adminDisplayName || "내부관리자").trim(),
       companyName: config.adminDisplayName,
+      provider: "네이버 로그인",
       adminToken: accountSession.createAdminToken(config)
     }
   };
 }
 
+function parseAdminNaverIdentifiers(value) {
+  return [...new Set(
+    String(value || "")
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  )];
+}
+
 module.exports = {
   assertAdminCredentials,
-  loginAsAdmin,
+  loginAsConfiguredSocialAdmin,
+  parseAdminNaverIdentifiers,
   readAdminCredentialsFromRequest,
   readMemberProductCredentialsFromRequest,
   readOptionalAdminContextFromRequest
