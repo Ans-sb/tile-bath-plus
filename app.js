@@ -14708,7 +14708,10 @@ async function pushCartToServer() {
 }
 
 function setText(selector, value) {
-  document.querySelector(selector).textContent = value;
+  const element = document.querySelector(selector);
+  if (!element) return false;
+  element.textContent = value;
+  return true;
 }
 
 function number(value) {
