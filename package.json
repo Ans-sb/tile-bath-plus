@@ -10,6 +10,11 @@
   "scripts": {
     "start": "node scripts/prepare-runtime.cjs && node server.js",
     "test": "node --test test/server/features/*.test.js test/client/features/*.test.js",
+    "app:install": "npm --prefix mobile install",
+    "app:sync": "npm --prefix mobile run sync",
+    "app:doctor": "npm --prefix mobile run doctor",
+    "app:open:android": "npm --prefix mobile run open:android",
+    "app:run:android": "npm --prefix mobile run run:android",
     "code:products": "node scripts/apply-management-codes.mjs",
     "products:public": "node scripts/build-public-products-db.mjs",
     "taxonomy:normalize": "node scripts/build-normalized-taxonomy.mjs",

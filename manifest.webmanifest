@@ -1,0 +1,55 @@
+{
+  "id": "/",
+  "name": "자재GO",
+  "short_name": "자재GO",
+  "description": "타일과 욕실 자재를 검색하고 주문하는 B2B 자재 플랫폼",
+  "lang": "ko-KR",
+  "dir": "ltr",
+  "start_url": "/?source=pwa#homePage",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#081957",
+  "categories": [
+    "business",
+    "shopping",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/images/branding/app-icon-jajaego-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/branding/app-icon-jajaego-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "상품검색",
+      "short_name": "검색",
+      "url": "/#taxonomyTestPage"
+    },
+    {
+      "name": "장바구니",
+      "short_name": "장바구니",
+      "url": "/#cartPage"
+    },
+    {
+      "name": "마이페이지",
+      "short_name": "마이페이지",
+      "url": "/#myPage"
+    }
+  ]
+}

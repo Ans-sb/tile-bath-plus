@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#081957" />
+    <title>자재GO 연결 확인</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Pretendard, "Noto Sans KR", Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 24px;
+        place-items: center;
+        background: #f4f6f8;
+        color: #081957;
+      }
+
+      main {
+        width: min(100%, 420px);
+        padding: 36px 28px;
+        border: 1px solid #dfe4ea;
+        border-radius: 8px;
+        background: #ffffff;
+        text-align: center;
+      }
+
+      img {
+        width: 96px;
+        height: 96px;
+        border-radius: 20px;
+      }
+
+      h1 {
+        margin: 22px 0 10px;
+        font-size: 24px;
+      }
+
+      p {
+        margin: 0;
+        color: #5d6876;
+        font-size: 15px;
+        line-height: 1.65;
+      }
+
+      button {
+        width: 100%;
+        min-height: 48px;
+        margin-top: 24px;
+        border: 0;
+        border-radius: 6px;
+        background: #081957;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 800;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/images/branding/app-icon-jajaego-512.png" alt="자재GO" />
+      <h1>인터넷 연결을 확인해주세요</h1>
+      <p>상품, 회원등급과 주문 정보는 최신 데이터 보호를 위해 온라인에서 불러옵니다.</p>
+      <button type="button" onclick="window.location.reload()">다시 연결</button>
+    </main>
+  </body>
+</html>

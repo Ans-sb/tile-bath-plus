@@ -106,3 +106,30 @@ test("versioned static assets are compressed and cached immutably", async () => 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("web app manifest uses the installable manifest content type", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "jajaego-manifest-"));
+  const source = JSON.stringify({ name: "자재GO", start_url: "/" });
+  fs.writeFileSync(path.join(root, "manifest.webmanifest"), source);
+
+  const server = http.createServer((req, res) => {
+    serveStaticFile(req, res, {
+      root,
+      shouldBlockStaticPath: () => false
+    });
+  });
+  const port = await listen(server);
+
+  try {
+    const response = await request(port, "/manifest.webmanifest", {
+      "Accept-Encoding": "gzip"
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers["content-type"], "application/manifest+json; charset=utf-8");
+    assert.equal(response.headers["content-encoding"], "gzip");
+    assert.equal(zlib.gunzipSync(response.body).toString("utf8"), source);
+  } finally {
+    await close(server);
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

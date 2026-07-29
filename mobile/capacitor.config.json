@@ -1,0 +1,28 @@
+{
+  "appId": "com.jajaego.app",
+  "appName": "자재GO",
+  "webDir": "www",
+  "server": {
+    "url": "https://jajaego.com",
+    "cleartext": false,
+    "androidScheme": "https",
+    "allowNavigation": [
+      "jajaego.com",
+      "www.jajaego.com"
+    ]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#FFFFFFFF",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#081957",
+      "overlaysWebView": false
+    }
+  }
+}
