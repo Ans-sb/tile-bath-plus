@@ -30,6 +30,20 @@ npm.cmd run app:build:debug
 
 출시용 서명 파일과 비밀번호는 Git에 저장하지 않습니다.
 
+처음 한 번은 아래 명령으로 업로드 키를 안전하게 생성합니다.
+
+```powershell
+npm.cmd run app:signing:create
+```
+
+이 명령은 비밀번호를 보안 입력으로 받아
+`%USERPROFILE%\.jajaego\signing\jajaego-upload.jks`에 키를 만들고,
+저장소에는 비밀값이 없는 로컬 Gradle 설정만 작성한 뒤
+`outputs/mobile/jajaego-release.aab`를 생성합니다. Google Play에 올리기
+전에 키 파일과 비밀번호를 서로 다른 안전한 위치에 백업해야 합니다.
+
+기존 업로드 키로 다시 빌드할 때는 다음 순서를 사용합니다.
+
 1. `android/keystore.properties.example`을 `android/keystore.properties`로 복사합니다.
 2. `storeFile`과 `keyAlias`를 실제 업로드 키 정보로 변경합니다.
 3. `JAJAEGO_KEYSTORE_PASSWORD`와 `JAJAEGO_KEY_PASSWORD`를 현재 터미널에 설정합니다.

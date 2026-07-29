@@ -9,6 +9,7 @@
     "doctor": "cap doctor",
     "open:android": "cap open android",
     "run:android": "cap run android",
+    "signing:create": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/create-upload-key.ps1",
     "build:debug": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -Variant debug",
     "build:release": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -Variant release"
   },
