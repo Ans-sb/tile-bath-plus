@@ -7604,12 +7604,23 @@ function renderMyPage() {
 
   const totalQuote = getCartQuoteTotal(cart);
   const pastOrders = mergeOrderHistory(loadPastOrders(), remoteOrders);
+  const rawCompanyName = String(authUser.companyName || "").trim();
+  const isPendingCompanyName = /사업자\s*인증\s*대기/.test(rawCompanyName);
+  const accountDisplayName = isPendingCompanyName
+    ? `${authUser.name || "회원"}님`
+    : (rawCompanyName || authUser.name || "-");
+  const accountSubline = isPendingCompanyName
+    ? "사업자 인증 전"
+    : `담당자 ${authUser.name || "-"}`;
+  const signupProviderLabel = authUser.socialProvider
+    ? getSocialProviderLabel(authUser.socialProvider)
+    : (String(authUser.provider || "일반").replace(/\s*가입.*$/u, "").trim() || "일반");
   profile.innerHTML = `
     <div class="my-account-overview">
       <div class="my-account-identity">
         <span>회원</span>
-        <strong>${escapeHtml(authUser.companyName || authUser.name || "-")}</strong>
-        <small>담당자 ${escapeHtml(authUser.name || "-")}</small>
+        <strong>${escapeHtml(accountDisplayName)}</strong>
+        <small>${escapeHtml(accountSubline)}</small>
       </div>
       <span class="my-account-grade">${escapeHtml(getCompactMemberGradeLabel())}</span>
     </div>
@@ -7624,7 +7635,7 @@ function renderMyPage() {
       </div>
       <div>
         <span>가입</span>
-        <strong>${escapeHtml(authUser.provider || "일반")}</strong>
+        <strong>${escapeHtml(signupProviderLabel)}</strong>
       </div>
     </div>
     ${renderMyContactInfoPanel(authUser)}
