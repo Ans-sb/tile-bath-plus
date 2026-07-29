@@ -7,7 +7,7 @@ const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const mobileRoot = path.resolve(scriptRoot, "..");
 const projectRoot = path.resolve(mobileRoot, "..");
 const resourceRoot = path.join(mobileRoot, "android", "app", "src", "main", "res");
-const logoPath = path.join(projectRoot, "images", "branding", "app-icon-jajaego-512.png");
+const logoPath = path.join(projectRoot, "images", "branding", "btn-material-go.png");
 const background = { r: 255, g: 255, b: 255, alpha: 1 };
 
 const targets = [
@@ -27,6 +27,7 @@ const targets = [
 ];
 
 await createSplash(path.join(mobileRoot, "assets", "splash.png"), 2732, 2732);
+await createSystemSplashLogo(path.join(resourceRoot, "drawable", "splash_logo.png"));
 
 for (const [directory, width, height] of targets) {
   const outputDirectory = path.join(resourceRoot, directory);
@@ -41,13 +42,22 @@ await createSplash(path.join(previewDirectory, "jajaego-splash-preview.png"), 10
 console.log("SPLASH_ASSETS_OK");
 
 async function createSplash(outputPath, width, height) {
-  const shortestSide = Math.min(width, height);
-  const logoSize = Math.max(96, Math.round(shortestSide * 0.42));
+  const isPortrait = height >= width;
+  const logoWidth = Math.max(180, Math.round(width * (isPortrait ? 0.68 : 0.5)));
+  const logoHeightLimit = Math.max(72, Math.round(height * 0.18));
   const logo = await sharp(logoPath)
-    .resize(logoSize, logoSize, { fit: "contain" })
+    .resize({
+      width: logoWidth,
+      height: logoHeightLimit,
+      fit: "inside",
+      withoutEnlargement: false
+    })
     .png()
     .toBuffer();
-  const top = Math.round((height - logoSize) / 2 - height * 0.025);
+  const logoMetadata = await sharp(logo).metadata();
+  const renderedWidth = logoMetadata.width ?? logoWidth;
+  const renderedHeight = logoMetadata.height ?? logoHeightLimit;
+  const top = Math.round((height - renderedHeight) / 2);
 
   await sharp({
     create: {
@@ -59,8 +69,36 @@ async function createSplash(outputPath, width, height) {
   })
     .composite([{
       input: logo,
-      left: Math.round((width - logoSize) / 2),
+      left: Math.round((width - renderedWidth) / 2),
       top
+    }])
+    .png({ compressionLevel: 9 })
+    .toFile(outputPath);
+}
+
+async function createSystemSplashLogo(outputPath) {
+  const canvasSize = 960;
+  const logoWidth = 800;
+  const logo = await sharp(logoPath)
+    .resize({ width: logoWidth, fit: "inside", withoutEnlargement: false })
+    .png()
+    .toBuffer();
+  const logoMetadata = await sharp(logo).metadata();
+  const renderedWidth = logoMetadata.width ?? logoWidth;
+  const renderedHeight = logoMetadata.height ?? 168;
+
+  await sharp({
+    create: {
+      width: canvasSize,
+      height: canvasSize,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 0 }
+    }
+  })
+    .composite([{
+      input: logo,
+      left: Math.round((canvasSize - renderedWidth) / 2),
+      top: Math.round((canvasSize - renderedHeight) / 2)
     }])
     .png({ compressionLevel: 9 })
     .toFile(outputPath);
