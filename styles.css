@@ -2544,6 +2544,54 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   margin-top: 16px;
 }
 
+.social-signup-page {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+}
+
+.social-signup-heading {
+  align-items: end;
+}
+
+.social-signup-entry {
+  display: grid;
+  gap: 26px;
+  min-height: 420px;
+  padding: clamp(28px, 5vw, 64px);
+  border-top: 1px solid var(--line);
+  align-content: center;
+  background: #fff;
+}
+
+.social-signup-copy {
+  max-width: 680px;
+}
+
+.social-signup-copy h3 {
+  margin: 7px 0 8px;
+  color: var(--ink);
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.18;
+}
+
+.social-signup-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 16.9px;
+  font-weight: 700;
+}
+
+.social-signup-grid--entry {
+  margin-top: 0;
+}
+
+.social-signup-grid--entry .social-signup-button {
+  min-height: 82px;
+  align-content: center;
+  text-align: center;
+  box-shadow: none;
+}
+
 .social-signup-button {
   display: grid;
   gap: 8px;
@@ -2630,6 +2678,37 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
 
 .login-business-form input {
   width: 100%;
+}
+
+.partner-application-access {
+  display: grid;
+  gap: 14px;
+  min-height: 320px;
+  padding: clamp(24px, 4vw, 48px);
+  align-content: center;
+  justify-items: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.partner-application-page.is-locked {
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+}
+
+.partner-application-access h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+}
+
+.partner-application-access p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 16.9px;
+  line-height: 1.65;
 }
 
 .filter-grid,
@@ -3103,6 +3182,38 @@ label {
 
 .signup-summary-card {
   margin-top: 18px;
+}
+
+.partner-approval-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.partner-approval-steps div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.partner-approval-steps b {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent-strong);
+  font-size: 14px;
+}
+
+.partner-approval-steps span {
+  color: var(--ink);
+  font-size: 15.6px;
+  font-weight: 800;
 }
 
 .signup-status-bar {
@@ -5016,6 +5127,11 @@ body.customer-experience-mode .customer-my-page .my-page-disclosure-summary h3 {
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.my-partner-application-action {
+  width: 100%;
+  margin-top: 12px;
 }
 
 .my-current-order-status {

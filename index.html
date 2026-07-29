@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-    <link rel="stylesheet" href="styles.css?v=20260730-login-clean2" />
+    <link rel="stylesheet" href="styles.css?v=20260730-partner-signup2" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
   <body>
@@ -1120,22 +1120,56 @@
         </section>
       </main>
 
-      <main class="app-page workspace" id="signupPage">
+      <main class="app-page page-panel social-signup-page" id="signupPage">
+        <section class="page-heading social-signup-heading">
+          <div>
+            <p class="eyebrow">Jajaego Membership</p>
+            <h2>간편 회원가입</h2>
+          </div>
+          <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+        </section>
+        <section class="social-signup-entry" aria-labelledby="socialSignupTitle">
+          <div class="social-signup-copy">
+            <p class="eyebrow">Social Signup</p>
+            <h3 id="socialSignupTitle">소셜 계정으로 가입하세요.</h3>
+            <p>가입이 끝나면 파트너 등록신청으로 이어집니다.</p>
+          </div>
+          <div class="social-signup-grid social-signup-grid--entry">
+            <button class="social-signup-button google-signup" id="googleSignupBtn" type="button">
+              <strong>Google로 가입</strong>
+            </button>
+            <button class="social-signup-button kakao-signup" id="kakaoSignupBtn" type="button">
+              <strong>카카오로 가입</strong>
+            </button>
+            <button class="social-signup-button naver-signup" id="naverSignupBtn" type="button">
+              <strong>네이버로 가입</strong>
+            </button>
+          </div>
+          <div class="signup-status-bar" id="signupEntryStatus">Google, 카카오, 네이버 중 하나를 선택해주세요.</div>
+        </section>
+      </main>
+
+      <main class="app-page workspace partner-application-page" id="partnerApplicationPage">
         <section class="input-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Membership</p>
-              <h2>회원가입</h2>
+              <p class="eyebrow">Partner Membership</p>
+              <h2>파트너 등록신청</h2>
             </div>
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
           </div>
-          <form id="signupForm" class="form-grid">
+          <section class="partner-application-access" id="partnerApplicationAccessNotice">
+            <h3>간편가입을 먼저 완료해주세요.</h3>
+            <p>Google, 카카오 또는 네이버 계정을 확인한 뒤 파트너 등록을 신청할 수 있습니다.</p>
+            <button class="primary-action" type="button" data-page-target="signupPage">간편가입으로 이동</button>
+          </section>
+          <form id="signupForm" class="form-grid partner-protected-content hidden">
             <section class="social-business-gate hidden wide" id="socialBusinessGate">
-              <p class="eyebrow">Business Verification</p>
-              <h3><span id="socialWelcomeName">회원</span>님 안녕하세요. 이제 사업자 인증이 필요합니다.</h3>
+              <p class="eyebrow">Connected Account</p>
+              <h3><span id="socialWelcomeName">회원</span>님, 파트너 등록을 신청해주세요.</h3>
               <p>
                 자재GO는 BtoB 플랫폼이며 타일, 부자재, 위생도기, 수전금구 등을 국내 최저 금액과 빠른 배송으로 이용할 수 있는 플랫폼입니다.
-                현재 계정 가입은 완료되었지만 상품 금액은 사업자 인증 후 공개됩니다.
+                소셜 가입은 완료되었으며 상품 금액은 파트너 승인 후 공개됩니다.
               </p>
               <div class="social-business-actions">
                 <button class="primary-action" id="socialBusinessUploadBtn" type="button">사업자등록증 업로드</button>
@@ -1217,44 +1251,22 @@
                 <input name="contactAddress" type="text" placeholder="명함에 표시된 회사 또는 담당자 주소" />
               </label>
             </section>
-            <label>
-              비밀번호
-              <input name="password" type="password" placeholder="사업자번호 로그인용 비밀번호, 소셜 가입은 선택" />
-            </label>
-            <label>
-              비밀번호 확인
-              <input name="passwordConfirm" type="password" placeholder="비밀번호 다시 입력" />
-            </label>
-            <button class="primary-action wide" type="submit">회원가입 신청</button>
+            <button class="primary-action wide" type="submit">파트너 등록 신청</button>
           </form>
         </section>
-        <section class="preview-panel">
+        <section class="preview-panel partner-protected-content hidden">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Social Signup</p>
-              <h2>간편 가입</h2>
+              <p class="eyebrow">Application Review</p>
+              <h2>신청 정보 확인</h2>
             </div>
           </div>
-          <div class="social-signup-grid">
-            <button class="social-signup-button google-signup" id="googleSignupBtn" type="button">
-              <strong>Google로 가입</strong>
-              <span>사업자등록증 승인 후 등급별 가격 공개</span>
-            </button>
-            <button class="social-signup-button kakao-signup" id="kakaoSignupBtn" type="button">
-              <strong>카카오톡으로 가입</strong>
-              <span>사업자등록증 승인 후 등급별 가격 공개</span>
-            </button>
-            <button class="social-signup-button naver-signup" id="naverSignupBtn" type="button">
-              <strong>네이버로 가입</strong>
-              <span>사업자등록증 승인 후 등급별 가격 공개</span>
-            </button>
-          </div>
           <section class="doc-section signup-summary-card">
-            <h3>가입 정보 안내</h3>
+            <h3>파트너 신청 정보</h3>
             <div class="detail-spec-grid" id="signupSummary">
               <div><span>전화번호 인증</span><strong>미완료</strong></div>
               <div><span>사업자등록증</span><strong>첨부 전</strong></div>
-              <div><span>가입 방식</span><strong>일반 회원가입</strong></div>
+              <div><span>가입 방식</span><strong>간편가입</strong></div>
               <div><span>상태</span><strong>입력 대기</strong></div>
             </div>
           </section>
@@ -1270,21 +1282,14 @@
             </div>
           </section>
           <section class="doc-section signup-summary-card">
-            <h3>가입 승인 기준</h3>
-            <div class="form-grid">
-              <label>
-                허용 업태
-                <input id="allowedBusinessTypes" type="text" placeholder="예: 도소매업, 건설업" />
-              </label>
-              <label>
-                허용 업종
-                <input id="allowedBusinessItems" type="text" placeholder="예: 타일, 위생도기, 인테리어" />
-              </label>
-              <button class="secondary-action wide" id="saveApprovalRulesBtn" type="button">승인 기준 저장</button>
+            <h3>승인 절차</h3>
+            <div class="partner-approval-steps">
+              <div><b>1</b><span>사업자등록증 및 담당자 정보 제출</span></div>
+              <div><b>2</b><span>자재GO 운영팀 확인</span></div>
+              <div><b>3</b><span>파트너 등급 및 상품 가격 공개</span></div>
             </div>
-            <small class="field-note" id="approvalRuleStatus">허용 업태/업종을 저장하면 등록증 스캔 결과와 비교해 가입승인 여부를 판정합니다.</small>
           </section>
-          <div class="signup-status-bar" id="signupStatus">회원가입 정보를 입력해주세요.</div>
+          <div class="signup-status-bar" id="signupStatus">파트너 등록 정보를 입력해주세요.</div>
         </section>
       </main>
 
@@ -3489,7 +3494,7 @@
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260729-mobile-auth1"></script>
-    <script src="app.js?v=20260730-login-clean1"></script>
+    <script src="app.js?v=20260730-partner-signup2"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260729-mobile-auth1"></script>
   </body>
 </html>

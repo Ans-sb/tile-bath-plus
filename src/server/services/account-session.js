@@ -3,6 +3,7 @@ const { normalizeApprovalStatus } = require("./account-mapper");
 
 const DEFAULT_ADMIN_TOKEN_TTL_MS = 1000 * 60 * 60 * 8;
 const DEFAULT_MEMBER_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7;
+const DEFAULT_SOCIAL_SIGNUP_TOKEN_TTL_MS = 1000 * 60 * 30;
 
 function getPositiveDurationMs(value, fallback) {
   const number = Number(value);
@@ -76,6 +77,23 @@ function verifyMemberToken(token, memberTokenSecret) {
   return verifySignedToken(token, "member", memberTokenSecret);
 }
 
+function createSocialSignupToken(profile, memberTokenSecret) {
+  const now = Date.now();
+  const ttlMs = getPositiveDurationMs(process.env.SOCIAL_SIGNUP_TOKEN_TTL_MS, DEFAULT_SOCIAL_SIGNUP_TOKEN_TTL_MS);
+  return signTokenPayload("social-signup", {
+    accountId: String(profile?.accountId || "").trim(),
+    provider: String(profile?.provider || "").trim().toLowerCase(),
+    providerId: String(profile?.providerId || profile?.authUserId || "").trim(),
+    email: String(profile?.email || "").trim().toLowerCase(),
+    issuedAt: now,
+    expiresAt: now + ttlMs
+  }, memberTokenSecret);
+}
+
+function verifySocialSignupToken(token, memberTokenSecret) {
+  return verifySignedToken(token, "social-signup", memberTokenSecret);
+}
+
 function createUserSessionFromSignupRecord(record, memberTokenSecret) {
   const pricingApproved = record.approvalStatus === "승인";
   return {
@@ -115,8 +133,10 @@ function createUserSessionFromSignupRecord(record, memberTokenSecret) {
 module.exports = {
   createAdminToken,
   createMemberToken,
+  createSocialSignupToken,
   createUserSessionFromSignupRecord,
   safeEqualText,
   verifyAdminToken,
-  verifyMemberToken
+  verifyMemberToken,
+  verifySocialSignupToken
 };

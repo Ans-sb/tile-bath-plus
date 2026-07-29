@@ -1328,7 +1328,35 @@ async function saveApprovalRules(payload) {
 }
 
 async function saveSignupRequestRecord(payload) {
+  const socialSignupProof = accountSession.verifySocialSignupToken(
+    String(payload?.socialSignupToken || ""),
+    memberTokenSecret
+  );
+  if (!socialSignupProof) {
+    throw createHttpError(401, "확인된 Google, 카카오 또는 네이버 계정으로 다시 가입해주세요.");
+  }
+
   const record = normalizeSignupRequest(payload);
+  const proofProvider = normalizeSocialProvider(socialSignupProof.provider);
+  if (
+    !record.socialProvider
+    || record.socialProvider !== proofProvider
+    || !record.socialProviderId
+    || record.socialProviderId !== String(socialSignupProof.providerId || "").trim()
+  ) {
+    throw createHttpError(401, "소셜 가입 계정 정보가 일치하지 않습니다.");
+  }
+  if (
+    socialSignupProof.accountId
+    && record.accountId
+    && record.accountId !== String(socialSignupProof.accountId).trim()
+  ) {
+    throw createHttpError(401, "소셜 가입 계정 연결을 확인하지 못했습니다.");
+  }
+  record.accountId = String(socialSignupProof.accountId || record.accountId || "").trim();
+  record.socialEmail = normalizeEmail(socialSignupProof.email || record.socialEmail);
+  record.approvalStatus = "보류";
+  record.priceTier = "retail";
   record.password = await passwordService.hashPassword(record.password);
 
   if (hasSupabaseConfig()) {
@@ -2276,6 +2304,7 @@ async function readSocialAuthProfile(accessToken) {
     const profile = naverOAuthService.readProfileToken(cleanToken);
     const account = await upsertCustomerAccountFromSocialProfile(profile);
     profile.accountId = account?.id || "";
+    profile.socialSignupToken = accountSession.createSocialSignupToken(profile, memberTokenSecret);
     return profile;
   }
   if (!supabaseUrl) throw createHttpError(500, "Supabase URL이 설정되어 있지 않습니다.");
@@ -2308,6 +2337,7 @@ async function readSocialAuthProfile(accessToken) {
   };
   const account = await upsertCustomerAccountFromSocialProfile(profile);
   profile.accountId = account?.id || "";
+  profile.socialSignupToken = accountSession.createSocialSignupToken(profile, memberTokenSecret);
   return profile;
 }
 

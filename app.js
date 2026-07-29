@@ -455,8 +455,11 @@ let plannerThreeState = {
 };
 let pendingSignupAuthCode = "";
 let isPhoneVerified = false;
-let selectedSignupProvider = "일반 회원가입";
-let socialSignupProfile = null;
+const PENDING_SOCIAL_SIGNUP_KEY = "tbpPendingSocialSignupProfile";
+let socialSignupProfile = loadPendingSocialSignupProfile();
+let selectedSignupProvider = socialSignupProfile?.providerLabel
+  ? `${socialSignupProfile.providerLabel} 가입`
+  : "간편가입 대기";
 let authUser = loadAuthSession();
 let businessVerification = { status: "idle", message: "사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다." };
 let tesseractLoaderPromise = null;
@@ -472,7 +475,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage", "signupPage", "partnerApplicationPage"]);
 const PRODUCT_DATA_PAGE_IDS = new Set([
   "productsPage",
   "bathProductsPage",
@@ -1497,7 +1500,7 @@ function bindEvents() {
   document.querySelector("#signupBizNo").addEventListener("input", () => resetBusinessVerification(false));
   document.querySelector("#scanBusinessFileBtn").addEventListener("click", scanBusinessRegistrationFile);
   document.querySelector("#verifyBusinessBtn").addEventListener("click", verifyBusinessRegistration);
-  document.querySelector("#saveApprovalRulesBtn").addEventListener("click", saveApprovalRulesFromForm);
+  document.querySelector("#saveApprovalRulesBtn")?.addEventListener("click", saveApprovalRulesFromForm);
   document.querySelector("#socialBusinessUploadBtn")?.addEventListener("click", focusBusinessCertificateUpload);
   document.querySelector("#googleSignupBtn").addEventListener("click", () => startSocialSignup("Google"));
   document.querySelector("#kakaoSignupBtn").addEventListener("click", () => startSocialSignup("카카오톡"));
@@ -1558,7 +1561,7 @@ function bindEvents() {
     if (event.target.closest("#saveMyContactInfoBtn")) saveMyContactInfo();
   });
   document.querySelector("#myPage")?.addEventListener("click", (event) => {
-    const button = event.target.closest(".my-empty-actions [data-page-target]");
+    const button = event.target.closest(".my-empty-actions [data-page-target], .my-partner-application-action[data-page-target]");
     if (button) switchPage(button.dataset.pageTarget);
   });
   document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
@@ -2585,7 +2588,7 @@ function renderAll() {
   if (currentPageId === "plannerPage") {
     renderPlannerWorkspace();
   }
-  if (currentPageId === "signupPage") {
+  if (currentPageId === "partnerApplicationPage") {
     renderSignupSummary();
   }
   if (currentPageId === "adminPage") {
@@ -7636,6 +7639,11 @@ function renderMyPage() {
         <strong>${escapeHtml(signupProviderLabel)}</strong>
       </div>
     </div>
+    ${hasMemberPriceAccess() ? "" : `
+      <button class="primary-action my-partner-application-action" type="button" data-page-target="partnerApplicationPage">
+        파트너 등록신청
+      </button>
+    `}
     ${renderMyContactInfoPanel(authUser)}
   `;
 
@@ -11797,13 +11805,18 @@ function syncDefaultApprovalRules() {
 }
 
 function renderApprovalRules() {
-  document.querySelector("#allowedBusinessTypes").value = approvalRules.businessTypes.join(", ");
-  document.querySelector("#allowedBusinessItems").value = approvalRules.businessItems.join(", ");
+  const businessTypesInput = document.querySelector("#allowedBusinessTypes");
+  const businessItemsInput = document.querySelector("#allowedBusinessItems");
+  if (businessTypesInput) businessTypesInput.value = approvalRules.businessTypes.join(", ");
+  if (businessItemsInput) businessItemsInput.value = approvalRules.businessItems.join(", ");
 }
 
 async function saveApprovalRulesFromForm() {
-  const businessTypes = parseRuleInput(document.querySelector("#allowedBusinessTypes").value);
-  const businessItems = parseRuleInput(document.querySelector("#allowedBusinessItems").value);
+  const businessTypesInput = document.querySelector("#allowedBusinessTypes");
+  const businessItemsInput = document.querySelector("#allowedBusinessItems");
+  if (!businessTypesInput || !businessItemsInput) return;
+  const businessTypes = parseRuleInput(businessTypesInput.value);
+  const businessItems = parseRuleInput(businessItemsInput.value);
   approvalRules = { businessTypes, businessItems };
   localStorage.setItem("tbpApprovalRules", JSON.stringify(approvalRules));
   try {
@@ -11832,12 +11845,13 @@ function parseRuleInput(value) {
 
 function selectSignupProvider(provider) {
   selectedSignupProvider = provider;
-  setText("#signupStatus", `${provider}으로 회원가입을 시작했습니다. 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
+  setText("#signupEntryStatus", `${provider}으로 간편가입을 시작합니다.`);
   renderSignupSummary();
 }
 
 function startSocialSignup(provider) {
   selectedSignupProvider = `${provider} 가입`;
+  setText("#signupEntryStatus", `${provider} 인증 화면으로 이동합니다...`);
   startSocialAuthFlow(provider, "signup");
 }
 
@@ -11895,7 +11909,7 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
       || error
       || "소셜 로그인 토큰이 전달되지 않았습니다.";
     switchPage(mode === "login" ? "loginPage" : "signupPage");
-    setText(mode === "login" ? "#loginStatus" : "#signupStatus", `${providerLabel} 인증 오류: ${errorMessage}`);
+    setText(mode === "login" ? "#loginStatus" : "#signupEntryStatus", `${providerLabel} 인증 오류: ${errorMessage}`);
     history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
     return;
   }
@@ -11918,51 +11932,53 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
         switchPage("homePage", { pushHistory: false });
         return;
       } catch (loginError) {
-        socialSignupProfile = {
+        setPendingSocialSignupProfile({
           accountId: profile.accountId || "",
           provider,
           providerLabel,
           providerId: profile.providerId || "",
           email: profile.email,
           name: profile.name,
-          avatarUrl: profile.avatarUrl || ""
-        };
+          avatarUrl: profile.avatarUrl || "",
+          socialSignupToken: profile.socialSignupToken || ""
+        });
         selectedSignupProvider = `${providerLabel} 가입`;
         applyPendingSocialUser(socialSignupProfile, `${providerLabel} 계정이 확인되었습니다. 사업자등록증 등록을 완료하면 상품 금액을 볼 수 있습니다.`);
-        switchPage("signupPage");
-        setText("#authStatus", `${providerLabel} 계정은 확인됐지만 가입된 사업자 정보가 없습니다. 사업자등록증을 등록해 가입을 완료해주세요.`);
-        setText("#signupStatus", loginError.message || `${providerLabel} 가입을 계속 진행해주세요.`);
+        switchPage("partnerApplicationPage");
+        setText("#authStatus", `${providerLabel} 계정 가입은 완료되었습니다. 사업자등록증을 등록해 파트너 등록을 신청해주세요.`);
+        setText("#signupStatus", loginError.message || `${providerLabel} 가입이 완료되었습니다. 파트너 등록을 계속 진행해주세요.`);
         renderSignupSummary();
         return;
       }
     }
 
-    socialSignupProfile = {
+    setPendingSocialSignupProfile({
       accountId: profile.accountId || "",
       provider,
       providerLabel,
       providerId: profile.providerId || "",
       email: profile.email,
       name: profile.name,
-      avatarUrl: profile.avatarUrl || ""
-    };
+      avatarUrl: profile.avatarUrl || "",
+      socialSignupToken: profile.socialSignupToken || ""
+    });
     selectedSignupProvider = `${providerLabel} 가입`;
     const nameInput = signupForm?.elements?.namedItem("name");
     const emailInput = signupForm?.elements?.namedItem("contactEmail");
     if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
     if (emailInput && !emailInput.value && profile.email) emailInput.value = profile.email;
     applyPendingSocialUser(socialSignupProfile, `${providerLabel} 계정이 확인되었습니다. 사업자 인증을 이어서 진행해주세요.`);
-    switchPage("signupPage");
+    switchPage("partnerApplicationPage");
     const emailNotice = profile.email
       ? `${providerLabel} 계정(${profile.email})이 확인되었습니다.`
       : `${providerLabel} 계정은 확인됐지만 이메일이 전달되지 않았습니다. 해당 서비스의 이메일 제공 동의 설정을 확인해주세요.`;
-    setText("#authStatus", `${emailNotice} 사업자등록증 승인 후 등급별 가격을 볼 수 있습니다.`);
-    setText("#signupStatus", `${getSocialWelcomeName()}님 안녕하세요. 이제 사업자 인증이 필요합니다. 사업자등록증을 업로드해 가입을 완료해주세요.`);
+    setText("#authStatus", `${emailNotice} 파트너 승인 후 등급별 가격을 볼 수 있습니다.`);
+    setText("#signupStatus", `${getSocialWelcomeName()}님, 간편가입이 완료되었습니다. 사업자등록증을 업로드해 파트너 등록을 신청해주세요.`);
     renderSignupSummary();
   } catch (error) {
     selectedSignupProvider = `${providerLabel} 가입`;
     switchPage(mode === "login" ? "loginPage" : "signupPage");
-    setText(mode === "login" ? "#loginStatus" : "#signupStatus", error.message || `${providerLabel} 인증 정보를 확인하지 못했습니다.`);
+    setText(mode === "login" ? "#loginStatus" : "#signupEntryStatus", error.message || `${providerLabel} 인증 정보를 확인하지 못했습니다.`);
   } finally {
     history.replaceState({ pageId: currentPageId }, "", `#${currentPageId}`);
   }
@@ -11976,6 +11992,7 @@ function getSocialProviderLabel(providerValue) {
 }
 
 function applyPendingSocialUser(profile, message = "") {
+  setPendingSocialSignupProfile(profile);
   const displayName = String(profile?.name || profile?.email || "회원").trim();
   authUser = {
     phone: "",
@@ -12004,6 +12021,39 @@ function applyPendingSocialUser(profile, message = "") {
   if (message) setText("#loginStatus", message);
 }
 
+function loadPendingSocialSignupProfile() {
+  try {
+    const profile = JSON.parse(localStorage.getItem(PENDING_SOCIAL_SIGNUP_KEY) || "null");
+    return profile?.provider && profile?.socialSignupToken ? profile : null;
+  } catch {
+    return null;
+  }
+}
+
+function setPendingSocialSignupProfile(profile) {
+  socialSignupProfile = profile?.provider && profile?.socialSignupToken ? { ...profile } : null;
+  if (socialSignupProfile) {
+    localStorage.setItem(PENDING_SOCIAL_SIGNUP_KEY, JSON.stringify(socialSignupProfile));
+  } else {
+    localStorage.removeItem(PENDING_SOCIAL_SIGNUP_KEY);
+  }
+}
+
+function renderPartnerApplicationAccess() {
+  const hasSocialAccount = Boolean(socialSignupProfile?.provider && socialSignupProfile?.socialSignupToken);
+  document.querySelector("#partnerApplicationPage")?.classList.toggle("is-locked", !hasSocialAccount);
+  document.querySelector("#partnerApplicationAccessNotice")?.classList.toggle("hidden", hasSocialAccount);
+  document.querySelectorAll("#partnerApplicationPage .partner-protected-content").forEach((element) => {
+    element.classList.toggle("hidden", !hasSocialAccount);
+  });
+  if (!hasSocialAccount) return;
+
+  const nameInput = signupForm?.elements?.namedItem("name");
+  const emailInput = signupForm?.elements?.namedItem("contactEmail");
+  if (nameInput && !nameInput.value && socialSignupProfile.name) nameInput.value = socialSignupProfile.name;
+  if (emailInput && !emailInput.value && socialSignupProfile.email) emailInput.value = socialSignupProfile.email;
+}
+
 function getSocialWelcomeName() {
   const profileName = String(socialSignupProfile?.name || "").trim();
   const emailName = String(socialSignupProfile?.email || "").split("@")[0]?.trim();
@@ -12030,6 +12080,7 @@ function renderSocialBusinessGate() {
 }
 
 function renderSignupSummary() {
+  renderPartnerApplicationAccess();
   const file = document.querySelector("#signupBizFile")?.files?.[0];
   const businessCardFile = document.querySelector("#signupBusinessCardFile")?.files?.[0];
   const data = signupForm ? new FormData(signupForm) : new FormData();
@@ -12048,7 +12099,8 @@ function renderSignupSummary() {
     ["상태", name !== "미입력" && company !== "미입력" ? "입력 진행 중" : "입력 대기"]
   ];
 
-  document.querySelector("#signupSummary").innerHTML = summary.map(([label, value]) => `
+  const signupSummary = document.querySelector("#signupSummary");
+  if (signupSummary) signupSummary.innerHTML = summary.map(([label, value]) => `
     <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
   `).join("");
   renderSocialBusinessGate();
@@ -12065,7 +12117,8 @@ function renderSignupSummary() {
   if (extractedBusinessInfo.businessCategorySection) {
     extractedSummary.splice(5, 0, ["추출 업태/종목", extractedBusinessInfo.businessCategorySection]);
   }
-  document.querySelector("#businessExtractSummary").innerHTML = extractedSummary.map(([label, value]) => `
+  const businessExtractSummary = document.querySelector("#businessExtractSummary");
+  if (businessExtractSummary) businessExtractSummary.innerHTML = extractedSummary.map(([label, value]) => `
     <div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
   `).join("");
 }
@@ -12073,6 +12126,11 @@ function renderSignupSummary() {
 async function submitSignupForm(event) {
   event.preventDefault();
   const socialSignup = isSocialSignupSelected();
+  if (!socialSignupProfile?.provider || !socialSignupProfile?.socialSignupToken) {
+    setText("#signupStatus", "Google, 카카오 또는 네이버 간편가입을 먼저 완료해주세요.");
+    switchPage("signupPage");
+    return;
+  }
   if (!isPhoneVerified && !socialSignup) {
     setText("#signupStatus", "전화번호 인증을 완료한 뒤 회원가입을 진행해주세요.");
     return;
@@ -12135,7 +12193,7 @@ async function submitSignupForm(event) {
   }
   const businessFileDataUrl = businessFile ? await readFileAsDataUrl(businessFile) : "";
   const businessCardFileDataUrl = businessCardFile ? await readFileAsDataUrl(businessCardFile) : "";
-  const approvalStatus = extractedBusinessInfo.approvalStatus === "가입승인" ? "승인" : "보류";
+  const approvalStatus = "보류";
   const manualBusinessType = String(formData.get("businessType") || "").trim();
   const manualBusinessItem = String(formData.get("businessItem") || "").trim();
   const signupPayload = {
@@ -12160,6 +12218,7 @@ async function submitSignupForm(event) {
     socialProviderId: socialSignupProfile?.providerId || "",
     socialName: socialSignupProfile?.name || "",
     socialAvatarUrl: socialSignupProfile?.avatarUrl || "",
+    socialSignupToken: socialSignupProfile?.socialSignupToken || "",
     extractedCompanyName: extractedBusinessInfo.companyName,
     extractedBusinessAddress: extractedBusinessInfo.businessAddress,
     representative: formData.get("representative") || extractedBusinessInfo.representative,
@@ -12169,7 +12228,7 @@ async function submitSignupForm(event) {
     businessCategorySection: extractedBusinessInfo.businessCategorySection || [manualBusinessType, manualBusinessItem].filter(Boolean).join(" / "),
     approvalStatus,
     memberGrade: "사업자",
-    priceTier: approvalStatus === "승인" ? "wholesale" : "retail",
+    priceTier: "retail",
     businessFileName: businessFile?.name || "",
     businessFileMime: businessFile?.type || "",
     businessFileDataUrl,
@@ -12188,28 +12247,12 @@ async function submitSignupForm(event) {
     }, { retries: 1, timeoutMs: 8000 });
   } catch (error) {
     console.warn(error);
-    saveSignupRequest(signupPayload);
+    setText("#signupStatus", error.message || "파트너 등록신청을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    return;
   }
-  setText("#signupStatus", approvalStatus === "승인"
-    ? `${signupPayload.companyName} 회원가입이 승인 상태로 저장되었습니다.`
-    : `${signupPayload.companyName} 회원가입은 업태/업종 기준에 맞지 않아 가입보류로 저장되었습니다.`);
-  setText("#loginStatus", approvalStatus === "승인"
-    ? `${signupPayload.companyName} 회원가입이 저장되었습니다. 등급별 가격을 볼 수 있습니다.`
-    : `${signupPayload.companyName} 계정은 가입되었고 사업자 승인 대기 상태입니다. 승인 후 상품 금액이 공개됩니다.`);
-  const signupUser = savedSignupResult?.user || {
-    phone: signupPayload.phone,
-    businessNumber: signupPayload.businessNumber,
-    name: signupPayload.name,
-    title: signupPayload.title,
-    companyName: signupPayload.companyName,
-    companyAddress: signupPayload.companyAddress,
-    provider: signupPayload.provider,
-    approvalStatus,
-    pricingAccess: approvalStatus === "승인" ? "approved" : "pending",
-    memberGrade: signupPayload.memberGrade,
-    priceTier: signupPayload.priceTier,
-    memberToken: ""
-  };
+  setText("#signupStatus", `${signupPayload.companyName} 파트너 등록신청이 접수되었습니다.`);
+  setText("#loginStatus", `${signupPayload.companyName} 계정은 파트너 승인 대기 상태입니다. 승인 후 상품 금액이 공개됩니다.`);
+  const signupUser = savedSignupResult.user;
   const authenticatedSignupUser = {
     ...signupUser,
     contactName: signupPayload.contactName,
@@ -12225,14 +12268,15 @@ async function submitSignupForm(event) {
       businessCardFileMime: signupPayload.businessCardFileMime
     }
   };
-  await applyAuthenticatedUser(authenticatedSignupUser, approvalStatus === "승인"
-    ? `${signupPayload.companyName} 계정으로 로그인되었습니다.`
-    : `${signupPayload.companyName} 계정으로 로그인되었습니다. 사업자 승인 후 상품 금액이 공개됩니다.`);
+  await applyAuthenticatedUser(
+    authenticatedSignupUser,
+    `${signupPayload.companyName} 계정으로 로그인되었습니다. 파트너 승인 후 상품 금액이 공개됩니다.`
+  );
   signupForm.reset();
   isPhoneVerified = false;
   pendingSignupAuthCode = "";
-  socialSignupProfile = null;
-  selectedSignupProvider = "일반 회원가입";
+  setPendingSocialSignupProfile(null);
+  selectedSignupProvider = "간편가입 대기";
   businessVerification = { status: "idle", message: "사업자등록번호를 입력하거나 등록증을 첨부하면 확인할 수 있습니다." };
   extractedBusinessInfo = {
     companyName: "",
@@ -12377,6 +12421,8 @@ async function logoutUser() {
   productsLoadedFromRemote = false;
   productsLoadPromise = null;
   localStorage.removeItem("tbpAuthSession");
+  setPendingSocialSignupProfile(null);
+  selectedSignupProvider = "간편가입 대기";
   if (cartSyncTimer) window.clearTimeout(cartSyncTimer);
   renderAuthControls();
   renderCart();
@@ -14440,6 +14486,10 @@ function switchPage(pageId, options = {}) {
 
   if (pageId === "myPage") {
     renderMyPage();
+  }
+
+  if (pageId === "partnerApplicationPage") {
+    renderSignupSummary();
   }
 
   if (pageId === "taxonomyTestPage") {
