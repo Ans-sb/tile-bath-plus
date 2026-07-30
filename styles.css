@@ -2553,6 +2553,20 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   align-items: end;
 }
 
+#signupPage .social-signup-heading {
+  padding: 18px 24px;
+}
+
+#signupPage .social-signup-heading h2 {
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+#signupPage .social-signup-heading .eyebrow {
+  margin-bottom: 3px;
+  font-size: 11px;
+}
+
 .social-signup-entry {
   display: grid;
   gap: 26px;
@@ -2561,6 +2575,12 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   border-top: 1px solid var(--line);
   align-content: center;
   background: #fff;
+}
+
+#signupPage .social-signup-entry {
+  gap: 18px;
+  min-height: 320px;
+  padding: 28px 40px;
 }
 
 .social-signup-copy {
@@ -2574,11 +2594,21 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   line-height: 1.18;
 }
 
+#signupPage .social-signup-copy h3 {
+  margin: 5px 0 6px;
+  font-size: 30px;
+  line-height: 1.25;
+}
+
 .social-signup-copy p {
   margin: 0;
   color: var(--muted);
   font-size: 16.9px;
   font-weight: 700;
+}
+
+#signupPage .social-signup-copy p {
+  font-size: 14px;
 }
 
 .social-signup-grid--entry {
@@ -2590,6 +2620,26 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   align-content: center;
   text-align: center;
   box-shadow: none;
+}
+
+#signupPage .social-signup-grid--entry {
+  gap: 10px;
+}
+
+#signupPage .social-signup-grid--entry .social-signup-button {
+  min-height: 54px;
+  padding: 10px 14px;
+}
+
+#signupPage .social-signup-grid--entry .social-signup-button strong {
+  font-size: 15px;
+}
+
+#signupPage .signup-status-bar {
+  margin-top: 4px;
+  padding: 11px 12px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .social-signup-button {
@@ -2634,6 +2684,26 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
 
 .naver-signup span {
   color: rgba(255, 255, 255, 0.86);
+}
+
+@media (max-width: 620px) {
+  #signupPage .social-signup-heading {
+    padding: 16px;
+  }
+
+  #signupPage .social-signup-entry {
+    gap: 14px;
+    min-height: 0;
+    padding: 20px 16px;
+  }
+
+  #signupPage .social-signup-copy h3 {
+    font-size: 24px;
+  }
+
+  #signupPage .social-signup-grid--entry {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 #loginPage.login-workspace {

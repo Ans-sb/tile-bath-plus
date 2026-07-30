@@ -22,6 +22,17 @@ test("signup page exposes only Google, Kakao, and Naver signup actions", () => {
   assert.doesNotMatch(signupMarkup, /type="password"/);
 });
 
+test("signup page uses compact typography and controls", () => {
+  const stylesCss = fs.readFileSync(path.join(rootDir, "styles.css"), "utf8");
+
+  assert.match(stylesCss, /#signupPage \.social-signup-heading h2\s*\{[\s\S]*?font-size:\s*28px/);
+  assert.match(stylesCss, /#signupPage \.social-signup-copy h3\s*\{[\s\S]*?font-size:\s*30px/);
+  assert.match(
+    stylesCss,
+    /#signupPage \.social-signup-grid--entry \.social-signup-button strong\s*\{[\s\S]*?font-size:\s*15px/
+  );
+});
+
 test("partner application owns business verification and contact fields", () => {
   const partnerStart = indexHtml.indexOf('id="partnerApplicationPage"');
   const productsStart = indexHtml.indexOf('id="productsPage"');
