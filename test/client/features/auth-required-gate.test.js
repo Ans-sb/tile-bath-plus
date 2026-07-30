@@ -25,12 +25,13 @@ test("product loading is skipped without an authenticated session", () => {
   assert.match(appJs, /async function ensureProductsReady\(\) \{\s*if \(!authUser\) return;/);
 });
 
-test("successful login returns to the originally requested member page", () => {
+test("successful login always opens the member home", () => {
   assert.match(appJs, /const AUTH_RETURN_PAGE_KEY = "tbpAuthReturnPage"/);
   assert.match(appJs, /function rememberAuthReturnPage/);
-  assert.match(appJs, /function consumeAuthReturnPage/);
-  assert.match(appJs, /switchPage\(consumeAuthReturnPage\(\), \{ pushHistory: false \}\)/);
-  assert.match(appJs, /loginForm\.reset\(\);\s*switchPage\(consumeAuthReturnPage\(\)\);/);
+  assert.match(appJs, /function openMemberHomeAfterLogin\(options = \{\}\)/);
+  assert.match(appJs, /clearAuthReturnPage\(\);\s*switchPage\("homePage", options\);/);
+  assert.match(appJs, /loginForm\?\.reset\(\);\s*openMemberHomeAfterLogin\(\{ pushHistory: false \}\);/);
+  assert.match(appJs, /loginForm\.reset\(\);\s*openMemberHomeAfterLogin\(\);/);
 });
 
 test("login started from the public home always opens the member home", () => {
@@ -38,5 +39,5 @@ test("login started from the public home always opens the member home", () => {
     appJs,
     /pageId === "loginPage" && currentPageId === "homePage" && !authUser[\s\S]*?clearAuthReturnPage\(\)/
   );
-  assert.match(appJs, /return AUTH_REQUIRED_PAGE_IDS\.has\(pageId\) \? pageId : "homePage"/);
+  assert.match(appJs, /openMemberHomeAfterLogin/);
 });

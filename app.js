@@ -12325,7 +12325,7 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
         }, { retries: 1, timeoutMs: 10000 });
         await applyAuthenticatedUser(result.user, `${providerLabel} 계정으로 로그인되었습니다.`);
         loginForm?.reset();
-        switchPage(consumeAuthReturnPage(), { pushHistory: false });
+        openMemberHomeAfterLogin({ pushHistory: false });
         return;
       } catch (loginError) {
         setPendingSocialSignupProfile({
@@ -12750,7 +12750,12 @@ async function submitLoginForm(event) {
 
   await applyAuthenticatedUser(matchedUser, `${matchedUser.companyName} 계정으로 로그인되었습니다.`);
   loginForm.reset();
-  switchPage(consumeAuthReturnPage());
+  openMemberHomeAfterLogin();
+}
+
+function openMemberHomeAfterLogin(options = {}) {
+  clearAuthReturnPage();
+  switchPage("homePage", options);
 }
 
 async function applyAuthenticatedUser(matchedUser, message = "") {
@@ -14956,12 +14961,6 @@ function readAuthReturnPage(fallbackPageId = "") {
   } catch {
     return fallbackPageId;
   }
-}
-
-function consumeAuthReturnPage() {
-  const pageId = readAuthReturnPage();
-  clearAuthReturnPage();
-  return AUTH_REQUIRED_PAGE_IDS.has(pageId) ? pageId : "homePage";
 }
 
 function clearAuthReturnPage() {
