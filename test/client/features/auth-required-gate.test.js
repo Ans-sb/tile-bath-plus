@@ -41,3 +41,15 @@ test("login started from the public home always opens the member home", () => {
   );
   assert.match(appJs, /openMemberHomeAfterLogin/);
 });
+
+test("quick login is the primary section and business login is stacked below it", () => {
+  const quickLoginIndex = indexHtml.indexOf("login-primary-panel");
+  const businessLoginIndex = indexHtml.indexOf("login-business-panel");
+
+  assert.ok(quickLoginIndex >= 0);
+  assert.ok(businessLoginIndex > quickLoginIndex);
+  assert.match(
+    fs.readFileSync(path.join(rootDir, "styles.css"), "utf8"),
+    /#loginPage\.login-workspace\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)/
+  );
+});
