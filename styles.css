@@ -2642,6 +2642,10 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   line-height: 1.5;
 }
 
+#signupPage #signupEntryStatus:empty {
+  display: none;
+}
+
 .social-signup-button {
   display: grid;
   gap: 8px;

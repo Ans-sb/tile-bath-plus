@@ -17,6 +17,8 @@ test("signup page exposes only Google, Kakao, and Naver signup actions", () => {
   assert.match(signupMarkup, /id="googleSignupBtn"/);
   assert.match(signupMarkup, /id="kakaoSignupBtn"/);
   assert.match(signupMarkup, /id="naverSignupBtn"/);
+  assert.match(signupMarkup, /id="signupEntryStatus" role="status" aria-live="polite"><\/div>/);
+  assert.doesNotMatch(signupMarkup, /Google, 카카오, 네이버 중 하나를 선택해주세요/);
   assert.doesNotMatch(signupMarkup, /id="signupForm"/);
   assert.doesNotMatch(signupMarkup, /name="businessNumber"/);
   assert.doesNotMatch(signupMarkup, /type="password"/);
