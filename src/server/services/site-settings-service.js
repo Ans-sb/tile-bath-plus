@@ -121,8 +121,27 @@ Object.values(DEFAULT_PAGE_SETTINGS).forEach((page) => {
     backgroundColor: "#ffffff",
     surfaceColor: "#ffffff",
     accentColor: "#0b5cff",
+    textColor: "#141922",
+    mutedTextColor: "#667085",
+    borderColor: "#d8dee7",
+    buttonColor: "#0b5cff",
+    buttonTextColor: "#ffffff",
+    fontFamily: "inherit",
+    headingWeight: 800,
+    textAlign: "left",
     headingScale: 100,
+    bodyScale: 100,
     sectionGap: 24,
+    contentPadding: 24,
+    contentWidth: 1480,
+    borderWidth: 1,
+    cornerRadius: 8,
+    shadowStrength: 8,
+    imageRatio: "auto",
+    imageFit: "cover",
+    imagePosition: "center",
+    buttonStyle: "solid",
+    cardStyle: "bordered",
     contentEnabled: false,
     imageEnabled: false,
     designEnabled: false
@@ -130,7 +149,7 @@ Object.values(DEFAULT_PAGE_SETTINGS).forEach((page) => {
 });
 
 const DEFAULT_SITE_SETTINGS = {
-  version: 2,
+  version: 3,
   appearance: {
     fontFamily: "system",
     fontScale: "default",
@@ -205,6 +224,13 @@ const DEFAULT_SITE_SETTINGS = {
 
 const FONT_FAMILIES = new Set(["system", "pretendard", "noto", "serif"]);
 const FONT_SCALES = new Set(["compact", "default", "large"]);
+const PAGE_FONT_FAMILIES = new Set(["inherit", "system", "pretendard", "noto", "serif"]);
+const PAGE_TEXT_ALIGNMENTS = new Set(["left", "center", "right"]);
+const PAGE_IMAGE_RATIOS = new Set(["auto", "square", "landscape", "portrait", "wide"]);
+const PAGE_IMAGE_FITS = new Set(["cover", "contain", "fill"]);
+const PAGE_IMAGE_POSITIONS = new Set(["center", "top", "bottom", "left", "right"]);
+const PAGE_BUTTON_STYLES = new Set(["solid", "outline", "minimal"]);
+const PAGE_CARD_STYLES = new Set(["flat", "bordered", "elevated"]);
 const MENU_IDS = new Set(DEFAULT_SITE_SETTINGS.menu.map((item) => item.id));
 const PAGE_IDS = new Set(Object.keys(DEFAULT_PAGE_SETTINGS));
 
@@ -278,8 +304,27 @@ function sanitizeSiteSettings(input = {}) {
       backgroundColor: cleanColor(source.backgroundColor, fallback.backgroundColor),
       surfaceColor: cleanColor(source.surfaceColor, fallback.surfaceColor),
       accentColor: cleanColor(source.accentColor, fallback.accentColor),
-      headingScale: cleanNumber(source.headingScale, fallback.headingScale, 80, 140),
-      sectionGap: cleanNumber(source.sectionGap, fallback.sectionGap, 12, 64),
+      textColor: cleanColor(source.textColor, fallback.textColor),
+      mutedTextColor: cleanColor(source.mutedTextColor, fallback.mutedTextColor),
+      borderColor: cleanColor(source.borderColor, fallback.borderColor),
+      buttonColor: cleanColor(source.buttonColor, fallback.buttonColor),
+      buttonTextColor: cleanColor(source.buttonTextColor, fallback.buttonTextColor),
+      fontFamily: PAGE_FONT_FAMILIES.has(source.fontFamily) ? source.fontFamily : fallback.fontFamily,
+      headingWeight: cleanNumber(source.headingWeight, fallback.headingWeight, 400, 900),
+      textAlign: PAGE_TEXT_ALIGNMENTS.has(source.textAlign) ? source.textAlign : fallback.textAlign,
+      headingScale: cleanNumber(source.headingScale, fallback.headingScale, 70, 180),
+      bodyScale: cleanNumber(source.bodyScale, fallback.bodyScale, 80, 140),
+      sectionGap: cleanNumber(source.sectionGap, fallback.sectionGap, 8, 96),
+      contentPadding: cleanNumber(source.contentPadding, fallback.contentPadding, 0, 64),
+      contentWidth: cleanNumber(source.contentWidth, fallback.contentWidth, 720, 1800),
+      borderWidth: cleanNumber(source.borderWidth, fallback.borderWidth, 0, 4),
+      cornerRadius: cleanNumber(source.cornerRadius, fallback.cornerRadius, 0, 32),
+      shadowStrength: cleanNumber(source.shadowStrength, fallback.shadowStrength, 0, 40),
+      imageRatio: PAGE_IMAGE_RATIOS.has(source.imageRatio) ? source.imageRatio : fallback.imageRatio,
+      imageFit: PAGE_IMAGE_FITS.has(source.imageFit) ? source.imageFit : fallback.imageFit,
+      imagePosition: PAGE_IMAGE_POSITIONS.has(source.imagePosition) ? source.imagePosition : fallback.imagePosition,
+      buttonStyle: PAGE_BUTTON_STYLES.has(source.buttonStyle) ? source.buttonStyle : fallback.buttonStyle,
+      cardStyle: PAGE_CARD_STYLES.has(source.cardStyle) ? source.cardStyle : fallback.cardStyle,
       contentEnabled: source.contentEnabled === true,
       imageEnabled: source.imageEnabled === true,
       designEnabled: source.designEnabled === true

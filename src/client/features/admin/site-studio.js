@@ -1,6 +1,6 @@
 (function attachSiteStudio(global) {
   const DEFAULT_SETTINGS = {
-    version: 2,
+    version: 3,
     appearance: {
       fontFamily: "system",
       fontScale: "default",
@@ -100,8 +100,27 @@
       backgroundColor: "#ffffff",
       surfaceColor: "#ffffff",
       accentColor: "#0b5cff",
+      textColor: "#141922",
+      mutedTextColor: "#667085",
+      borderColor: "#d8dee7",
+      buttonColor: "#0b5cff",
+      buttonTextColor: "#ffffff",
+      fontFamily: "inherit",
+      headingWeight: 800,
+      textAlign: "left",
       headingScale: 100,
+      bodyScale: 100,
       sectionGap: 24,
+      contentPadding: 24,
+      contentWidth: 1480,
+      borderWidth: 1,
+      cornerRadius: 8,
+      shadowStrength: 8,
+      imageRatio: "auto",
+      imageFit: "cover",
+      imagePosition: "center",
+      buttonStyle: "solid",
+      cardStyle: "bordered",
       contentEnabled: false,
       imageEnabled: false,
       designEnabled: false
@@ -314,6 +333,29 @@
     return '"Segoe UI", "Noto Sans KR", Arial, sans-serif';
   }
 
+  function pageFontStack(fontFamily) {
+    return fontFamily === "inherit" ? "var(--site-font-family)" : fontStack(fontFamily);
+  }
+
+  function imageRatioValue(imageRatio) {
+    return {
+      square: "1 / 1",
+      landscape: "4 / 3",
+      portrait: "3 / 4",
+      wide: "16 / 9"
+    }[imageRatio] || "auto";
+  }
+
+  function backgroundImageFitValue(imageFit) {
+    return imageFit === "fill" ? "100% 100%" : imageFit;
+  }
+
+  function flexAlignmentValue(textAlign) {
+    if (textAlign === "center") return "center";
+    if (textAlign === "right") return "flex-end";
+    return "flex-start";
+  }
+
   function setMenuLabel(node, label) {
     const copy = node.querySelector(".nav-copy");
     if (copy) {
@@ -382,6 +424,18 @@
         else imageNode.removeAttribute("src");
         imageNode.classList.remove("site-page-editor-image");
       }
+      imageNode.classList.toggle("site-page-managed-image", pageSettings.designEnabled);
+      if (pageSettings.designEnabled) {
+        imageNode.style.setProperty("--site-page-image-ratio", imageRatioValue(pageSettings.imageRatio));
+        imageNode.style.setProperty("--site-page-image-fit", pageSettings.imageFit);
+        imageNode.style.setProperty("--site-page-image-position", pageSettings.imagePosition);
+      } else {
+        [
+          "--site-page-image-ratio",
+          "--site-page-image-fit",
+          "--site-page-image-position"
+        ].forEach((property) => imageNode.style.removeProperty(property));
+      }
     }
     pageNode.classList.toggle(
       "site-page-image-enabled",
@@ -410,16 +464,59 @@
         pageNode.style.setProperty("--site-page-background", pageSettings.backgroundColor);
         pageNode.style.setProperty("--site-page-surface", pageSettings.surfaceColor);
         pageNode.style.setProperty("--site-page-accent", pageSettings.accentColor);
+        pageNode.style.setProperty("--site-page-text", pageSettings.textColor);
+        pageNode.style.setProperty("--site-page-muted", pageSettings.mutedTextColor);
+        pageNode.style.setProperty("--site-page-border", pageSettings.borderColor);
+        pageNode.style.setProperty("--site-page-button", pageSettings.buttonColor);
+        pageNode.style.setProperty("--site-page-button-text", pageSettings.buttonTextColor);
+        pageNode.style.setProperty("--site-page-font-family", pageFontStack(pageSettings.fontFamily));
+        pageNode.style.setProperty("--site-page-heading-weight", String(pageSettings.headingWeight));
+        pageNode.style.setProperty("--site-page-text-align", pageSettings.textAlign);
         pageNode.style.setProperty("--site-page-heading-scale", String(Number(pageSettings.headingScale || 100) / 100));
+        pageNode.style.setProperty("--site-page-body-scale", String(Number(pageSettings.bodyScale || 100) / 100));
         pageNode.style.setProperty("--site-page-section-gap", `${Number(pageSettings.sectionGap || 24)}px`);
+        pageNode.style.setProperty("--site-page-content-padding", `${Number(pageSettings.contentPadding || 24)}px`);
+        pageNode.style.setProperty("--site-page-content-width", `${Number(pageSettings.contentWidth || 1480)}px`);
+        pageNode.style.setProperty("--site-page-border-width", `${Number(pageSettings.borderWidth || 0)}px`);
+        pageNode.style.setProperty("--site-page-corner-radius", `${Number(pageSettings.cornerRadius || 0)}px`);
+        pageNode.style.setProperty(
+          "--site-page-shadow",
+          `0 12px 32px rgb(16 24 40 / ${Number(pageSettings.shadowStrength || 0)}%)`
+        );
+        pageNode.style.setProperty("--site-page-image-ratio", imageRatioValue(pageSettings.imageRatio));
+        pageNode.style.setProperty("--site-page-image-fit", pageSettings.imageFit);
+        pageNode.style.setProperty("--site-page-background-fit", backgroundImageFitValue(pageSettings.imageFit));
+        pageNode.style.setProperty("--site-page-image-position", pageSettings.imagePosition);
+        pageNode.dataset.siteButtonStyle = pageSettings.buttonStyle;
+        pageNode.dataset.siteCardStyle = pageSettings.cardStyle;
       } else {
         [
           "--site-page-background",
           "--site-page-surface",
           "--site-page-accent",
+          "--site-page-text",
+          "--site-page-muted",
+          "--site-page-border",
+          "--site-page-button",
+          "--site-page-button-text",
+          "--site-page-font-family",
+          "--site-page-heading-weight",
+          "--site-page-text-align",
           "--site-page-heading-scale",
-          "--site-page-section-gap"
+          "--site-page-body-scale",
+          "--site-page-section-gap",
+          "--site-page-content-padding",
+          "--site-page-content-width",
+          "--site-page-border-width",
+          "--site-page-corner-radius",
+          "--site-page-shadow",
+          "--site-page-image-ratio",
+          "--site-page-image-fit",
+          "--site-page-background-fit",
+          "--site-page-image-position"
         ].forEach((property) => pageNode.style.removeProperty(property));
+        delete pageNode.dataset.siteButtonStyle;
+        delete pageNode.dataset.siteCardStyle;
       }
     });
   }
@@ -702,26 +799,146 @@
 
       <section class="site-studio-page-setting-group">
         <header>
-          <div><strong>화면 디자인</strong><small>이 페이지에만 색상과 밀도 적용</small></div>
+          <div><strong>화면 디자인</strong><small>글꼴부터 이미지·버튼·카드까지 이 페이지에만 적용</small></div>
           <label class="site-studio-switch">
             <input type="checkbox" data-site-page-enabled="designEnabled" ${page.designEnabled ? "checked" : ""} />
             <span>적용</span>
           </label>
         </header>
-        <div class="site-studio-form-grid site-studio-page-design-grid">
-          ${renderPageColorField("backgroundColor", "페이지 배경", page.backgroundColor)}
-          ${renderPageColorField("surfaceColor", "콘텐츠 배경", page.surfaceColor)}
-          ${renderPageColorField("accentColor", "강조 색상", page.accentColor)}
-        </div>
-        <div class="site-studio-layout-list">
-          <label class="site-studio-range-field">
-            <span>제목 크기 <b data-site-page-range-value="headingScale">${escapeHtml(page.headingScale)}%</b></span>
-            <input type="range" min="80" max="140" value="${escapeHtml(page.headingScale)}" data-site-page-design-field="headingScale" data-site-range-unit="%" />
-          </label>
-          <label class="site-studio-range-field">
-            <span>섹션 간격 <b data-site-page-range-value="sectionGap">${escapeHtml(page.sectionGap)}px</b></span>
-            <input type="range" min="12" max="64" value="${escapeHtml(page.sectionGap)}" data-site-page-design-field="sectionGap" data-site-range-unit="px" />
-          </label>
+        <div class="site-studio-advanced-design">
+          <details open>
+            <summary>색상</summary>
+            <div class="site-studio-form-grid site-studio-page-design-grid">
+              ${renderPageColorField("backgroundColor", "페이지 배경", page.backgroundColor)}
+              ${renderPageColorField("surfaceColor", "콘텐츠 배경", page.surfaceColor)}
+              ${renderPageColorField("accentColor", "강조 색상", page.accentColor)}
+              ${renderPageColorField("textColor", "기본 글자", page.textColor)}
+              ${renderPageColorField("mutedTextColor", "보조 글자", page.mutedTextColor)}
+              ${renderPageColorField("borderColor", "테두리", page.borderColor)}
+              ${renderPageColorField("buttonColor", "버튼 배경", page.buttonColor)}
+              ${renderPageColorField("buttonTextColor", "버튼 글자", page.buttonTextColor)}
+            </div>
+          </details>
+
+          <details open>
+            <summary>글자</summary>
+            <div class="site-studio-form-grid site-studio-page-option-grid">
+              <label>글꼴
+                <select data-site-page-design-field="fontFamily">
+                  <option value="inherit" ${page.fontFamily === "inherit" ? "selected" : ""}>전체 설정 따름</option>
+                  <option value="system" ${page.fontFamily === "system" ? "selected" : ""}>시스템 고딕</option>
+                  <option value="pretendard" ${page.fontFamily === "pretendard" ? "selected" : ""}>Pretendard</option>
+                  <option value="noto" ${page.fontFamily === "noto" ? "selected" : ""}>Noto Sans KR</option>
+                  <option value="serif" ${page.fontFamily === "serif" ? "selected" : ""}>명조·세리프</option>
+                </select>
+              </label>
+              <label>제목 굵기
+                <select data-site-page-design-field="headingWeight">
+                  ${[400, 500, 600, 700, 800, 900].map((weight) => `<option value="${weight}" ${Number(page.headingWeight) === weight ? "selected" : ""}>${weight}</option>`).join("")}
+                </select>
+              </label>
+              <label>텍스트 정렬
+                <select data-site-page-design-field="textAlign">
+                  <option value="left" ${page.textAlign === "left" ? "selected" : ""}>왼쪽</option>
+                  <option value="center" ${page.textAlign === "center" ? "selected" : ""}>가운데</option>
+                  <option value="right" ${page.textAlign === "right" ? "selected" : ""}>오른쪽</option>
+                </select>
+              </label>
+            </div>
+            <div class="site-studio-layout-list site-studio-page-range-grid">
+              <label class="site-studio-range-field">
+                <span>제목 크기 <b data-site-page-range-value="headingScale">${escapeHtml(page.headingScale)}%</b></span>
+                <input type="range" min="70" max="180" value="${escapeHtml(page.headingScale)}" data-site-page-design-field="headingScale" data-site-range-unit="%" />
+              </label>
+              <label class="site-studio-range-field">
+                <span>본문 크기 <b data-site-page-range-value="bodyScale">${escapeHtml(page.bodyScale)}%</b></span>
+                <input type="range" min="80" max="140" value="${escapeHtml(page.bodyScale)}" data-site-page-design-field="bodyScale" data-site-range-unit="%" />
+              </label>
+            </div>
+          </details>
+
+          <details>
+            <summary>폭과 여백</summary>
+            <div class="site-studio-layout-list site-studio-page-range-grid">
+              <label class="site-studio-range-field">
+                <span>콘텐츠 폭 <b data-site-page-range-value="contentWidth">${escapeHtml(page.contentWidth)}px</b></span>
+                <input type="range" min="720" max="1800" step="20" value="${escapeHtml(page.contentWidth)}" data-site-page-design-field="contentWidth" data-site-range-unit="px" />
+              </label>
+              <label class="site-studio-range-field">
+                <span>안쪽 여백 <b data-site-page-range-value="contentPadding">${escapeHtml(page.contentPadding)}px</b></span>
+                <input type="range" min="0" max="64" value="${escapeHtml(page.contentPadding)}" data-site-page-design-field="contentPadding" data-site-range-unit="px" />
+              </label>
+              <label class="site-studio-range-field">
+                <span>섹션 간격 <b data-site-page-range-value="sectionGap">${escapeHtml(page.sectionGap)}px</b></span>
+                <input type="range" min="8" max="96" value="${escapeHtml(page.sectionGap)}" data-site-page-design-field="sectionGap" data-site-range-unit="px" />
+              </label>
+            </div>
+          </details>
+
+          <details>
+            <summary>테두리와 카드</summary>
+            <div class="site-studio-form-grid site-studio-page-option-grid">
+              <label>카드 표현
+                <select data-site-page-design-field="cardStyle">
+                  <option value="flat" ${page.cardStyle === "flat" ? "selected" : ""}>평면</option>
+                  <option value="bordered" ${page.cardStyle === "bordered" ? "selected" : ""}>테두리</option>
+                  <option value="elevated" ${page.cardStyle === "elevated" ? "selected" : ""}>그림자</option>
+                </select>
+              </label>
+              <label>버튼 표현
+                <select data-site-page-design-field="buttonStyle">
+                  <option value="solid" ${page.buttonStyle === "solid" ? "selected" : ""}>채움</option>
+                  <option value="outline" ${page.buttonStyle === "outline" ? "selected" : ""}>외곽선</option>
+                  <option value="minimal" ${page.buttonStyle === "minimal" ? "selected" : ""}>최소형</option>
+                </select>
+              </label>
+            </div>
+            <div class="site-studio-layout-list site-studio-page-range-grid">
+              <label class="site-studio-range-field">
+                <span>테두리 굵기 <b data-site-page-range-value="borderWidth">${escapeHtml(page.borderWidth)}px</b></span>
+                <input type="range" min="0" max="4" value="${escapeHtml(page.borderWidth)}" data-site-page-design-field="borderWidth" data-site-range-unit="px" />
+              </label>
+              <label class="site-studio-range-field">
+                <span>모서리 <b data-site-page-range-value="cornerRadius">${escapeHtml(page.cornerRadius)}px</b></span>
+                <input type="range" min="0" max="32" value="${escapeHtml(page.cornerRadius)}" data-site-page-design-field="cornerRadius" data-site-range-unit="px" />
+              </label>
+              <label class="site-studio-range-field">
+                <span>그림자 <b data-site-page-range-value="shadowStrength">${escapeHtml(page.shadowStrength)}%</b></span>
+                <input type="range" min="0" max="40" value="${escapeHtml(page.shadowStrength)}" data-site-page-design-field="shadowStrength" data-site-range-unit="%" />
+              </label>
+            </div>
+          </details>
+
+          <details>
+            <summary>이미지</summary>
+            <div class="site-studio-form-grid site-studio-page-option-grid">
+              <label>이미지 비율
+                <select data-site-page-design-field="imageRatio">
+                  <option value="auto" ${page.imageRatio === "auto" ? "selected" : ""}>원본 비율</option>
+                  <option value="square" ${page.imageRatio === "square" ? "selected" : ""}>정사각형 1:1</option>
+                  <option value="landscape" ${page.imageRatio === "landscape" ? "selected" : ""}>가로 4:3</option>
+                  <option value="wide" ${page.imageRatio === "wide" ? "selected" : ""}>와이드 16:9</option>
+                  <option value="portrait" ${page.imageRatio === "portrait" ? "selected" : ""}>세로 3:4</option>
+                </select>
+              </label>
+              <label>이미지 맞춤
+                <select data-site-page-design-field="imageFit">
+                  <option value="cover" ${page.imageFit === "cover" ? "selected" : ""}>영역 채우기</option>
+                  <option value="contain" ${page.imageFit === "contain" ? "selected" : ""}>전체 보이기</option>
+                  <option value="fill" ${page.imageFit === "fill" ? "selected" : ""}>영역에 맞추기</option>
+                </select>
+              </label>
+              <label>이미지 기준점
+                <select data-site-page-design-field="imagePosition">
+                  <option value="center" ${page.imagePosition === "center" ? "selected" : ""}>가운데</option>
+                  <option value="top" ${page.imagePosition === "top" ? "selected" : ""}>위</option>
+                  <option value="bottom" ${page.imagePosition === "bottom" ? "selected" : ""}>아래</option>
+                  <option value="left" ${page.imagePosition === "left" ? "selected" : ""}>왼쪽</option>
+                  <option value="right" ${page.imagePosition === "right" ? "selected" : ""}>오른쪽</option>
+                </select>
+              </label>
+            </div>
+          </details>
         </div>
       </section>
     `;
@@ -881,12 +1098,30 @@
         `--preview-page-bg:${page.designEnabled ? page.backgroundColor : settings.appearance.pageColor}`,
         `--preview-page-surface:${page.designEnabled ? page.surfaceColor : settings.appearance.surfaceColor}`,
         `--preview-page-accent:${page.designEnabled ? page.accentColor : settings.appearance.primaryColor}`,
+        `--preview-page-text:${page.designEnabled ? page.textColor : settings.appearance.inkColor}`,
+        `--preview-page-muted:${page.designEnabled ? page.mutedTextColor : "#667085"}`,
+        `--preview-page-border:${page.designEnabled ? page.borderColor : "#d8dee7"}`,
+        `--preview-page-button:${page.designEnabled ? page.buttonColor : settings.appearance.primaryColor}`,
+        `--preview-page-button-text:${page.designEnabled ? page.buttonTextColor : "#ffffff"}`,
+        `--preview-page-font:${page.designEnabled ? pageFontStack(page.fontFamily).replace(/"/g, "'") : fontStack(settings.appearance.fontFamily).replace(/"/g, "'")}`,
+        `--preview-page-heading-weight:${Number(page.designEnabled ? page.headingWeight : 800)}`,
+        `--preview-page-text-align:${page.designEnabled ? page.textAlign : "left"}`,
+        `--preview-page-flex-align:${flexAlignmentValue(page.designEnabled ? page.textAlign : "left")}`,
         `--preview-page-heading-scale:${Number(page.designEnabled ? page.headingScale : 100) / 100}`,
-        `--preview-page-gap:${Number(page.designEnabled ? page.sectionGap : 24)}px`
+        `--preview-page-body-scale:${Number(page.designEnabled ? page.bodyScale : 100) / 100}`,
+        `--preview-page-gap:${Number(page.designEnabled ? page.sectionGap : 24)}px`,
+        `--preview-page-padding:${Number(page.designEnabled ? page.contentPadding : 24)}px`,
+        `--preview-page-border-width:${Number(page.designEnabled ? page.borderWidth : 1)}px`,
+        `--preview-page-radius:${Number(page.designEnabled ? page.cornerRadius : 8)}px`,
+        `--preview-page-shadow:0 10px 24px rgb(16 24 40 / ${Number(page.designEnabled ? page.shadowStrength : 8)}%)`,
+        `--preview-page-image-ratio:${imageRatioValue(page.designEnabled ? page.imageRatio : "auto")}`,
+        `--preview-page-image-fit:${page.designEnabled ? page.imageFit : "cover"}`,
+        `--preview-page-background-fit:${backgroundImageFitValue(page.designEnabled ? page.imageFit : "cover")}`,
+        `--preview-page-image-position:${page.designEnabled ? page.imagePosition : "center"}`
       ].join(";");
       const image = page.imageEnabled ? page.heroImage : DEFAULT_SETTINGS.pages[pageId]?.heroImage;
       preview.innerHTML = `
-        <div class="site-studio-preview-shell site-studio-preview-page-shell" style="${style};${pageStyle}">
+        <div class="site-studio-preview-shell site-studio-preview-page-shell" data-preview-button-style="${escapeHtml(page.buttonStyle)}" data-preview-card-style="${escapeHtml(page.cardStyle)}" style="${style};${pageStyle}">
           <nav>${navigation}</nav>
           <section class="site-studio-preview-page-card ${image ? "has-image" : ""}" ${image ? `style="background-image:linear-gradient(90deg,rgba(8,25,87,.88),rgba(8,25,87,.18)),url('${escapeHtml(image)}')"` : ""}>
             <small>${escapeHtml(page.eyebrow)}</small>
@@ -1015,7 +1250,17 @@
   function updateActivePageField(key, rawValue, enabledKey) {
     const page = getActivePageSettings();
     recordHistory(`page:${state.activePageId}:${key}`);
-    const numericKeys = new Set(["headingScale", "sectionGap"]);
+    const numericKeys = new Set([
+      "headingWeight",
+      "headingScale",
+      "bodyScale",
+      "sectionGap",
+      "contentPadding",
+      "contentWidth",
+      "borderWidth",
+      "cornerRadius",
+      "shadowStrength"
+    ]);
     page[key] = numericKeys.has(key) ? Number(rawValue) : rawValue;
     if (enabledKey) page[enabledKey] = true;
     applySettings(state.draft);
@@ -1243,6 +1488,19 @@
       const pageDesign = event.target.closest("[data-site-page-design-field]");
       if (pageDesign) {
         const key = pageDesign.dataset.sitePageDesignField;
+        const colorKeys = new Set([
+          "backgroundColor",
+          "surfaceColor",
+          "accentColor",
+          "textColor",
+          "mutedTextColor",
+          "borderColor",
+          "buttonColor",
+          "buttonTextColor"
+        ]);
+        if (pageDesign.type === "text" && colorKeys.has(key) && !/^#[0-9a-f]{6}$/i.test(pageDesign.value)) {
+          return;
+        }
         updateActivePageField(key, pageDesign.value, "designEnabled");
         document.querySelectorAll(`[data-site-page-design-field="${key}"]`).forEach((node) => {
           if (node !== pageDesign) node.value = pageDesign.value;

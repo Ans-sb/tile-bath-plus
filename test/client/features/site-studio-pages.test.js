@@ -32,6 +32,31 @@ test("page editor supports independent content, image, and design overrides", ()
   assert.match(studioJs, /openPageEditor/);
 });
 
+test("page editor exposes advanced typography, layout, card, button, and image controls", () => {
+  [
+    "fontFamily",
+    "headingWeight",
+    "textAlign",
+    "headingScale",
+    "bodyScale",
+    "contentWidth",
+    "contentPadding",
+    "sectionGap",
+    "borderWidth",
+    "cornerRadius",
+    "shadowStrength",
+    "buttonStyle",
+    "cardStyle",
+    "imageRatio",
+    "imageFit",
+    "imagePosition"
+  ].forEach((field) => {
+    assert.match(studioJs, new RegExp(`data-site-page-design-field="${field}"`));
+  });
+  assert.match(studioJs, /--site-page-button-text/);
+  assert.match(studioJs, /--site-page-image-position/);
+});
+
 test("customer page editor does not add internal product management fields", () => {
   [
     "internal_brand_id",
