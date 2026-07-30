@@ -90,6 +90,12 @@ const publicSiteUrl = String(
 const androidAppLinkFingerprints = parseAndroidAppLinkFingerprints(
   process.env.ANDROID_APP_LINK_SHA256_CERT_FINGERPRINTS
 );
+const appleTeamId = String(
+  process.env.APPLE_TEAM_ID
+  || process.env.IOS_APP_TEAM_ID
+  || ""
+).trim().toUpperCase();
+const appleBundleId = String(process.env.IOS_APP_BUNDLE_ID || "com.jajaego.app").trim();
 const naverClientId = String(
   process.env.NAVER_LOGIN_CLIENT_ID
   || process.env.NAVER_CLIENT_ID
@@ -330,6 +336,7 @@ function getSystemRouteContext() {
     startedAt,
     getStorageMode,
     getAndroidAssetLinks,
+    getAppleAppSiteAssociation,
     startSocialAuth,
     buildSocialAuthStartUrl,
     completeNaverSocialAuth,
@@ -2230,8 +2237,9 @@ function buildSocialAuthStartUrl(providerValue, modeValue, request, clientValue 
   const redirectTo = new URL(getRequestOrigin(request));
   redirectTo.searchParams.set("socialProvider", provider);
   redirectTo.searchParams.set("socialMode", mode);
-  if (normalizeSocialAuthClient(clientValue) === "android") {
-    redirectTo.searchParams.set("mobileClient", "android");
+  const client = normalizeSocialAuthClient(clientValue);
+  if (client !== "web") {
+    redirectTo.searchParams.set("mobileClient", client);
   }
 
   const authUrl = new URL(`${supabaseUrl}/auth/v1/authorize`);
@@ -2257,7 +2265,8 @@ function startSocialAuth(providerValue, modeValue, request, clientValue = "") {
 }
 
 function normalizeSocialAuthClient(value) {
-  return String(value || "").trim().toLowerCase() === "android" ? "android" : "web";
+  const client = String(value || "").trim().toLowerCase();
+  return ["android", "ios"].includes(client) ? client : "web";
 }
 
 function parseAndroidAppLinkFingerprints(value) {
@@ -2279,6 +2288,34 @@ function getAndroidAssetLinks() {
       sha256_cert_fingerprints: androidAppLinkFingerprints
     }
   }];
+}
+
+function getAppleAppSiteAssociation() {
+  const appIds = appleTeamId && appleBundleId
+    ? [`${appleTeamId}.${appleBundleId}`]
+    : [];
+  return {
+    applinks: {
+      apps: [],
+      details: appIds.map((appId) => ({
+        appIDs: [appId],
+        components: [
+          {
+            "/": "/*",
+            "?": { mobileClient: "ios" },
+            comment: "자재GO iOS 소셜 로그인 복귀"
+          },
+          {
+            "/": "/",
+            comment: "자재GO 앱 홈"
+          }
+        ]
+      }))
+    },
+    webcredentials: {
+      apps: appIds
+    }
+  };
 }
 
 async function completeNaverSocialAuth(request) {

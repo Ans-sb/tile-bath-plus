@@ -246,8 +246,9 @@ function buildAppRedirect({ requestOrigin, mode, client, accessToken }) {
 
 function createClientRedirectUrl(requestOrigin, client) {
   const url = new URL(requestOrigin);
-  if (normalizeClient(client) === "android") {
-    url.searchParams.set("mobileClient", "android");
+  const normalizedClient = normalizeClient(client);
+  if (normalizedClient !== "web") {
+    url.searchParams.set("mobileClient", normalizedClient);
   }
   return url;
 }
@@ -266,7 +267,8 @@ function normalizeMode(value) {
 }
 
 function normalizeClient(value) {
-  return String(value || "").trim().toLowerCase() === "android" ? "android" : "web";
+  const client = String(value || "").trim().toLowerCase();
+  return ["android", "ios"].includes(client) ? client : "web";
 }
 
 function serializeOAuthCookie(nonce, ttlMs, requestOrigin) {

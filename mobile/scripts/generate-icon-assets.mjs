@@ -7,6 +7,15 @@ const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const mobileRoot = path.resolve(scriptRoot, "..");
 const projectRoot = path.resolve(mobileRoot, "..");
 const resourceRoot = path.join(mobileRoot, "android", "app", "src", "main", "res");
+const iosAppIconPath = path.join(
+  mobileRoot,
+  "ios",
+  "App",
+  "App",
+  "Assets.xcassets",
+  "AppIcon.appiconset",
+  "AppIcon-512@2x.png"
+);
 const sourceLogoPath = path.join(projectRoot, "images", "branding", "btn-material-go.png");
 const brandBlue = { r: 20, g: 100, b: 244, alpha: 1 };
 
@@ -26,6 +35,9 @@ await createRoundedIcon(
   0.18,
   0.78
 );
+if (await pathExists(path.dirname(iosAppIconPath))) {
+  await createSquareIcon(iosAppIconPath, 1024, 0.78);
+}
 
 const densities = [
   ["ldpi", 36, 81],
@@ -119,6 +131,33 @@ async function createRoundIcon(outputPath, size, wordmarkWidthRatio) {
   );
 }
 
+async function createSquareIcon(outputPath, size, wordmarkWidthRatio) {
+  const resizedWordmark = await sharp(wordmark)
+    .resize({ width: Math.round(size * wordmarkWidthRatio), fit: "inside" })
+    .png()
+    .toBuffer();
+  const wordmarkMetadata = await sharp(resizedWordmark).metadata();
+  const renderedWidth = wordmarkMetadata.width ?? Math.round(size * wordmarkWidthRatio);
+  const renderedHeight = wordmarkMetadata.height ?? Math.round(size * 0.2);
+
+  await sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 3,
+      background: brandBlue
+    }
+  })
+    .composite([{
+      input: resizedWordmark,
+      left: Math.round((size - renderedWidth) / 2),
+      top: Math.round((size - renderedHeight) / 2)
+    }])
+    .removeAlpha()
+    .png({ compressionLevel: 9 })
+    .toFile(outputPath);
+}
+
 async function createMaskedIcon(outputPath, size, wordmarkWidthRatio, maskShape) {
   const resizedWordmark = await sharp(wordmark)
     .resize({ width: Math.round(size * wordmarkWidthRatio), fit: "inside" })
@@ -175,4 +214,13 @@ async function createAdaptiveForeground(outputPath, size) {
     }])
     .png({ compressionLevel: 9 })
     .toFile(outputPath);
+}
+
+async function pathExists(value) {
+  try {
+    await fs.access(value);
+    return true;
+  } catch {
+    return false;
+  }
 }

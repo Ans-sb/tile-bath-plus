@@ -11,6 +11,18 @@ async function handleSystemRoutes(request, response, context) {
     return true;
   }
 
+  if (request.method === "GET" && request.url.split("?")[0] === "/.well-known/apple-app-site-association") {
+    const payload = JSON.stringify(context.getAppleAppSiteAssociation());
+    response.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+      "Content-Length": Buffer.byteLength(payload),
+      "X-Content-Type-Options": "nosniff"
+    });
+    response.end(payload);
+    return true;
+  }
+
   if (request.method === "GET" && request.url === "/api/health") {
     context.sendJson(response, 200, {
       ok: true,

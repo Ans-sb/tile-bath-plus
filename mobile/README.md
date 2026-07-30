@@ -4,7 +4,7 @@
 
 ## 현재 단계
 
-- Android 우선 앱 컨테이너
+- Android 및 iOS 앱 컨테이너
 - 운영 URL: `https://jajaego.com`
 - 앱 ID: `com.jajaego.app`
 - 앱 이름: `자재GO`
@@ -18,13 +18,18 @@ npm.cmd run app:install
 npm.cmd run app:sync
 npm.cmd run app:doctor
 npm.cmd run app:open:android
+npm.cmd run app:sync:ios
+npm.cmd run app:open:ios
 npm.cmd run app:assets:splash
 npm.cmd run app:assets:icon
 npm.cmd run app:build:debug
 npm.cmd run app:build:signed
 ```
 
-실기기 실행에는 Android Studio, Android SDK, JDK가 필요합니다.
+Android 실기기 실행에는 Android Studio, Android SDK, JDK가 필요합니다.
+iOS 실기기 실행과 App Store 제출에는 macOS, Xcode, Apple Developer
+계정이 필요합니다. iOS 서명과 배포 순서는 [IOS-SETUP.md](IOS-SETUP.md)를
+따릅니다.
 
 ## 출시 빌드
 
@@ -63,6 +68,6 @@ npm.cmd run app:build:signed
 3. 푸시 알림 및 알림 동의 화면 연결
 4. 개인정보처리방침, 회원탈퇴, 계정삭제 흐름 검수
 5. 실제 Android 기기에서 카메라, 사진 업로드, 뒤로가기, 다운로드 검수
-6. iOS 프로젝트는 macOS/Xcode 환경에서 생성 및 서명
+6. iOS는 Xcode에서 Team 선택 후 카메라, 사진 업로드, 소셜 로그인 검수
 
 `server.url`은 내부 테스트와 1차 앱 검증을 위한 구성입니다. 스토어 공개 전에는 핵심 앱 화면을 로컬 번들로 전환해 단순 웹 래퍼가 되지 않도록 고도화합니다.

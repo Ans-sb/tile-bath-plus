@@ -2,17 +2,23 @@
   const capacitor = window.Capacitor;
   const isNative = Boolean(capacitor?.isNativePlatform?.());
   if (!isNative) return;
+  const detectedPlatform = String(capacitor?.getPlatform?.() || "").toLowerCase();
+  const nativePlatform = ["android", "ios"].includes(detectedPlatform)
+    ? detectedPlatform
+    : "native";
 
   document.documentElement.classList.add("native-app");
+  document.documentElement.dataset.nativePlatform = nativePlatform;
 
   const appPlugin = capacitor.Plugins?.App;
   const browserPlugin = capacitor.Plugins?.Browser;
 
   window.JajaegoNative = {
     isNative: true,
+    platform: nativePlatform,
     async startSocialAuth(value) {
       const url = new URL(value, window.location.origin);
-      url.searchParams.set("client", "android");
+      url.searchParams.set("client", nativePlatform);
       if (!browserPlugin?.open) {
         window.location.assign(url.toString());
         return;

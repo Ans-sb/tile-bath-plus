@@ -1,6 +1,7 @@
 (() => {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("mobileClient") !== "android") return;
+  const mobileClient = String(params.get("mobileClient") || "").toLowerCase();
+  if (!["android", "ios"].includes(mobileClient)) return;
   if (window.Capacitor?.isNativePlatform?.()) return;
 
   const provider = params.get("socialProvider");

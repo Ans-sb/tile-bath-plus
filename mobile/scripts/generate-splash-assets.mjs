@@ -7,6 +7,14 @@ const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const mobileRoot = path.resolve(scriptRoot, "..");
 const projectRoot = path.resolve(mobileRoot, "..");
 const resourceRoot = path.join(mobileRoot, "android", "app", "src", "main", "res");
+const iosSplashDirectory = path.join(
+  mobileRoot,
+  "ios",
+  "App",
+  "App",
+  "Assets.xcassets",
+  "Splash.imageset"
+);
 const logoPath = path.join(projectRoot, "images", "branding", "btn-material-go.png");
 const background = { r: 255, g: 255, b: 255, alpha: 1 };
 
@@ -27,6 +35,15 @@ const targets = [
 ];
 
 await createSplash(path.join(mobileRoot, "assets", "splash.png"), 2732, 2732);
+if (await pathExists(iosSplashDirectory)) {
+  for (const filename of [
+    "splash-2732x2732.png",
+    "splash-2732x2732-1.png",
+    "splash-2732x2732-2.png"
+  ]) {
+    await createSplash(path.join(iosSplashDirectory, filename), 2732, 2732);
+  }
+}
 await createSystemSplashLogo(path.join(resourceRoot, "drawable", "splash_logo.png"));
 await fs.copyFile(logoPath, path.join(resourceRoot, "drawable", "splash_wordmark.png"));
 
@@ -103,4 +120,13 @@ async function createSystemSplashLogo(outputPath) {
     }])
     .png({ compressionLevel: 9 })
     .toFile(outputPath);
+}
+
+async function pathExists(value) {
+  try {
+    await fs.access(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
