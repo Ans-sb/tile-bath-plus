@@ -1,6 +1,6 @@
 (function attachSiteStudio(global) {
   const DEFAULT_SETTINGS = {
-    version: 1,
+    version: 2,
     appearance: {
       fontFamily: "system",
       fontScale: "default",
@@ -61,6 +61,24 @@
       homeQuantity: "images/branding/home-quantity-calculator-20260728.webp?v=20260728-performance1",
       bathHero: "images/catalog/catalog_p04_img00.webp?v=20260728-performance1"
     },
+    pages: {
+      homePage: pageDefaults("메인", "현장 자재를 위한 올인원 B2B 플랫폼", "현장에 필요한 모든 자재,\n자재GO 하나로", "타일·위생도기·수전금구·부자재를 빠르게 찾고 주문과 배차까지 한곳에서 관리하세요.", "images/branding/web-storefront-hero-20260706.png"),
+      productsPage: pageDefaults("타일GO", "TileGO", "타일GO", "규격, 용도, 마감, 스타일과 색상으로 필요한 타일을 찾습니다."),
+      bathProductsPage: pageDefaults("바스GO", "BathGO", "바스GO", "욕실에 필요한 위생도기와 수전금구를 한 번에 찾습니다.", "images/catalog/catalog_p04_img00.webp?v=20260728-performance1"),
+      bathInteriorPage: pageDefaults("욕실 인테리어", "Bathroom Inspiration", "욕실 인테리어", "마음에 드는 공간을 고르면 사진 속 타일과 욕실 자재를 바로 확인할 수 있습니다."),
+      taxonomyTestPage: pageDefaults("AI 상품검색", "AI Product Search", "AI 상품검색", "자연어와 필터로 필요한 현장 자재를 빠르게 찾습니다."),
+      aiTileFinderPage: pageDefaults("AI 타일찾기", "AI Tile Finder", "AI 타일찾기", "사진의 색상과 패턴을 분석해 비슷한 타일을 찾습니다."),
+      samplePage: pageDefaults("샘플GO", "SampleGO", "샘플GO", "샘플로 확인할 타일을 선택하고 신청합니다."),
+      quantityCalculatorPage: pageDefaults("물량계산", "Quantity Calculator", "타일·부자재 물량계산", "현장 면적을 기준으로 타일과 시공 부자재 물량을 계산합니다."),
+      cartPage: pageDefaults("장바구니", "Selected Items", "장바구니", "선택한 자재와 주문 수량을 확인합니다."),
+      myPage: pageDefaults("마이페이지", "My Page", "마이페이지", "내 정보와 주문 현황을 한곳에서 관리합니다."),
+      plannerPage: pageDefaults("시공 미리보기", "Image Based Tile Preview", "시공 미리보기", "현장 사진에 선택한 타일을 적용해 원본과 결과를 바로 비교합니다."),
+      renderPage: pageDefaults("실사 보정", "AI Rendering", "실사 이미지 보정", "장바구니 자재를 현장 사진에 적용해 완성 이미지를 만듭니다."),
+      loginPage: pageDefaults("로그인", "Quick Login", "간편로그인", "네이버, 카카오, Google 계정 또는 사업자 정보로 로그인합니다."),
+      signupPage: pageDefaults("회원가입", "Jajaego Membership", "간편 회원가입", "소셜 계정으로 가입한 뒤 파트너 등록을 진행합니다."),
+      businessOnboardingPage: pageDefaults("사업자 정보", "Business Verification", "사업자 정보를 등록해주세요.", "사업자등록증 또는 사업자등록번호를 등록할 수 있습니다."),
+      partnerApplicationPage: pageDefaults("파트너 신청", "Partner Membership", "파트너 등록신청", "사업자등록증과 담당자 정보를 등록해 회원 등급을 신청합니다.")
+    },
     menu: [
       { id: "homePage", label: "메인", visible: true, order: 1 },
       { id: "taxonomyTestPage", label: "상품검색", visible: true, order: 2 },
@@ -71,6 +89,55 @@
       { id: "plannerPage", label: "시공 미리보기", visible: true, order: 7 }
     ]
   };
+
+  function pageDefaults(label, eyebrow, title, description, heroImage = "") {
+    return {
+      label,
+      eyebrow,
+      title,
+      description,
+      heroImage,
+      backgroundColor: "#ffffff",
+      surfaceColor: "#ffffff",
+      accentColor: "#0b5cff",
+      headingScale: 100,
+      sectionGap: 24,
+      contentEnabled: false,
+      imageEnabled: false,
+      designEnabled: false
+    };
+  }
+
+  const PAGE_DEFINITIONS = [
+    ["homePage", "메인", { eyebrow: "#homePage .guest-promotion-kicker", title: "#guestPromotionTitle", description: "#homePage .guest-promotion-hero-copy > p", image: "#homePage .guest-promotion-hero-image" }],
+    ["productsPage", "타일GO"],
+    ["bathProductsPage", "바스GO", { image: "#bathProductsPage .bath-editorial-hero > img" }],
+    ["bathInteriorPage", "욕실 인테리어"],
+    ["taxonomyTestPage", "AI 상품검색"],
+    ["aiTileFinderPage", "AI 타일찾기"],
+    ["samplePage", "샘플GO"],
+    ["quantityCalculatorPage", "물량계산"],
+    ["cartPage", "장바구니"],
+    ["myPage", "마이페이지"],
+    ["plannerPage", "시공 미리보기"],
+    ["renderPage", "실사 보정"],
+    ["loginPage", "로그인", { eyebrow: "#loginPage .login-card .eyebrow", title: "#loginPage .login-card h2", description: "#loginPage .login-card > p:not(.eyebrow)" }],
+    ["signupPage", "회원가입", { eyebrow: "#signupPage .eyebrow", title: "#signupPage h2", description: "#signupPage .social-signup-copy" }],
+    ["businessOnboardingPage", "사업자 정보", { eyebrow: "#businessOnboardingPage .eyebrow", title: "#businessOnboardingPage h2", description: "#businessOnboardingPage .business-onboarding-copy" }],
+    ["partnerApplicationPage", "파트너 신청", { eyebrow: "#partnerApplicationPage .eyebrow", title: "#partnerApplicationPage h2", description: "#partnerApplicationPage .partner-application-copy" }]
+  ].map(([id, label, selectors = {}]) => ({
+    id,
+    label,
+    selectors: {
+      eyebrow: selectors.eyebrow || `#${id} > .page-heading .eyebrow`,
+      title: selectors.title || `#${id} > .page-heading h2`,
+      description: selectors.description || `#${id} > .page-heading > div:first-child > p:not(.eyebrow)`,
+      image: selectors.image || ""
+    }
+  }));
+
+  const PAGE_DEFINITION_BY_ID = new Map(PAGE_DEFINITIONS.map((page) => [page.id, page]));
+  const originalPageNodes = new WeakMap();
 
   const TEXT_FIELDS = [
     ["메인", "homeHeadline", "메인 제목", "input"],
@@ -129,6 +196,7 @@
     initialized: false,
     loading: false,
     activeSection: "siteStudioOverviewSection",
+    activePageId: "homePage",
     activeTextGroup: "all",
     textSearch: "",
     previewDevice: "desktop",
@@ -224,12 +292,17 @@
 
   function mergeSettings(input) {
     const source = input && typeof input === "object" ? input : {};
+    const sourcePages = source.pages && typeof source.pages === "object" ? source.pages : {};
     return {
       ...clone(DEFAULT_SETTINGS),
       ...source,
       appearance: { ...DEFAULT_SETTINGS.appearance, ...(source.appearance || {}) },
       text: { ...DEFAULT_SETTINGS.text, ...(source.text || {}) },
       images: { ...DEFAULT_SETTINGS.images, ...(source.images || {}) },
+      pages: Object.fromEntries(PAGE_DEFINITIONS.map(({ id }) => [
+        id,
+        { ...DEFAULT_SETTINGS.pages[id], ...(sourcePages[id] || {}) }
+      ])),
       menu: Array.isArray(source.menu) && source.menu.length ? source.menu.map((item) => ({ ...item })) : clone(DEFAULT_SETTINGS.menu)
     };
   }
@@ -254,6 +327,101 @@
     }
     const mobileCopy = node.querySelector(":scope > span:last-child");
     if (mobileCopy) mobileCopy.textContent = label;
+  }
+
+  function rememberOriginalNode(node) {
+    if (!node || originalPageNodes.has(node)) return;
+    originalPageNodes.set(node, {
+      html: node.innerHTML,
+      src: node.getAttribute?.("src"),
+      style: node.getAttribute?.("style")
+    });
+  }
+
+  function restoreOriginalContent(node) {
+    if (!node) return;
+    rememberOriginalNode(node);
+    const original = originalPageNodes.get(node);
+    node.innerHTML = original.html;
+    node.classList.remove("site-page-editor-text");
+  }
+
+  function applyPageText(selector, value, enabled, settings) {
+    const node = selector ? document.querySelector(selector) : null;
+    if (!node) return;
+    rememberOriginalNode(node);
+    if (!enabled) {
+      if (!node.classList.contains("site-page-editor-text")) return;
+      const sharedKey = node.dataset.siteText;
+      if (sharedKey && Object.prototype.hasOwnProperty.call(settings.text, sharedKey)) {
+        node.textContent = settings.text[sharedKey];
+        node.classList.remove("site-page-editor-text");
+      } else {
+        restoreOriginalContent(node);
+      }
+      return;
+    }
+    node.textContent = value || "";
+    node.classList.add("site-page-editor-text");
+  }
+
+  function applyPageImage(pageNode, definition, pageSettings, settings) {
+    const imageNode = definition.selectors.image
+      ? document.querySelector(definition.selectors.image)
+      : null;
+    if (imageNode) {
+      rememberOriginalNode(imageNode);
+      const original = originalPageNodes.get(imageNode);
+      if (pageSettings.imageEnabled && pageSettings.heroImage) {
+        imageNode.setAttribute("src", pageSettings.heroImage);
+        imageNode.classList.add("site-page-editor-image");
+      } else if (imageNode.classList.contains("site-page-editor-image")) {
+        const sharedKey = imageNode.dataset.siteImage;
+        if (sharedKey && settings.images[sharedKey]) imageNode.setAttribute("src", settings.images[sharedKey]);
+        else if (original.src) imageNode.setAttribute("src", original.src);
+        else imageNode.removeAttribute("src");
+        imageNode.classList.remove("site-page-editor-image");
+      }
+    }
+    pageNode.classList.toggle(
+      "site-page-image-enabled",
+      !imageNode && pageSettings.imageEnabled && Boolean(pageSettings.heroImage)
+    );
+    if (!imageNode && pageSettings.imageEnabled && pageSettings.heroImage) {
+      pageNode.style.setProperty("--site-page-hero-image", `url("${String(pageSettings.heroImage).replace(/"/g, '\\"')}")`);
+    } else {
+      pageNode.style.removeProperty("--site-page-hero-image");
+    }
+  }
+
+  function applyPageSettings(pageSettingsInput = {}, settings = state.draft) {
+    PAGE_DEFINITIONS.forEach((definition) => {
+      const pageNode = document.querySelector(`#${definition.id}`);
+      const pageSettings = pageSettingsInput[definition.id];
+      if (!pageNode || !pageSettings) return;
+
+      applyPageText(definition.selectors.eyebrow, pageSettings.eyebrow, pageSettings.contentEnabled, settings);
+      applyPageText(definition.selectors.title, pageSettings.title, pageSettings.contentEnabled, settings);
+      applyPageText(definition.selectors.description, pageSettings.description, pageSettings.contentEnabled, settings);
+      applyPageImage(pageNode, definition, pageSettings, settings);
+
+      pageNode.classList.toggle("site-page-designed", pageSettings.designEnabled);
+      if (pageSettings.designEnabled) {
+        pageNode.style.setProperty("--site-page-background", pageSettings.backgroundColor);
+        pageNode.style.setProperty("--site-page-surface", pageSettings.surfaceColor);
+        pageNode.style.setProperty("--site-page-accent", pageSettings.accentColor);
+        pageNode.style.setProperty("--site-page-heading-scale", String(Number(pageSettings.headingScale || 100) / 100));
+        pageNode.style.setProperty("--site-page-section-gap", `${Number(pageSettings.sectionGap || 24)}px`);
+      } else {
+        [
+          "--site-page-background",
+          "--site-page-surface",
+          "--site-page-accent",
+          "--site-page-heading-scale",
+          "--site-page-section-gap"
+        ].forEach((property) => pageNode.style.removeProperty(property));
+      }
+    });
   }
 
   function applySettings(settingsInput) {
@@ -284,6 +452,7 @@
         node.setAttribute("src", value);
       });
     });
+    applyPageSettings(settings.pages, settings);
 
     settings.menu.forEach((item) => {
       document.querySelectorAll(`.customer-nav-button[data-page-target="${item.id}"], .square-main-mobile-nav [data-page-target="${item.id}"]`).forEach((node) => {
@@ -422,6 +591,141 @@
     renderAllEditors();
     setActiveSection("siteStudioLayoutSection", { scroll: false });
     setStatus("레이아웃 프리셋을 적용했습니다. 저장 전 미리보기를 확인하세요.", "success");
+  }
+
+  function getActivePageSettings() {
+    if (!PAGE_DEFINITION_BY_ID.has(state.activePageId)) state.activePageId = "homePage";
+    return state.draft.pages[state.activePageId];
+  }
+
+  function renderPageColorField(key, label, value) {
+    return `
+      <label>${escapeHtml(label)}
+        <span class="site-studio-color-control">
+          <input type="color" value="${escapeHtml(value)}" data-site-page-design-field="${escapeHtml(key)}" />
+          <input type="text" value="${escapeHtml(value)}" data-site-page-design-field="${escapeHtml(key)}" maxlength="7" />
+        </span>
+      </label>
+    `;
+  }
+
+  function renderPagePreviewOptions() {
+    const select = document.querySelector("#siteStudioPreviewPage");
+    if (!select) return;
+    const currentValue = select.value;
+    select.innerHTML = PAGE_DEFINITIONS.map(({ id, label }) => (
+      `<option value="page:${escapeHtml(id)}">${escapeHtml(label)}</option>`
+    )).join("");
+    select.value = PAGE_DEFINITION_BY_ID.has(currentValue.replace(/^page:/, ""))
+      ? currentValue
+      : `page:${state.activePageId}`;
+  }
+
+  function renderPageEditor() {
+    const list = document.querySelector("#siteStudioPageList");
+    const fields = document.querySelector("#siteStudioPageEditorFields");
+    const select = document.querySelector("#siteStudioPageSelect");
+    if (!list || !fields || !select) return;
+    const page = getActivePageSettings();
+    const definition = PAGE_DEFINITION_BY_ID.get(state.activePageId);
+
+    select.innerHTML = PAGE_DEFINITIONS.map(({ id, label }) => (
+      `<option value="${escapeHtml(id)}" ${id === state.activePageId ? "selected" : ""}>${escapeHtml(label)}</option>`
+    )).join("");
+    list.innerHTML = PAGE_DEFINITIONS.map(({ id, label }) => {
+      const settings = state.draft.pages[id];
+      const edited = settings.contentEnabled || settings.imageEnabled || settings.designEnabled;
+      return `
+        <button type="button" class="${id === state.activePageId ? "active" : ""}" data-site-page-id="${escapeHtml(id)}">
+          <span>${escapeHtml(label)}</span>
+          <small>${edited ? "편집 적용 중" : "기본 화면"}</small>
+        </button>
+      `;
+    }).join("");
+
+    fields.innerHTML = `
+      <div class="site-studio-page-editor-head">
+        <div>
+          <p class="eyebrow">Selected Page</p>
+          <h4>${escapeHtml(definition.label)}</h4>
+        </div>
+        <div class="site-studio-page-editor-actions">
+          <button class="secondary-action" id="siteStudioOpenSelectedPageBtn" type="button">실제 화면 열기</button>
+          <button class="site-studio-quiet-button" id="siteStudioResetSelectedPageBtn" type="button">이 화면만 초기화</button>
+        </div>
+      </div>
+
+      <section class="site-studio-page-setting-group">
+        <header>
+          <div><strong>문구</strong><small>페이지 제목과 설명</small></div>
+          <label class="site-studio-switch">
+            <input type="checkbox" data-site-page-enabled="contentEnabled" ${page.contentEnabled ? "checked" : ""} />
+            <span>적용</span>
+          </label>
+        </header>
+        <div class="site-studio-page-copy-grid">
+          <label>영문·작은 제목
+            <input type="text" value="${escapeHtml(page.eyebrow)}" data-site-page-field="eyebrow" maxlength="100" />
+          </label>
+          <label>페이지 제목
+            <textarea rows="2" data-site-page-field="title" maxlength="180">${escapeHtml(page.title)}</textarea>
+          </label>
+          <label class="is-wide">설명
+            <textarea rows="3" data-site-page-field="description" maxlength="420">${escapeHtml(page.description)}</textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="site-studio-page-setting-group">
+        <header>
+          <div><strong>대표 이미지</strong><small>이미지가 없는 화면은 제목 영역 배경으로 사용</small></div>
+          <label class="site-studio-switch">
+            <input type="checkbox" data-site-page-enabled="imageEnabled" ${page.imageEnabled ? "checked" : ""} />
+            <span>적용</span>
+          </label>
+        </header>
+        <div class="site-studio-page-image-editor">
+          <div class="site-studio-page-image-preview ${page.heroImage ? "" : "is-empty"}">
+            ${page.heroImage ? `<img src="${escapeHtml(page.heroImage)}" alt="" loading="lazy" decoding="async" />` : "<span>이미지 없음</span>"}
+          </div>
+          <div>
+            <label>이미지 주소
+              <input type="text" value="${escapeHtml(page.heroImage)}" data-site-page-image-input />
+            </label>
+            <label class="secondary-action site-studio-file-button">
+              이미지 업로드
+              <input type="file" accept="image/png,image/jpeg,image/webp" data-site-page-image-file />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="site-studio-page-setting-group">
+        <header>
+          <div><strong>화면 디자인</strong><small>이 페이지에만 색상과 밀도 적용</small></div>
+          <label class="site-studio-switch">
+            <input type="checkbox" data-site-page-enabled="designEnabled" ${page.designEnabled ? "checked" : ""} />
+            <span>적용</span>
+          </label>
+        </header>
+        <div class="site-studio-form-grid site-studio-page-design-grid">
+          ${renderPageColorField("backgroundColor", "페이지 배경", page.backgroundColor)}
+          ${renderPageColorField("surfaceColor", "콘텐츠 배경", page.surfaceColor)}
+          ${renderPageColorField("accentColor", "강조 색상", page.accentColor)}
+        </div>
+        <div class="site-studio-layout-list">
+          <label class="site-studio-range-field">
+            <span>제목 크기 <b data-site-page-range-value="headingScale">${escapeHtml(page.headingScale)}%</b></span>
+            <input type="range" min="80" max="140" value="${escapeHtml(page.headingScale)}" data-site-page-design-field="headingScale" data-site-range-unit="%" />
+          </label>
+          <label class="site-studio-range-field">
+            <span>섹션 간격 <b data-site-page-range-value="sectionGap">${escapeHtml(page.sectionGap)}px</b></span>
+            <input type="range" min="12" max="64" value="${escapeHtml(page.sectionGap)}" data-site-page-design-field="sectionGap" data-site-range-unit="px" />
+          </label>
+        </div>
+      </section>
+    `;
+    renderPagePreviewOptions();
   }
 
   function renderAppearanceEditor() {
@@ -570,6 +874,35 @@
     const visibleMenu = [...settings.menu].filter((item) => item.visible !== false).sort((a, b) => a.order - b.order);
     const navigation = visibleMenu.map((item) => `<span>${escapeHtml(item.label)}</span>`).join("");
 
+    if (mode.startsWith("page:")) {
+      const pageId = mode.slice(5);
+      const page = settings.pages[pageId] || settings.pages.homePage;
+      const pageStyle = [
+        `--preview-page-bg:${page.designEnabled ? page.backgroundColor : settings.appearance.pageColor}`,
+        `--preview-page-surface:${page.designEnabled ? page.surfaceColor : settings.appearance.surfaceColor}`,
+        `--preview-page-accent:${page.designEnabled ? page.accentColor : settings.appearance.primaryColor}`,
+        `--preview-page-heading-scale:${Number(page.designEnabled ? page.headingScale : 100) / 100}`,
+        `--preview-page-gap:${Number(page.designEnabled ? page.sectionGap : 24)}px`
+      ].join(";");
+      const image = page.imageEnabled ? page.heroImage : DEFAULT_SETTINGS.pages[pageId]?.heroImage;
+      preview.innerHTML = `
+        <div class="site-studio-preview-shell site-studio-preview-page-shell" style="${style};${pageStyle}">
+          <nav>${navigation}</nav>
+          <section class="site-studio-preview-page-card ${image ? "has-image" : ""}" ${image ? `style="background-image:linear-gradient(90deg,rgba(8,25,87,.88),rgba(8,25,87,.18)),url('${escapeHtml(image)}')"` : ""}>
+            <small>${escapeHtml(page.eyebrow)}</small>
+            <h4>${escapeHtml(page.title).replace(/\n/g, "<br>")}</h4>
+            <p>${escapeHtml(page.description)}</p>
+            <button type="button">주요 기능</button>
+          </section>
+          <div class="site-studio-preview-page-content">
+            <article><i></i><strong>대표 콘텐츠</strong><small>이미지와 핵심 정보를 표시합니다.</small></article>
+            <article><i></i><strong>상세 기능</strong><small>화면별 기능은 그대로 유지됩니다.</small></article>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
     if (mode === "tile") {
       preview.innerHTML = `
         <div class="site-studio-preview-shell" style="${style}">
@@ -618,6 +951,7 @@
   }
 
   function renderAllEditors() {
+    renderPageEditor();
     renderAppearanceEditor();
     renderTextEditor();
     renderImageEditor();
@@ -664,6 +998,69 @@
     renderMenuEditor();
     renderPreview();
     updateDirtyState();
+  }
+
+  function selectPageEditor(pageId, options = {}) {
+    if (!PAGE_DEFINITION_BY_ID.has(pageId)) return;
+    state.activePageId = pageId;
+    renderPageEditor();
+    const previewSelect = document.querySelector("#siteStudioPreviewPage");
+    if (previewSelect) previewSelect.value = `page:${pageId}`;
+    renderPreview();
+    if (options.section !== false) {
+      setActiveSection("siteStudioPageSection", { scroll: options.scroll !== false });
+    }
+  }
+
+  function updateActivePageField(key, rawValue, enabledKey) {
+    const page = getActivePageSettings();
+    recordHistory(`page:${state.activePageId}:${key}`);
+    const numericKeys = new Set(["headingScale", "sectionGap"]);
+    page[key] = numericKeys.has(key) ? Number(rawValue) : rawValue;
+    if (enabledKey) page[enabledKey] = true;
+    applySettings(state.draft);
+    renderPreview();
+    updateDirtyState();
+  }
+
+  function resetSelectedPage() {
+    const page = PAGE_DEFINITION_BY_ID.get(state.activePageId);
+    if (!page) return;
+    if (!global.confirm(`${page.label} 화면의 편집 설정만 기본값으로 되돌릴까요?`)) return;
+    recordHistory(`page-reset:${state.activePageId}`);
+    state.draft.pages[state.activePageId] = clone(state.defaults.pages[state.activePageId]);
+    applySettings(state.draft);
+    renderPageEditor();
+    renderPreview();
+    updateDirtyState();
+    setStatus(`${page.label} 화면을 기본 상태로 되돌렸습니다. 저장하면 최종 반영됩니다.`, "success");
+  }
+
+  async function uploadPageImage(input) {
+    const file = input.files?.[0];
+    if (!file) return;
+    setStatus(`${file.name} 이미지를 최적화하고 업로드하는 중입니다.`);
+    try {
+      const dataUrl = await state.callbacks.readImageFile(file, 2200, 0.9);
+      const payload = await state.callbacks.requestJson("/api/admin/site-media", {
+        method: "POST",
+        headers: state.callbacks.getAdminAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ dataUrl, fileName: file.name })
+      }, { timeoutMs: 30000 });
+      recordHistory(`page-image-upload:${state.activePageId}`);
+      const page = getActivePageSettings();
+      page.heroImage = payload.url;
+      page.imageEnabled = true;
+      applySettings(state.draft);
+      renderPageEditor();
+      renderPreview();
+      updateDirtyState();
+      setStatus("페이지 이미지를 업로드했습니다. 변경사항 저장을 눌러 최종 반영하세요.", "success");
+    } catch (error) {
+      setStatus(error.message || "페이지 이미지 업로드에 실패했습니다.", "error");
+    } finally {
+      input.value = "";
+    }
   }
 
   async function saveSettings() {
@@ -802,6 +1199,7 @@
     const keyword = String(value || "").trim().toLowerCase();
     if (!keyword) return;
     const sectionTerms = [
+      ["siteStudioPageSection", `전체 페이지 화면별 문구 이미지 디자인 ${PAGE_DEFINITIONS.map((page) => page.label).join(" ")}`],
       ["siteStudioAppearanceSection", "폰트 컬러 색상 글자 배경 브랜드 강조"],
       ["siteStudioLayoutSection", "레이아웃 구성 밀도 간격 열 너비 모서리"],
       ["siteStudioMenuSection", "메뉴 내비게이션 순서 노출"],
@@ -828,6 +1226,33 @@
     page.dataset.siteStudioBound = "true";
 
     page.addEventListener("input", (event) => {
+      const pageField = event.target.closest("[data-site-page-field]");
+      if (pageField) {
+        updateActivePageField(pageField.dataset.sitePageField, pageField.value, "contentEnabled");
+        const contentEnabled = document.querySelector('[data-site-page-enabled="contentEnabled"]');
+        if (contentEnabled) contentEnabled.checked = true;
+        return;
+      }
+      const pageImage = event.target.closest("[data-site-page-image-input]");
+      if (pageImage) {
+        updateActivePageField("heroImage", pageImage.value, "imageEnabled");
+        const imageEnabled = document.querySelector('[data-site-page-enabled="imageEnabled"]');
+        if (imageEnabled) imageEnabled.checked = true;
+        return;
+      }
+      const pageDesign = event.target.closest("[data-site-page-design-field]");
+      if (pageDesign) {
+        const key = pageDesign.dataset.sitePageDesignField;
+        updateActivePageField(key, pageDesign.value, "designEnabled");
+        document.querySelectorAll(`[data-site-page-design-field="${key}"]`).forEach((node) => {
+          if (node !== pageDesign) node.value = pageDesign.value;
+        });
+        const rangeValue = document.querySelector(`[data-site-page-range-value="${key}"]`);
+        if (rangeValue) rangeValue.textContent = `${pageDesign.value}${pageDesign.dataset.siteRangeUnit || ""}`;
+        const designEnabled = document.querySelector('[data-site-page-enabled="designEnabled"]');
+        if (designEnabled) designEnabled.checked = true;
+        return;
+      }
       const appearance = event.target.closest("[data-site-appearance]");
       if (appearance) {
         updateAppearanceValue(appearance.dataset.siteAppearance, appearance.value, appearance);
@@ -870,6 +1295,26 @@
     });
 
     page.addEventListener("change", (event) => {
+      const pageEnabled = event.target.closest("[data-site-page-enabled]");
+      if (pageEnabled) {
+        const key = pageEnabled.dataset.sitePageEnabled;
+        recordHistory(`page-enabled:${state.activePageId}:${key}`);
+        getActivePageSettings()[key] = pageEnabled.checked;
+        applySettings(state.draft);
+        renderPageEditor();
+        renderPreview();
+        updateDirtyState();
+        return;
+      }
+      if (event.target.matches("#siteStudioPageSelect")) {
+        selectPageEditor(event.target.value, { scroll: false });
+        return;
+      }
+      const pageImageFile = event.target.closest("[data-site-page-image-file]");
+      if (pageImageFile) {
+        void uploadPageImage(pageImageFile);
+        return;
+      }
       const visible = event.target.closest("[data-site-menu-visible]");
       if (visible) {
         const item = findMenuItem(visible.dataset.siteMenuVisible);
@@ -895,6 +1340,19 @@
     });
 
     page.addEventListener("click", (event) => {
+      const pageButton = event.target.closest("[data-site-page-id]");
+      if (pageButton) {
+        selectPageEditor(pageButton.dataset.sitePageId, { scroll: false });
+        return;
+      }
+      if (event.target.closest("#siteStudioOpenSelectedPageBtn")) {
+        state.callbacks.switchPage(state.activePageId);
+        return;
+      }
+      if (event.target.closest("#siteStudioResetSelectedPageBtn")) {
+        resetSelectedPage();
+        return;
+      }
       const textGroup = event.target.closest("[data-site-text-group]");
       if (textGroup) {
         state.activeTextGroup = textGroup.dataset.siteTextGroup;
@@ -1037,6 +1495,13 @@
     `).join("");
   }
 
+  function openPageEditor(pageId) {
+    const targetPageId = PAGE_DEFINITION_BY_ID.has(pageId) ? pageId : "homePage";
+    selectPageEditor(targetPageId, { scroll: false });
+    setActiveSection("siteStudioPageSection", { scroll: true });
+    setStatus(`${PAGE_DEFINITION_BY_ID.get(targetPageId).label} 화면 편집기를 열었습니다.`);
+  }
+
   function initialize(callbacks) {
     state.callbacks = callbacks;
     if (!state.initialized) {
@@ -1050,8 +1515,10 @@
     applySettings,
     defaults: clone(DEFAULT_SETTINGS),
     enter,
+    hasPage: (pageId) => PAGE_DEFINITION_BY_ID.has(pageId),
     initialize,
     loadPublicSettings,
+    openPageEditor,
     renderOperationsSummary
   };
 })(window);

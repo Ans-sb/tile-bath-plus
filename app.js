@@ -975,6 +975,7 @@ async function init() {
   bindEvents();
   window.TbpSiteStudio?.initialize({
     getAdminAuthHeaders,
+    getCurrentPageId: () => currentPageId,
     isAdminUser,
     readImageFile,
     requestJson,
@@ -1017,6 +1018,14 @@ function syncExperienceMode(pageId = currentPageId) {
   document.body.classList.toggle("admin-experience-mode", !isCustomerPage);
   document.body.dataset.page = pageId;
   syncTopbarControls(pageId);
+  syncAdminQuickEditButton(pageId);
+}
+
+function syncAdminQuickEditButton(pageId = currentPageId) {
+  const button = document.querySelector("#adminQuickPageEditBtn");
+  if (!button) return;
+  const canEdit = isAdminUser() && CUSTOMER_PAGE_IDS.has(pageId) && window.TbpSiteStudio?.hasPage?.(pageId);
+  button.classList.toggle("hidden", !canEdit);
 }
 
 function syncTopbarControls(pageId = currentPageId) {
@@ -1213,6 +1222,12 @@ async function copyQuantityEstimate() {
 }
 
 function bindEvents() {
+  document.querySelector("#adminQuickPageEditBtn")?.addEventListener("click", () => {
+    const sourcePageId = currentPageId;
+    switchPage("siteStudioPage");
+    window.TbpSiteStudio?.openPageEditor(sourcePageId);
+  });
+
   document.querySelectorAll("[data-page-target]").forEach((button) => {
     button.addEventListener("click", () => {
       if (button.dataset.pageTarget === "productsPage" && productCollectionMode !== "all") {
@@ -12934,6 +12949,7 @@ function renderAuthControls() {
   });
   adminNavBtn?.classList.toggle("hidden", !isAdmin);
   tile114NavBtn?.classList.toggle("hidden", !isAdmin);
+  syncAdminQuickEditButton();
   syncTileFinderBrandFilter();
   syncProductBrandFilter(products);
   if (currentPageId === "productsPage") {

@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-    <link rel="stylesheet" href="styles.css?v=20260730-auth-compact2" />
+    <link rel="stylesheet" href="styles.css?v=20260731-page-studio1" />
     <link rel="stylesheet" href="promotion-reference-test.css?v=20260730-promo-main3" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
@@ -174,6 +174,10 @@
           </button>
         </div>
       </nav>
+
+      <button class="admin-page-edit-fab hidden" id="adminQuickPageEditBtn" type="button" title="현재 화면을 사이트 편집기에서 수정">
+        현재 화면 편집
+      </button>
 
       <main class="app-page page-panel active customer-page customer-home-page" id="homePage">
         <section class="hero-panel hero-panel-shell customer-hero-panel">
@@ -2823,20 +2827,23 @@
             </div>
             <div class="site-studio-sidebar-group">
               <strong>사이트 편집</strong>
+              <button type="button" data-site-studio-section="siteStudioPageSection" data-section-label="전체 페이지">
+                <span>06</span><b>전체 페이지</b><small>화면별 편집</small>
+              </button>
               <button type="button" data-site-studio-section="siteStudioAppearanceSection" data-section-label="폰트·컬러">
-                <span>06</span><b>폰트·컬러</b><small>브랜드 시스템</small>
+                <span>07</span><b>폰트·컬러</b><small>브랜드 시스템</small>
               </button>
               <button type="button" data-site-studio-section="siteStudioTextSection" data-section-label="화면 문구">
-                <span>07</span><b>화면 문구</b><small>페이지별 텍스트</small>
+                <span>08</span><b>공통 문구</b><small>주요 화면 텍스트</small>
               </button>
               <button type="button" data-site-studio-section="siteStudioImageSection" data-section-label="대표 이미지">
-                <span>08</span><b>대표 이미지</b><small>업로드와 교체</small>
+                <span>09</span><b>공통 이미지</b><small>메인 카드 교체</small>
               </button>
               <button type="button" data-site-studio-section="siteStudioLayoutSection" data-section-label="레이아웃">
-                <span>09</span><b>레이아웃</b><small>간격과 열 수</small>
+                <span>10</span><b>레이아웃</b><small>간격과 열 수</small>
               </button>
               <button type="button" data-site-studio-section="siteStudioMenuSection" data-section-label="고객 메뉴">
-                <span>10</span><b>고객 메뉴</b><small>노출과 순서</small>
+                <span>11</span><b>고객 메뉴</b><small>노출과 순서</small>
               </button>
             </div>
             <div class="site-studio-sidebar-foot">
@@ -2876,7 +2883,7 @@
                     <button type="button" data-studio-admin-view="products"><strong>상품 점검</strong><span>관리자 가격·재고·브랜드 확인</span></button>
                     <button type="button" data-studio-admin-view="quality"><strong>DB 검수</strong><span>규격·마감·색상 누락 확인</span></button>
                     <button type="button" data-studio-admin-view="searchTraining"><strong>검색 교육</strong><span>타일 이미지 분류값 검수</span></button>
-                    <button type="button" data-site-studio-section="siteStudioTextSection" data-section-label="화면 문구"><strong>화면 수정</strong><span>문구와 이미지를 바로 편집</span></button>
+                    <button type="button" data-site-studio-section="siteStudioPageSection" data-section-label="전체 페이지"><strong>화면 수정</strong><span>전체 페이지를 골라 바로 편집</span></button>
                   </div>
                 </article>
 
@@ -2902,8 +2909,29 @@
                   <h4>수정 → 미리보기 → 저장</h4>
                   <p>편집 내용은 저장 전까지 고객에게 보이지 않습니다. 오른쪽 미리보기로 먼저 확인한 뒤 저장하세요.</p>
                 </div>
-                <button class="primary-action" type="button" data-site-studio-section="siteStudioAppearanceSection" data-section-label="폰트·컬러">사이트 편집 시작</button>
+                <button class="primary-action" type="button" data-site-studio-section="siteStudioPageSection" data-section-label="전체 페이지">사이트 편집 시작</button>
               </article>
+            </section>
+
+            <section class="site-studio-editor-section" id="siteStudioPageSection" data-site-studio-panel>
+              <header>
+                <div>
+                  <p class="eyebrow">Page Studio</p>
+                  <h3>전체 페이지 편집</h3>
+                </div>
+                <p>수정할 화면을 선택하고 문구, 대표 이미지, 화면별 색상과 간격을 조절합니다.</p>
+              </header>
+              <div class="site-studio-page-toolbar">
+                <label>
+                  <span>편집할 화면</span>
+                  <select id="siteStudioPageSelect" aria-label="편집할 화면"></select>
+                </label>
+                <span>각 항목의 적용 스위치를 켠 뒤 저장하면 고객 화면에 반영됩니다.</span>
+              </div>
+              <div class="site-studio-page-editor-layout">
+                <nav class="site-studio-page-list" id="siteStudioPageList" aria-label="전체 페이지"></nav>
+                <div class="site-studio-page-fields" id="siteStudioPageEditorFields"></div>
+              </div>
             </section>
 
             <section class="site-studio-editor-section" id="siteStudioAppearanceSection" data-site-studio-panel>
@@ -3572,13 +3600,13 @@
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
-    <script src="src/client/features/admin/site-studio.js?v=20260729-bath-copy-clean2"></script>
+    <script src="src/client/features/admin/site-studio.js?v=20260731-page-studio1"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260730-mobile-auth2"></script>
     <script src="promotion-reference-test.js?v=20260730-promo-main1"></script>
-    <script src="app.js?v=20260730-business-onboarding1"></script>
+    <script src="app.js?v=20260731-page-studio1"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260730-mobile-auth2"></script>
   </body>
 </html>

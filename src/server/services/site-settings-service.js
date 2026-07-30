@@ -1,8 +1,136 @@
 const fs = require("fs");
 const path = require("path");
 
+const DEFAULT_PAGE_SETTINGS = {
+  homePage: {
+    label: "메인",
+    eyebrow: "현장 자재를 위한 올인원 B2B 플랫폼",
+    title: "현장에 필요한 모든 자재,\n자재GO 하나로",
+    description: "타일·위생도기·수전금구·부자재를 빠르게 찾고 주문과 배차까지 한곳에서 관리하세요.",
+    heroImage: "images/branding/web-storefront-hero-20260706.png"
+  },
+  productsPage: {
+    label: "타일GO",
+    eyebrow: "TileGO",
+    title: "타일GO",
+    description: "규격, 용도, 마감, 스타일과 색상으로 필요한 타일을 찾습니다.",
+    heroImage: ""
+  },
+  bathProductsPage: {
+    label: "바스GO",
+    eyebrow: "BathGO",
+    title: "바스GO",
+    description: "욕실에 필요한 위생도기와 수전금구를 한 번에 찾습니다.",
+    heroImage: "images/catalog/catalog_p04_img00.webp?v=20260728-performance1"
+  },
+  bathInteriorPage: {
+    label: "욕실 인테리어",
+    eyebrow: "Bathroom Inspiration",
+    title: "욕실 인테리어",
+    description: "마음에 드는 공간을 고르면 사진 속 타일과 욕실 자재를 바로 확인할 수 있습니다.",
+    heroImage: ""
+  },
+  taxonomyTestPage: {
+    label: "AI 상품검색",
+    eyebrow: "AI Product Search",
+    title: "AI 상품검색",
+    description: "자연어와 필터로 필요한 현장 자재를 빠르게 찾습니다.",
+    heroImage: ""
+  },
+  aiTileFinderPage: {
+    label: "AI 타일찾기",
+    eyebrow: "AI Tile Finder",
+    title: "AI 타일찾기",
+    description: "사진의 색상과 패턴을 분석해 비슷한 타일을 찾습니다.",
+    heroImage: ""
+  },
+  samplePage: {
+    label: "샘플GO",
+    eyebrow: "SampleGO",
+    title: "샘플GO",
+    description: "샘플로 확인할 타일을 선택하고 신청합니다.",
+    heroImage: ""
+  },
+  quantityCalculatorPage: {
+    label: "물량계산",
+    eyebrow: "Quantity Calculator",
+    title: "타일·부자재 물량계산",
+    description: "현장 면적을 기준으로 타일과 시공 부자재 물량을 계산합니다.",
+    heroImage: ""
+  },
+  cartPage: {
+    label: "장바구니",
+    eyebrow: "Selected Items",
+    title: "장바구니",
+    description: "선택한 자재와 주문 수량을 확인합니다.",
+    heroImage: ""
+  },
+  myPage: {
+    label: "마이페이지",
+    eyebrow: "My Page",
+    title: "마이페이지",
+    description: "내 정보와 주문 현황을 한곳에서 관리합니다.",
+    heroImage: ""
+  },
+  plannerPage: {
+    label: "시공 미리보기",
+    eyebrow: "Image Based Tile Preview",
+    title: "시공 미리보기",
+    description: "현장 사진에 선택한 타일을 적용해 원본과 결과를 바로 비교합니다.",
+    heroImage: ""
+  },
+  renderPage: {
+    label: "실사 보정",
+    eyebrow: "AI Rendering",
+    title: "실사 이미지 보정",
+    description: "장바구니 자재를 현장 사진에 적용해 완성 이미지를 만듭니다.",
+    heroImage: ""
+  },
+  loginPage: {
+    label: "로그인",
+    eyebrow: "Quick Login",
+    title: "간편로그인",
+    description: "네이버, 카카오, Google 계정 또는 사업자 정보로 로그인합니다.",
+    heroImage: ""
+  },
+  signupPage: {
+    label: "회원가입",
+    eyebrow: "Jajaego Membership",
+    title: "간편 회원가입",
+    description: "소셜 계정으로 가입한 뒤 파트너 등록을 진행합니다.",
+    heroImage: ""
+  },
+  businessOnboardingPage: {
+    label: "사업자 정보",
+    eyebrow: "Business Verification",
+    title: "사업자 정보를 등록해주세요.",
+    description: "사업자등록증 또는 사업자등록번호를 등록할 수 있습니다.",
+    heroImage: ""
+  },
+  partnerApplicationPage: {
+    label: "파트너 신청",
+    eyebrow: "Partner Membership",
+    title: "파트너 등록신청",
+    description: "사업자등록증과 담당자 정보를 등록해 회원 등급을 신청합니다.",
+    heroImage: ""
+  }
+};
+
+Object.values(DEFAULT_PAGE_SETTINGS).forEach((page) => {
+  Object.assign(page, {
+    backgroundColor: "#ffffff",
+    surfaceColor: "#ffffff",
+    accentColor: "#0b5cff",
+    headingScale: 100,
+    sectionGap: 24,
+    contentEnabled: false,
+    imageEnabled: false,
+    designEnabled: false
+  });
+});
+
 const DEFAULT_SITE_SETTINGS = {
-  version: 1,
+  version: 2,
   appearance: {
     fontFamily: "system",
     fontScale: "default",
@@ -63,6 +191,7 @@ const DEFAULT_SITE_SETTINGS = {
     homeQuantity: "images/branding/home-quantity-calculator-20260728.webp?v=20260728-performance1",
     bathHero: "images/catalog/catalog_p04_img00.webp?v=20260728-performance1"
   },
+  pages: DEFAULT_PAGE_SETTINGS,
   menu: [
     { id: "homePage", label: "메인", visible: true, order: 1 },
     { id: "taxonomyTestPage", label: "상품검색", visible: true, order: 2 },
@@ -77,6 +206,7 @@ const DEFAULT_SITE_SETTINGS = {
 const FONT_FAMILIES = new Set(["system", "pretendard", "noto", "serif"]);
 const FONT_SCALES = new Set(["compact", "default", "large"]);
 const MENU_IDS = new Set(DEFAULT_SITE_SETTINGS.menu.map((item) => item.id));
+const PAGE_IDS = new Set(Object.keys(DEFAULT_PAGE_SETTINGS));
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -105,11 +235,23 @@ function cleanImage(value, fallback) {
   return fallback;
 }
 
+function cleanPageText(source, key, fallback, maxLength) {
+  if (!Object.prototype.hasOwnProperty.call(source, key)) return fallback;
+  return String(source[key] ?? "").replace(/\u0000/g, "").trim().slice(0, maxLength);
+}
+
+function cleanPageImage(source, fallback) {
+  if (!Object.prototype.hasOwnProperty.call(source, "heroImage")) return fallback;
+  const value = String(source.heroImage || "").trim();
+  return value ? cleanImage(value, fallback) : "";
+}
+
 function sanitizeSiteSettings(input = {}) {
   const defaults = DEFAULT_SITE_SETTINGS;
   const appearanceInput = input.appearance && typeof input.appearance === "object" ? input.appearance : {};
   const textInput = input.text && typeof input.text === "object" ? input.text : {};
   const imageInput = input.images && typeof input.images === "object" ? input.images : {};
+  const pageInput = input.pages && typeof input.pages === "object" ? input.pages : {};
   const menuInput = Array.isArray(input.menu) ? input.menu : [];
   const menuById = new Map(menuInput.map((item) => [String(item?.id || ""), item]));
 
@@ -121,6 +263,27 @@ function sanitizeSiteSettings(input = {}) {
   const images = {};
   Object.entries(defaults.images).forEach(([key, fallback]) => {
     images[key] = cleanImage(imageInput[key], fallback);
+  });
+
+  const pages = {};
+  PAGE_IDS.forEach((pageId) => {
+    const fallback = defaults.pages[pageId];
+    const source = pageInput[pageId] && typeof pageInput[pageId] === "object" ? pageInput[pageId] : {};
+    pages[pageId] = {
+      label: fallback.label,
+      eyebrow: cleanPageText(source, "eyebrow", fallback.eyebrow, 100),
+      title: cleanPageText(source, "title", fallback.title, 180),
+      description: cleanPageText(source, "description", fallback.description, 420),
+      heroImage: cleanPageImage(source, fallback.heroImage),
+      backgroundColor: cleanColor(source.backgroundColor, fallback.backgroundColor),
+      surfaceColor: cleanColor(source.surfaceColor, fallback.surfaceColor),
+      accentColor: cleanColor(source.accentColor, fallback.accentColor),
+      headingScale: cleanNumber(source.headingScale, fallback.headingScale, 80, 140),
+      sectionGap: cleanNumber(source.sectionGap, fallback.sectionGap, 12, 64),
+      contentEnabled: source.contentEnabled === true,
+      imageEnabled: source.imageEnabled === true,
+      designEnabled: source.designEnabled === true
+    };
   });
 
   return {
@@ -140,6 +303,7 @@ function sanitizeSiteSettings(input = {}) {
     },
     text,
     images,
+    pages,
     menu: defaults.menu.map((defaultItem, index) => {
       const source = menuById.get(defaultItem.id) || {};
       return {
