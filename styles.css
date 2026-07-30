@@ -2710,6 +2710,210 @@ body[data-page="plannerPage"] .planner-photo-result .render-before-after {
   }
 }
 
+.business-onboarding-page {
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+
+.business-onboarding-heading {
+  padding: 18px 24px;
+  align-items: end;
+}
+
+.business-onboarding-heading h2 {
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.business-onboarding-entry {
+  display: grid;
+  gap: 24px;
+  padding: 34px 40px 40px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+}
+
+.business-onboarding-copy h3 {
+  margin: 5px 0 7px;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1.3;
+}
+
+.business-onboarding-copy > p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.business-onboarding-options {
+  display: grid;
+  gap: 14px;
+}
+
+.business-onboarding-upload {
+  display: flex;
+  min-height: 92px;
+  padding: 18px 20px;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #cfd8e5;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #f8fafc;
+}
+
+.business-onboarding-upload:hover,
+.business-onboarding-upload:focus-within {
+  border-color: #1557e8;
+  background: #f4f7ff;
+}
+
+.business-onboarding-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.business-onboarding-option-icon {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 50%;
+  background: #081957;
+}
+
+.business-onboarding-option-icon::before,
+.business-onboarding-option-icon::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  width: 18px;
+  height: 2px;
+  background: #fff;
+}
+
+.business-onboarding-option-icon::before {
+  top: 20px;
+}
+
+.business-onboarding-option-icon::after {
+  top: 20px;
+  transform: rotate(90deg);
+}
+
+.business-onboarding-upload strong,
+.business-onboarding-upload small {
+  display: block;
+}
+
+.business-onboarding-upload strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.business-onboarding-upload small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.business-onboarding-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8993a1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.business-onboarding-divider::before,
+.business-onboarding-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line);
+}
+
+.business-onboarding-number {
+  display: grid;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.business-onboarding-number input {
+  min-height: 50px;
+  padding: 12px 14px;
+  border: 1px solid #cfd8e5;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 16px;
+  background: #fff;
+}
+
+.business-onboarding-number input:focus {
+  border-color: #1557e8;
+  outline: 2px solid rgba(21, 87, 232, 0.12);
+}
+
+.business-onboarding-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.business-onboarding-actions button {
+  min-height: 48px;
+}
+
+.business-onboarding-status {
+  min-height: 20px;
+  margin: -8px 0 0;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.business-onboarding-status:empty {
+  display: none;
+}
+
+@media (max-width: 620px) {
+  .business-onboarding-heading {
+    padding: 16px;
+  }
+
+  .business-onboarding-heading h2 {
+    font-size: 24px;
+  }
+
+  .business-onboarding-entry {
+    gap: 20px;
+    padding: 24px 16px 28px;
+  }
+
+  .business-onboarding-copy h3 {
+    font-size: 23px;
+  }
+
+  .business-onboarding-upload {
+    min-height: 84px;
+    padding: 16px;
+  }
+
+  .business-onboarding-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 #loginPage.login-workspace {
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;

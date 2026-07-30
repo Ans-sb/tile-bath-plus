@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-    <link rel="stylesheet" href="styles.css?v=20260730-signup-clean1" />
+    <link rel="stylesheet" href="styles.css?v=20260730-business-onboarding1" />
     <link rel="stylesheet" href="promotion-reference-test.css?v=20260730-promo-main3" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
@@ -1148,6 +1148,42 @@
             </button>
           </div>
           <div class="signup-status-bar" id="signupEntryStatus" role="status" aria-live="polite"></div>
+        </section>
+      </main>
+
+      <main class="app-page page-panel business-onboarding-page" id="businessOnboardingPage">
+        <section class="page-heading business-onboarding-heading">
+          <div>
+            <p class="eyebrow">Business Verification</p>
+            <h2>사업자 확인</h2>
+          </div>
+        </section>
+        <section class="business-onboarding-entry" aria-labelledby="businessOnboardingTitle">
+          <div class="business-onboarding-copy">
+            <p class="eyebrow">Partner Setup</p>
+            <h3 id="businessOnboardingTitle"><span id="businessOnboardingWelcomeName">회원</span>님, 사업자 정보를 등록해주세요.</h3>
+            <p>등록증을 올리거나 사업자등록번호를 입력하면 됩니다.</p>
+          </div>
+          <div class="business-onboarding-options">
+            <label class="business-onboarding-upload" for="businessOnboardingFile">
+              <span class="business-onboarding-option-icon" aria-hidden="true"></span>
+              <span>
+                <strong>사업자등록증 업로드</strong>
+                <small id="businessOnboardingFileName">PDF 또는 이미지 파일</small>
+              </span>
+              <input id="businessOnboardingFile" type="file" accept=".pdf,image/*" />
+            </label>
+            <div class="business-onboarding-divider" aria-hidden="true"><span>또는</span></div>
+            <label class="business-onboarding-number">
+              <span>사업자등록번호</span>
+              <input id="businessOnboardingNumber" type="text" inputmode="numeric" autocomplete="off" placeholder="123-45-67890" />
+            </label>
+          </div>
+          <div class="business-onboarding-actions">
+            <button class="primary-action" id="businessOnboardingContinueBtn" type="button">입력하고 계속</button>
+            <button class="secondary-action" id="businessOnboardingLaterBtn" type="button">다음에 입력</button>
+          </div>
+          <p class="business-onboarding-status" id="businessOnboardingStatus" role="status" aria-live="polite"></p>
         </section>
       </main>
 
@@ -3542,7 +3578,7 @@
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260730-mobile-auth2"></script>
     <script src="promotion-reference-test.js?v=20260730-promo-main1"></script>
-    <script src="app.js?v=20260730-home-login2"></script>
+    <script src="app.js?v=20260730-business-onboarding1"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260730-mobile-auth2"></script>
   </body>
 </html>

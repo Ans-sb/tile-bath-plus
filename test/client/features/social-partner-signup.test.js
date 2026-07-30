@@ -51,10 +51,27 @@ test("partner application owns business verification and contact fields", () => 
   assert.doesNotMatch(partnerMarkup, /type="password"/);
 });
 
-test("social signup callback continues on the partner application page", () => {
+test("social signup callback continues on the simple business onboarding page", () => {
+  const onboardingStart = indexHtml.indexOf('id="businessOnboardingPage"');
+  const partnerStart = indexHtml.indexOf('id="partnerApplicationPage"');
+  const onboardingMarkup = indexHtml.slice(onboardingStart, partnerStart);
+  const onboardingRedirects = appJs.match(/switchPage\("businessOnboardingPage"\)/g) || [];
+
+  assert.ok(onboardingStart >= 0);
+  assert.ok(partnerStart > onboardingStart);
+  assert.ok(onboardingRedirects.length >= 2);
+  assert.match(onboardingMarkup, /id="businessOnboardingFile"/);
+  assert.match(onboardingMarkup, /id="businessOnboardingNumber"/);
+  assert.match(onboardingMarkup, /id="businessOnboardingContinueBtn"/);
+  assert.match(onboardingMarkup, /id="businessOnboardingLaterBtn"[\s\S]*?>다음에 입력</);
+  assert.match(appJs, /function deferBusinessOnboarding\(\)[\s\S]*?openMemberHomeAfterLogin\(\)/);
+  assert.match(appJs, /function continueBusinessOnboarding\(\)[\s\S]*?switchPage\("partnerApplicationPage"\)/);
+});
+
+test("social signup keeps pending account data for the later partner application", () => {
   const partnerRedirects = appJs.match(/switchPage\("partnerApplicationPage"\)/g) || [];
 
-  assert.ok(partnerRedirects.length >= 2);
+  assert.ok(partnerRedirects.length >= 1);
   assert.match(appJs, /tbpPendingSocialSignupProfile/);
   assert.match(appJs, /socialSignupToken/);
   assert.match(appJs, /const approvalStatus = "보류"/);

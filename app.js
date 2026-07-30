@@ -689,7 +689,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage", "loginPage", "signupPage", "partnerApplicationPage", "authRequiredPage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage", "loginPage", "signupPage", "businessOnboardingPage", "partnerApplicationPage", "authRequiredPage"]);
 const AUTH_REQUIRED_PAGE_IDS = new Set([
   "productsPage",
   "bathProductsPage",
@@ -1817,6 +1817,10 @@ function bindEvents() {
   document.querySelector("#verifyBusinessBtn").addEventListener("click", verifyBusinessRegistration);
   document.querySelector("#saveApprovalRulesBtn")?.addEventListener("click", saveApprovalRulesFromForm);
   document.querySelector("#socialBusinessUploadBtn")?.addEventListener("click", focusBusinessCertificateUpload);
+  document.querySelector("#businessOnboardingFile")?.addEventListener("change", handleBusinessOnboardingFileChange);
+  document.querySelector("#businessOnboardingNumber")?.addEventListener("input", handleBusinessOnboardingNumberInput);
+  document.querySelector("#businessOnboardingContinueBtn")?.addEventListener("click", continueBusinessOnboarding);
+  document.querySelector("#businessOnboardingLaterBtn")?.addEventListener("click", deferBusinessOnboarding);
   document.querySelector("#googleSignupBtn").addEventListener("click", () => startSocialSignup("Google"));
   document.querySelector("#kakaoSignupBtn").addEventListener("click", () => startSocialSignup("카카오톡"));
   document.querySelector("#naverSignupBtn").addEventListener("click", () => startSocialSignup("네이버"));
@@ -12340,10 +12344,10 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
         });
         selectedSignupProvider = `${providerLabel} 가입`;
         applyPendingSocialUser(socialSignupProfile, `${providerLabel} 계정이 확인되었습니다. 사업자등록증 등록을 완료하면 상품 금액을 볼 수 있습니다.`);
-        switchPage("partnerApplicationPage");
+        switchPage("businessOnboardingPage");
         setText("#authStatus", `${providerLabel} 계정 가입은 완료되었습니다. 사업자등록증을 등록해 파트너 등록을 신청해주세요.`);
-        setText("#signupStatus", loginError.message || `${providerLabel} 가입이 완료되었습니다. 파트너 등록을 계속 진행해주세요.`);
-        renderSignupSummary();
+        setText("#signupStatus", loginError.message || `${providerLabel} 가입이 완료되었습니다. 사업자 정보를 입력해주세요.`);
+        renderBusinessOnboarding();
         return;
       }
     }
@@ -12364,13 +12368,13 @@ async function completeSocialAuthRedirect({ accessToken, provider, mode, error =
     if (nameInput && !nameInput.value && profile.name) nameInput.value = profile.name;
     if (emailInput && !emailInput.value && profile.email) emailInput.value = profile.email;
     applyPendingSocialUser(socialSignupProfile, `${providerLabel} 계정이 확인되었습니다. 사업자 인증을 이어서 진행해주세요.`);
-    switchPage("partnerApplicationPage");
+    switchPage("businessOnboardingPage");
     const emailNotice = profile.email
       ? `${providerLabel} 계정(${profile.email})이 확인되었습니다.`
       : `${providerLabel} 계정은 확인됐지만 이메일이 전달되지 않았습니다. 해당 서비스의 이메일 제공 동의 설정을 확인해주세요.`;
     setText("#authStatus", `${emailNotice} 파트너 승인 후 등급별 가격을 볼 수 있습니다.`);
-    setText("#signupStatus", `${getSocialWelcomeName()}님, 간편가입이 완료되었습니다. 사업자등록증을 업로드해 파트너 등록을 신청해주세요.`);
-    renderSignupSummary();
+    setText("#signupStatus", `${getSocialWelcomeName()}님, 간편가입이 완료되었습니다. 사업자 정보를 입력해주세요.`);
+    renderBusinessOnboarding();
   } catch (error) {
     selectedSignupProvider = `${providerLabel} 가입`;
     switchPage(mode === "login" ? "loginPage" : "signupPage");
@@ -12461,6 +12465,78 @@ function focusBusinessCertificateUpload() {
   if (!fileInput) return;
   fileInput.scrollIntoView({ behavior: "smooth", block: "center" });
   window.setTimeout(() => fileInput.click(), 240);
+}
+
+function renderBusinessOnboarding() {
+  setText("#businessOnboardingWelcomeName", getSocialWelcomeName());
+  const file = document.querySelector("#businessOnboardingFile")?.files?.[0];
+  setText("#businessOnboardingFileName", file ? file.name : "PDF 또는 이미지 파일");
+}
+
+function handleBusinessOnboardingFileChange() {
+  renderBusinessOnboarding();
+  setText("#businessOnboardingStatus", "");
+}
+
+function handleBusinessOnboardingNumberInput(event) {
+  const input = event.currentTarget;
+  const digits = cleanBusinessNumber(input.value).slice(0, 10);
+  input.value = digits.length === 10 ? formatBusinessNumber(digits) : digits;
+  setText("#businessOnboardingStatus", "");
+}
+
+function copyBusinessOnboardingFileToPartnerForm(file) {
+  const target = document.querySelector("#signupBizFile");
+  if (!target || !file || typeof DataTransfer === "undefined") return false;
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  target.files = transfer.files;
+  return true;
+}
+
+function continueBusinessOnboarding() {
+  const file = document.querySelector("#businessOnboardingFile")?.files?.[0];
+  const numberInput = document.querySelector("#businessOnboardingNumber");
+  const businessNumber = cleanBusinessNumber(numberInput?.value);
+  if (!file && !businessNumber) {
+    setText("#businessOnboardingStatus", "사업자등록증을 올리거나 사업자등록번호를 입력해주세요.");
+    return;
+  }
+  if (businessNumber && businessNumber.length !== 10) {
+    setText("#businessOnboardingStatus", "사업자등록번호 10자리를 입력해주세요.");
+    numberInput?.focus();
+    return;
+  }
+
+  if (businessNumber) {
+    const targetNumberInput = document.querySelector("#signupBizNo");
+    if (targetNumberInput) {
+      targetNumberInput.value = formatBusinessNumber(businessNumber);
+      resetBusinessVerification(false);
+    }
+  }
+
+  if (file && copyBusinessOnboardingFileToPartnerForm(file)) {
+    void handleBusinessFileChange();
+  }
+
+  try {
+    localStorage.removeItem("tbpBusinessOnboardingDeferred");
+  } catch {
+    // The onboarding flow remains usable when storage is restricted.
+  }
+  setText("#businessOnboardingStatus", "");
+  switchPage("partnerApplicationPage");
+}
+
+function deferBusinessOnboarding() {
+  try {
+    localStorage.setItem("tbpBusinessOnboardingDeferred", "true");
+  } catch {
+    // The member can still continue to the home page without local storage.
+  }
+  setText("#businessOnboardingStatus", "");
+  openMemberHomeAfterLogin();
 }
 
 function renderSocialBusinessGate() {
@@ -14903,6 +14979,10 @@ function switchPage(pageId, options = {}) {
 
   if (pageId === "myPage") {
     renderMyPage();
+  }
+
+  if (pageId === "businessOnboardingPage") {
+    renderBusinessOnboarding();
   }
 
   if (pageId === "partnerApplicationPage") {
