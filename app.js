@@ -516,7 +516,7 @@ const DEFAULT_APPROVAL_RULES = {
   ]
 };
 const DEFAULT_APPROVAL_RULES_VERSION = "2026-04-24-approved-industries";
-const ADMIN_ONLY_PAGE_IDS = new Set(["proposalPage", "dbPage", "adminPage", "siteStudioPage", "tile114TestPage"]);
+const ADMIN_ONLY_PAGE_IDS = new Set(["dbPage", "adminPage", "siteStudioPage", "tile114TestPage"]);
 const IMAGE_SEARCH_RESULTS_PAGE_SIZE = 20;
 const TILE_FINDER_RESULTS_PAGE_SIZE = 10;
 const ADMIN_PRODUCT_TABLE_LIMIT = 300;
@@ -689,7 +689,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "samplePage", "quantityCalculatorPage", "loginPage", "signupPage", "businessOnboardingPage", "partnerApplicationPage", "authRequiredPage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "proposalPage", "samplePage", "quantityCalculatorPage", "loginPage", "signupPage", "businessOnboardingPage", "partnerApplicationPage", "authRequiredPage"]);
 const AUTH_REQUIRED_PAGE_IDS = new Set([
   "productsPage",
   "bathProductsPage",
@@ -942,7 +942,7 @@ const SEARCH_TRAINING_FINISH_OPTIONS = [
 const SEARCH_TRAINING_MATERIAL_OPTIONS = [
   "포세린", "자기질", "도기질", "세라믹", "석재 타일", "복합대리석", "시멘트 타일", "메탈", "천연석", "유리", "재질 미확인"
 ];
-const DEFAULT_PROPOSAL_PPT_STATUS = "템플릿을 고르고 상품과 보정 이미지를 선택한 뒤 최종 제안서를 생성하세요.";
+const DEFAULT_PROPOSAL_PPT_STATUS = "상품을 선택한 뒤 제안서를 다운로드하세요.";
 const PROPOSAL_TEMPLATE_PREVIEWS = {
   "beige-black": {
     label: "Style A",
@@ -1897,6 +1897,13 @@ function bindEvents() {
   document.querySelector("#myPage")?.addEventListener("click", (event) => {
     const button = event.target.closest(".my-empty-actions [data-page-target], .my-partner-application-action[data-page-target]");
     if (button) switchPage(button.dataset.pageTarget);
+  });
+  document.querySelector("#myPage")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-my-page-view-target]");
+    if (button) switchMyPageView(button.dataset.myPageViewTarget, { scroll: true });
+  });
+  document.querySelector("#myPageSearchInput")?.addEventListener("input", (event) => {
+    filterMyPageView(event.target.value);
   });
   document.querySelector("#logoutBtn").addEventListener("click", logoutUser);
   document.querySelector("#googleLoginBtn").addEventListener("click", () => startSocialLogin("Google"));
@@ -7987,6 +7994,102 @@ function renderMemberHomeBoard() {
   setText("#memberBoardDispatchCount", `진행 ${number(dispatchOrders.length)}건`);
 }
 
+const MY_PAGE_VIEW_META = Object.freeze({
+  overview: { eyebrow: "OVERVIEW", title: "업무 요약" },
+  orders: { eyebrow: "CURRENT ORDER", title: "주문 현황" },
+  history: { eyebrow: "ORDER HISTORY", title: "지난 주문" },
+  dispatch: { eyebrow: "DISPATCH", title: "배차 현황" },
+  cart: { eyebrow: "CART", title: "장바구니" },
+  clients: { eyebrow: "CLIENTS", title: "거래처 관리" },
+  account: { eyebrow: "ACCOUNT", title: "계정·회원등급" }
+});
+
+let myPageCurrentView = "overview";
+
+function getDispatchOrders(orders = []) {
+  return orders.filter((order) => {
+    const status = String(order?.status || "");
+    return /배차|배송|출고|상차|이동/.test(status) && !/완료|취소|반품/.test(status);
+  });
+}
+
+function switchMyPageView(view = "overview", options = {}) {
+  const nextView = MY_PAGE_VIEW_META[view] ? view : "overview";
+  const page = document.querySelector("#myPage");
+  if (!page) return;
+
+  myPageCurrentView = nextView;
+  page.querySelectorAll("[data-my-page-view-target]").forEach((button) => {
+    const active = button.dataset.myPageViewTarget === nextView;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  page.querySelectorAll("[data-my-page-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.myPagePanel !== nextView;
+  });
+
+  setText("#myPageViewEyebrow", MY_PAGE_VIEW_META[nextView].eyebrow);
+  setText("#myPageViewTitle", MY_PAGE_VIEW_META[nextView].title);
+  const searchInput = page.querySelector("#myPageSearchInput");
+  if (searchInput) searchInput.value = "";
+  filterMyPageView("");
+
+  if (options.scroll && window.matchMedia("(max-width: 760px)").matches) {
+    page.querySelector(".my-page-board-toolbar")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function filterMyPageView(value = "") {
+  const page = document.querySelector("#myPage");
+  if (!page) return;
+  const query = normalizeSearchText(value);
+  const panel = page.querySelector(`[data-my-page-panel="${myPageCurrentView}"]:not([hidden])`);
+  const status = page.querySelector("#myPageSearchStatus");
+  if (!panel) {
+    if (status) status.textContent = "";
+    return;
+  }
+
+  const candidates = Array.from(panel.querySelectorAll(".my-past-order-card, .my-order-item, .client-management-card"))
+    .filter((item) => !item.classList.contains("my-order-item") || !item.closest(".my-past-order-card"));
+  let visibleCount = 0;
+  candidates.forEach((item) => {
+    const visible = !query || normalizeSearchText(item.textContent).includes(query);
+    item.classList.toggle("my-page-search-hidden", !visible);
+    if (visible) visibleCount += 1;
+  });
+  if (status) {
+    status.textContent = query && candidates.length ? `${number(visibleCount)}개 결과` : "";
+  }
+}
+
+function renderMyPageOverview(pastOrders = []) {
+  const overview = document.querySelector("#myPageOverviewSummary");
+  if (!overview || !authUser) return;
+  const dispatchOrders = getDispatchOrders(pastOrders);
+  const activeOrders = pastOrders.filter((order) => !/완료|취소|반품/.test(String(order?.status || "")));
+  const clientInfo = loadClientManagementInfo();
+  const hasClientInfo = Boolean(clientInfo.clientName || clientInfo.siteName || clientInfo.siteAddress);
+  const metrics = [
+    { label: "주문 진행", value: `${number(activeOrders.length + (cart.length ? 1 : 0))}건`, hint: cart.length ? "새 주문 준비 중" : "진행 주문 확인", view: "orders" },
+    { label: "지난 주문", value: `${number(pastOrders.length)}건`, hint: "전체 주문 기록", view: "history" },
+    { label: "배차 진행", value: `${number(dispatchOrders.length)}건`, hint: dispatchOrders[0]?.status || "대기 없음", view: "dispatch" },
+    { label: "장바구니", value: `${number(cart.length)}개`, hint: "선택한 자재", view: "cart" },
+    { label: "회원 등급", value: getCompactMemberGradeLabel(), hint: hasMemberPriceAccess() ? "금액 열람 가능" : "사업자 승인 필요", view: "account" },
+    { label: "거래처", value: hasClientInfo ? "관리 중" : "미등록", hint: hasClientInfo ? (clientInfo.clientName || clientInfo.siteName || "정보 확인") : "새 거래처 등록", view: "clients" },
+    { label: "실사보정", value: "사진 적용", hint: "현장 사진에 장바구니 자재 적용", pageTarget: "renderPage" },
+    { label: "제안서", value: "작성 도구", hint: "상품·보정 이미지로 제안서 제작", pageTarget: "proposalPage" }
+  ];
+  overview.innerHTML = metrics.map((metric, index) => `
+    <button class="my-page-metric" type="button" ${metric.view ? `data-my-page-view-target="${metric.view}"` : `data-page-target="${metric.pageTarget}"`}>
+      <span>${String(index + 1).padStart(2, "0")} · ${escapeHtml(metric.label)}</span>
+      <strong>${escapeHtml(metric.value)}</strong>
+      <small>${escapeHtml(metric.hint)}</small>
+    </button>
+  `).join("");
+}
+
 function renderMyPage() {
   const page = document.querySelector("#myPage");
   const profile = document.querySelector("#myProfileSummary");
@@ -7994,7 +8097,8 @@ function renderMyPage() {
   const myCart = document.querySelector("#myCartList");
   const clientPanel = document.querySelector("#myClientManagementPanel");
   const past = document.querySelector("#myPastOrderList");
-  if (!profile || !current || !myCart || !clientPanel || !past) return;
+  const dispatch = document.querySelector("#myDispatchOrderList");
+  if (!profile || !current || !myCart || !clientPanel || !past || !dispatch) return;
 
   page?.classList.toggle("is-signed-out", !authUser);
   page?.classList.toggle("is-signed-in", Boolean(authUser));
@@ -8015,6 +8119,8 @@ function renderMyPage() {
     myCart.innerHTML = "";
     clientPanel.innerHTML = "";
     past.innerHTML = "";
+    dispatch.innerHTML = "";
+    switchMyPageView("account");
     return;
   }
 
@@ -8076,6 +8182,10 @@ function renderMyPage() {
   myCart.innerHTML = renderMyOrderItems(cart, "장바구니에 담긴 상품이 없습니다.");
   renderClientManagementPanel();
   past.innerHTML = pastOrders.map(renderPastOrderCard).join("") || `<div class="empty-state">아직 지난 주문내역이 없습니다.</div>`;
+  const dispatchOrders = getDispatchOrders(pastOrders);
+  dispatch.innerHTML = dispatchOrders.map(renderPastOrderCard).join("") || `<div class="empty-state">현재 진행 중인 배차가 없습니다.</div>`;
+  renderMyPageOverview(pastOrders);
+  switchMyPageView(myPageCurrentView);
 }
 
 function renderClientManagementPanel() {
@@ -9921,16 +10031,16 @@ function renderProposalSelectionControls(selectedProducts, selectedRenderedItems
   productList.innerHTML = cart.map((item) => `
     <label class="proposal-select-card ${proposalProductSelectionIds.has(item.id) ? "is-selected" : ""}">
       <input type="checkbox" data-proposal-product-select="${escapeHtml(item.id)}" ${proposalProductSelectionIds.has(item.id) ? "checked" : ""} />
-      ${item.image ? `<img class="proposal-select-thumb" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-select-thumb proposal-item-image-empty">No Image</div>`}
+      ${item.image ? `<img class="proposal-select-thumb" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-select-thumb proposal-item-image-empty">이미지 없음</div>`}
       <div class="proposal-select-copy">
         <strong>${escapeHtml(item.name)}</strong>
         <span>${escapeHtml(item.kind || "-")} / ${escapeHtml(item.size || "-")}</span>
         <span>${money.format(Number(item.quotePrice || 0))} / ${number(item.qty)}${escapeHtml(item.unit || "")}</span>
       </div>
-      <button class="secondary-action proposal-render-open-btn" type="button" data-proposal-render-open="${escapeHtml(item.id)}">이 상품 보정</button>
-      ${item.renderedImage ? `<span class="proposal-select-badge">Rendered</span>` : ""}
+      <button class="secondary-action proposal-render-open-btn" type="button" data-proposal-render-open="${escapeHtml(item.id)}">보정</button>
+      ${item.renderedImage ? `<span class="proposal-select-badge">보정 완료</span>` : ""}
     </label>
-  `).join("") || `<div class="empty-state">No cart items available for the proposal.</div>`;
+  `).join("") || `<div class="empty-state">장바구니에 상품이 없습니다.</div>`;
 
   const availableRenderedItems = selectedProducts.filter((item) => item.renderedImage);
   renderSection.classList.toggle("hidden", !availableRenderedItems.length);
@@ -9940,19 +10050,19 @@ function renderProposalSelectionControls(selectedProducts, selectedRenderedItems
       <img class="proposal-select-thumb proposal-render-select-thumb" src="${escapeHtml(item.renderedImage)}" alt="${escapeHtml(item.name)} rendered preview" loading="lazy" />
       <div class="proposal-select-copy">
         <strong>${escapeHtml(item.name)}</strong>
-        <span>${escapeHtml(item.renderTarget || "Rendered Preview")}</span>
+        <span>${escapeHtml(item.renderTarget || "실사 보정")}</span>
         <span>${escapeHtml(item.renderPointMemo || "")}</span>
       </div>
     </label>
   `).join("");
 
-  summary.textContent = `${selectedProducts.length} products selected / ${selectedRenderedItems.length} renders selected`;
+  summary.textContent = `선택 상품 ${number(selectedProducts.length)}개 · 보정 이미지 ${number(selectedRenderedItems.length)}개`;
   if (renderStatus) {
     const renderableCount = cart.filter((item) => item.productType === "tile").length;
     const renderedCount = cart.filter((item) => item.renderedImage).length;
     renderStatus.textContent = cart.length
-      ? `보정 가능 타일 ${number(renderableCount)}개 · 생성된 보정 이미지 ${number(renderedCount)}개`
-      : "장바구니에 상품을 먼저 담으면 실사 보정을 시작할 수 있습니다.";
+      ? `타일 ${number(renderableCount)}개 · 보정 ${number(renderedCount)}개`
+      : "장바구니가 비어 있습니다.";
   }
 }
 
@@ -10023,17 +10133,19 @@ function renderDocuments() {
   setText("#estimateDate", shortDate.format(date));
   setText("#docCustomer", customer);
   setText("#docAddress", address);
-  setText("#docItemCount", `${cart.length}개 품목`);
+  setText("#docItemCount", `${selectedProducts.length}개 품목`);
   setText("#docTotal", money.format(total));
   setText("#proposalIntro", `${customer}의 ${address} 현장에 맞춰 장바구니에 선정한 타일, 위생도기, 부자재를 기준으로 제안드립니다.`);
   setText("#proposalNote", `본 제안은 ${shortDate.format(validDate)}까지 유효합니다. 현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다. ${memo}`);
 
   setText("#proposalCompanyName", companyName || "자재GO 바스GO");
-  setText("#proposalManagerName", [managerName, managerTitle].filter(Boolean).join(" / ") || "Add contact details above to include them in the proposal.");
+  setText("#proposalManagerName", [managerName, managerTitle].filter(Boolean).join(" / ") || "담당자 정보 미입력");
   setText("#proposalManagerPhone", managerPhone || "");
   renderProposalSelectionControls(selectedProducts, selectedRenderedItems);
-
-  document.querySelector("#proposalItems").innerHTML = cart.map((item) => `
+  setText("#estimateSubtotal", money.format(subtotal));
+  setText("#estimateVat", money.format(vat));
+  setText("#estimateTotal", money.format(total));
+  document.querySelector("#proposalItems").innerHTML = selectedProducts.map((item) => `
     <li class="proposal-item-card">
       <button class="proposal-image-button" type="button" data-render-product="${escapeHtml(item.id)}" title="실사 보정으로 이동">
         ${item.image ? `<img class="proposal-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-item-image proposal-item-image-empty">이미지 없음</div>`}
@@ -10045,27 +10157,6 @@ function renderDocuments() {
       </div>
     </li>
   `).join("") || `<li class="proposal-item-card proposal-item-empty">선정된 품목이 없습니다.</li>`;
-  document.querySelector("#estimateRows").innerHTML = cart.map((item) => {
-    return `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.size || "-")}</td><td>${number(item.qty)}${escapeHtml(item.unit)}</td><td>${money.format(item.quotePrice)}</td></tr>`;
-  }).join("");
-  setText("#estimateSubtotal", money.format(subtotal));
-  setText("#estimateVat", money.format(vat));
-  setText("#estimateTotal", money.format(total));
-  renderProposalRenderedItems();
-
-  setText("#docItemCount", `${selectedProducts.length} items`);
-  document.querySelector("#proposalItems").innerHTML = selectedProducts.map((item) => `
-    <li class="proposal-item-card">
-      <button class="proposal-image-button" type="button" data-render-product="${escapeHtml(item.id)}" title="Open render workspace">
-        ${item.image ? `<img class="proposal-item-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-item-image proposal-item-image-empty">No Image</div>`}
-      </button>
-      <div>
-        <strong>${escapeHtml(item.name)}</strong>
-        <span>${escapeHtml(item.kind)} / ${escapeHtml(item.option || item.finish || "-")}</span>
-        <span class="proposal-item-size">${escapeHtml(item.size || "-")}</span>
-      </div>
-    </li>
-  `).join("") || `<li class="proposal-item-card proposal-item-empty">No selected products.</li>`;
   document.querySelector("#estimateRows").innerHTML = selectedProducts.map((item) => {
     return `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.size || "-")}</td><td>${number(item.qty)}${escapeHtml(item.unit)}</td><td>${money.format(item.quotePrice)}</td></tr>`;
   }).join("");
@@ -10226,11 +10317,9 @@ async function generateProfessionalProposalDeck() {
       size: item.size || "",
       option: item.option || "",
       finish: item.finish || "",
-      maker: item.maker || "",
       unit: item.unit || "",
       qty: Number(item.qty || 0),
       quotePrice: Number(item.quotePrice || 0),
-      costPrice: Number(item.costPrice || 0),
       image: item.image || "",
       renderedImage: selectedRenderedIds.has(item.id) ? (item.renderedImage || "") : "",
       renderTarget: selectedRenderedIds.has(item.id) ? (item.renderTarget || "") : "",

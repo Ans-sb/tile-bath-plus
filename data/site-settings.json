@@ -1,11 +1,11 @@
 {
-  "version": 1,
+  "version": 3,
   "appearance": {
     "fontFamily": "system",
     "fontScale": "default",
-    "primaryColor": "#0b5cff",
-    "inkColor": "#141922",
-    "pageColor": "#ffffff",
+    "primaryColor": "#1268ff",
+    "inkColor": "#081957",
+    "pageColor": "#f7f9fc",
     "surfaceColor": "#ffffff",
     "cornerRadius": 8,
     "contentWidth": 1480,

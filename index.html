@@ -13,8 +13,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-    <link rel="stylesheet" href="styles.css?v=20260731-page-design2" />
-    <link rel="stylesheet" href="promotion-reference-test.css?v=20260730-promo-main3" />
+    <link rel="stylesheet" href="styles.css?v=20260802-tone-system2" />
+    <link rel="stylesheet" href="promotion-reference-test.css?v=20260803-scroll-clean1" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260727-tile-ai2" />
   </head>
   <body>
@@ -185,7 +185,7 @@
             <section
               class="guest-home-gate promo-layout"
               id="guestHomeGate"
-              data-promo-source="/promotion-reference-test.html?v=4"
+              data-promo-source="/promotion-reference-test.html?v=20260803-scroll-clean1"
               aria-label="자재GO 사업자 회원 시작"
             >
               <section class="guest-promotion-hero" aria-labelledby="guestPromotionTitle">
@@ -212,7 +212,7 @@
 
               <div class="guest-promotion-benefits" aria-label="자재GO 핵심 강점">
                 <div><strong>빠른 출고·현장 도착</strong><span>재고 확인부터 출고와 배차까지 현장 일정에 맞춰 연결</span></div>
-                <div><strong>10,000+ 제품</strong><span>타일·위생도기·수전금구·부자재를 한곳에서 검색</span></div>
+                <div><strong>6,000+ 제품</strong><span>타일·위생도기·수전금구·부자재를 한곳에서 검색</span></div>
                 <div><strong>실사 시공 이미지</strong><span>선택한 자재가 현장에 시공된 모습을 미리 확인</span></div>
                 <div><strong>제안서·견적서 제작</strong><span>장바구니 상품을 바탕으로 자재GO가 대신 제작</span></div>
               </div>
@@ -2090,7 +2090,7 @@
         <section class="page-heading customer-page-heading">
           <div>
             <h2>마이페이지</h2>
-            <p class="my-page-heading-copy">내 정보와 주문 현황을 한곳에서 관리합니다.</p>
+            <p class="my-page-heading-copy">주문, 배차, 거래처 업무를 한곳에서 확인합니다.</p>
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
@@ -2098,59 +2098,113 @@
           </div>
         </section>
 
-        <section class="my-page-grid">
-          <article class="commerce-panel my-profile-panel">
+        <div class="my-page-workspace">
+          <aside class="my-page-sidebar" aria-label="마이페이지 메뉴">
+            <div class="my-page-sidebar-heading">
+              <span>MY WORKSPACE</span>
+              <strong>업무 메뉴</strong>
+            </div>
+            <nav class="my-page-side-nav">
+              <button class="active" type="button" data-my-page-view-target="overview" aria-current="page"><span>01</span>요약</button>
+              <button type="button" data-my-page-view-target="orders"><span>02</span>주문현황</button>
+              <button type="button" data-my-page-view-target="history"><span>03</span>지난 주문</button>
+              <button type="button" data-my-page-view-target="dispatch"><span>04</span>배차현황</button>
+              <button type="button" data-my-page-view-target="cart"><span>05</span>장바구니</button>
+              <button type="button" data-my-page-view-target="clients"><span>06</span>거래처 관리</button>
+              <button type="button" data-my-page-view-target="account"><span>07</span>계정·등급</button>
+              <button type="button" data-page-target="renderPage"><span>08</span>실사보정</button>
+              <button type="button" data-page-target="proposalPage"><span>09</span>제안서</button>
+            </nav>
+          </aside>
+
+          <section class="my-page-board">
+            <header class="my-page-board-toolbar">
+              <div>
+                <span id="myPageViewEyebrow">OVERVIEW</span>
+                <h3 id="myPageViewTitle">업무 요약</h3>
+              </div>
+              <label class="my-page-board-search">
+                <span class="visually-hidden">현재 목록 검색</span>
+                <input id="myPageSearchInput" type="search" placeholder="주문번호, 상품명, 거래처 검색" autocomplete="off" />
+              </label>
+            </header>
+            <p class="my-page-search-status" id="myPageSearchStatus" aria-live="polite"></p>
+
+            <section class="my-page-view-panel my-page-overview-panel" data-my-page-panel="overview">
+              <div class="my-page-overview-head">
+                <div>
+                  <span>AT A GLANCE</span>
+                  <h3>오늘 확인할 업무</h3>
+                </div>
+                <button class="secondary-action" type="button" data-page-target="productsPage">새 상품 찾기</button>
+              </div>
+              <div class="my-page-overview-grid" id="myPageOverviewSummary"></div>
+            </section>
+
+            <article class="commerce-panel my-current-order-panel my-page-view-panel" data-my-page-panel="orders" hidden>
+              <div class="section-header-inline">
+                <div>
+                  <span class="my-page-section-kicker">CURRENT ORDER</span>
+                  <h3>주문 현황</h3>
+                </div>
+                <button class="secondary-action" id="saveCurrentOrderBtn" type="button">주문 접수</button>
+              </div>
+              <div id="myCurrentOrderSummary"></div>
+            </article>
+
+            <section class="commerce-panel my-past-orders-panel my-page-view-panel" data-my-page-panel="history" hidden>
+              <div class="section-header-inline">
+                <div>
+                  <span class="my-page-section-kicker">ORDER HISTORY</span>
+                  <h3>지난 주문</h3>
+                </div>
+              </div>
+              <div class="my-order-list" id="myPastOrderList"></div>
+            </section>
+
+            <section class="commerce-panel my-dispatch-panel my-page-view-panel" data-my-page-panel="dispatch" hidden>
+              <div class="section-header-inline">
+                <div>
+                  <span class="my-page-section-kicker">DISPATCH</span>
+                  <h3>배차 현황</h3>
+                </div>
+              </div>
+              <div class="my-order-list" id="myDispatchOrderList"></div>
+            </section>
+
+            <section class="commerce-panel my-cart-panel my-page-view-panel" data-my-page-panel="cart" hidden>
+              <div class="section-header-inline">
+                <div>
+                  <span class="my-page-section-kicker">CART</span>
+                  <h3>장바구니</h3>
+                </div>
+                <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 수정</button>
+              </div>
+              <div class="my-order-list" id="myCartList"></div>
+            </section>
+
+            <section class="commerce-panel my-client-panel my-page-view-panel" data-my-page-panel="clients" hidden>
+              <div class="section-header-inline">
+                <div>
+                  <span class="my-page-section-kicker">CLIENTS</span>
+                  <h3>거래처 관리</h3>
+                </div>
+                <button class="primary-action" id="saveClientManagementBtn" type="button">거래처 정보 저장</button>
+              </div>
+              <div id="myClientManagementPanel"></div>
+            </section>
+
+            <article class="commerce-panel my-profile-panel my-page-view-panel" data-my-page-panel="account" hidden>
             <div class="section-header-inline">
-              <h3>내 정보</h3>
+              <div>
+                <span class="my-page-section-kicker">ACCOUNT</span>
+                <h3>계정·회원등급</h3>
+              </div>
             </div>
             <div id="myProfileSummary"></div>
           </article>
-
-          <article class="commerce-panel my-current-order-panel">
-            <div class="section-header-inline">
-              <h3>주문 현황</h3>
-              <button class="secondary-action" id="saveCurrentOrderBtn" type="button">주문 접수</button>
-            </div>
-            <div id="myCurrentOrderSummary"></div>
-          </article>
-        </section>
-
-        <section class="commerce-panel my-cart-panel">
-          <div class="section-header-inline">
-            <h3>장바구니</h3>
-            <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 수정</button>
-          </div>
-          <div class="my-order-list" id="myCartList"></div>
-        </section>
-
-        <details class="commerce-panel my-page-disclosure my-client-panel">
-          <summary class="my-page-disclosure-summary">
-            <div>
-              <h3>거래처 관리</h3>
-              <span>요청사항·현장·거래 상태</span>
-            </div>
-            <span class="my-page-disclosure-state" aria-hidden="true">열기</span>
-          </summary>
-          <div class="my-page-disclosure-body">
-            <div id="myClientManagementPanel"></div>
-            <div class="my-page-section-actions">
-              <button class="primary-action" id="saveClientManagementBtn" type="button">거래처 정보 저장</button>
-            </div>
-          </div>
-        </details>
-
-        <details class="commerce-panel my-page-disclosure my-past-orders-panel">
-          <summary class="my-page-disclosure-summary">
-            <div>
-              <h3>지난 주문</h3>
-              <span>접수·배송·완료 내역</span>
-            </div>
-            <span class="my-page-disclosure-state" aria-hidden="true">열기</span>
-          </summary>
-          <div class="my-page-disclosure-body">
-            <div class="my-order-list" id="myPastOrderList"></div>
-          </div>
-        </details>
+          </section>
+        </div>
       </main>
 
       <main class="app-page page-panel customer-page planner-page planner-photo-page" id="plannerPage">
@@ -2286,14 +2340,25 @@
         </section>
       </main>
 
-      <main class="app-page workspace" id="proposalPage">
-        <section class="input-panel">
+      <main class="app-page workspace customer-page" id="proposalPage">
+        <header class="proposal-workflow-header">
+          <div>
+            <p class="eyebrow">Proposal</p>
+            <h2>제안서 만들기</h2>
+          </div>
+          <ol class="proposal-workflow-steps" aria-label="제안서 작성 단계">
+            <li><span>1</span><strong>현장 정보</strong></li>
+            <li><span>2</span><strong>상품 선택</strong></li>
+            <li><span>3</span><strong>확인·다운로드</strong></li>
+          </ol>
+          <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+        </header>
+        <section class="input-panel proposal-builder-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Client</p>
+              <span class="proposal-step-badge">1</span>
               <h2>현장 정보</h2>
             </div>
-            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
           </div>
           <form id="proposalForm" class="form-grid">
             <label>
@@ -2320,161 +2385,104 @@
                 <option value="30">30일</option>
               </select>
             </label>
-            <div class="wide proposal-template-picker">
-              <div class="proposal-template-heading">
-                <strong>Proposal Template</strong>
-                <span>Choose one of three prototype styles for the final 자재GO 바스GO proposal deck.</span>
-              </div>
-              <div class="proposal-template-grid">
-                <label class="proposal-template-card">
-                  <input name="proposalTheme" type="radio" value="beige-black" checked />
-                  <span class="proposal-template-kicker">Style A</span>
-                  <div class="proposal-template-visual template-preview-beige-black" aria-hidden="true">
-                    <div class="proposal-template-visual-cover">
-                      <span>자재GO 바스GO</span>
-                      <strong>Minimal Proposal</strong>
-                    </div>
-                    <div class="proposal-template-visual-pages">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </div>
-                  <strong>Beige &amp; Black Simple Clean</strong>
-                  <span>Minimal composition with calm neutrals and black accents.</span>
-                </label>
-                <label class="proposal-template-card">
-                  <input name="proposalTheme" type="radio" value="beige-red" />
-                  <span class="proposal-template-kicker">Style B</span>
-                  <div class="proposal-template-visual template-preview-beige-red" aria-hidden="true">
-                    <div class="proposal-template-visual-cover">
-                      <span>자재GO 바스GO</span>
-                      <strong>Creative Brief</strong>
-                    </div>
-                    <div class="proposal-template-visual-pages">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </div>
-                  <strong>Beige Red Modern Creative</strong>
-                  <span>Creative-brief mood with stronger typography and warmer contrast.</span>
-                </label>
-                <label class="proposal-template-card">
-                  <input name="proposalTheme" type="radio" value="beige-brown" />
-                  <span class="proposal-template-kicker">Style C</span>
-                  <div class="proposal-template-visual template-preview-beige-brown" aria-hidden="true">
-                    <div class="proposal-template-visual-cover">
-                      <span>자재GO 바스GO</span>
-                      <strong>Warm Neutral</strong>
-                    </div>
-                    <div class="proposal-template-visual-pages">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  </div>
-                  <strong>Beige Brown Neutral Modern</strong>
-                  <span>Warm interior tone with space-led layout and softer editorial rhythm.</span>
-                </label>
-              </div>
-              <div class="proposal-template-preview-board" id="proposalTemplatePreviewBoard" data-theme="beige-black">
-                <div class="proposal-template-preview-stage template-preview-beige-black" id="proposalTemplatePreviewStage" aria-hidden="true">
-                  <div class="proposal-template-preview-cover">
-                    <span class="proposal-template-preview-brand">자재GO 바스GO</span>
-                    <strong class="proposal-template-preview-headline">Minimal Proposal</strong>
-                    <span class="proposal-template-preview-subline">Cover Preview</span>
-                  </div>
-                  <div class="proposal-template-preview-spread">
-                    <article></article>
-                    <article></article>
-                    <article></article>
-                  </div>
-                </div>
-                <div class="proposal-template-preview-copy">
-                  <span class="proposal-template-preview-label" id="proposalTemplatePreviewLabel">Style A</span>
-                  <strong id="proposalTemplatePreviewTitle">Beige &amp; Black Simple Clean</strong>
-                  <p id="proposalTemplatePreviewSummary">A restrained beige-and-black cover with clean product pages and a tidy rendering showcase.</p>
-                  <div class="proposal-template-preview-meta" id="proposalTemplatePreviewMeta"></div>
-                </div>
-              </div>
-            </div>
-            <div class="wide proposal-company-grid">
-              <div class="proposal-template-heading">
-                <strong>Company Info</strong>
-                <span>These details are used on the cover and closing slide.</span>
-              </div>
-              <label>
-                Company Name
-                <input name="companyName" type="text" value="자재GO 바스GO" />
-              </label>
-              <label>
-                Contact Name
-                <input name="managerName" type="text" placeholder="e.g. Alex Kim" />
-              </label>
-              <label>
-                Contact Title
-                <input name="managerTitle" type="text" placeholder="e.g. Manager / Designer / Director" />
-              </label>
-              <label>
-                Contact Phone
-                <input name="managerPhone" type="text" placeholder="e.g. 010-1234-5678" />
-              </label>
-            </div>
             <label class="wide">
               제안 메모
-              <textarea name="memo" rows="4" placeholder="현장 특이사항, 고객 요청사항"></textarea>
+              <textarea name="memo" rows="3" placeholder="현장 특이사항, 고객 요청사항"></textarea>
             </label>
+            <details class="wide proposal-advanced-panel">
+              <summary>
+                <span>제안서 설정</span>
+                <small>선택 사항</small>
+              </summary>
+              <div class="proposal-advanced-content">
+                <fieldset class="proposal-theme-control">
+                  <legend>디자인</legend>
+                  <div class="proposal-theme-options">
+                    <label class="proposal-theme-option">
+                      <input name="proposalTheme" type="radio" value="beige-black" checked />
+                      <span>심플</span>
+                    </label>
+                    <label class="proposal-theme-option">
+                      <input name="proposalTheme" type="radio" value="beige-red" />
+                      <span>모던</span>
+                    </label>
+                    <label class="proposal-theme-option">
+                      <input name="proposalTheme" type="radio" value="beige-brown" />
+                      <span>내추럴</span>
+                    </label>
+                  </div>
+                </fieldset>
+                <div class="proposal-company-grid">
+                  <div class="proposal-compact-section-heading">
+                    <strong>회사·담당자 정보</strong>
+                    <small>제안서에 표시됩니다.</small>
+                  </div>
+                  <label>
+                    회사명
+                    <input name="companyName" type="text" value="자재GO 바스GO" />
+                  </label>
+                  <label>
+                    담당자명
+                    <input name="managerName" type="text" placeholder="이름" />
+                  </label>
+                  <label>
+                    직함
+                    <input name="managerTitle" type="text" placeholder="직함" />
+                  </label>
+                  <label>
+                    담당자 연락처
+                    <input name="managerPhone" type="text" placeholder="연락처" />
+                  </label>
+                </div>
+              </div>
+            </details>
           </form>
           <section class="proposal-select-panel">
             <div class="proposal-select-header">
               <div>
-                <p class="eyebrow">Proposal Assets</p>
-                <h3>Choose What To Include</h3>
+                <span class="proposal-step-badge">2</span>
+                <h3>상품 선택</h3>
               </div>
-              <span id="proposalSelectionSummary">0 products selected</span>
+              <span id="proposalSelectionSummary">선택 상품 0개</span>
             </div>
             <div class="proposal-select-actions">
-              <button class="secondary-action" id="selectAllProposalProductsBtn" type="button">Select All Products</button>
-              <button class="secondary-action" id="clearProposalProductsBtn" type="button">Clear Products</button>
-              <button class="secondary-action" id="selectAllProposalRendersBtn" type="button">Select All Renders</button>
-              <button class="secondary-action" id="clearProposalRendersBtn" type="button">Clear Renders</button>
+              <button class="secondary-action" id="selectAllProposalProductsBtn" type="button">전체 선택</button>
+              <button class="secondary-action" id="clearProposalProductsBtn" type="button">초기화</button>
             </div>
             <section class="proposal-select-group proposal-render-workflow">
-              <div class="proposal-select-group-header">
-                <strong>실사 보정</strong>
-                <span>장바구니 상품을 기준으로 현장 사진에 타일을 적용하고, 완성된 이미지를 제안서에 포함합니다.</span>
-              </div>
               <div class="proposal-render-workflow-body">
                 <div>
-                  <strong>보정 이미지를 먼저 만든 뒤 제안서에 넣을 수 있습니다.</strong>
+                  <strong>실사 보정 이미지</strong>
                   <span id="proposalRenderWorkflowStatus">선택한 상품 또는 첫 번째 장바구니 상품으로 실사 보정을 시작합니다.</span>
                 </div>
-                <button class="primary-action" id="openProposalRenderBtn" type="button">실사 보정 시작</button>
+                <button class="secondary-action" id="openProposalRenderBtn" type="button">추가</button>
               </div>
             </section>
             <section class="proposal-select-group">
-              <div class="proposal-select-group-header">
-                <strong>Products For Proposal</strong>
-                <span>Only selected products appear in the proposal, estimate, and PPT.</span>
-              </div>
               <div class="proposal-select-list" id="proposalProductSelectionList"></div>
             </section>
             <section class="proposal-select-group hidden" id="proposalRenderSelectionControl">
               <div class="proposal-select-group-header">
-                <strong>Rendered Images For Proposal</strong>
-                <span>Select which corrected visuals should be featured in the final proposal.</span>
+                <strong>보정 이미지</strong>
+              </div>
+              <div class="proposal-select-actions proposal-render-select-actions">
+                <button class="secondary-action" id="selectAllProposalRendersBtn" type="button">전체 선택</button>
+                <button class="secondary-action" id="clearProposalRendersBtn" type="button">초기화</button>
               </div>
               <div class="proposal-select-list proposal-render-select-list" id="proposalRenderSelectionList"></div>
             </section>
           </section>
         </section>
-        <section class="preview-panel">
+        <section class="preview-panel proposal-preview-panel">
           <div class="document-actions">
-            <button class="primary-action" id="createProProposalBtn" type="button">최종 프로 제안서 만들기</button>
+            <div class="proposal-preview-heading">
+              <span class="proposal-step-badge">3</span>
+              <strong>제안서 확인</strong>
+            </div>
+            <button class="primary-action" id="createProProposalBtn" type="button">제안서 다운로드</button>
             <div class="document-action-status">
-              <span id="proposalPptStatus">템플릿을 고르고 상품과 보정 이미지를 선택한 뒤 최종 제안서를 생성하세요.</span>
-              <a class="hidden" id="proposalPptDownloadLink" href="#" download>프로 제안서 다운로드</a>
+              <span id="proposalPptStatus">상품을 선택한 뒤 다운로드하세요.</span>
+              <a class="hidden" id="proposalPptDownloadLink" href="#" download>다시 다운로드</a>
             </div>
           </div>
           <div class="document-tabs">
@@ -2512,10 +2520,10 @@
               <p id="proposalNote"></p>
             </section>
             <section class="doc-section">
-              <h3>Company Info</h3>
+              <h3>담당자 정보</h3>
               <div class="proposal-company-card">
                 <strong id="proposalCompanyName">자재GO 바스GO</strong>
-                <span id="proposalManagerName">Add contact details above to include them in the proposal preview.</span>
+                <span id="proposalManagerName">고급 설정에서 담당자 정보를 입력할 수 있습니다.</span>
                 <span id="proposalManagerPhone"></span>
               </div>
             </section>
@@ -3600,13 +3608,13 @@
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
-    <script src="src/client/features/admin/site-studio.js?v=20260731-page-design2"></script>
+    <script src="src/client/features/admin/site-studio.js?v=20260802-tone-system2"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260727-tile-ai1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260730-mobile-auth2"></script>
-    <script src="promotion-reference-test.js?v=20260730-promo-main1"></script>
-    <script src="app.js?v=20260731-page-studio1"></script>
+  <script src="promotion-reference-test.js?v=20260803-scroll-clean1"></script>
+    <script src="app.js?v=20260802-tone-system2"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260730-mobile-auth2"></script>
   </body>
 </html>

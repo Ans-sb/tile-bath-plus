@@ -1,4 +1,9 @@
 async function handleProductRoutes(request, response, context) {
+  if (request.method === "GET" && request.url === "/api/public/platform-stats") {
+    context.sendJson(response, 200, await context.readPublicPlatformStats());
+    return true;
+  }
+
   if (request.method === "GET" && request.url.startsWith("/api/products/best")) {
     if (context.areProductsHiddenFromStorefront()) {
       context.sendJson(response, 200, { ids: [], total: 0, source: "hidden" });

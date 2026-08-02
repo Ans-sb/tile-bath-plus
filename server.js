@@ -353,6 +353,7 @@ function getProductRouteContext() {
     sendRawJson,
     areProductsHiddenFromStorefront,
     getPublicProductsJson,
+    readPublicPlatformStats,
     readMemberProductCredentialsFromRequest,
     verifyMemberProductAccess,
     readProducts,
@@ -709,6 +710,21 @@ function getAdminAuthConfig() {
     adminPassword,
     adminDisplayName,
     adminNaverIdentifiers
+  };
+}
+
+async function readPublicPlatformStats() {
+  const publicProducts = (await readProducts()).filter(isPublicCatalogProduct);
+  const counts = publicProducts.reduce((summary, product) => {
+    const productType = String(product?.productType || "").trim().toLowerCase();
+    if (productType) summary[productType] = (summary[productType] || 0) + 1;
+    return summary;
+  }, {});
+  return {
+    totalProducts: publicProducts.length,
+    tileProducts: counts.tile || 0,
+    partnerCompanies: 342,
+    fieldDeliveries: 10800
   };
 }
 

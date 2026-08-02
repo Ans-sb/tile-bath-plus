@@ -53,7 +53,7 @@ test("bathroom scenes stay customer safe and contain no internal brand metadata"
 
 test("logged-out promotion states the four core JAJAEGO strengths", () => {
   assert.match(indexHtml, /빠른 출고·현장 도착/);
-  assert.match(indexHtml, /10,000\+ 제품/);
+  assert.match(indexHtml, /6,000\+ 제품/);
   assert.match(indexHtml, /실사 시공 이미지/);
   assert.match(indexHtml, /제안서·견적서 제작/);
 });

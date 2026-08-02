@@ -1271,6 +1271,954 @@
         line-height: 1.45;
       }
 
+      .blank-screen {
+        min-height: calc(100vh - 46px);
+        color: var(--navy);
+        background: #fff;
+      }
+
+      .blank-promo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 28px;
+        padding: 5px 16px;
+        color: #fff;
+        background: var(--navy);
+        font-size: 11px;
+        font-weight: 800;
+        text-align: center;
+      }
+
+      .blank-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        align-items: center;
+        width: min(1360px, calc(100% - 64px));
+        min-height: 122px;
+        margin: 0 auto;
+        border-bottom: 1px solid rgba(8, 25, 87, 0.2);
+      }
+
+      .blank-header-side {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+      }
+
+      .blank-header-side.end {
+        justify-content: flex-end;
+      }
+
+      .blank-menu,
+      .blank-icon-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        padding: 0;
+        border: 0;
+        color: var(--navy);
+        background: transparent;
+        font-size: 21px;
+      }
+
+      .blank-menu {
+        font-size: 24px;
+      }
+
+      .blank-header-note {
+        font-size: 11px;
+        font-weight: 850;
+        line-height: 1.35;
+        text-transform: uppercase;
+      }
+
+      .blank-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 176px;
+        min-height: 64px;
+      }
+
+      .blank-logo img {
+        display: block;
+        width: 142px;
+        max-height: 48px;
+        object-fit: contain;
+      }
+
+      .blank-benefits {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        width: min(1360px, calc(100% - 64px));
+        margin: 0 auto;
+        border-bottom: 1px solid rgba(8, 25, 87, 0.2);
+      }
+
+      .blank-benefit {
+        min-width: 0;
+        min-height: 84px;
+        padding: 20px 24px;
+        border-right: 1px solid rgba(8, 25, 87, 0.16);
+      }
+
+      .blank-benefit:last-child {
+        border-right: 0;
+      }
+
+      .blank-benefit strong,
+      .blank-benefit span {
+        display: block;
+      }
+
+      .blank-benefit strong {
+        font-size: 13px;
+      }
+
+      .blank-benefit span {
+        margin-top: 5px;
+        color: #56607f;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+
+      .blank-category-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 38px;
+        min-height: 64px;
+        padding: 0 24px;
+        border-bottom: 1px solid rgba(8, 25, 87, 0.15);
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .blank-category-nav::-webkit-scrollbar {
+        display: none;
+      }
+
+      .blank-category-nav button {
+        position: relative;
+        flex: 0 0 auto;
+        min-height: 64px;
+        padding: 0;
+        border: 0;
+        color: var(--navy);
+        background: transparent;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .blank-category-nav button.active::after {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: var(--blue);
+        content: "";
+      }
+
+      .blank-main {
+        width: min(1360px, calc(100% - 64px));
+        margin: 0 auto;
+        padding: 54px 0 84px;
+      }
+
+      .blank-heading {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 30px;
+        margin-bottom: 30px;
+      }
+
+      .blank-heading small {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--blue);
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .blank-heading h1 {
+        margin: 0;
+        color: var(--navy);
+        font-size: 38px;
+        line-height: 1.2;
+      }
+
+      .blank-heading-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .blank-heading-controls button,
+      .blank-heading-controls select {
+        min-height: 42px;
+        padding: 0 14px;
+        border: 1px solid rgba(8, 25, 87, 0.3);
+        border-radius: 0;
+        color: var(--navy);
+        background: #fff;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .blank-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 46px 24px;
+      }
+
+      .blank-product {
+        position: relative;
+        min-width: 0;
+      }
+
+      .blank-product-visual {
+        position: relative;
+        overflow: hidden;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        background: #f3f4f3;
+      }
+
+      .blank-product-visual img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 220ms ease;
+      }
+
+      .blank-product:hover .blank-product-visual img {
+        transform: scale(1.018);
+      }
+
+      .blank-badge {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        z-index: 1;
+        min-height: 26px;
+        padding: 6px 9px;
+        border: 1px solid var(--navy);
+        color: var(--navy);
+        background: rgba(255, 255, 255, 0.92);
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .blank-add {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        padding: 0;
+        border: 1px solid var(--navy);
+        border-radius: 50%;
+        color: #fff;
+        background: var(--navy);
+        font-size: 22px;
+        font-weight: 500;
+      }
+
+      .blank-product-info {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px 18px;
+        padding-top: 14px;
+      }
+
+      .blank-product-info h2 {
+        overflow: hidden;
+        margin: 0;
+        color: var(--navy);
+        font-size: 15px;
+        font-weight: 900;
+        line-height: 1.45;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .blank-product-code {
+        color: #667085;
+        font-size: 11px;
+        font-weight: 700;
+        text-align: right;
+      }
+
+      .blank-product-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        color: #475467;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .blank-product-price {
+        color: var(--navy);
+        font-size: 11px;
+        font-weight: 850;
+        text-align: right;
+      }
+
+      .blank-mobile-nav {
+        display: none;
+      }
+
+      .home-screen {
+        min-height: calc(100vh - 46px);
+        color: var(--navy);
+        background: #fff;
+      }
+
+      .home-screen .blank-header {
+        min-height: 96px;
+      }
+
+      .home-hero {
+        position: relative;
+        min-height: 570px;
+        overflow: hidden;
+        border-bottom: 1px solid rgba(8, 25, 87, 0.16);
+        background-color: #f4f2ee;
+        background-image: url("images/branding/web-storefront-hero-20260706.png");
+        background-position: center;
+        background-size: cover;
+      }
+
+      .home-hero-inner {
+        display: flex;
+        align-items: center;
+        width: min(1360px, calc(100% - 64px));
+        min-height: 570px;
+        margin: 0 auto;
+      }
+
+      .home-hero-copy {
+        width: min(620px, 48%);
+        padding: 52px 0;
+      }
+
+      .home-hero-copy small {
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .home-hero-copy h1 {
+        margin: 14px 0 4px;
+        color: var(--navy);
+        font-size: 64px;
+        line-height: 1.06;
+      }
+
+      .home-hero-copy strong {
+        display: block;
+        margin-top: 11px;
+        color: var(--navy);
+        font-size: 29px;
+        line-height: 1.35;
+      }
+
+      .home-hero-copy p {
+        max-width: 520px;
+        margin: 16px 0 0;
+        color: #4b556f;
+        font-size: 16px;
+        line-height: 1.7;
+      }
+
+      .home-search {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 92px 56px;
+        width: min(620px, 100%);
+        margin-top: 30px;
+        border: 2px solid var(--navy);
+        background: #fff;
+      }
+
+      .home-search input {
+        min-width: 0;
+        height: 58px;
+        padding: 0 17px;
+        border: 0;
+        color: var(--ink);
+        background: #fff;
+        font-size: 15px;
+      }
+
+      .home-search button {
+        min-width: 0;
+        height: 58px;
+        padding: 0 12px;
+        border: 0;
+        border-left: 1px solid rgba(8, 25, 87, 0.24);
+        color: var(--navy);
+        background: #fff;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .home-search .home-search-submit {
+        color: #fff;
+        background: var(--navy);
+        font-size: 20px;
+      }
+
+      .home-search-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        margin-top: 14px;
+      }
+
+      .home-search-tags button {
+        padding: 0;
+        border: 0;
+        border-bottom: 1px solid rgba(8, 25, 87, 0.4);
+        color: var(--navy);
+        background: transparent;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .home-section {
+        width: min(1360px, calc(100% - 64px));
+        margin: 0 auto;
+        padding: 76px 0;
+      }
+
+      .home-section-heading {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 25px;
+      }
+
+      .home-section-heading small {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--blue);
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .home-section-heading h2 {
+        margin: 0;
+        color: var(--navy);
+        font-size: 32px;
+      }
+
+      .home-section-heading p {
+        max-width: 430px;
+        margin: 0;
+        color: #667085;
+        font-size: 13px;
+        line-height: 1.6;
+        text-align: right;
+      }
+
+      .home-service-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .home-service {
+        position: relative;
+        min-width: 0;
+        overflow: hidden;
+        aspect-ratio: 4 / 4.1;
+        color: #fff;
+        background: #e9ebef;
+      }
+
+      .home-service img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 260ms ease;
+      }
+
+      .home-service:hover img {
+        transform: scale(1.018);
+      }
+
+      .home-service::after {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 46%;
+        background: linear-gradient(to bottom, rgba(8, 25, 87, 0), rgba(8, 25, 87, 0.82));
+        content: "";
+      }
+
+      .home-service-copy {
+        position: absolute;
+        z-index: 1;
+        right: 24px;
+        bottom: 23px;
+        left: 24px;
+      }
+
+      .home-service-copy small {
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .home-service-copy h3 {
+        margin: 7px 0 5px;
+        color: #fff;
+        font-size: 25px;
+      }
+
+      .home-service-copy p {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .home-service-link {
+        position: absolute;
+        z-index: 2;
+        top: 18px;
+        right: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border: 1px solid #fff;
+        border-radius: 50%;
+        color: #fff;
+        background: rgba(8, 25, 87, 0.35);
+        font-size: 20px;
+        text-decoration: none;
+      }
+
+      .home-ai-band {
+        color: #fff;
+        background: var(--navy);
+      }
+
+      .home-ai-inner {
+        display: grid;
+        grid-template-columns: minmax(0, 0.85fr) minmax(420px, 1.15fr);
+        align-items: center;
+        gap: 70px;
+        width: min(1360px, calc(100% - 64px));
+        min-height: 390px;
+        margin: 0 auto;
+        padding: 58px 0;
+      }
+
+      .home-ai-copy small {
+        color: #73a1ff;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .home-ai-copy h2 {
+        margin: 12px 0;
+        color: #fff;
+        font-size: 36px;
+        line-height: 1.25;
+      }
+
+      .home-ai-copy p {
+        max-width: 510px;
+        margin: 0;
+        color: #cdd6ef;
+        font-size: 14px;
+        line-height: 1.7;
+      }
+
+      .home-ai-copy button {
+        min-height: 46px;
+        margin-top: 24px;
+        padding: 0 18px;
+        border: 1px solid #fff;
+        color: var(--navy);
+        background: #fff;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .home-ai-demo {
+        border-top: 1px solid rgba(255, 255, 255, 0.32);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.32);
+      }
+
+      .home-ai-row {
+        display: grid;
+        grid-template-columns: 80px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 14px;
+        min-height: 68px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+      }
+
+      .home-ai-row:last-child {
+        border-bottom: 0;
+      }
+
+      .home-ai-row span {
+        color: #8fb4ff;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .home-ai-row strong {
+        overflow: hidden;
+        color: #fff;
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .home-ai-row em {
+        color: #cdd6ef;
+        font-size: 11px;
+        font-style: normal;
+      }
+
+      .home-featured-band {
+        background: #f5f6f8;
+      }
+
+      .home-featured-band .home-section {
+        padding-top: 70px;
+        padding-bottom: 78px;
+      }
+
+      .home-featured-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .home-featured-grid .blank-product-visual {
+        background: #fff;
+      }
+
+      .home-delivery {
+        width: min(1360px, calc(100% - 64px));
+        margin: 0 auto;
+        padding: 76px 0;
+      }
+
+      .home-delivery img {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+      }
+
+      .icon-home-screen {
+        min-height: calc(100vh - 46px);
+        color: #141922;
+        background: #fff;
+      }
+
+      .icon-home-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: min(1450px, calc(100% - 64px));
+        min-height: 118px;
+        margin: 0 auto;
+      }
+
+      .icon-home-mark {
+        width: 82px;
+        height: 20px;
+        border-radius: 8px;
+        background: #aebbc5;
+      }
+
+      .icon-home-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .icon-home-header-actions button {
+        min-height: 42px;
+        padding: 0 17px;
+        border: 1px solid #141922;
+        border-radius: 8px;
+        color: #141922;
+        background: #fff;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .icon-home-header-actions .primary {
+        color: #fff;
+        background: #141922;
+      }
+
+      .icon-home-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 24px;
+        width: min(1450px, calc(100% - 64px));
+        margin: 0 auto;
+        padding: 18px 0 86px;
+      }
+
+      .icon-home-intro {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        flex-direction: column;
+        min-height: 324px;
+        padding: 28px 8px 20px 0;
+      }
+
+      .icon-home-intro img {
+        display: block;
+        width: 146px;
+        max-height: 54px;
+        object-fit: contain;
+        object-position: left center;
+      }
+
+      .icon-home-intro h1 {
+        margin: 0 0 9px;
+        color: #141922;
+        font-size: 25px;
+        line-height: 1.2;
+      }
+
+      .icon-home-intro p {
+        max-width: 245px;
+        margin: 0;
+        color: #141922;
+        font-size: 21px;
+        line-height: 1.25;
+      }
+
+      .icon-home-intro small {
+        display: block;
+        margin-top: 18px;
+        color: #667085;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.5;
+      }
+
+      .icon-home-tile {
+        position: relative;
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        aspect-ratio: 1 / 1;
+        border: 0;
+        border-radius: 8px;
+        color: #141922;
+        background: #eef0f3;
+        text-decoration: none;
+      }
+
+      .icon-home-tile img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 240ms ease;
+      }
+
+      .icon-home-tile:hover img {
+        transform: scale(1.022);
+      }
+
+      .icon-home-tile.dark {
+        color: #fff;
+        background: #141922;
+      }
+
+      .icon-home-tile.blue {
+        color: #fff;
+        background: var(--blue);
+      }
+
+      .icon-home-tile.white {
+        border: 1px solid #d5d9e0;
+        background: #fff;
+      }
+
+      .icon-home-symbol {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        padding: 22px;
+        font-size: clamp(34px, 4.4vw, 68px);
+        font-weight: 900;
+        line-height: 0.9;
+        text-align: center;
+      }
+
+      .icon-home-symbol small {
+        display: block;
+        margin-top: 12px;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+
+      .icon-home-label {
+        position: absolute;
+        z-index: 2;
+        right: 16px;
+        bottom: 15px;
+        left: 16px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        padding-top: 28px;
+        color: inherit;
+      }
+
+      .icon-home-tile.photo .icon-home-label {
+        right: 0;
+        bottom: 0;
+        left: 0;
+        padding: 70px 16px 15px;
+        color: #fff;
+        background: linear-gradient(to bottom, rgba(20, 25, 34, 0), rgba(20, 25, 34, 0.82));
+      }
+
+      .icon-home-label strong {
+        display: block;
+        font-size: 15px;
+      }
+
+      .icon-home-label span {
+        display: block;
+        margin-top: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        opacity: 0.76;
+      }
+
+      .icon-home-label b {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid currentColor;
+        border-radius: 50%;
+        font-size: 17px;
+      }
+
+      .icon-home-search-tile {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        padding: 28px;
+      }
+
+      .icon-home-search-tile strong {
+        color: var(--navy);
+        font-size: 33px;
+      }
+
+      .icon-home-search-tile p {
+        max-width: 250px;
+        margin: 12px 0 22px;
+        color: #586174;
+        font-size: 12px;
+        line-height: 1.55;
+        text-align: center;
+      }
+
+      .icon-home-search-tile form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 42px;
+        width: 100%;
+        border-bottom: 2px solid var(--navy);
+      }
+
+      .icon-home-search-tile input {
+        min-width: 0;
+        height: 42px;
+        padding: 0 7px;
+        border: 0;
+        color: var(--navy);
+        background: transparent;
+        font-size: 11px;
+      }
+
+      .icon-home-search-tile button {
+        border: 0;
+        color: #fff;
+        background: var(--navy);
+        font-size: 17px;
+      }
+
+      .icon-home-wide {
+        grid-column: span 2;
+        aspect-ratio: 2.05 / 1;
+      }
+
+      .icon-home-wide-copy {
+        position: absolute;
+        z-index: 2;
+        top: 28px;
+        left: 28px;
+        max-width: 270px;
+        color: #fff;
+      }
+
+      .icon-home-wide-copy small {
+        color: #9ec0ff;
+        font-size: 10px;
+        font-weight: 900;
+      }
+
+      .icon-home-wide-copy h2 {
+        margin: 9px 0 7px;
+        color: #fff;
+        font-size: 27px;
+      }
+
+      .icon-home-wide-copy p {
+        margin: 0;
+        color: #d5def2;
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      .icon-home-mobile-nav {
+        display: none;
+      }
+
       @media (max-width: 1080px) {
         .product-grid {
           grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1319,6 +2267,52 @@
         .pro-service-links {
           display: none;
         }
+
+        .blank-benefits,
+        .blank-header,
+        .blank-main {
+          width: min(100% - 40px, 1360px);
+        }
+
+        .blank-header-note {
+          display: none;
+        }
+
+        .blank-grid {
+          gap: 34px 18px;
+        }
+
+        .home-hero-inner,
+        .home-section,
+        .home-ai-inner,
+        .home-delivery {
+          width: min(100% - 40px, 1360px);
+        }
+
+        .home-hero-copy h1 {
+          font-size: 54px;
+        }
+
+        .home-service-copy h3 {
+          font-size: 22px;
+        }
+
+        .home-ai-inner {
+          gap: 38px;
+        }
+
+        .icon-home-header,
+        .icon-home-grid {
+          width: min(100% - 40px, 1450px);
+        }
+
+        .icon-home-grid {
+          gap: 16px;
+        }
+
+        .icon-home-intro p {
+          font-size: 18px;
+        }
       }
 
       @media (max-width: 760px) {
@@ -1336,10 +2330,20 @@
         }
 
         .preview-mode-bar button {
-          flex: 1;
-          min-width: 0;
+          flex: 0 0 auto;
+          min-width: 62px;
           padding: 0 6px;
           font-size: 11px;
+        }
+
+        .preview-mode-bar {
+          justify-content: flex-start;
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+
+        .preview-mode-bar::-webkit-scrollbar {
+          display: none;
         }
 
         .customer-header {
@@ -1805,19 +2809,466 @@
         .operation-table td {
           padding: 12px;
         }
+
+        .blank-promo {
+          min-height: 30px;
+          padding: 6px 12px;
+          font-size: 10px;
+        }
+
+        .blank-header {
+          grid-template-columns: 48px minmax(0, 1fr) 86px;
+          width: calc(100% - 28px);
+          min-height: 78px;
+        }
+
+        .blank-header-side {
+          gap: 2px;
+        }
+
+        .blank-header-side.end {
+          justify-content: flex-end;
+        }
+
+        .blank-menu,
+        .blank-icon-action {
+          width: 40px;
+          height: 40px;
+        }
+
+        .blank-logo {
+          min-width: 0;
+        }
+
+        .blank-logo img {
+          width: 118px;
+        }
+
+        .blank-benefits {
+          grid-template-columns: repeat(4, 152px);
+          overflow-x: auto;
+          width: 100%;
+          padding-left: 14px;
+          scrollbar-width: none;
+        }
+
+        .blank-benefits::-webkit-scrollbar {
+          display: none;
+        }
+
+        .blank-benefit {
+          min-height: 76px;
+          padding: 17px 14px;
+        }
+
+        .blank-category-nav {
+          justify-content: flex-start;
+          gap: 26px;
+          min-height: 56px;
+          padding: 0 14px;
+        }
+
+        .blank-category-nav button {
+          min-height: 56px;
+          font-size: 12px;
+        }
+
+        .blank-main {
+          width: calc(100% - 28px);
+          padding: 32px 0 38px;
+        }
+
+        .blank-heading {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 18px;
+          margin-bottom: 20px;
+        }
+
+        .blank-heading h1 {
+          font-size: 26px;
+        }
+
+        .blank-heading-controls {
+          width: 100%;
+        }
+
+        .blank-heading-controls button,
+        .blank-heading-controls select {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .blank-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 28px 10px;
+        }
+
+        .blank-badge {
+          top: 8px;
+          left: 8px;
+          padding: 5px 7px;
+          font-size: 9px;
+        }
+
+        .blank-add {
+          right: 8px;
+          bottom: 8px;
+          width: 36px;
+          height: 36px;
+          font-size: 19px;
+        }
+
+        .blank-product-info {
+          display: block;
+          padding-top: 10px;
+        }
+
+        .blank-product-info h2 {
+          font-size: 13px;
+        }
+
+        .blank-product-code,
+        .blank-product-price {
+          margin-top: 4px;
+          text-align: left;
+        }
+
+        .blank-product-meta {
+          display: grid;
+          gap: 3px;
+          margin-top: 8px;
+          font-size: 11px;
+        }
+
+        .blank-mobile-nav {
+          position: fixed;
+          z-index: 50;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          min-height: 68px;
+          padding-bottom: env(safe-area-inset-bottom);
+          border-top: 1px solid rgba(8, 25, 87, 0.16);
+          background: rgba(255, 255, 255, 0.98);
+        }
+
+        .blank-mobile-nav button {
+          border: 0;
+          color: #667085;
+          background: transparent;
+          font-size: 11px;
+          font-weight: 850;
+        }
+
+        .blank-mobile-nav button.active {
+          color: var(--blue);
+        }
+
+        .home-screen .blank-header {
+          min-height: 78px;
+        }
+
+        .home-hero {
+          min-height: 548px;
+          background-position: 48% center;
+        }
+
+        .home-hero::after {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.78) 58%, rgba(255, 255, 255, 0.04) 100%);
+          content: "";
+        }
+
+        .home-hero-inner {
+          position: relative;
+          z-index: 1;
+          align-items: flex-start;
+          width: calc(100% - 28px);
+          min-height: 548px;
+        }
+
+        .home-hero-copy {
+          width: min(330px, 92%);
+          padding: 62px 0 30px;
+        }
+
+        .home-hero-copy h1 {
+          margin-top: 10px;
+          font-size: 44px;
+        }
+
+        .home-hero-copy strong {
+          font-size: 21px;
+        }
+
+        .home-hero-copy p {
+          margin-top: 12px;
+          font-size: 13px;
+        }
+
+        .home-search {
+          grid-template-columns: minmax(0, 1fr) 54px;
+          margin-top: 22px;
+        }
+
+        .home-search input,
+        .home-search button {
+          height: 54px;
+        }
+
+        .home-search button:not(.home-search-submit) {
+          display: none;
+        }
+
+        .home-search-tags {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          padding-bottom: 4px;
+          scrollbar-width: none;
+        }
+
+        .home-search-tags::-webkit-scrollbar {
+          display: none;
+        }
+
+        .home-search-tags button {
+          flex: 0 0 auto;
+        }
+
+        .home-section {
+          width: calc(100% - 28px);
+          padding: 48px 0;
+        }
+
+        .home-section-heading {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 10px;
+          margin-bottom: 18px;
+        }
+
+        .home-section-heading h2 {
+          font-size: 25px;
+        }
+
+        .home-section-heading p {
+          font-size: 12px;
+          text-align: left;
+        }
+
+        .home-service-grid {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+
+        .home-service {
+          aspect-ratio: 4 / 2.6;
+        }
+
+        .home-service-copy {
+          right: 17px;
+          bottom: 16px;
+          left: 17px;
+        }
+
+        .home-service-copy h3 {
+          font-size: 20px;
+        }
+
+        .home-ai-inner {
+          display: block;
+          width: calc(100% - 28px);
+          min-height: 0;
+          padding: 48px 0;
+        }
+
+        .home-ai-copy h2 {
+          font-size: 27px;
+        }
+
+        .home-ai-demo {
+          margin-top: 34px;
+        }
+
+        .home-ai-row {
+          grid-template-columns: 62px minmax(0, 1fr);
+          gap: 10px;
+        }
+
+        .home-ai-row em {
+          display: none;
+        }
+
+        .home-featured-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 28px 10px;
+        }
+
+        .home-delivery {
+          width: 100%;
+          padding: 0;
+        }
+
+        .home-delivery img {
+          aspect-ratio: 4 / 3;
+          object-position: 55% center;
+        }
+
+        .icon-home-header {
+          width: calc(100% - 36px);
+          min-height: 96px;
+        }
+
+        .icon-home-mark {
+          width: 58px;
+          height: 14px;
+        }
+
+        .icon-home-header-actions button {
+          min-height: 38px;
+          padding: 0 13px;
+          font-size: 11px;
+        }
+
+        .icon-home-header-actions button:not(.primary) {
+          display: none;
+        }
+
+        .icon-home-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 16px;
+          width: calc(100% - 36px);
+          padding: 10px 0 34px;
+        }
+
+        .icon-home-intro {
+          grid-column: 1 / -1;
+          min-height: 230px;
+          padding: 18px 0 20px;
+        }
+
+        .icon-home-intro img {
+          width: 132px;
+        }
+
+        .icon-home-intro p {
+          max-width: 300px;
+          font-size: 22px;
+        }
+
+        .icon-home-intro small {
+          display: none;
+        }
+
+        .icon-home-tile {
+          border-radius: 8px;
+        }
+
+        .icon-home-symbol {
+          padding: 14px;
+          font-size: 30px;
+        }
+
+        .icon-home-symbol small {
+          display: none;
+        }
+
+        .icon-home-label {
+          right: 11px;
+          bottom: 10px;
+          left: 11px;
+        }
+
+        .icon-home-label strong {
+          font-size: 12px;
+        }
+
+        .icon-home-label span {
+          display: none;
+        }
+
+        .icon-home-label b {
+          width: 30px;
+          height: 30px;
+          font-size: 14px;
+        }
+
+        .icon-home-search-tile {
+          padding: 16px;
+        }
+
+        .icon-home-search-tile strong {
+          font-size: 23px;
+        }
+
+        .icon-home-search-tile p {
+          display: none;
+        }
+
+        .icon-home-search-tile form {
+          margin-top: 18px;
+        }
+
+        .icon-home-wide {
+          grid-column: 1 / -1;
+          aspect-ratio: 2 / 1;
+        }
+
+        .icon-home-wide-copy {
+          top: 20px;
+          left: 20px;
+          max-width: 220px;
+        }
+
+        .icon-home-wide-copy h2 {
+          font-size: 22px;
+        }
+
+        .icon-home-mobile-nav {
+          position: fixed;
+          z-index: 50;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          min-height: 68px;
+          padding-bottom: env(safe-area-inset-bottom);
+          border-top: 1px solid #e1e4e8;
+          background: rgba(255, 255, 255, 0.98);
+        }
+
+        .icon-home-mobile-nav button {
+          border: 0;
+          color: #667085;
+          background: transparent;
+          font-size: 11px;
+          font-weight: 850;
+        }
+
+        .icon-home-mobile-nav button.active {
+          color: var(--blue);
+        }
       }
     </style>
   </head>
   <body>
     <div class="preview-mode-bar" aria-label="화면 미리보기 선택">
       <span>자재GO 디자인 미리보기</span>
-      <button class="active" type="button" data-preview-target="customerPreview" title="정돈된 검색 중심형">A 검색형</button>
+      <button type="button" data-preview-target="customerPreview" title="정돈된 검색 중심형">A 검색형</button>
       <button type="button" data-preview-target="galleryPreview" title="시공 이미지 갤러리형">B 갤러리</button>
       <button type="button" data-preview-target="proPreview" title="시공업체 현장 주문형">C 현장형</button>
+      <button type="button" data-preview-target="blankPreview" title="상품 중심 미니멀형">D 상품집중형</button>
+      <button type="button" data-preview-target="homePreview" title="자재GO 메인페이지">E 메인</button>
+      <button class="active" type="button" data-preview-target="iconHomePreview" title="시각 타일형 메인페이지">F 시각타일</button>
       <button type="button" data-preview-target="adminPreview">관리자</button>
     </div>
 
-    <section class="screen active" id="customerPreview">
+    <section class="screen" id="customerPreview">
       <header class="customer-header">
         <div class="customer-header-inner">
           <button class="brand-button" type="button" aria-label="자재GO 홈">
@@ -2071,6 +3522,136 @@
       </section>
     </section>
 
+    <section class="screen blank-screen" id="blankPreview">
+      <div class="blank-promo">사업자 회원을 위한 자재 플랫폼 · 빠른 배송과 샘플 주문</div>
+
+      <header class="blank-header">
+        <div class="blank-header-side">
+          <button class="blank-menu" type="button" aria-label="전체 메뉴" title="전체 메뉴">☰</button>
+          <span class="blank-header-note">TILE · BATH<br />MATERIAL CURATION</span>
+        </div>
+        <a class="blank-logo" href="#blankPreview" aria-label="자재GO 홈">
+          <img src="images/branding/btn-material-go.png" alt="자재GO" />
+        </a>
+        <div class="blank-header-side end">
+          <span class="blank-header-note">사업자 인증 후<br />등급별 가격 공개</span>
+          <button class="blank-icon-action" type="button" aria-label="상품 검색" title="상품 검색">⌕</button>
+          <button class="blank-icon-action" type="button" aria-label="장바구니" title="장바구니">▢</button>
+        </div>
+      </header>
+
+      <section class="blank-benefits" aria-label="자재GO 서비스 안내">
+        <div class="blank-benefit"><strong>타일·욕실자재 통합</strong><span>현장에 필요한 상품을 한곳에서</span></div>
+        <div class="blank-benefit"><strong>빠른 상품 탐색</strong><span>사이즈와 마감으로 바로 검색</span></div>
+        <div class="blank-benefit"><strong>샘플 주문 가능</strong><span>시공 전 색상과 질감을 확인</span></div>
+        <div class="blank-benefit"><strong>전문 상담 연결</strong><span>대체품과 현장 조건을 함께 검토</span></div>
+      </section>
+
+      <nav class="blank-category-nav" aria-label="상품 카테고리">
+        <button class="active" type="button">타일GO</button>
+        <button type="button">바스GO</button>
+        <button type="button">샘플GO</button>
+        <button type="button">AI 타일검색</button>
+        <button type="button">시공보기</button>
+      </nav>
+
+      <main class="blank-main">
+        <div class="blank-heading">
+          <div>
+            <small>CURATED FOR YOUR SPACE</small>
+            <h1>오늘의 타일 셀렉션</h1>
+          </div>
+          <div class="blank-heading-controls">
+            <button type="button">필터</button>
+            <select aria-label="상품 정렬">
+              <option>추천순</option>
+              <option>신상품순</option>
+              <option>인기순</option>
+            </select>
+          </div>
+        </div>
+
+        <section class="blank-grid" aria-label="추천 타일 상품">
+          <article class="blank-product">
+            <div class="blank-product-visual">
+              <span class="blank-badge">NEW</span>
+              <img src="images/catalog/catalog_p05_img01.jpg" alt="리베르타 웜그레이 스톤 타일" />
+              <button class="blank-add" type="button" aria-label="리베르타 웜그레이 스톤 담기" title="장바구니 담기">+</button>
+            </div>
+            <div class="blank-product-info">
+              <h2>리베르타 웜그레이 스톤</h2><span class="blank-product-code">LT-6601-GR</span>
+              <div class="blank-product-meta"><span>600x600</span><span>무광</span><span>스톤</span></div>
+              <span class="blank-product-price">사업자 가격</span>
+            </div>
+          </article>
+          <article class="blank-product">
+            <div class="blank-product-visual">
+              <span class="blank-badge">SAMPLE</span>
+              <img src="images/catalog/catalog_p12_img01.jpg" alt="내추럴 트래버틴 베이지 타일" />
+              <button class="blank-add" type="button" aria-label="내추럴 트래버틴 베이지 담기" title="장바구니 담기">+</button>
+            </div>
+            <div class="blank-product-info">
+              <h2>내추럴 트래버틴 베이지</h2><span class="blank-product-code">NT-6120-BE</span>
+              <div class="blank-product-meta"><span>600x1200</span><span>무광</span><span>트래버틴</span></div>
+              <span class="blank-product-price">사업자 가격</span>
+            </div>
+          </article>
+          <article class="blank-product">
+            <div class="blank-product-visual">
+              <img src="images/catalog/catalog_p16_img01.jpg" alt="클라우드 스톤 그레이 타일" />
+              <button class="blank-add" type="button" aria-label="클라우드 스톤 그레이 담기" title="장바구니 담기">+</button>
+            </div>
+            <div class="blank-product-info">
+              <h2>클라우드 스톤 그레이</h2><span class="blank-product-code">CL-6643-GR</span>
+              <div class="blank-product-meta"><span>600x600</span><span>무광</span><span>스톤</span></div>
+              <span class="blank-product-price">사업자 가격</span>
+            </div>
+          </article>
+          <article class="blank-product">
+            <div class="blank-product-visual">
+              <img src="images/catalog/catalog_p13_img01.jpg" alt="샌드스톤 소프트 베이지 타일" />
+              <button class="blank-add" type="button" aria-label="샌드스톤 소프트 베이지 담기" title="장바구니 담기">+</button>
+            </div>
+            <div class="blank-product-info">
+              <h2>샌드스톤 소프트 베이지</h2><span class="blank-product-code">SD-6620-BE</span>
+              <div class="blank-product-meta"><span>600x600</span><span>무광</span><span>스톤</span></div>
+              <span class="blank-product-price">사업자 가격</span>
+            </div>
+          </article>
+          <article class="blank-product">
+            <div class="blank-product-visual">
+              <span class="blank-badge">NEW</span>
+              <img src="images/catalog/catalog_p06_img01.jpg" alt="노르딕 라이트그레이 타일" />
+              <button class="blank-add" type="button" aria-label="노르딕 라이트그레이 담기" title="장바구니 담기">+</button>
+            </div>
+            <div class="blank-product-info">
+              <h2>노르딕 라이트그레이</h2><span class="blank-product-code">ND-6632-LG</span>
+              <div class="blank-product-meta"><span>600x600</span><span>무광</span><span>시멘트</span></div>
+              <span class="blank-product-price">사업자 가격</span>
+            </div>
+          </article>
+          <article class="blank-product">
+            <div class="blank-product-visual">
+              <img src="images/catalog/catalog_p07_img01.jpg" alt="베이스 콘크리트 그레이 타일" />
+              <button class="blank-add" type="button" aria-label="베이스 콘크리트 그레이 담기" title="장바구니 담기">+</button>
+            </div>
+            <div class="blank-product-info">
+              <h2>베이스 콘크리트 그레이</h2><span class="blank-product-code">BS-6656-GR</span>
+              <div class="blank-product-meta"><span>600x600</span><span>무광</span><span>시멘트</span></div>
+              <span class="blank-product-price">사업자 가격</span>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <nav class="blank-mobile-nav" aria-label="상품집중형 모바일 메뉴">
+        <button type="button">메인</button>
+        <button class="active" type="button">상품</button>
+        <button type="button">검색</button>
+        <button type="button">마이페이지</button>
+      </nav>
+    </section>
+
     <section class="screen pro-screen" id="proPreview">
       <header class="pro-header">
         <div class="pro-header-inner">
@@ -2157,6 +3738,236 @@
           </article>
         </div>
       </main>
+    </section>
+
+    <section class="screen home-screen" id="homePreview">
+      <div class="blank-promo">사업자 회원을 위한 자재 플랫폼 · 타일과 욕실자재를 한곳에서</div>
+
+      <header class="blank-header">
+        <div class="blank-header-side">
+          <button class="blank-menu" type="button" aria-label="전체 메뉴" title="전체 메뉴">☰</button>
+          <span class="blank-header-note">TILE · BATH<br />B2B MATERIAL PLATFORM</span>
+        </div>
+        <a class="blank-logo" href="#homePreview" aria-label="자재GO 홈">
+          <img src="images/branding/btn-material-go.png" alt="자재GO" />
+        </a>
+        <div class="blank-header-side end">
+          <span class="blank-header-note">사업자 인증 후<br />등급별 가격 공개</span>
+          <button class="blank-icon-action" type="button" aria-label="상품 검색" title="상품 검색">⌕</button>
+          <button class="blank-icon-action" type="button" aria-label="장바구니" title="장바구니">▢</button>
+        </div>
+      </header>
+
+      <nav class="blank-category-nav" aria-label="자재GO 주요 서비스">
+        <button class="active" type="button">메인</button>
+        <button type="button">타일GO</button>
+        <button type="button">바스GO</button>
+        <button type="button">샘플GO</button>
+        <button type="button">AI 타일검색</button>
+        <button type="button">시공보기</button>
+      </nav>
+
+      <main>
+        <section class="home-hero">
+          <div class="home-hero-inner">
+            <div class="home-hero-copy">
+              <small>TILE · BATH B2B MATERIAL PLATFORM</small>
+              <h1>자재GO</h1>
+              <strong>현장에 맞는 자재를 더 빠르게.</strong>
+              <p>타일, 위생도기, 수전금구와 욕실자재를 검색하고 비교해 필요한 상품을 한 번에 준비합니다.</p>
+              <form class="home-search">
+                <input type="search" value="600x600 무광 베이지 스톤 타일" aria-label="메인 상품 검색어" />
+                <button type="button">사진 찾기</button>
+                <button class="home-search-submit" type="submit" aria-label="검색" title="검색">⌕</button>
+              </form>
+              <div class="home-search-tags" aria-label="빠른 검색어">
+                <button type="button">600x600</button>
+                <button type="button">욕실 바닥</button>
+                <button type="button">무광 스톤</button>
+                <button type="button">빠른 배송</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="blank-benefits" aria-label="자재GO 핵심 서비스">
+          <div class="blank-benefit"><strong>통합 상품 검색</strong><span>타일과 욕실자재를 한 번에</span></div>
+          <div class="blank-benefit"><strong>AI 타일 찾기</strong><span>사진과 자연어로 유사 상품 검색</span></div>
+          <div class="blank-benefit"><strong>샘플 주문</strong><span>현장에서 색상과 질감 확인</span></div>
+          <div class="blank-benefit"><strong>시공 이미지</strong><span>장바구니 상품을 공간에 미리 적용</span></div>
+        </section>
+
+        <section class="home-section">
+          <div class="home-section-heading">
+            <div>
+              <small>START WITH JAJAEGO</small>
+              <h2>필요한 자재부터 시작하세요</h2>
+            </div>
+            <p>상품군을 먼저 선택하거나 검색창에서 규격과 마감, 원하는 분위기를 바로 입력할 수 있습니다.</p>
+          </div>
+          <div class="home-service-grid">
+            <article class="home-service">
+              <img src="images/catalog/catalog_p05_img00.jpg" alt="라이트그레이 타일 시공 공간" />
+              <a class="home-service-link" href="#blankPreview" aria-label="타일GO 이동" title="타일GO">→</a>
+              <div class="home-service-copy"><small>01 TILE</small><h3>타일GO</h3><p>사이즈·용도·마감·스타일·색상으로 찾기</p></div>
+            </article>
+            <article class="home-service">
+              <img src="images/catalog/catalog_p04_img00.jpg" alt="욕조와 욕실자재가 적용된 공간" />
+              <a class="home-service-link" href="#bathPreview" aria-label="바스GO 이동" title="바스GO">→</a>
+              <div class="home-service-copy"><small>02 BATH</small><h3>바스GO</h3><p>수전·위생도기·욕실장·액세서리 찾기</p></div>
+            </article>
+            <article class="home-service">
+              <img src="images/catalog/catalog_p12_img01.jpg" alt="베이지 타일 샘플 이미지" />
+              <a class="home-service-link" href="#samplePreview" aria-label="샘플GO 이동" title="샘플GO">→</a>
+              <div class="home-service-copy"><small>03 SAMPLE</small><h3>샘플GO</h3><p>시공 전 실제 색상과 표면을 먼저 확인하기</p></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="home-ai-band">
+          <div class="home-ai-inner">
+            <div class="home-ai-copy">
+              <small>JAJAEGO AI TILE SEARCH</small>
+              <h2>타일 전문가에게<br />묻듯이 찾아보세요</h2>
+              <p>사진을 올리거나 “600각 무광 웜베이지 스톤 타일”처럼 입력하면 사이즈와 마감을 우선 확인하고 유사 상품을 정리합니다.</p>
+              <button type="button">AI 타일검색 시작</button>
+            </div>
+            <div class="home-ai-demo" aria-label="AI 검색 조건 예시">
+              <div class="home-ai-row"><span>사이즈</span><strong>600x600</strong><em>필수 조건 일치</em></div>
+              <div class="home-ai-row"><span>마감</span><strong>무광</strong><em>필수 조건 일치</em></div>
+              <div class="home-ai-row"><span>이미지</span><strong>웜베이지 · 잔잔한 스톤 패턴</strong><em>유사도 순 정렬</em></div>
+              <div class="home-ai-row"><span>결과</span><strong>조건이 일치하는 타일만 비교</strong><em>최대 50개</em></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="home-featured-band">
+          <div class="home-section">
+            <div class="home-section-heading">
+              <div>
+                <small>CURATED PRODUCTS</small>
+                <h2>지금 많이 찾는 타일</h2>
+              </div>
+              <p>현장에서 자주 찾는 규격과 마감의 상품을 먼저 보여드립니다.</p>
+            </div>
+            <div class="home-featured-grid">
+              <article class="blank-product">
+                <div class="blank-product-visual"><span class="blank-badge">NEW</span><img src="images/catalog/catalog_p05_img01.jpg" alt="리베르타 웜그레이 스톤 타일" /><button class="blank-add" type="button" aria-label="리베르타 웜그레이 스톤 담기" title="장바구니 담기">+</button></div>
+                <div class="blank-product-info"><h2>리베르타 웜그레이 스톤</h2><span class="blank-product-code">LT-6601-GR</span><div class="blank-product-meta"><span>600x600</span><span>무광</span></div><span class="blank-product-price">사업자 가격</span></div>
+              </article>
+              <article class="blank-product">
+                <div class="blank-product-visual"><span class="blank-badge">SAMPLE</span><img src="images/catalog/catalog_p12_img01.jpg" alt="내추럴 트래버틴 베이지 타일" /><button class="blank-add" type="button" aria-label="내추럴 트래버틴 베이지 담기" title="장바구니 담기">+</button></div>
+                <div class="blank-product-info"><h2>내추럴 트래버틴 베이지</h2><span class="blank-product-code">NT-6120-BE</span><div class="blank-product-meta"><span>600x1200</span><span>무광</span></div><span class="blank-product-price">사업자 가격</span></div>
+              </article>
+              <article class="blank-product">
+                <div class="blank-product-visual"><img src="images/catalog/catalog_p16_img01.jpg" alt="클라우드 스톤 그레이 타일" /><button class="blank-add" type="button" aria-label="클라우드 스톤 그레이 담기" title="장바구니 담기">+</button></div>
+                <div class="blank-product-info"><h2>클라우드 스톤 그레이</h2><span class="blank-product-code">CL-6643-GR</span><div class="blank-product-meta"><span>600x600</span><span>무광</span></div><span class="blank-product-price">사업자 가격</span></div>
+              </article>
+              <article class="blank-product">
+                <div class="blank-product-visual"><img src="images/catalog/catalog_p07_img01.jpg" alt="베이스 콘크리트 그레이 타일" /><button class="blank-add" type="button" aria-label="베이스 콘크리트 그레이 담기" title="장바구니 담기">+</button></div>
+                <div class="blank-product-info"><h2>베이스 콘크리트 그레이</h2><span class="blank-product-code">BS-6656-GR</span><div class="blank-product-meta"><span>600x600</span><span>무광</span></div><span class="blank-product-price">사업자 가격</span></div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="home-delivery" aria-label="자재GO 배송 안내">
+          <img src="images/branding/hero-delivery-banner.png" alt="오후 4시까지 주문하면 수도권 내일 아침 배송 완료" />
+        </section>
+      </main>
+
+      <nav class="blank-mobile-nav" aria-label="메인 모바일 메뉴">
+        <button class="active" type="button">메인</button>
+        <button type="button">상품</button>
+        <button type="button">AI 검색</button>
+        <button type="button">마이페이지</button>
+      </nav>
+    </section>
+
+    <section class="screen active icon-home-screen" id="iconHomePreview">
+      <header class="icon-home-header">
+        <div class="icon-home-mark" aria-hidden="true"></div>
+        <div class="icon-home-header-actions">
+          <button type="button">로그인</button>
+          <button class="primary" type="button">사업자 가입</button>
+        </div>
+      </header>
+
+      <main class="icon-home-grid">
+        <section class="icon-home-intro">
+          <img src="images/branding/btn-material-go.png" alt="자재GO" />
+          <div>
+            <h1>자재GO,</h1>
+            <p>현장 자재를 찾는 가장 빠르고 명확한 방법.</p>
+            <small>타일 · 위생도기 · 수전금구 · 욕실자재<br />검색부터 주문과 시공 이미지까지</small>
+          </div>
+        </section>
+
+        <a class="icon-home-tile dark" href="#blankPreview" aria-label="타일GO">
+          <div class="icon-home-symbol">600<small>SIZE FIRST TILE SEARCH</small></div>
+          <div class="icon-home-label"><div><strong>타일GO</strong><span>사이즈·마감·스타일로 찾기</span></div><b>→</b></div>
+        </a>
+
+        <a class="icon-home-tile photo" href="#iconHomePreview" aria-label="AI 타일검색">
+          <img src="images/catalog/catalog_p16_img01.jpg" alt="화이트 마블 타일 표면" />
+          <div class="icon-home-label"><div><strong>AI 타일검색</strong><span>사진과 자연어로 유사 상품 찾기</span></div><b>→</b></div>
+        </a>
+
+        <a class="icon-home-tile blue" href="#iconHomePreview" aria-label="바스GO">
+          <div class="icon-home-symbol">BATH<small>FAUCET · BASIN · TOILET</small></div>
+          <div class="icon-home-label"><div><strong>바스GO</strong><span>욕실자재를 품목별로 탐색</span></div><b>→</b></div>
+        </a>
+
+        <a class="icon-home-tile photo" href="#iconHomePreview" aria-label="욕실 공간 상품">
+          <img src="images/catalog/catalog_p04_img00.jpg" alt="욕조와 대형 타일이 시공된 욕실" />
+          <div class="icon-home-label"><div><strong>욕실 공간</strong><span>공간에 맞는 자재 모아보기</span></div><b>→</b></div>
+        </a>
+
+        <section class="icon-home-tile white icon-home-search-tile" aria-label="통합 상품 검색">
+          <strong>바로 찾기</strong>
+          <p>규격, 마감 또는 제품명을 입력하면 필요한 상품만 정리합니다.</p>
+          <form class="icon-home-search-form">
+            <input type="search" value="600각 무광 스톤" aria-label="시각 타일형 상품 검색어" />
+            <button type="submit" aria-label="검색" title="검색">⌕</button>
+          </form>
+        </section>
+
+        <a class="icon-home-tile white" href="#iconHomePreview" aria-label="샘플GO">
+          <div class="icon-home-symbol">SAMPLE<small>CHECK BEFORE ORDER</small></div>
+          <div class="icon-home-label"><div><strong>샘플GO</strong><span>SNT 샘플 주문</span></div><b>→</b></div>
+        </a>
+
+        <a class="icon-home-tile photo" href="#iconHomePreview" aria-label="시공보기">
+          <img src="images/catalog/catalog_p05_img00.jpg" alt="라이트그레이 타일이 시공된 공간" />
+          <div class="icon-home-label"><div><strong>시공보기</strong><span>장바구니 자재를 현장에 적용</span></div><b>→</b></div>
+        </a>
+
+        <a class="icon-home-tile dark icon-home-wide" href="#iconHomePreview" aria-label="자재GO 배송 안내">
+          <div class="icon-home-wide-copy">
+            <small>JAJAEGO DELIVERY</small>
+            <h2>현장 일정에 맞춘 배송</h2>
+            <p>수도권 오후 4시 이전 주문 상품은 다음 날 아침 배송을 목표로 운영합니다.</p>
+          </div>
+          <div class="icon-home-label"><div><strong>배송 안내</strong><span>지역과 주문 시간을 확인하세요</span></div><b>→</b></div>
+        </a>
+
+        <a class="icon-home-tile photo" href="#blankPreview" aria-label="추천 타일 상품">
+          <img src="images/catalog/catalog_p12_img01.jpg" alt="내추럴 트래버틴 베이지 타일" />
+          <div class="icon-home-label"><div><strong>추천 타일</strong><span>600x1200 · 무광</span></div><b>→</b></div>
+        </a>
+
+        <a class="icon-home-tile dark" href="#iconHomePreview" aria-label="마이페이지">
+          <div class="icon-home-symbol">MY<small>ORDER · GRADE · CLIENT</small></div>
+          <div class="icon-home-label"><div><strong>마이페이지</strong><span>등급·주문·거래처 관리</span></div><b>→</b></div>
+        </a>
+      </main>
+
+      <nav class="icon-home-mobile-nav" aria-label="시각 타일형 모바일 메뉴">
+        <button class="active" type="button">메인</button>
+        <button type="button">상품</button>
+        <button type="button">AI 검색</button>
+        <button type="button">마이페이지</button>
+      </nav>
     </section>
 
     <section class="screen admin-screen" id="adminPreview">
@@ -2347,10 +4158,23 @@
         form.addEventListener("submit", (event) => event.preventDefault());
       });
 
+      document.querySelector(".home-search").addEventListener("submit", (event) => event.preventDefault());
+      document.querySelector(".icon-home-search-form").addEventListener("submit", (event) => event.preventDefault());
+
       document.querySelectorAll(".pro-add").forEach((button) => {
         button.addEventListener("click", () => {
           button.textContent = button.textContent === "담김" ? "담기" : "담김";
           button.style.background = button.textContent === "담김" ? "#067647" : "#0b5cff";
+        });
+      });
+
+      document.querySelectorAll(".blank-add").forEach((button) => {
+        button.addEventListener("click", () => {
+          const selected = button.textContent === "✓";
+          button.textContent = selected ? "+" : "✓";
+          button.setAttribute("aria-pressed", selected ? "false" : "true");
+          button.style.background = selected ? "#081957" : "#0b5cff";
+          button.style.borderColor = selected ? "#081957" : "#0b5cff";
         });
       });
     </script>
