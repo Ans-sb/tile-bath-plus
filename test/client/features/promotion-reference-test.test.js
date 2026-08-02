@@ -85,17 +85,20 @@ test("promotion reference page does not expose internal product metadata", () =>
 });
 
 test("approved promotion design is mounted only on the guest home", () => {
-  assert.match(appHtml, /id="guestHomeGate"[\s\S]*data-promo-source="\/promotion-reference-test\.html\?v=20260803-scroll-clean1"/);
-  assert.match(appHtml, /promotion-reference-test\.css\?v=20260803-scroll-clean1/);
-  assert.match(appHtml, /promotion-reference-test\.js\?v=20260803-scroll-clean1/);
+  assert.match(appHtml, /id="guestHomeGate"[\s\S]*data-promo-source="\/promotion-reference-test\.html\?v=20260803-wrap3"/);
+  assert.match(appHtml, /promotion-reference-test\.css\?v=20260803-wrap3/);
+  assert.match(appHtml, /promotion-reference-test\.js\?v=20260803-wrap3/);
   assert.doesNotMatch(html, /promo-scroll-link|>SCROLL</);
   assert.doesNotMatch(css, /promo-scroll-link|promo-scroll-pulse/);
   assert.match(html, /field-cart-tile-preview-20260802\.webp/);
   assert.match(html, /tile-material-quantity-20260802\.webp/);
   assert.match(html, /construction-materials-20260802\.webp/);
   assert.match(html, /bathroom-products-navy-20260802\.webp/);
-  assert.match(html, /현장에 이미지 적용/);
-  assert.match(html, /<span>06<\/span>[\s\S]*주문·현장 배송/);
+  assert.match(html, /현장주문은 <em>이렇게 진행됩니다<\/em>/);
+  assert.match(html, /<span>01<\/span>[\s\S]*상품 담기/);
+  assert.match(html, /<span>02<\/span>[\s\S]*샘플 신청/);
+  assert.match(html, /<span>03<\/span>[\s\S]*현장 배송/);
+  assert.doesNotMatch(html, /<span>04<\/span>|<span>05<\/span>|<span>06<\/span>/);
   assert.match(html, /현장 사진에 장바구니 타일 적용/);
   assert.match(script, /host\.replaceChildren/);
   assert.match(script, /APP_PAGE_HASH_PATTERN/);

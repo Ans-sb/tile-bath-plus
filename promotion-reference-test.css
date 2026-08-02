@@ -30,6 +30,8 @@ body.promo-reference-body {
   background: var(--promo-white);
   font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
   line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: keep-all;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -839,7 +841,7 @@ body.promo-menu-open {
 
 .promo-process-list {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 0;
   padding: 0;
   border-top: 1px solid var(--promo-line);
@@ -847,9 +849,29 @@ body.promo-menu-open {
 }
 
 .promo-process-list li {
+  position: relative;
   min-height: 286px;
-  padding: 28px 18px;
+  padding: 32px 28px;
   border-right: 1px solid var(--promo-line);
+}
+
+.promo-process-list li:not(:last-child)::after {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--promo-line);
+  border-radius: 50%;
+  background: var(--promo-white);
+  color: var(--promo-black);
+  content: "→";
+  font-size: 16px;
+  font-weight: 900;
+  place-items: center;
+  transform: translate(50%, -50%);
 }
 
 .promo-process-list li:last-child {
@@ -1251,14 +1273,6 @@ body.promo-menu-open {
   .promo-process-list {
     grid-template-columns: repeat(3, 1fr);
   }
-
-  .promo-process-list li:nth-child(3n) {
-    border-right: 0;
-  }
-
-  .promo-process-list li:nth-child(-n + 3) {
-    border-bottom: 1px solid var(--promo-line);
-  }
 }
 
 @media (max-width: 760px) {
@@ -1403,7 +1417,7 @@ body.promo-menu-open {
   .promo-section-heading h2,
   .promo-value h2,
   .promo-final-cta h2 {
-    font-size: 34px;
+    font-size: 31px;
   }
 
   .promo-section-heading p {
@@ -1494,6 +1508,13 @@ body.promo-menu-open {
     border-bottom: 0;
   }
 
+  .promo-process-list li:not(:last-child)::after {
+    top: auto;
+    right: 50%;
+    bottom: 0;
+    transform: translate(50%, 50%) rotate(90deg);
+  }
+
   .promo-process-list li > span {
     margin-bottom: 38px;
   }
@@ -1535,6 +1556,12 @@ body.promo-menu-open {
 
   .promo-hero h1 {
     font-size: 35px;
+  }
+
+  .promo-section-heading h2,
+  .promo-value h2,
+  .promo-final-cta h2 {
+    font-size: 29px;
   }
 
   .promo-hero-actions .promo-button {
@@ -1619,6 +1646,19 @@ body.promo-menu-open {
 
 .promo-quantity-demo .promo-tool-heading span {
   color: var(--promo-blue);
+}
+
+.promo-quantity-demo .promo-tool-heading {
+  display: grid;
+  justify-content: initial;
+  gap: 6px;
+}
+
+.promo-quantity-demo .promo-tool-heading span,
+.promo-quantity-demo .promo-tool-heading strong {
+  min-width: 0;
+  white-space: normal;
+  word-break: keep-all;
 }
 
 .promo-tool-heading strong {
