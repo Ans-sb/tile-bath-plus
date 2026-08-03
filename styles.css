@@ -16679,8 +16679,8 @@ body[data-page="adminPage"] {
 /* Full-page admin editing */
 .admin-page-edit-fab {
   position: fixed;
-  right: 22px;
-  bottom: 22px;
+  right: 118px;
+  bottom: 42px;
   z-index: 90;
   min-height: 42px;
   padding: 0 16px;
@@ -16693,6 +16693,13 @@ body[data-page="adminPage"] {
   font-size: 12px;
   font-weight: 900;
   cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .admin-page-edit-fab {
+    right: calc(90px + env(safe-area-inset-right));
+    bottom: calc(109px + env(safe-area-inset-bottom));
+  }
 }
 
 body:not(.admin-authenticated) .admin-page-edit-fab,
