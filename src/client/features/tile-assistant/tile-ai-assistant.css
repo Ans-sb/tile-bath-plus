@@ -163,9 +163,12 @@
 .tile-ai-message {
   max-width: 88%;
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
 }
 
-.tile-ai-message div {
+.tile-ai-message__bubble {
   padding: 11px 13px;
   border-radius: 17px;
   font-size: 14px;
@@ -179,7 +182,7 @@
   align-self: flex-start;
 }
 
-.tile-ai-message.is-assistant div {
+.tile-ai-message.is-assistant .tile-ai-message__bubble {
   border: 1px solid #dce5f2;
   border-bottom-left-radius: 5px;
   color: #17213e;
@@ -188,23 +191,49 @@
 
 .tile-ai-message.is-user {
   align-self: flex-end;
+  align-items: flex-end;
 }
 
-.tile-ai-message.is-user div {
+.tile-ai-message.is-user .tile-ai-message__bubble {
   border-bottom-right-radius: 5px;
   color: #fff;
   background: #1268ff;
 }
 
-.tile-ai-message.is-error div {
+.tile-ai-message.is-error .tile-ai-message__bubble {
   border: 1px solid #ffd1d1;
   color: #a21b1b;
   background: #fff2f2;
 }
 
-.tile-ai-message.is-pending div {
+.tile-ai-message.is-pending .tile-ai-message__bubble {
   color: #687493;
   animation: tile-ai-pulse 1.15s ease-in-out infinite;
+}
+
+.tile-ai-message__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tile-ai-message__actions button {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid #081957;
+  border-radius: 12px;
+  color: #fff;
+  background: #081957;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tile-ai-message__actions button:hover,
+.tile-ai-message__actions button:focus-visible {
+  background: #1268ff;
+  border-color: #1268ff;
 }
 
 .tile-ai-suggestions {

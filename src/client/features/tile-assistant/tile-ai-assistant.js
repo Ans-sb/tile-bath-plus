@@ -12,6 +12,18 @@
       .slice(-8);
   }
 
+  function normalizeRecommendationActions(actions) {
+    return (Array.isArray(actions) ? actions : [])
+      .filter((action) => action?.type === "open-product-search")
+      .map((action) => ({
+        type: "open-product-search",
+        label: String(action?.label || "추천 상품 보기").trim().slice(0, 40) || "추천 상품 보기",
+        targetPage: "productsPage",
+        query: String(action?.query || "타일").trim().slice(0, 180) || "타일"
+      }))
+      .slice(0, 1);
+  }
+
   function initializeTileAiAssistant(doc = globalScope.document, fetchImpl = globalScope.fetch) {
     if (!doc) return null;
     const launcher = doc.getElementById("tileAiLauncher");
@@ -42,8 +54,35 @@
       article.className = `tile-ai-message is-${role}`;
       if (options.pending) article.classList.add("is-pending");
       const bubble = doc.createElement("div");
+      bubble.className = "tile-ai-message__bubble";
       bubble.textContent = content;
       article.appendChild(bubble);
+      const actions = normalizeRecommendationActions(options.actions);
+      if (actions.length) {
+        const actionWrap = doc.createElement("div");
+        actionWrap.className = "tile-ai-message__actions";
+        actions.forEach((action) => {
+          const button = doc.createElement("button");
+          button.type = "button";
+          button.textContent = action.label;
+          button.addEventListener("click", () => {
+            const EventConstructor = doc.defaultView?.CustomEvent || globalScope.CustomEvent;
+            let handled = false;
+            if (typeof EventConstructor === "function") {
+              const event = new EventConstructor("tile-ai:open-products", {
+                bubbles: true,
+                cancelable: true,
+                detail: { query: action.query, targetPage: action.targetPage }
+              });
+              handled = !doc.dispatchEvent(event);
+            }
+            setOpen(false);
+            if (!handled && globalScope.location) globalScope.location.hash = action.targetPage;
+          });
+          actionWrap.appendChild(button);
+        });
+        article.appendChild(actionWrap);
+      }
       messagesElement.appendChild(article);
       messagesElement.scrollTop = messagesElement.scrollHeight;
       return article;
@@ -70,7 +109,7 @@
         if (!response.ok) throw new Error(result?.error || "타일 AI에 연결하지 못했습니다.");
         const answer = String(result?.message || "답변을 생성하지 못했습니다.").trim();
         loadingMessage.remove();
-        appendMessage("assistant", answer);
+        appendMessage("assistant", answer, { actions: result?.actions });
         messages.push({ role: "assistant", content: answer });
       } catch (error) {
         loadingMessage.remove();
@@ -109,7 +148,7 @@
     return { askQuestion, setOpen };
   }
 
-  const api = { buildRequestHistory, initializeTileAiAssistant };
+  const api = { buildRequestHistory, normalizeRecommendationActions, initializeTileAiAssistant };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (globalScope) globalScope.TileAiAssistant = api;
   if (globalScope.document) {

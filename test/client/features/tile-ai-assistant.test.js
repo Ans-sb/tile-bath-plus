@@ -3,7 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { buildRequestHistory } = require("../../../src/client/features/tile-assistant/tile-ai-assistant");
+const {
+  buildRequestHistory,
+  normalizeRecommendationActions
+} = require("../../../src/client/features/tile-assistant/tile-ai-assistant");
 
 test("tile assistant client sends only the eight most recent completed messages", () => {
   const messages = Array.from({ length: 12 }, (_, index) => ({
@@ -27,4 +30,18 @@ test("tile assistant mobile launcher stays above the fixed bottom navigation", (
 
   assert.match(css, /bottom:\s*calc\(96px \+ env\(safe-area-inset-bottom\)\)/);
   assert.match(css, /height:\s*calc\(100dvh - 188px - env\(safe-area-inset-bottom\)\)/);
+});
+
+test("tile assistant client accepts only the fixed customer product action", () => {
+  const result = normalizeRecommendationActions([
+    { type: "open-product-search", label: "추천 상품 보기", targetPage: "adminPage", query: "600x600 무광 베이지" },
+    { type: "open-external-url", label: "외부 이동", href: "https://example.com" }
+  ]);
+
+  assert.deepEqual(result, [{
+    type: "open-product-search",
+    label: "추천 상품 보기",
+    targetPage: "productsPage",
+    query: "600x600 무광 베이지"
+  }]);
 });

@@ -1222,6 +1222,11 @@ async function copyQuantityEstimate() {
 }
 
 function bindEvents() {
+  document.addEventListener("tile-ai:open-products", (event) => {
+    event.preventDefault();
+    void openTileAiProductSearch(event.detail?.query);
+  });
+
   document.querySelector("#adminQuickPageEditBtn")?.addEventListener("click", () => {
     const sourcePageId = currentPageId;
     switchPage("siteStudioPage");
@@ -1937,6 +1942,25 @@ async function loadProducts() {
     productsLoadPromise = null;
   });
   return productsLoadPromise;
+}
+
+async function openTileAiProductSearch(rawQuery) {
+  const query = String(rawQuery || "타일").trim().slice(0, 180) || "타일";
+  const categoryFilter = document.querySelector("#mainCategoryFilter");
+  const searchInput = document.querySelector("#productSearch");
+  if (categoryFilter) categoryFilter.value = "tile";
+  productCollectionMode = "all";
+  bestTileProductIds = [];
+  setProductCatalogMode("tile");
+  syncProductFilters({ resetSubFilters: true });
+  if (searchInput) searchInput.value = query;
+  productCurrentPage = 1;
+  invalidateProductPageCache();
+  switchPage("productsPage");
+  await ensureProductsReady();
+  invalidateProductPageCache();
+  renderProducts();
+  document.querySelector("#productList")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function loadProductsInternal() {

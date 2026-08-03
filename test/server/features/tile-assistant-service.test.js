@@ -25,6 +25,12 @@ test("tile assistant uses the configured AI with safety instructions and bounded
   });
   assert.equal(result.ok, true);
   assert.equal(result.source, "ai");
+  assert.match(request.systemPrompt, /일반 지식은 되묻지 말고 바로 답하세요/);
+  assert.match(request.systemPrompt, /마크다운 기호는 사용하지 말고/);
+  assert.match(request.systemPrompt, /질문만 하고 답변을 끝내지 마세요/);
+  assert.match(request.systemPrompt, /접착제 선택 기준을 답하세요/);
+  assert.match(request.systemPrompt, /도기질 타일은 일반적으로 포세린보다 흡수율이 높은/);
+  assert.match(request.systemPrompt, /방수층을 대신하지는 않는다고/);
   assert.match(request.systemPrompt, /가격, 재고, 납기/);
   assert.match(request.systemPrompt, /내부정보/);
   assert.match(request.message, /현재 질문: 무광이면 논슬립인가요\?/);
@@ -61,6 +67,18 @@ test("tile assistant bounds upstream answer length and hides model details", asy
   assert.equal("model" in result, false);
 });
 
+test("tile assistant immediately falls back to local knowledge when AI fails", async () => {
+  const service = createTileAssistantService({
+    chatClient: {
+      hasConfig: () => true,
+      chat: async () => { throw new Error("upstream unavailable"); }
+    }
+  });
+  const result = await service.answer({ message: "포세린 타일이 뭐예요?" });
+  assert.equal(result.source, "local-fallback");
+  assert.match(result.message, /흡수율/);
+});
+
 test("tile assistant limits concurrent and daily AI calls", async () => {
   let release;
   const blocked = new Promise((resolve) => { release = resolve; });
@@ -74,4 +92,28 @@ test("tile assistant limits concurrent and daily AI calls", async () => {
   release({ message: "첫 답변" });
   await first;
   await assert.rejects(() => service.answer({ message: "일일 초과" }), /오늘의 AI 질문 한도/);
+});
+
+test("tile assistant adds a safe product search action for recommendation questions", async () => {
+  const result = await createTileAssistantService().answer({
+    message: "욕실 바닥에 쓸 600x600 무광 베이지 스톤 타일 추천해줘"
+  });
+
+  assert.equal(result.actions.length, 1);
+  assert.deepEqual(result.actions[0], {
+    type: "open-product-search",
+    label: "추천 상품 보기",
+    targetPage: "productsPage",
+    query: "600*600 바닥 무광 베이지 스톤"
+  });
+  assert.doesNotMatch(JSON.stringify(result.actions), /brand|supplier|cost|원가|공급처/i);
+});
+
+test("tile assistant does not add a product action to knowledge or accessory questions", async () => {
+  const service = createTileAssistantService();
+  const knowledge = await service.answer({ message: "포세린 타일이 뭐예요?" });
+  const adhesive = await service.answer({ message: "욕실 타일 접착제 추천해줘" });
+
+  assert.deepEqual(knowledge.actions, []);
+  assert.deepEqual(adhesive.actions, []);
 });
