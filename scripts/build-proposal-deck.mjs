@@ -4,6 +4,7 @@ import { Presentation, PresentationFile } from "../vendor/@oai/artifact-tool/dis
 
 const W = 1280;
 const H = 720;
+const DEFAULT_COVER_IMAGE = path.resolve(process.cwd(), "assets", "proposal-templates", "interior-design-cover-20260809.png");
 
 const THEMES = {
   "beige-black": {
@@ -86,6 +87,15 @@ const theme = THEMES[payload?.proposal?.theme] || THEMES["beige-black"];
 
 await fs.mkdir(payload.outputDir, { recursive: true });
 
+if (theme.id === "beige-black") {
+  const { buildCleanBusinessProposal } = await import("./build-clean-business-proposal.mjs");
+  const result = await buildCleanBusinessProposal(payload, rootDir);
+  await new Promise((resolve) => {
+    process.stdout.write(`${JSON.stringify(result)}\n`, resolve);
+  });
+  process.exit(0);
+}
+
 const presentation = Presentation.create({
   slideSize: { width: W, height: H }
 });
@@ -95,12 +105,21 @@ const renderedItems = payload.cart.filter((item) => item.renderedImage);
 const renderedChunks = chunk(renderedItems, 2);
 
 await addCoverSlide();
-await addSummarySlide();
+if (theme.id !== "beige-brown" && !payload.proposal.skipSummary) {
+  await addSummarySlide();
+}
 for (let index = 0; index < productChunks.length; index += 1) {
   await addProductSlide(productChunks[index], index + 1, productChunks.length);
 }
-for (let index = 0; index < renderedChunks.length; index += 1) {
-  await addRenderedSlide(renderedChunks[index], index + 1, renderedChunks.length);
+if (theme.id === "beige-brown") {
+  const portfolioItems = renderedItems.length ? renderedItems : [null];
+  for (let index = 0; index < portfolioItems.length; index += 1) {
+    await addPortfolioRenderedSlide(portfolioItems[index], index + 1, portfolioItems.length);
+  }
+} else {
+  for (let index = 0; index < renderedChunks.length; index += 1) {
+    await addRenderedSlide(renderedChunks[index], index + 1, renderedChunks.length);
+  }
 }
 await addEstimateSlide();
 await addContactSlide();
@@ -114,18 +133,26 @@ async function addCoverSlide() {
   const slide = presentation.slides.add();
   slide.background.fill = theme.colors.paper;
 
+  const coverSource = payload.proposal.coverImage || DEFAULT_COVER_IMAGE;
+  const coverConfig = await resolveImageConfig(coverSource, "자재GO 현장 자재 제안서 표지");
+  if (coverConfig) {
+    const cover = slide.images.add({ ...coverConfig, fit: "cover" });
+    cover.position = { left: 0, top: 0, width: W, height: H };
+    return;
+  }
+
   if (theme.id === "beige-red") {
     addBlock(slide, 0, 0, W, H, theme.colors.paper, theme.colors.paper);
     addBlock(slide, 0, 0, 140, H, theme.colors.accent, theme.colors.accent);
     addBlock(slide, 780, 0, 500, H, theme.colors.paperAlt, theme.colors.paperAlt);
     addBlock(slide, 188, 92, 132, 10, theme.colors.accent, theme.colors.accent);
 
-    addText(slide, "Tile & Bath Plus", 188, 78, 260, 24, {
+    addText(slide, companyDisplayName(), 188, 78, 260, 24, {
       fontSize: 18,
       color: theme.colors.accent,
       bold: true
     });
-    addText(slide, "현장 맞춤\n프로 제안서", 188, 128, 420, 150, {
+    addText(slide, proposalTitle(), 188, 128, 420, 150, {
       fontSize: 46,
       color: theme.colors.ink,
       bold: true,
@@ -147,12 +174,12 @@ async function addCoverSlide() {
     addBlock(slide, 92, 88, 270, 544, theme.colors.paperAlt, theme.colors.paperAlt);
     addBlock(slide, 390, 560, 790, 44, theme.colors.accentSoft, theme.colors.accentSoft);
 
-    addText(slide, "Tile & Bath Plus", 400, 106, 260, 24, {
+    addText(slide, companyDisplayName(), 400, 106, 260, 24, {
       fontSize: 18,
       color: theme.colors.accent,
       bold: true
     });
-    addText(slide, "현장 맞춤 제안서", 400, 144, 420, 62, {
+    addText(slide, proposalTitle(), 400, 144, 420, 62, {
       fontSize: 42,
       color: theme.colors.ink,
       bold: true,
@@ -181,12 +208,12 @@ async function addCoverSlide() {
     addBlock(slide, 0, 0, 126, H, theme.colors.panel, theme.colors.panel);
     addBlock(slide, 814, 0, 466, H, theme.colors.paperAlt, theme.colors.paperAlt);
 
-    addText(slide, "Tile & Bath Plus", 170, 78, 260, 24, {
+    addText(slide, companyDisplayName(), 170, 78, 260, 24, {
       fontSize: 18,
       color: theme.colors.highlight,
       bold: true
     });
-    addText(slide, "프로 현장 제안서", 170, 120, 430, 66, {
+    addText(slide, proposalTitle(), 170, 120, 430, 66, {
       fontSize: 38,
       color: theme.colors.ink,
       bold: true,
@@ -211,11 +238,71 @@ async function addCoverSlide() {
   }
 }
 
+async function addPortfolioRenderedSlide(renderItem, pageNumber, pageCount) {
+  const slide = presentation.slides.add();
+  slide.background.fill = theme.colors.paper;
+
+  addText(slide, "시공 제안", 72, 48, 180, 20, {
+    fontSize: 15,
+    color: theme.colors.accent,
+    bold: true
+  });
+  addText(slide, pageCount > 1 ? `현장 적용 이미지 ${pageNumber}/${pageCount}` : "현장 적용 이미지", 72, 80, 260, 40, {
+    fontSize: 30,
+    color: theme.colors.ink,
+    bold: true,
+    typeface: theme.fonts.title
+  });
+  addText(slide, "선택한 자재가 적용된 보정 결과와 사용 사양을 함께 확인합니다.", 72, 134, 246, 74, {
+    fontSize: 17,
+    color: theme.colors.muted
+  });
+
+  addBlock(slide, 354, 42, 854, 326, theme.colors.card, theme.colors.line, 1);
+  if (renderItem?.renderedImage) {
+    await addImageFrame(slide, renderItem.renderedImage, { left: 368, top: 56, width: 826, height: 298 }, { padding: 0 });
+  } else {
+    addBlock(slide, 368, 56, 826, 298, theme.colors.accentSoft, theme.colors.accentSoft);
+    addText(slide, "보정 결과 이미지", 368, 166, 826, 32, {
+      fontSize: 24,
+      color: theme.colors.ink,
+      bold: true,
+      alignment: "center"
+    });
+    addText(slide, "시공 미리보기에서 보정을 완료하면 이 영역에 자동으로 들어갑니다.", 448, 210, 666, 44, {
+      fontSize: 16,
+      color: theme.colors.muted,
+      alignment: "center"
+    });
+  }
+
+  const specItems = getPortfolioSpecItems(renderItem);
+  const gap = 16;
+  const cardWidth = 272;
+  for (let index = 0; index < specItems.length; index += 1) {
+    const item = specItems[index];
+    const left = 72 + (index * (cardWidth + gap));
+    addBlock(slide, left, 408, cardWidth, 244, index % 2 ? theme.colors.accentSoft : theme.colors.card, theme.colors.line, 1);
+    await addImageFrame(slide, item.image, { left: left + 14, top: 422, width: cardWidth - 28, height: 126 }, { padding: 0 });
+    addText(slide, item.name || "선택 자재", left + 16, 564, cardWidth - 32, 28, {
+      fontSize: 17,
+      color: theme.colors.ink,
+      bold: true,
+      autoFit: "shrinkText"
+    });
+    addText(slide, buildPortfolioSpec(item), left + 16, 600, cardWidth - 32, 38, {
+      fontSize: 14,
+      color: theme.colors.muted,
+      autoFit: "shrinkText"
+    });
+  }
+}
+
 async function addSummarySlide() {
   const slide = presentation.slides.add();
   slide.background.fill = theme.colors.paper;
 
-  addSectionHeader(slide, "Project Summary", "제안 개요");
+  addSectionHeader(slide, "제안 핵심", "제안 개요");
 
   const metrics = [
     { label: "선정 품목", value: `${payload.summary.itemCount}개` },
@@ -356,7 +443,7 @@ async function addProductSlide(items, pageNumber, pageCount) {
   const slide = presentation.slides.add();
   slide.background.fill = theme.colors.paper;
 
-  addSectionHeader(slide, `Selected Products ${pageNumber}/${pageCount}`, "선정 상품");
+  addSectionHeader(slide, `상품 구성 ${pageNumber}/${pageCount}`, "선정 상품");
 
   const positions = [
     { left: 72, top: 142, width: 540, height: 232 },
@@ -482,7 +569,7 @@ async function addEstimateSlide() {
   const slide = presentation.slides.add();
   slide.background.fill = theme.colors.paper;
 
-  addSectionHeader(slide, "Estimate Summary", "견적 요약");
+  addSectionHeader(slide, "금액 및 조건", "견적 요약");
 
   if (theme.id === "beige-red") {
     addBlock(slide, 72, 134, 1136, 84, theme.colors.accentSoft, theme.colors.accentSoft);
@@ -520,13 +607,13 @@ async function addEstimateSlide() {
       typeface: theme.fonts.title
     });
     addSummaryTotals(slide, 838, 236, 336);
-    addText(slide, "안내 사항", 838, 450, 160, 24, {
-      fontSize: 18,
+    addText(slide, "안내 사항", 838, 548, 160, 20, {
+      fontSize: 16,
       color: theme.colors.accent,
       bold: true
     });
-    addText(slide, buildEstimateNote(), 838, 484, 304, 100, {
-      fontSize: 16,
+    addText(slide, buildEstimateNote(), 838, 576, 304, 50, {
+      fontSize: 13,
       color: theme.colors.muted
     });
     return;
@@ -581,24 +668,24 @@ async function addContactSlide() {
 
   if (theme.id === "beige-brown") {
     addBlock(slide, 72, 82, 1136, 556, theme.colors.card, theme.colors.line, 1);
-    addText(slide, "상담 및 마무리 안내", 108, 118, 280, 30, {
-      fontSize: 28,
+    addText(slide, "감사합니다.", 108, 118, 340, 52, {
+      fontSize: 42,
       color: theme.colors.ink,
       bold: true,
       typeface: theme.fonts.title
     });
-    addText(slide, "선정 상품과 보정 이미지를 기준으로 후속 상담, 색상 조정, 수량 검토를 이어갈 수 있도록 정리했습니다.", 108, 166, 450, 70, {
-      fontSize: 20,
+    addText(slide, "선정 상품과 보정 이미지를 바탕으로 수량, 납기와 최종 견적을 안내해드리겠습니다.", 108, 190, 420, 70, {
+      fontSize: 18,
       color: theme.colors.muted
     });
-    addBlock(slide, 108, 272, 350, 250, theme.colors.accentSoft, theme.colors.accentSoft);
-    addText(slide, companyDisplayName(), 136, 304, 280, 32, {
+    addBlock(slide, 108, 292, 350, 230, theme.colors.accentSoft, theme.colors.accentSoft);
+    addText(slide, companyDisplayName(), 136, 324, 280, 32, {
       fontSize: 28,
       color: theme.colors.ink,
       bold: true,
       typeface: theme.fonts.title
     });
-    addText(slide, buildManagerBlock(), 136, 360, 270, 100, {
+    addText(slide, buildManagerBlock(), 136, 380, 270, 92, {
       fontSize: 18,
       color: theme.colors.muted
     });
@@ -672,7 +759,7 @@ async function addProductCard(slide, item, frame, index) {
     fontSize: 17,
     color: theme.colors.ink
   });
-  addText(slide, `견적가  ${formatMoney(item.quotePrice)}`, textLeft, frame.top + 180, 280, 22, {
+  addText(slide, `견적가  ${formatQuotePrice(item.quotePrice)}`, textLeft, frame.top + 180, 280, 22, {
     fontSize: 18,
     color: theme.colors.ink,
     bold: true
@@ -702,7 +789,7 @@ function addEstimateTable(slide, frame) {
       fontSize: 15,
       color: theme.colors.ink
     });
-    addText(slide, formatMoney(item.quotePrice), frame.left + 610, top, 110, 22, {
+    addText(slide, formatQuotePrice(item.quotePrice), frame.left + 610, top, 110, 22, {
       fontSize: 15,
       color: theme.colors.ink,
       bold: true
@@ -969,6 +1056,24 @@ async function resolveImageConfig(source, alt) {
     return { dataUrl: String(source), fit: "cover", alt };
   }
 
+  if (/^https?:\/\//i.test(String(source))) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(String(source), { signal: controller.signal });
+      if (!response.ok) return null;
+      return {
+        blob: await response.arrayBuffer(),
+        fit: "cover",
+        alt
+      };
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   const candidate = await resolveImagePath(String(source));
   if (!candidate) return null;
   const bytes = await fs.readFile(candidate);
@@ -1011,20 +1116,55 @@ function categoryRows() {
 }
 
 function buildCoverCopy() {
-  return `${payload.proposal.customerName || "고객"} 현장에 맞춰 선정한 타일, 위생도기, 부자재를 전문 제안서 형식으로 정리했습니다.`;
+  return payload.proposal.intro
+    || `${payload.proposal.customerName || "고객"} 현장에 맞춰 선정한 타일, 위생도기, 부자재를 전문 제안서 형식으로 정리했습니다.`;
 }
 
 function buildProjectSummaryText() {
-  return [
-    `${payload.proposal.customerName || "고객"} 현장의 주소는 ${payload.proposal.siteAddress || "미입력"}입니다.`,
-    `공사 희망일은 ${payload.proposal.startDate || "미정"}이며, 제안서 유효기간은 ${payload.proposal.validDays}일입니다.`,
-    "",
-    payload.proposal.memo || "추가 메모는 아직 입력되지 않았습니다."
-  ].join("\n");
+  return [buildCoverCopy(), payload.proposal.memo].filter(Boolean).join("\n\n");
 }
 
 function buildEstimateNote() {
-  return `본 제안은 ${formatDate(payload.proposal.validDate)}까지 유효합니다.\n현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다.`;
+  return payload.proposal.notice
+    || `본 제안은 ${formatDate(payload.proposal.validDate)}까지 유효합니다.\n현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다.`;
+}
+
+function getPortfolioSpecItems(renderItem) {
+  const selectedIds = [];
+  const selections = renderItem?.renderSurfaceSelections || {};
+
+  for (const surface of ["wall", "floor", "point"]) {
+    const tileId = selections?.[surface]?.tileId;
+    if (tileId && !selectedIds.includes(tileId)) selectedIds.push(tileId);
+  }
+
+  const items = selectedIds
+    .map((id) => payload.cart.find((item) => item.id === id))
+    .filter(Boolean);
+
+  for (const item of payload.cart.filter((candidate) => /타일/.test(`${candidate.kind || ""} ${candidate.productType || ""}`))) {
+    if (items.length >= 4) break;
+    if (!items.some((candidate) => candidate.id === item.id)) items.push(item);
+  }
+
+  for (const item of payload.cart) {
+    if (items.length >= 4) break;
+    if (!items.some((candidate) => candidate.id === item.id)) items.push(item);
+  }
+
+  return items.slice(0, 4);
+}
+
+function buildPortfolioSpec(item) {
+  return [
+    item.size ? `규격 ${item.size}` : "",
+    item.finish && item.finish !== "미확인" ? `마감 ${item.finish}` : "",
+    item.material && item.material !== "미확인" ? `재질 ${item.material}` : ""
+  ].filter(Boolean).join(" · ") || "상세 사양 확인";
+}
+
+function proposalTitle() {
+  return String(payload.proposal.title || "현장 맞춤 제안서").trim() || "현장 맞춤 제안서";
 }
 
 function buildProposalHighlights() {
@@ -1074,7 +1214,11 @@ function buildContactLine() {
 }
 
 function buildManagerBlock() {
-  return [companyDisplayName(), buildContactLine()].filter(Boolean).join("\n");
+  return [
+    `담당  ${payload.company?.managerName || "-"}`,
+    `직함  ${payload.company?.managerTitle || "-"}`,
+    `연락처  ${payload.company?.managerPhone || "-"}`
+  ].join("\n");
 }
 
 function chunk(items, size) {
@@ -1091,6 +1235,10 @@ function formatMoney(value) {
     currency: "KRW",
     maximumFractionDigits: 0
   }).format(Number(value) || 0);
+}
+
+function formatQuotePrice(value) {
+  return Number(value) > 0 ? formatMoney(value) : "가격 문의";
 }
 
 function formatQty(value, unit) {

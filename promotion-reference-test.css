@@ -955,11 +955,21 @@ body.promo-menu-open {
   background: var(--promo-black);
 }
 
-.promo-marquee > div {
+.promo-marquee-track {
   display: flex;
   width: max-content;
-  gap: 46px;
+  gap: 0;
   animation: promo-marquee 28s linear infinite;
+}
+
+.promo-marquee-segment {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-around;
+  min-width: 100vw;
+  gap: 46px;
+  padding-right: 46px;
 }
 
 .promo-marquee span {
@@ -1198,7 +1208,7 @@ body.promo-menu-open {
     animation: none;
   }
 
-  .promo-marquee > div {
+  .promo-marquee-track {
     animation: none;
   }
 }

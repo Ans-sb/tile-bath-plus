@@ -597,6 +597,13 @@ let renderSurfaceSelections = {
   floor: { tileId: "" },
   point: { tileId: "" }
 };
+let renderSurfaceGuideMode = "point";
+let renderSurfaceRegions = {
+  wall: [],
+  floor: [],
+  point: []
+};
+let renderSurfaceGuideDrawToken = 0;
 let pendingRenderResultImage = "";
 let pendingSiteImage = "";
 let renderJobRunning = false;
@@ -689,7 +696,7 @@ let extractedBusinessInfo = {
 };
 let approvalRules = loadApprovalRules();
 let currentPageId = document.querySelector(".app-page.active")?.id || "homePage";
-const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "proposalPage", "samplePage", "quantityCalculatorPage", "loginPage", "signupPage", "businessOnboardingPage", "partnerApplicationPage", "authRequiredPage"]);
+const CUSTOMER_PAGE_IDS = new Set(["homePage", "productsPage", "bathProductsPage", "bathInteriorPage", "aiTileFinderPage", "taxonomyTestPage", "productDetailPage", "cartPage", "myPage", "renderPage", "plannerPage", "sketchupPage", "proposalPage", "samplePage", "quantityCalculatorPage", "loginPage", "signupPage", "businessOnboardingPage", "partnerApplicationPage", "authRequiredPage"]);
 const AUTH_REQUIRED_PAGE_IDS = new Set([
   "productsPage",
   "bathProductsPage",
@@ -701,6 +708,7 @@ const AUTH_REQUIRED_PAGE_IDS = new Set([
   "myPage",
   "renderPage",
   "plannerPage",
+  "sketchupPage",
   "samplePage",
   "quantityCalculatorPage"
 ]);
@@ -741,6 +749,11 @@ const AUTH_REQUIRED_PAGE_COPY = {
     title: "시공 미리보기는 회원 전용입니다.",
     message: "현장 사진에 타일을 적용하려면 로그인 또는 회원가입이 필요합니다."
   },
+  sketchupPage: {
+    eyebrow: "SketchUp Connector",
+    title: "SketchUp 연동은 회원 전용입니다.",
+    message: "장바구니 타일을 SketchUp 재질로 보내려면 로그인 또는 회원가입이 필요합니다."
+  },
   renderPage: {
     eyebrow: "Photo Rendering",
     title: "실사 보정은 회원 전용입니다.",
@@ -777,6 +790,7 @@ const PRODUCT_DATA_PAGE_IDS = new Set([
   "cartPage",
   "renderPage",
   "plannerPage",
+  "sketchupPage",
   "proposalPage",
   "samplePage",
   "dbPage",
@@ -942,28 +956,28 @@ const SEARCH_TRAINING_FINISH_OPTIONS = [
 const SEARCH_TRAINING_MATERIAL_OPTIONS = [
   "포세린", "자기질", "도기질", "세라믹", "석재 타일", "복합대리석", "시멘트 타일", "메탈", "천연석", "유리", "재질 미확인"
 ];
-const DEFAULT_PROPOSAL_PPT_STATUS = "상품을 선택한 뒤 제안서를 다운로드하세요.";
+const DEFAULT_PROPOSAL_PPT_STATUS = "내용을 확인한 뒤 프로 제안서를 만들어보세요.";
 const PROPOSAL_TEMPLATE_PREVIEWS = {
   "beige-black": {
-    label: "Style A",
-    title: "Beige & Black Simple Clean",
-    headline: "Minimal Proposal",
-    summary: "A restrained beige-and-black cover with clean product pages and a tidy rendering showcase.",
-    meta: ["Minimal cover", "Calm stone tone", "Clean product grid", "Neat closing slide"]
+    label: "Form 01",
+    title: "클린 비즈니스",
+    headline: "Interior Proposal",
+    summary: "업로드한 10장 인테리어 제안서 양식에 고객·현장·상품·견적 내용을 자동 적용합니다.",
+    meta: ["원본 10장", "상품 이미지", "견적 포함", "고객 맞춤"]
   },
   "beige-red": {
-    label: "Style B",
-    title: "Beige Red Modern Creative",
-    headline: "Creative Brief",
-    summary: "A more editorial deck with stronger typography, warmer contrast, and a bolder proposal rhythm.",
-    meta: ["Bold title page", "Warm accent tone", "Editorial layout", "Stronger visual emphasis"]
+    label: "Form 02",
+    title: "비주얼 프리미엄",
+    headline: "Visual Proposal",
+    summary: "상품과 실사 보정 이미지를 크게 배치해 디자인 설득력을 높이는 제안서입니다.",
+    meta: ["큰 이미지", "실사 보정", "강한 표지", "프리미엄 구성"]
   },
   "beige-brown": {
-    label: "Style C",
-    title: "Beige Brown Neutral Modern",
-    headline: "Warm Neutral",
-    summary: "A softer, space-led presentation with warm neutrals that suits premium interior proposals.",
-    meta: ["Warm neutral cover", "Balanced layout", "Interior-focused flow", "Premium closing tone"]
+    label: "Form 03",
+    title: "웜 인테리어",
+    headline: "Warm Interior",
+    summary: "공간 이미지와 따뜻한 색감을 중심으로 인테리어 분위기를 전달하는 제안서입니다.",
+    meta: ["공간 중심", "웜 톤", "균형 잡힌 구성", "인테리어 제안"]
   }
 };
 
@@ -1221,10 +1235,99 @@ async function copyQuantityEstimate() {
   }
 }
 
+function setMemberAgentStatus(message = "", isError = false) {
+  const status = document.querySelector("#memberAgentStatus");
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle("is-error", Boolean(isError));
+}
+
+function resetMemberAgentSearchContext() {
+  [
+    "#taxonomyBrandFilter",
+    "#taxonomyOriginFilter",
+    "#taxonomyCatalogSizeFilter",
+    "#taxonomySizeFilter",
+    "#taxonomyMainCategoryFilter",
+    "#taxonomyApplicationFilter",
+    "#taxonomyStyleFilter",
+    "#taxonomyFinishFilter",
+    "#taxonomyColorFilter",
+    "#taxonomyPriceFilter",
+    "#taxonomyStockFilter"
+  ].forEach((selector) => {
+    const select = document.querySelector(selector);
+    if (select) select.value = "all";
+  });
+
+  const axisSelect = document.querySelector("#taxonomyAxisFilter");
+  if (axisSelect) axisSelect.value = "applicationCategories";
+
+  const sortSelect = document.querySelector("#taxonomySortMode");
+  if (sortSelect) sortSelect.value = "match";
+  taxonomySortMode = "match";
+  taxonomyDisabledIntentKeys = new Set();
+  taxonomyResultFacetFilters = {};
+  taxonomyCurrentPage = 1;
+}
+
+async function openMemberAgentSearch(rawQuery) {
+  const homeInput = document.querySelector("#memberAgentSearchInput");
+  const query = String(rawQuery ?? homeInput?.value ?? "").trim().slice(0, 180);
+  if (!query) {
+    setMemberAgentStatus("찾을 자재를 말하듯 입력해주세요.", true);
+    homeInput?.focus();
+    return;
+  }
+
+  setMemberAgentStatus("상품을 찾고 있습니다.");
+  switchPage("taxonomyTestPage");
+  await ensureProductsReady();
+  resetMemberAgentSearchContext();
+  clearTaxonomyImageSearch();
+  const taxonomyInput = document.querySelector("#taxonomySearch");
+  if (taxonomyInput) taxonomyInput.value = query;
+  await runTaxonomySearch();
+  setMemberAgentStatus("");
+}
+
+async function openMemberAgentImageSearch(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const query = String(document.querySelector("#memberAgentSearchInput")?.value || "").trim().slice(0, 180);
+
+  setMemberAgentStatus("사진을 준비하고 있습니다.");
+  switchPage("taxonomyTestPage");
+  await ensureProductsReady();
+  resetMemberAgentSearchContext();
+  clearTaxonomyImageSearch();
+  const taxonomyInput = document.querySelector("#taxonomySearch");
+  if (taxonomyInput && query) taxonomyInput.value = query;
+  await handleTaxonomyImageSearchFileChange(event);
+  document.querySelector("#taxonomyImagePreviewWrap")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  setMemberAgentStatus("");
+}
+
 function bindEvents() {
   document.addEventListener("tile-ai:open-products", (event) => {
     event.preventDefault();
     void openTileAiProductSearch(event.detail?.query);
+  });
+
+  document.querySelector("#memberAgentSearchForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void openMemberAgentSearch();
+  });
+  document.querySelector("#memberAgentImageInput")?.addEventListener("change", (event) => {
+    void openMemberAgentImageSearch(event);
+  });
+  document.querySelector("#memberAgentQuickQueries")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-member-agent-query]");
+    if (!button) return;
+    const query = button.dataset.memberAgentQuery || "";
+    const input = document.querySelector("#memberAgentSearchInput");
+    if (input) input.value = query;
+    void openMemberAgentSearch(query);
   });
 
   document.querySelector("#adminQuickPageEditBtn")?.addEventListener("click", () => {
@@ -1237,6 +1340,9 @@ function bindEvents() {
     button.addEventListener("click", () => {
       if (button.dataset.pageTarget === "productsPage" && productCollectionMode !== "all") {
         resetProductCollectionMode();
+      }
+      if (button.classList.contains("cart-proposal-action")) {
+        selectAllProposalProducts();
       }
       switchPage(button.dataset.pageTarget);
     });
@@ -1704,10 +1810,19 @@ function bindEvents() {
   document.querySelector("#renderSiteImage").addEventListener("change", async (event) => {
     pendingSiteImage = await readImageFile(event.target.files[0], 1100, 0.88);
     pendingRenderResultImage = "";
+    resetRenderSurfaceRegions();
     renderCompareSliderValue = 50;
     lastRenderFeedbackCode = "";
     renderRenderWorkspace();
   });
+
+  document.querySelector("#renderSurfaceGuideCanvas")?.addEventListener("click", handleRenderSurfaceGuideCanvasClick);
+  document.querySelectorAll("[data-render-guide-surface]").forEach((button) => {
+    button.addEventListener("click", () => setRenderSurfaceGuideMode(button.dataset.renderGuideSurface));
+  });
+  document.querySelector("#undoRenderSurfacePointBtn")?.addEventListener("click", undoRenderSurfaceGuidePoint);
+  document.querySelector("#clearRenderSurfaceRegionBtn")?.addEventListener("click", clearCurrentRenderSurfaceRegion);
+  document.querySelector("#resetRenderSurfaceRegionsBtn")?.addEventListener("click", resetRenderSurfaceRegionsAndRender);
 
   document.querySelector("#renderRoomType")?.addEventListener("change", renderRenderWorkspace);
   document.querySelector("#renderInteriorStyle")?.addEventListener("change", renderRenderWorkspace);
@@ -1847,6 +1962,7 @@ function bindEvents() {
   document.querySelector("#openLoginBtn").addEventListener("click", () => switchPage("loginPage"));
   document.querySelector("#openSignupBtn").addEventListener("click", () => switchPage("signupPage"));
   document.querySelector("#createProProposalBtn").addEventListener("click", generateProfessionalProposalDeck);
+  document.querySelector("#closeProposalGenerationBtn")?.addEventListener("click", closeProposalGenerationDialog);
   document.querySelector("#restartServerBtn")?.addEventListener("click", () => controlServer("restart"));
   document.querySelector("#stopServerBtn")?.addEventListener("click", () => controlServer("stop"));
   document.querySelector("#refreshServerBtn")?.addEventListener("click", async () => {
@@ -1921,7 +2037,10 @@ function bindEvents() {
     if (document.visibilityState === "visible") handleServerReconnectCheck();
   });
 
-  proposalForm.addEventListener("input", renderDocuments);
+  proposalForm.addEventListener("input", () => {
+    resetProposalPptState();
+    renderDocuments();
+  });
   productForm.addEventListener("submit", addProductFromForm);
   signupForm.addEventListener("input", renderSignupSummary);
   signupForm.addEventListener("submit", submitSignupForm);
@@ -2959,6 +3078,9 @@ function renderAll() {
   if (currentPageId === "plannerPage") {
     renderPlannerWorkspace();
   }
+  if (currentPageId === "sketchupPage") {
+    renderSketchupWorkspace();
+  }
   if (currentPageId === "partnerApplicationPage") {
     renderSignupSummary();
   }
@@ -2966,6 +3088,16 @@ function renderAll() {
     renderAdminOverview();
   }
   renderSiteStudioOperationsSummary();
+}
+
+function renderSketchupWorkspace() {
+  window.TbpSketchupWorkspace?.render({
+    cart,
+    products,
+    requestJson,
+    switchPage,
+    applyCartQuantity: applySketchupCartQuantity
+  });
 }
 
 function renderSiteStudioOperationsSummary() {
@@ -3622,6 +3754,9 @@ function selectBathInteriorRole(role) {
 
 function applyInitialPageFromHash() {
   let requestedPageId = String(window.location.hash || "").replace(/^#/, "").trim();
+  if (requestedPageId === "plannerPage") {
+    requestedPageId = "renderPage";
+  }
   if (!requestedPageId) return;
   const targetPage = document.getElementById(requestedPageId);
   if (!targetPage || !targetPage.classList.contains("app-page")) return;
@@ -3680,6 +3815,8 @@ function renderProposalTemplatePreview() {
   const preview = PROPOSAL_TEMPLATE_PREVIEWS[theme] || PROPOSAL_TEMPLATE_PREVIEWS["beige-black"];
 
   board.dataset.theme = theme;
+  const proposalPage = document.querySelector("#proposalPage");
+  if (proposalPage) proposalPage.dataset.proposalTheme = theme;
   stage.className = `proposal-template-preview-stage template-preview-${theme}`;
   const headline = stage.querySelector(".proposal-template-preview-headline");
   if (headline) headline.textContent = preview.headline;
@@ -5114,7 +5251,7 @@ function passesTaxonomySearchHardRules(item, intent, audience) {
   if (intent.origins?.length && !taxonomyHasAny([item.originRegion, item.originCountry], intent.origins)) return false;
   if (intent.colors?.length && !taxonomyHasAny([item.mainColor, item.subColor, item.accentColor], intent.colors)) return false;
   if (intent.finishes?.length && !taxonomyHasAny([item.finishGroup, item.finishDetail, item.finishPath, item.surfaceFinish], intent.finishes)) return false;
-  if (intent.styles?.length && !taxonomyHasAny(item.styleCategories, intent.styles)) return false;
+  if (intent.styles?.length && !taxonomyStyleMatches(item, intent.styles)) return false;
   if (intent.patternDetails?.length && !taxonomyPatternMatches(item, intent.patternDetails)) return false;
   if (intent.materials?.length && !taxonomyHasAny([item.materialCategory, item.materialDetail], intent.materials)) return false;
   if (intent.applications?.length && !taxonomyHasAny(item.applicationCategories, intent.applications)) return false;
@@ -5131,6 +5268,28 @@ function passesTaxonomySearchHardRules(item, intent, audience) {
 function taxonomyHasAny(values = [], needles = []) {
   const normalizedValues = normalizeTaxonomyArray(values, "").map(normalizeTaxonomySearch);
   return (needles || []).some((needle) => normalizedValues.includes(normalizeTaxonomySearch(needle)));
+}
+
+function expandTaxonomyStyleAliases(styles = []) {
+  const aliasMap = {
+    "마블룩": ["마블룩", "마블"],
+    "스톤룩": ["스톤룩", "스톤"],
+    "트래버틴룩": ["트래버틴룩", "트래버틴", "트라버틴"],
+    "콘크리트룩": ["콘크리트룩", "콘크리트", "시멘트"],
+    "테라조룩": ["테라조룩", "테라조"],
+    "우드룩": ["우드룩", "우드"],
+    "컬러 / 솔리드": ["컬러 / 솔리드", "솔리드"],
+    "패턴 / 데코": ["패턴 / 데코", "패턴", "데코"],
+    "브릭 / 서브웨이": ["브릭 / 서브웨이", "브릭", "서브웨이"],
+    "입체 / 텍스처": ["입체 / 텍스처", "입체", "라인"],
+    "메탈룩": ["메탈룩", "메탈"],
+    "글라스룩": ["글라스룩", "글라스"]
+  };
+  return unique((styles || []).flatMap((style) => aliasMap[style] || [style]));
+}
+
+function taxonomyStyleMatches(item, styles = []) {
+  return taxonomyHasAny(item.styleCategories, expandTaxonomyStyleAliases(styles));
 }
 
 function taxonomyPatternMatches(item, patternDetails = []) {
@@ -5185,7 +5344,7 @@ function scoreTaxonomySearchIntent(item, intent, searchText = item.searchText, a
   score += scoreExactList(intent.spaces, item.spaceCategories, 18);
   score += scoreExactList(intent.applications, item.applicationCategories, 20);
   score += scoreExactList(intent.colors, [item.mainColor, item.subColor, item.accentColor], 24);
-  score += scoreExactList(intent.styles, item.styleCategories, 22);
+  score += scoreExactList(expandTaxonomyStyleAliases(intent.styles), item.styleCategories, 22);
   score += scoreExactList(intent.finishes, [item.finishGroup, item.finishDetail, item.finishPath, item.surfaceFinish], 24);
   score += scoreExactList(intent.materials, [item.materialCategory, item.materialDetail], 16);
   score += scoreExactList(intent.patternDetails, [item.patternDetail, ...item.styleCategories], 14);
@@ -10058,7 +10217,7 @@ function renderProposalSelectionControls(selectedProducts, selectedRenderedItems
       ${item.image ? `<img class="proposal-select-thumb" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" />` : `<div class="proposal-select-thumb proposal-item-image-empty">이미지 없음</div>`}
       <div class="proposal-select-copy">
         <strong>${escapeHtml(item.name)}</strong>
-        <span>${escapeHtml(item.kind || "-")} / ${escapeHtml(item.size || "-")}</span>
+        <span>${escapeHtml(item.option || item.finish || PRODUCT_TYPE_LABELS[item.productType] || "-")} / ${escapeHtml(item.size || "-")}</span>
         <span>${money.format(Number(item.quotePrice || 0))} / ${number(item.qty)}${escapeHtml(item.unit || "")}</span>
       </div>
       <button class="secondary-action proposal-render-open-btn" type="button" data-proposal-render-open="${escapeHtml(item.id)}">보정</button>
@@ -10149,18 +10308,19 @@ function renderDocuments() {
   renderProposalTemplatePreview();
   syncProposalSelections();
   const proposalState = getProposalState();
-  const { customer, address, validDate, date, subtotal, vat, total, memo, companyName, managerName, managerTitle, managerPhone } = proposalState;
+  const { title, customer, address, date, subtotal, vat, total, intro, notice, memo, companyName, managerName, managerTitle, managerPhone } = proposalState;
   const selectedProducts = getSelectedProposalProducts();
   const selectedRenderedItems = getSelectedProposalRenderedItems();
 
+  setText("#proposalDocumentTitle", title);
   setText("#proposalDate", shortDate.format(date));
   setText("#estimateDate", shortDate.format(date));
   setText("#docCustomer", customer);
   setText("#docAddress", address);
   setText("#docItemCount", `${selectedProducts.length}개 품목`);
   setText("#docTotal", money.format(total));
-  setText("#proposalIntro", `${customer}의 ${address} 현장에 맞춰 장바구니에 선정한 타일, 위생도기, 부자재를 기준으로 제안드립니다.`);
-  setText("#proposalNote", `본 제안은 ${shortDate.format(validDate)}까지 유효합니다. 현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다. ${memo}`);
+  setText("#proposalIntro", intro);
+  setText("#proposalNote", [notice, memo].filter(Boolean).join("\n"));
 
   setText("#proposalCompanyName", companyName || "자재GO 바스GO");
   setText("#proposalManagerName", [managerName, managerTitle].filter(Boolean).join(" / ") || "담당자 정보 미입력");
@@ -10176,7 +10336,7 @@ function renderDocuments() {
       </button>
       <div>
         <strong>${escapeHtml(item.name)}</strong>
-        <span>${escapeHtml(item.kind)} · ${escapeHtml(item.option || item.finish || "-")}</span>
+        <span>${escapeHtml(item.option || item.finish || PRODUCT_TYPE_LABELS[item.productType] || "-")}</span>
         <span class="proposal-item-size">규격 ${escapeHtml(item.size || "-")}</span>
       </div>
     </li>
@@ -10264,8 +10424,14 @@ function getProposalState() {
   const vat = Math.round(subtotal * 0.1);
   const total = subtotal + vat;
   const memo = String(data.get("memo") || "").trim();
+  const title = String(data.get("proposalTitle") || "현장 맞춤 제안서").trim() || "현장 맞춤 제안서";
+  const intro = String(data.get("proposalIntro") || "").trim()
+    || `${customer}의 ${address} 현장에 맞춰 선정한 자재와 시공 방향을 제안드립니다.`;
+  const notice = String(data.get("proposalNotice") || "").trim()
+    || `본 제안은 ${shortDate.format(validDate)}까지 유효합니다. 현장 실측, 재고, 시공 조건에 따라 최종 금액은 조정될 수 있습니다.`;
 
   return {
+    title,
     customer,
     phone: String(data.get("customerPhone") || "").trim(),
     address,
@@ -10278,6 +10444,8 @@ function getProposalState() {
     managerName: String(data.get("managerName") || "").trim(),
     managerTitle: String(data.get("managerTitle") || "").trim(),
     managerPhone: String(data.get("managerPhone") || "").trim(),
+    intro,
+    notice,
     memo,
     subtotal,
     vat,
@@ -10294,9 +10462,9 @@ async function generateProfessionalProposalDeck() {
 
   if (!selectedProducts.length) {
     status.textContent = "장바구니에 상품이 있어야 프로 제안서를 만들 수 있습니다.";
-    status.textContent = "Select at least one product for the proposal.";
     downloadLink.classList.add("hidden");
     downloadLink.removeAttribute("href");
+    showProposalGenerationDialog("error", "선택한 상품이 없습니다.", "장바구니 상품을 하나 이상 선택한 뒤 다시 만들어주세요.");
     return;
   }
 
@@ -10305,75 +10473,91 @@ async function generateProfessionalProposalDeck() {
     status.textContent = getServerRequiredMessage();
     downloadLink.classList.add("hidden");
     downloadLink.removeAttribute("href");
+    showProposalGenerationDialog("error", "제안서 서버에 연결할 수 없습니다.", getServerRequiredMessage());
     return;
   }
 
   const proposalState = getProposalState();
-  const payload = {
-    proposal: {
-      customerName: proposalState.customer,
-      customerPhone: proposalState.phone,
-      siteAddress: proposalState.address,
-      startDate: proposalState.startDate,
-      validDays: proposalState.validDays,
-      proposalDate: proposalState.date.toISOString(),
-      validDate: proposalState.validDate.toISOString(),
-      memo: proposalState.memo,
-      theme: proposalState.theme
-    },
-    company: {
-      name: proposalState.companyName,
-      managerName: proposalState.managerName,
-      managerTitle: proposalState.managerTitle,
-      managerPhone: proposalState.managerPhone
-    },
-    summary: {
-      itemCount: selectedProducts.length,
-      subtotal: proposalState.subtotal,
-      vat: proposalState.vat,
-      total: proposalState.total
-    },
-    cart: selectedProducts.map((item) => ({
-      id: item.id,
-      productType: item.productType || "",
-      kind: item.kind || "",
-      name: item.name || "",
-      size: item.size || "",
-      option: item.option || "",
-      finish: item.finish || "",
-      unit: item.unit || "",
-      qty: Number(item.qty || 0),
-      quotePrice: Number(item.quotePrice || 0),
-      image: item.image || "",
-      renderedImage: selectedRenderedIds.has(item.id) ? (item.renderedImage || "") : "",
-      renderTarget: selectedRenderedIds.has(item.id) ? (item.renderTarget || "") : "",
-      renderPointMemo: selectedRenderedIds.has(item.id) ? (item.renderPointMemo || "") : "",
-      renderSurfaceSelections: selectedRenderedIds.has(item.id) ? (item.renderSurfaceSelections || {}) : {}
-    }))
-  };
+  const payload = window.TbpProposalPayload.buildProposalPayload({
+    proposalState,
+    selectedProducts,
+    selectedRenderedIds,
+    includeAdminQuotePrice: isAdminUser()
+  });
 
   button.disabled = true;
+  button.textContent = "생성 중...";
+  button.setAttribute("aria-busy", "true");
   status.textContent = "프로 제안서를 생성하고 있습니다...";
   downloadLink.classList.add("hidden");
   downloadLink.removeAttribute("href");
+  showProposalGenerationDialog("working", "프로 제안서를 만들고 있습니다.", "선택한 내용과 상품을 정리하고 있습니다. 잠시만 기다려주세요.");
 
   try {
     const result = await requestJson("/api/proposal-ppt", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: isAdminUser()
+        ? getAdminAuthHeaders({ "Content-Type": "application/json" })
+        : getMemberProductAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload)
-    }, { retries: 1, timeoutMs: 15000 });
+    }, { retries: 0, timeoutMs: 120000 });
 
     status.textContent = "프로 제안서가 준비되었습니다. 바로 다운로드할 수 있습니다.";
     downloadLink.href = result.downloadUrl;
     downloadLink.download = result.fileName || "";
     downloadLink.classList.remove("hidden");
-    downloadLink.click();
+    showProposalGenerationDialog(
+      "success",
+      "프로 제안서가 완성되었습니다.",
+      "아래 버튼을 눌러 PPT 파일을 다운로드하세요.",
+      result.downloadUrl,
+      result.fileName || ""
+    );
   } catch (error) {
     status.textContent = error.message || "프로 제안서 생성 중 오류가 발생했습니다.";
+    showProposalGenerationDialog("error", "프로 제안서를 만들지 못했습니다.", status.textContent);
   } finally {
     button.disabled = false;
+    button.textContent = "프로 제안서 만들기";
+    button.removeAttribute("aria-busy");
   }
+}
+
+function showProposalGenerationDialog(state, title, message, downloadUrl = "", fileName = "") {
+  const overlay = document.querySelector("#proposalGenerationOverlay");
+  const indicator = document.querySelector("#proposalGenerationIndicator");
+  const downloadLink = document.querySelector("#proposalGenerationDownloadLink");
+  const closeButton = document.querySelector("#closeProposalGenerationBtn");
+  if (!overlay || !indicator || !downloadLink || !closeButton) return;
+
+  overlay.dataset.state = state;
+  overlay.classList.remove("hidden");
+  overlay.setAttribute("aria-hidden", "false");
+  indicator.dataset.state = state;
+  setText("#proposalGenerationTitle", title);
+  setText("#proposalGenerationMessage", message);
+
+  const canDownload = state === "success" && Boolean(downloadUrl);
+  downloadLink.classList.toggle("hidden", !canDownload);
+  if (canDownload) {
+    downloadLink.href = downloadUrl;
+    downloadLink.download = fileName;
+    downloadLink.focus();
+  } else {
+    downloadLink.removeAttribute("href");
+    downloadLink.removeAttribute("download");
+  }
+
+  closeButton.classList.toggle("hidden", state === "working");
+  if (state !== "working" && !canDownload) closeButton.focus();
+}
+
+function closeProposalGenerationDialog() {
+  const overlay = document.querySelector("#proposalGenerationOverlay");
+  if (!overlay || overlay.dataset.state === "working") return;
+  overlay.classList.add("hidden");
+  overlay.setAttribute("aria-hidden", "true");
+  document.querySelector("#createProProposalBtn")?.focus();
 }
 
 async function refreshServerConnection() {
@@ -10578,6 +10762,314 @@ function getRenderSurfaceFixedPointLabel() {
   return "\uC0E4\uC6CC\uBD80\uC2A4 \uB4B7\uBCBD";
 }
 
+function createEmptyRenderSurfaceRegions() {
+  return {
+    wall: [],
+    floor: [],
+    point: []
+  };
+}
+
+function resetRenderSurfaceRegions() {
+  renderSurfaceGuideMode = "point";
+  renderSurfaceRegions = createEmptyRenderSurfaceRegions();
+}
+
+function resetRenderSurfaceRegionsAndRender() {
+  resetRenderSurfaceRegions();
+  pendingRenderResultImage = "";
+  lastRenderFeedbackCode = "";
+  renderRenderWorkspace();
+}
+
+function getRenderSurfaceGuideMeta(surface) {
+  if (surface === "floor") {
+    return { label: "바닥", color: "#16a36a", fill: "rgba(22, 163, 106, 0.22)" };
+  }
+  if (surface === "point") {
+    return { label: "포인트", color: "#f28c18", fill: "rgba(242, 140, 24, 0.24)" };
+  }
+  return { label: "벽", color: "#1769e8", fill: "rgba(23, 105, 232, 0.22)" };
+}
+
+function normalizeRenderSurfaceRegionPoints(points) {
+  return (Array.isArray(points) ? points : [])
+    .map((point) => ({
+      x: Math.max(0, Math.min(1, Number(point?.x))),
+      y: Math.max(0, Math.min(1, Number(point?.y)))
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    .slice(0, 16);
+}
+
+function getRenderSurfaceRegionArea(points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  if (normalizedPoints.length < 3) return 0;
+  let sum = 0;
+  normalizedPoints.forEach((point, index) => {
+    const nextPoint = normalizedPoints[(index + 1) % normalizedPoints.length];
+    sum += (point.x * nextPoint.y) - (nextPoint.x * point.y);
+  });
+  return Math.abs(sum) / 2;
+}
+
+function isRenderSurfaceRegionValid(points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  return normalizedPoints.length >= 3
+    && getRenderSurfaceRegionArea(normalizedPoints) >= 0.0005
+    && !doesRenderSurfaceRegionSelfIntersect(normalizedPoints);
+}
+
+function getRenderSegmentOrientation(a, b, c) {
+  return ((b.x - a.x) * (c.y - a.y)) - ((b.y - a.y) * (c.x - a.x));
+}
+
+function doRenderSegmentsCross(a, b, c, d) {
+  const first = getRenderSegmentOrientation(a, b, c);
+  const second = getRenderSegmentOrientation(a, b, d);
+  const third = getRenderSegmentOrientation(c, d, a);
+  const fourth = getRenderSegmentOrientation(c, d, b);
+  return ((first > 0 && second < 0) || (first < 0 && second > 0))
+    && ((third > 0 && fourth < 0) || (third < 0 && fourth > 0));
+}
+
+function doesRenderSurfaceRegionSelfIntersect(points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  if (normalizedPoints.length < 4) return false;
+  for (let firstIndex = 0; firstIndex < normalizedPoints.length; firstIndex += 1) {
+    const firstNextIndex = (firstIndex + 1) % normalizedPoints.length;
+    for (let secondIndex = firstIndex + 1; secondIndex < normalizedPoints.length; secondIndex += 1) {
+      const secondNextIndex = (secondIndex + 1) % normalizedPoints.length;
+      const sharesVertex = firstIndex === secondIndex
+        || firstIndex === secondNextIndex
+        || firstNextIndex === secondIndex
+        || firstNextIndex === secondNextIndex;
+      if (sharesVertex) continue;
+      if (doRenderSegmentsCross(
+        normalizedPoints[firstIndex],
+        normalizedPoints[firstNextIndex],
+        normalizedPoints[secondIndex],
+        normalizedPoints[secondNextIndex]
+      )) return true;
+    }
+  }
+  return false;
+}
+
+function isPointInsideRenderSurfaceRegion(x, y, points) {
+  let inside = false;
+  for (let index = 0, previousIndex = points.length - 1; index < points.length; previousIndex = index++) {
+    const current = points[index];
+    const previous = points[previousIndex];
+    const intersects = ((current.y > y) !== (previous.y > y))
+      && (x < ((previous.x - current.x) * (y - current.y)) / ((previous.y - current.y) || Number.EPSILON) + current.x);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function doRenderSurfaceRegionsOverlap(firstPoints, secondPoints) {
+  const first = normalizeRenderSurfaceRegionPoints(firstPoints);
+  const second = normalizeRenderSurfaceRegionPoints(secondPoints);
+  if (!isRenderSurfaceRegionValid(first) || !isRenderSurfaceRegionValid(second)) return false;
+  const minX = Math.max(Math.min(...first.map((point) => point.x)), Math.min(...second.map((point) => point.x)));
+  const maxX = Math.min(Math.max(...first.map((point) => point.x)), Math.max(...second.map((point) => point.x)));
+  const minY = Math.max(Math.min(...first.map((point) => point.y)), Math.min(...second.map((point) => point.y)));
+  const maxY = Math.min(Math.max(...first.map((point) => point.y)), Math.max(...second.map((point) => point.y)));
+  if (maxX <= minX || maxY <= minY) return false;
+
+  const sampleCount = 120;
+  for (let yIndex = 0; yIndex < sampleCount; yIndex += 1) {
+    const y = minY + ((yIndex + 0.5) / sampleCount) * (maxY - minY);
+    for (let xIndex = 0; xIndex < sampleCount; xIndex += 1) {
+      const x = minX + ((xIndex + 0.5) / sampleCount) * (maxX - minX);
+      if (isPointInsideRenderSurfaceRegion(x, y, first) && isPointInsideRenderSurfaceRegion(x, y, second)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function getInvalidRenderSurfaceOverlap(selectedSurfaces = getSelectedRenderSurfaces()) {
+  const selectedKeys = new Set(selectedSurfaces.map(({ surface }) => surface));
+  const pairs = [
+    ["wall", "floor"],
+    ["floor", "point"]
+  ];
+  return pairs.find(([first, second]) => selectedKeys.has(first)
+    && selectedKeys.has(second)
+    && doRenderSurfaceRegionsOverlap(renderSurfaceRegions[first], renderSurfaceRegions[second])) || null;
+}
+
+function setRenderSurfaceGuideMode(surface) {
+  if (surface !== "point") return;
+  renderSurfaceGuideMode = "point";
+  renderRenderSurfaceGuide();
+}
+
+function undoRenderSurfaceGuidePoint() {
+  const points = normalizeRenderSurfaceRegionPoints(renderSurfaceRegions[renderSurfaceGuideMode]);
+  if (!points.length) return;
+  points.pop();
+  renderSurfaceRegions[renderSurfaceGuideMode] = points;
+  pendingRenderResultImage = "";
+  lastRenderFeedbackCode = "";
+  renderRenderWorkspace();
+}
+
+function clearCurrentRenderSurfaceRegion() {
+  renderSurfaceRegions[renderSurfaceGuideMode] = [];
+  pendingRenderResultImage = "";
+  lastRenderFeedbackCode = "";
+  renderRenderWorkspace();
+}
+
+function handleRenderSurfaceGuideCanvasClick(event) {
+  if (!pendingSiteImage || renderJobRunning) return;
+  if (!renderSurfaceSelections.point.tileId) {
+    setText("#renderSurfaceGuideStatus", "포인트 타일을 선택한 경우에만 포인트 적용 영역을 지정합니다.");
+    return;
+  }
+  const canvas = event.currentTarget;
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const points = normalizeRenderSurfaceRegionPoints(renderSurfaceRegions[renderSurfaceGuideMode]);
+  if (points.length >= 16) {
+    setText("#renderSurfaceGuideStatus", "영역은 최대 16개 점까지 지정할 수 있습니다. 되돌리기 또는 현재 영역 지우기를 이용해주세요.");
+    return;
+  }
+
+  points.push({
+    x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+    y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
+  });
+  renderSurfaceRegions[renderSurfaceGuideMode] = points;
+  pendingRenderResultImage = "";
+  lastRenderFeedbackCode = "";
+  renderRenderWorkspace();
+}
+
+function drawRenderSurfaceRegion(context, canvas, surface, points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  if (!normalizedPoints.length) return;
+  const meta = getRenderSurfaceGuideMeta(surface);
+  const isActive = surface === renderSurfaceGuideMode;
+  const canvasPoints = normalizedPoints.map((point) => ({
+    x: point.x * canvas.width,
+    y: point.y * canvas.height
+  }));
+
+  context.save();
+  context.beginPath();
+  context.moveTo(canvasPoints[0].x, canvasPoints[0].y);
+  canvasPoints.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+  if (canvasPoints.length >= 3) {
+    context.closePath();
+    context.fillStyle = meta.fill;
+    context.fill();
+  }
+  context.strokeStyle = meta.color;
+  context.lineWidth = isActive ? Math.max(3, canvas.width / 260) : Math.max(2, canvas.width / 360);
+  context.setLineDash(isActive ? [] : [10, 7]);
+  context.stroke();
+  context.setLineDash([]);
+
+  canvasPoints.forEach((point, index) => {
+    context.beginPath();
+    context.arc(point.x, point.y, Math.max(5, canvas.width / 170), 0, Math.PI * 2);
+    context.fillStyle = "#ffffff";
+    context.fill();
+    context.strokeStyle = meta.color;
+    context.lineWidth = Math.max(2, canvas.width / 420);
+    context.stroke();
+    context.fillStyle = meta.color;
+    context.font = `900 ${Math.max(11, Math.round(canvas.width / 72))}px sans-serif`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(index + 1), point.x, point.y);
+  });
+
+  const labelPoint = canvasPoints[0];
+  const labelFontSize = Math.max(14, Math.round(canvas.width / 52));
+  context.font = `900 ${labelFontSize}px sans-serif`;
+  context.textAlign = "left";
+  context.textBaseline = "top";
+  const labelWidth = context.measureText(meta.label).width + 22;
+  const labelX = Math.max(4, Math.min(canvas.width - labelWidth - 4, labelPoint.x + 12));
+  const labelY = Math.max(4, Math.min(canvas.height - labelFontSize - 18, labelPoint.y + 12));
+  context.fillStyle = meta.color;
+  context.fillRect(labelX, labelY, labelWidth, labelFontSize + 14);
+  context.fillStyle = "#ffffff";
+  context.fillText(meta.label, labelX + 11, labelY + 7);
+  context.restore();
+}
+
+function renderRenderSurfaceGuide() {
+  const canvas = document.querySelector("#renderSurfaceGuideCanvas");
+  const emptyState = document.querySelector("#renderSurfaceGuideEmpty");
+  const status = document.querySelector("#renderSurfaceGuideStatus");
+  const undoButton = document.querySelector("#undoRenderSurfacePointBtn");
+  const clearButton = document.querySelector("#clearRenderSurfaceRegionBtn");
+  if (!canvas || !emptyState || !status) return;
+
+  document.querySelectorAll("[data-render-guide-surface]").forEach((button) => {
+    const surface = button.dataset.renderGuideSurface;
+    const pointCount = normalizeRenderSurfaceRegionPoints(renderSurfaceRegions[surface]).length;
+    button.disabled = !renderSurfaceSelections.point.tileId || renderJobRunning;
+    button.classList.toggle("active", surface === renderSurfaceGuideMode);
+    button.classList.toggle("ready", isRenderSurfaceRegionValid(renderSurfaceRegions[surface]));
+    button.setAttribute("aria-pressed", surface === renderSurfaceGuideMode ? "true" : "false");
+    const countTarget = button.querySelector("[data-render-guide-count]");
+    if (countTarget) {
+      countTarget.textContent = isRenderSurfaceRegionValid(renderSurfaceRegions[surface])
+        ? "지정됨"
+        : pointCount >= 3 ? "재지정" : `${pointCount}/3`;
+    }
+  });
+
+  const activePoints = normalizeRenderSurfaceRegionPoints(renderSurfaceRegions[renderSurfaceGuideMode]);
+  const hasPointTile = Boolean(renderSurfaceSelections.point.tileId);
+  if (undoButton) undoButton.disabled = !hasPointTile || !activePoints.length || renderJobRunning;
+  if (clearButton) clearButton.disabled = !hasPointTile || !activePoints.length || renderJobRunning;
+
+  if (!pendingSiteImage) {
+    renderSurfaceGuideDrawToken += 1;
+    canvas.width = 1;
+    canvas.height = 1;
+    canvas.classList.add("hidden");
+    emptyState.classList.remove("hidden");
+    status.textContent = "포인트 타일을 선택한 경우에만 포인트 적용 영역을 지정합니다.";
+    return;
+  }
+
+  canvas.classList.remove("hidden");
+  emptyState.classList.add("hidden");
+  status.textContent = !hasPointTile
+    ? "포인트 타일이 없으면 영역 지정 없이 바로 보정을 시작할 수 있습니다."
+    : !isRenderSurfaceRegionValid(renderSurfaceRegions.point)
+      ? "포인트 타일이 들어갈 영역을 현장 사진 위에 3점 이상 지정해주세요."
+      : `포인트 영역 ${activePoints.length}개 점 지정 · 이 영역에만 포인트 타일이 적용됩니다.`;
+
+  const drawToken = ++renderSurfaceGuideDrawToken;
+  const image = new Image();
+  image.onload = () => {
+    if (drawToken !== renderSurfaceGuideDrawToken || image.src !== pendingSiteImage) return;
+    canvas.width = Math.max(1, image.naturalWidth || image.width || 1);
+    canvas.height = Math.max(1, image.naturalHeight || image.height || 1);
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    drawRenderSurfaceRegion(context, canvas, "point", renderSurfaceRegions.point);
+  };
+  image.onerror = () => {
+    if (drawToken !== renderSurfaceGuideDrawToken) return;
+    status.textContent = "현장 사진을 표시하지 못했습니다. 사진을 다시 올려주세요.";
+  };
+  image.src = pendingSiteImage;
+}
+
 function getSelectedRenderSurfaces() {
   return getRenderSurfaceKeys()
     .filter((surface) => renderSurfaceSelections[surface].tileId)
@@ -10601,6 +11093,7 @@ function ensureRenderSelection() {
       floor: { tileId: "" },
       point: { tileId: "" }
     };
+    resetRenderSurfaceRegions();
     return;
   }
 
@@ -10650,6 +11143,7 @@ function openRenderForCartItem(id) {
   };
   pendingRenderResultImage = item?.renderedImage || "";
   pendingSiteImage = "";
+  resetRenderSurfaceRegions();
   renderJobRunning = false;
   document.querySelector("#renderSiteImage").value = "";
   document.querySelector("#renderPointMemo").value = item?.renderPointMemo || "";
@@ -10716,6 +11210,9 @@ function closeRenderSurfacePicker() {
 function selectRenderSurfaceTile(surface, tileId) {
   renderSurfaceSelections[surface].tileId = tileId;
   if (tileId) selectedRenderTileId = tileId;
+  if (tileId && surface === "point") renderSurfaceGuideMode = "point";
+  pendingRenderResultImage = "";
+  lastRenderFeedbackCode = "";
   syncRenderPointPreset();
   closeRenderSurfacePicker();
   renderRenderWorkspace();
@@ -10723,6 +11220,9 @@ function selectRenderSurfaceTile(surface, tileId) {
 
 function clearRenderSurfaceTile(surface) {
   renderSurfaceSelections[surface].tileId = "";
+  renderSurfaceRegions[surface] = [];
+  pendingRenderResultImage = "";
+  lastRenderFeedbackCode = "";
   if (surface === "point") syncRenderPointPreset();
   renderRenderWorkspace();
 }
@@ -10865,10 +11365,13 @@ function renderRenderWorkspace() {
   const clearWallButton = document.querySelector("#clearRenderWallTileBtn");
   const clearFloorButton = document.querySelector("#clearRenderFloorTileBtn");
   const clearPointButton = document.querySelector("#clearRenderPointTileBtn");
+  const selectWallButton = document.querySelector("#renderWallTileButton");
+  const selectFloorButton = document.querySelector("#renderFloorTileButton");
   const item = cart.find((entry) => entry.id === selectedRenderCartId);
   const cartTiles = getRenderableCartTiles();
 
   renderRenderRoomAnalysis();
+  renderRenderSurfaceGuide();
   renderRenderLoadingOverlay();
   renderRenderFeedbackPanel();
   generateButton.disabled = renderJobRunning;
@@ -10878,6 +11381,8 @@ function renderRenderWorkspace() {
   clearWallButton.disabled = !renderSurfaceSelections.wall.tileId;
   clearFloorButton.disabled = !renderSurfaceSelections.floor.tileId;
   clearPointButton.disabled = !renderSurfaceSelections.point.tileId;
+  if (selectWallButton) selectWallButton.disabled = renderJobRunning;
+  if (selectFloorButton) selectFloorButton.disabled = renderJobRunning;
   generateButton.textContent = renderJobRunning ? "\uC2E4\uC0AC \uBCF4\uC815 \uC0DD\uC131 \uC911..." : "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC2E4\uD589";
   renderRenderCartTileList(tileList, cartTiles);
 
@@ -11106,6 +11611,7 @@ function buildRenderFeedbackPayload(code) {
     surfaces: selectedSurfaces.map(({ surface, tile }) => ({
       surface,
       surfaceLabel: getRenderSurfaceLabel(surface),
+      regionPoints: normalizeRenderSurfaceRegionPoints(renderSurfaceRegions[surface]),
       tileId: tile.id,
       managementCode: tile.managementCode || "",
       name: tile.name || "",
@@ -11169,6 +11675,9 @@ async function generateRenderPreview() {
   const pointMemo = document.querySelector("#renderPointMemo").value.trim();
   const selectedSurfaces = getSelectedRenderSurfaces();
   const roomContext = getSelectedRenderRoomContext();
+  const renderSpecSummary = selectedSurfaces
+    .map(({ surface, tile }) => `${getRenderSurfaceLabel(surface)} ${getRenderTileSizeValue(tile) || "규격 미확인"} · ${tile.finish || "마감 미확인"}`)
+    .join(" / ");
 
   if (!item) {
     setText("#renderStatus", "\uBCF4\uC815\uD560 \uB300\uC0C1 \uD488\uBAA9\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
@@ -11186,19 +11695,40 @@ async function generateRenderPreview() {
     setText("#renderStatus", "\uC120\uD0DD\uD55C \uD0C0\uC77C \uC911 \uC774\uBBF8\uC9C0\uAC00 \uC5C6\uB294 \uD488\uBAA9\uC774 \uC788\uC5B4 \uBCF4\uC815\uC744 \uC2E4\uD589\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.");
     return;
   }
+  const invalidSizeSurfaces = selectedSurfaces.filter(({ tile }) => !parseRenderTileSizeSpec(getRenderTileSizeValue(tile)));
+  if (invalidSizeSurfaces.length) {
+    const invalidSpecs = invalidSizeSurfaces
+      .map(({ surface, tile }) => `${getRenderSurfaceLabel(surface)} ${tile.name} (${getRenderTileSizeValue(tile) || "규격 미입력"})`)
+      .join(", ");
+    setText("#renderStatus", `정확한 시공 크기로 보정할 수 없습니다. 실제 가로×세로 규격을 먼저 확인해주세요: ${invalidSpecs}`);
+    return;
+  }
+  const pointSurface = selectedSurfaces.find(({ surface }) => surface === "point");
+  if (pointSurface && !isRenderSurfaceRegionValid(renderSurfaceRegions.point)) {
+    renderSurfaceGuideMode = "point";
+    renderRenderSurfaceGuide();
+    setText(
+      "#renderStatus",
+      "포인트 타일 적용 영역을 현장 사진 위에 3점 이상 지정해주세요."
+    );
+    document.querySelector("#renderSurfaceGuidePanel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
 
   renderJobRunning = true;
   renderRenderWorkspace();
-  setText("#renderStatus", `${roomContext.roomTypeLabel} · ${roomContext.interiorStyleLabel} 방향으로 실사 보정 이미지를 생성하고 있습니다...`);
+  setText("#renderStatus", `${roomContext.roomTypeLabel} · ${roomContext.interiorStyleLabel} 보정 중 · ${renderSpecSummary}`);
 
   try {
     const surfacesPayload = await Promise.all(selectedSurfaces.map(async ({ surface, tile }) => ({
       surface,
       tileName: tile.name,
-      tileSize: tile.size || "",
+      tileSize: getRenderTileSizeValue(tile),
       tileFinish: tile.finish || "",
       tileImageDataUrl: await imageUrlToDataUrl(tile.image)
     })));
+    const usesLayeredSurfaceRender = selectedSurfaces.length > 1;
+    const layeredRenderTimeoutMs = Math.max(330000, selectedSurfaces.length * 330000);
     const payload = await requestJson(
       "/api/render",
       {
@@ -11207,25 +11737,35 @@ async function generateRenderPreview() {
         body: JSON.stringify({
           siteImageDataUrl: pendingSiteImage,
           surfaces: surfacesPayload,
+          surfaceRegions: pointSurface
+            ? { point: normalizeRenderSurfaceRegionPoints(renderSurfaceRegions.point) }
+            : {},
+          strictSurfaceMapping: Boolean(pointSurface),
           pointMemo,
           roomContext,
           qualityMode: "premium-photoreal"
         })
       },
       {
-        timeoutMs: 330000,
-        timeoutMessage: "고품질 실사 보정이 5분 30초를 초과했습니다. 잠시 후 다시 시도해주세요."
+        timeoutMs: usesLayeredSurfaceRender ? layeredRenderTimeoutMs : 330000,
+        timeoutMessage: usesLayeredSurfaceRender
+          ? "선택한 면을 단계별로 보정하는 작업이 제한 시간을 초과했습니다. 잠시 후 다시 시도해주세요."
+          : "고품질 실사 보정이 5분 30초를 초과했습니다. 잠시 후 다시 시도해주세요."
       }
     );
 
     pendingRenderResultImage = String(payload?.imageDataUrl || "");
     if (!pendingRenderResultImage) throw new Error("\uBCF4\uC815 \uACB0\uACFC \uC774\uBBF8\uC9C0\uB97C \uBC1B\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
     lastRenderFeedbackCode = "";
-    setText("#renderStatus", "\uC2E4\uC0AC \uBCF4\uC815\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uC81C\uC548\uC11C\uC5D0 \uBC18\uC601\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+    setText("#renderStatus", `실사 보정 완료 · 적용 스펙: ${renderSpecSummary}`);
     document.querySelector("#renderResultPreview")?.scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (error) {
     console.warn(error);
-    setText("#renderStatus", error?.message || "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.");
+    const errorMessage = String(error?.message || "").trim();
+    const displayMessage = /failed to fetch|fetch failed|networkerror/i.test(errorMessage)
+      ? "\uC2E4\uC0AC \uBCF4\uC815 \uC11C\uBC84\uC5D0 \uC5F0\uACB0\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC11C\uBC84 \uC0C1\uD0DC\uB97C \uD655\uC778\uD55C \uB4A4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574\uC8FC\uC138\uC694."
+      : errorMessage || "\uC2E4\uC0AC \uC774\uBBF8\uC9C0 \uBCF4\uC815 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4.";
+    setText("#renderStatus", displayMessage);
   } finally {
     renderJobRunning = false;
     renderRenderWorkspace();
@@ -11326,6 +11866,30 @@ async function handleBusinessFileChange() {
   if (file) {
     await scanBusinessRegistrationFile({ autoTriggered: true });
   }
+}
+
+function getRenderTileSizeValue(tile) {
+  return String(tile?.size || tile?.sizeLabel || tile?.spec || tile?.tileSize || "").trim();
+}
+
+function parseRenderTileSizeSpec(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[Xx×]/g, "*")
+    .replace(/\s+/g, "")
+    .replace(/,/g, "")
+    .replace(/mm/gi, "");
+  if (!normalized) return null;
+  const squareMatch = normalized.match(/(?:^|[^0-9.])(\d{1,4}(?:\.\d{1,3})?)각(?:$|[^0-9.])/);
+  const match = squareMatch
+    ? [squareMatch[0], squareMatch[1], squareMatch[1]]
+    : normalized.match(/(?:^|[^0-9.])(\d{1,4}(?:\.\d{1,3})?)\*(\d{1,4}(?:\.\d{1,3})?)(?=$|[^0-9.])/);
+  if (!match) return null;
+  const widthMm = Number(match[1]);
+  const heightMm = Number(match[2]);
+  return Number.isFinite(widthMm) && Number.isFinite(heightMm) && widthMm > 0 && heightMm > 0
+    ? { widthMm, heightMm }
+    : null;
 }
 
 function handleBusinessCardFileChange() {
@@ -13389,6 +13953,21 @@ function addToCart(id, quantity = 1) {
   renderPlannerWorkspace();
 }
 
+function applySketchupCartQuantity(productId, quantity) {
+  const product = products.find((item) => String(item.id) === String(productId));
+  if (!product) return false;
+  const safeQuantity = Math.max(1, Math.min(999, Math.ceil(Number(quantity) || 1)));
+  const existing = cart.find((item) => String(item.id) === String(productId));
+  if (existing) existing.qty = safeQuantity;
+  else cart.push({ ...product, qty: safeQuantity, quotePrice: getMemberBaseUnitPrice(product) });
+  saveCart();
+  renderCart();
+  renderDocuments();
+  renderPlannerWorkspace();
+  showToast(`${product.name || "타일"} 수량을 ${safeQuantity}박스로 반영했습니다.`);
+  return true;
+}
+
 function updateCartLine(id, changes, options = {}) {
   const item = cart.find((entry) => entry.id === id);
   if (!item) return;
@@ -14727,7 +15306,7 @@ function getPlannerSurfaceOrientation(config, surface) {
 }
 
 function parseTileDimensionsMeters(size, surface = "floor", orientation = "horizontal") {
-  const matches = String(size || "").match(/(\d{2,4})\D+(\d{2,4})/);
+  const matches = String(size || "").replace(/,/g, "").match(/(\d{1,4}(?:\.\d{1,3})?)\s*(?:x|×|\*)\s*(\d{1,4}(?:\.\d{1,3})?)/i);
   const dimensions = !matches
     ? (surface === "floor"
       ? { width: 0.6, height: 0.6 }
@@ -15014,6 +15593,12 @@ function updatePlannerCamera(camera, config) {
 }
 
 function switchPage(pageId, options = {}) {
+  // The former planner flow is now consolidated into the AI render workspace.
+  // Keep this alias so old hashes, bookmarks, and stored return pages still work.
+  if (pageId === "plannerPage") {
+    pageId = "renderPage";
+  }
+
   if (pageId === "loginPage" && currentPageId === "homePage" && !authUser) {
     clearAuthReturnPage();
   }
@@ -15137,6 +15722,10 @@ function switchPage(pageId, options = {}) {
     renderPlannerWorkspace();
   }
 
+  if (pageId === "sketchupPage") {
+    renderSketchupWorkspace();
+  }
+
   if (pageId === "adminPage") {
     switchAdminView(currentAdminView);
     loadAdminOverview();
@@ -15153,6 +15742,9 @@ function switchPage(pageId, options = {}) {
     setText("#tile114Status", authUser?.role === "admin" ? "카테고리와 개수를 선택한 뒤 샘플 가져오기를 눌러주세요." : "관리자 로그인 후 사용할 수 있습니다.");
   }
 }
+
+// The guest promotion shell loads before app.js and routes through this public hook.
+window.switchPage = switchPage;
 
 function rememberAuthReturnPage(pageId) {
   if (!AUTH_REQUIRED_PAGE_IDS.has(pageId)) return;

@@ -34,13 +34,18 @@ const { createCartStore } = require("./src/server/services/cart-store");
 const { createOrderStore } = require("./src/server/services/order-store");
 const { createSiteSettingsService } = require("./src/server/services/site-settings-service");
 const { createHermesClient } = require("./src/server/services/hermes-client");
+const { createOpenAiChatClient } = require("./src/server/services/openai-chat-client");
 const { createNaverOAuthService } = require("./src/server/services/naver-oauth-service");
 const { createHermesAdminService } = require("./src/server/features/hermes/hermes-admin-service");
+const { handleSketchupRoutes } = require("./src/server/features/sketchup/sketchup-routes");
+const { createSketchupPackageStore } = require("./src/server/features/sketchup/sketchup-package-store");
 const {
   createTileAssistantRateLimiter,
   handleTileAssistantRoutes
 } = require("./src/server/features/tile-assistant/tile-assistant-routes");
 const { createTileAssistantService } = require("./src/server/features/tile-assistant/tile-assistant-service");
+const { normalizeProposalPayload: normalizeSecureProposalPayload } = require("./src/server/features/proposal/proposal-payload-normalizer");
+const { createProposalDownloadStore } = require("./src/server/features/proposal/proposal-download-store");
 
 const root = process.cwd();
 loadEnvFile(path.join(root, ".env"));
@@ -56,17 +61,24 @@ const renderFeedbackAssetDir = path.join(root, "outputs", "render-feedback-asset
 const adminActionRequestsPath = path.join(root, "data", "admin-action-requests.jsonl");
 const ordersPath = path.join(root, "data", "orders.json");
 const siteSettingsPath = path.join(root, "data", "site-settings.json");
+const sketchupPackagesPath = path.join(root, "data", "sketchup-material-packages.json");
 const siteStudioUploadDir = path.join(root, "uploads", "site-studio");
 const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
 const proposalOutputDir = path.join(root, "outputs", "proposals");
 const proposalTmpDir = path.join(root, "tmp", "proposal-ppt");
 const proposalBuilderPath = path.join(root, "scripts", "build-proposal-deck.mjs");
+const proposalDownloadStore = createProposalDownloadStore({
+  rootDir: proposalOutputDir,
+  ttlMs: Number(process.env.PROPOSAL_DOWNLOAD_TTL_MS || 15 * 60 * 1000)
+});
 const serverControlDir = path.join(root, "tmp", "server-control");
 const stopFlagPath = path.join(serverControlDir, "stop.flag");
 const startedAt = new Date();
 const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
 const openAiImageModel = String(process.env.OPENAI_IMAGE_MODEL || "gpt-image-1").trim();
 const openAiVisionModel = String(process.env.OPENAI_VISION_MODEL || "gpt-4o-mini").trim();
+const openAiChatModel = String(process.env.OPENAI_CHAT_MODEL || openAiVisionModel || "gpt-4o-mini").trim();
+const openAiChatTimeoutMs = Math.max(1000, Number(process.env.OPENAI_CHAT_TIMEOUT_MS || 18000) || 18000);
 const openAiRenderTimeoutMs = Math.max(60000, Number(process.env.OPENAI_RENDER_TIMEOUT_MS || 300000) || 300000);
 const openAiRenderSize = normalizeOpenAiRenderSize(process.env.OPENAI_RENDER_SIZE || "1536x1024", openAiImageModel);
 const openAiRenderQuality = String(process.env.OPENAI_RENDER_QUALITY || "high").trim();
@@ -266,6 +278,7 @@ const orderStore = createOrderStore({
   requestSupabase
 });
 const siteSettingsService = createSiteSettingsService({ settingsPath: siteSettingsPath });
+const sketchupPackageStore = createSketchupPackageStore({ filePath: sketchupPackagesPath });
 const searchLogStore = createSearchLogStore({ root });
 const hermesClient = createHermesClient({
   baseUrl: hermesApiBaseUrl,
@@ -273,8 +286,28 @@ const hermesClient = createHermesClient({
   model: hermesModel,
   timeoutMs: hermesTimeoutMs
 });
+const openAiChatClient = createOpenAiChatClient({
+  apiKey: openAiApiKey,
+  model: openAiChatModel,
+  timeoutMs: openAiChatTimeoutMs
+});
+const tileAssistantChatClient = {
+  hasConfig: () => openAiChatClient.hasConfig() || hermesClient.hasConfig(),
+  async chat(payload) {
+    let openAiError = null;
+    if (openAiChatClient.hasConfig()) {
+      try {
+        return await openAiChatClient.chat(payload);
+      } catch (error) {
+        openAiError = error;
+      }
+    }
+    if (hermesClient.hasConfig()) return hermesClient.chat(payload);
+    throw openAiError || new Error("타일 AI 연결이 설정되어 있지 않습니다.");
+  }
+};
 const hermesAdminService = createHermesAdminService({ hermesClient });
-const tileAssistantService = createTileAssistantService({ chatClient: hermesClient });
+const tileAssistantService = createTileAssistantService({ chatClient: tileAssistantChatClient });
 const allowTileAssistantRequest = createTileAssistantRateLimiter();
 
 const server = http.createServer(async (request, response) => {
@@ -292,6 +325,10 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (await handleTileAssistantRoutes(request, response, getTileAssistantRouteContext())) {
+      return;
+    }
+
+    if (await handleSketchupRoutes(request, response, getSketchupRouteContext())) {
       return;
     }
 
@@ -420,7 +457,9 @@ function getMediaRouteContext() {
     readOptionalAdminContextFromRequest,
     findSimilarTilesByImage,
     checkBusinessStatus,
+    authorizeProposalRequest,
     buildProfessionalProposalDeck,
+    sendProposalDownload,
     handleServerControl
   };
 }
@@ -710,6 +749,18 @@ function getAdminAuthConfig() {
     adminPassword,
     adminDisplayName,
     adminNaverIdentifiers
+  };
+}
+
+function getSketchupRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    isLocalRequest,
+    readProducts,
+    isPublicCatalogProduct,
+    mapPublicProduct,
+    sketchupPackageStore
   };
 }
 
@@ -1158,7 +1209,6 @@ function shouldBlockStaticPath(pathname) {
   if (!normalized || normalized === "index.html") return false;
   if (normalized.startsWith(".")) return true;
   if (normalized === "catalog-data.js") return true;
-  if (normalized.startsWith("outputs/proposals/") && normalized.endsWith(".pptx")) return false;
   return [
     "data/",
     "docs/",
@@ -1494,6 +1544,12 @@ async function loginWithSignupRequest(payload) {
   if (!businessNumber || !password) {
     throw new Error("사업자등록번호와 비밀번호가 필요합니다.");
   }
+
+  const adminSession = authService.loginAsConfiguredAdmin({
+    username: businessNumber,
+    password
+  }, getAdminAuthConfig());
+  if (adminSession) return adminSession;
 
   if (!hasSupabaseConfig()) {
     throw new Error("Supabase 로그인 저장소가 설정되지 않았습니다.");
@@ -2827,7 +2883,7 @@ async function serveStatic(request, response) {
 
 async function generateRenderPreview(payload) {
   if (!openAiApiKey) {
-    throw new Error("OPENAI_API_KEY 媛믪씠 ?ㅼ젙?섏? ?딆븘 OpenAI ?ㅼ궗 蹂댁젙???ъ슜???놁뒿?덈떎.");
+    throw new Error("OPENAI_API_KEY 값이 설정되지 않아 OpenAI 실사 보정을 사용할 수 없습니다.");
   }
 
   const siteImageDataUrl = String(payload.siteImageDataUrl || "").trim();
@@ -2836,13 +2892,23 @@ async function generateRenderPreview(payload) {
   const qualityMode = String(payload.qualityMode || "").trim();
   const pointMemo = String(payload.pointMemo || "").trim();
   const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
+  const strictSurfaceMapping = payload.strictSurfaceMapping === true
+    || String(payload.strictSurfaceMapping || "").toLowerCase() === "true";
+  const rawSurfaceRegions = payload.surfaceRegions && typeof payload.surfaceRegions === "object"
+    ? payload.surfaceRegions
+    : {};
+  const surfaceRegions = {
+    wall: normalizeRenderSurfaceRegionPoints(rawSurfaceRegions.wall),
+    floor: normalizeRenderSurfaceRegionPoints(rawSurfaceRegions.floor),
+    point: normalizeRenderSurfaceRegionPoints(rawSurfaceRegions.point)
+  };
   const roomContext = payload.roomContext && typeof payload.roomContext === "object" ? payload.roomContext : null;
 
   if (!siteImageDataUrl || !surfaces.length) {
-    throw new Error("?꾩옣 ?ъ쭊怨?踰?諛붾떏/?ъ씤?????李몄“ ?대?吏瑜?紐⑤몢 ?낅젰?댁＜?몄슂.");
+    throw new Error("현장 사진과 벽, 바닥 또는 포인트 타일 참조 이미지를 모두 입력해주세요.");
   }
 
-  const normalizedSurfaces = surfaces
+  const normalizedSurfaceCandidates = surfaces
     .map((entry, index) => ({
       surface: normalizeRenderSurfaceValue(entry?.surface),
       tileName: String(entry?.tileName || `tile-${index + 1}`).trim(),
@@ -2852,9 +2918,26 @@ async function generateRenderPreview(payload) {
       tileImageDataUrl: String(entry?.tileImageDataUrl || "").trim()
     }))
     .filter((entry) => entry.tileImageDataUrl);
+  const normalizedSurfaces = normalizedSurfaceCandidates;
 
   if (!normalizedSurfaces.length) {
-    throw new Error("?좏깮??????대?吏瑜?李얠? 紐삵뻽?듬땲??");
+    throw new Error("선택한 타일 이미지를 찾지 못했습니다.");
+  }
+  const invalidSizeSurfaces = normalizedSurfaces.filter((entry) => !parseTileSizeSpec(entry.tileSize));
+  if (invalidSizeSurfaces.length) {
+    const surfaceLabels = { wall: "벽", floor: "바닥", point: "포인트" };
+    const invalidSpecs = invalidSizeSurfaces
+      .map((entry) => `${surfaceLabels[entry.surface] || entry.surface} ${entry.tileName} (${entry.tileSize || "규격 미입력"})`)
+      .join(", ");
+    throw new Error(`정확한 타일 크기로 보정하려면 실제 가로×세로 규격이 필요합니다. 규격을 확인해주세요: ${invalidSpecs}`);
+  }
+  if (strictSurfaceMapping) {
+    const missingRegionLabels = normalizedSurfaces
+      .filter((entry) => entry.surface === "point" && !isRenderSurfaceRegionValid(surfaceRegions.point))
+      .map(() => "포인트");
+    if (missingRegionLabels.length) {
+      throw new Error(`${missingRegionLabels.join(", ")} 적용 영역을 3점 이상 지정해주세요.`);
+    }
   }
 
   const hasGuideImage = guideImageDataUrl.startsWith("data:");
@@ -2867,14 +2950,18 @@ async function generateRenderPreview(payload) {
     ? `Use image ${nextImageNumber++} as a rough tile layout and scale preview only. It is not the final visual quality target. Use it to understand approximate grout spacing, tile count, module orientation, and target plane coverage, then replace its flat overlay look with a photorealistic installation.`
     : "";
   const referenceStartNumber = nextImageNumber;
+  const hasWallSurface = normalizedSurfaces.some((entry) => entry.surface === "wall");
+  const hasFloorSurface = normalizedSurfaces.some((entry) => entry.surface === "floor");
+  const hasPointSurface = normalizedSurfaces.some((entry) => entry.surface === "point");
   const referenceInstructions = normalizedSurfaces.map((entry, index) => {
     const referenceNumber = referenceStartNumber + index;
     const surfaceInstruction = entry.surface === "wall"
-      ? "Apply this tile only to the wall surfaces."
+      ? `This is the REQUIRED BASE WALL MATERIAL. Cover every visible wall plane selected for tile installation with this material${hasPointSurface ? ", except only the small, explicitly described point-tile zone" : ""}. Do not leave any other target wall with the original finish, paint, a generic tile, or another reference material.`
       : entry.surface === "point"
-        ? `Apply this tile only to the ${pointMemo || "shower booth back wall"}.`
-        : "Apply this tile only to the floor surfaces.";
-    const sizeInstruction = buildRenderSizeInstruction(entry.tileSize, entry.surface);
+        ? `This is a LOCAL ACCENT MATERIAL, not the base wall material. Apply it only to the small localized area described as "${pointMemo || "shower booth back wall"}". Never spread it across the remaining walls. If that exact point area cannot be identified confidently, preserve the required base wall material everywhere and omit the accent rather than replacing or hiding the wall material.`
+        : "This is the REQUIRED FLOOR MATERIAL. Cover the entire visible floor plane selected for tile installation with this material. Do not leave the target floor with the original finish, a generic tile, or another reference material.";
+    const sizeInstruction = buildRenderSizeInstruction(entry.tileSize, entry.surface, entry.tileOrientation);
+    const finishInstruction = buildRenderFinishInstruction(entry.tileFinish);
 
     const orientationInstruction = entry.tileOrientation === "vertical"
       ? "Install rectangular tile modules in vertical orientation, swapping the long side direction accordingly."
@@ -2882,9 +2969,29 @@ async function generateRenderPreview(payload) {
         ? "Install rectangular tile modules in horizontal orientation."
         : "";
 
-    return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Prioritize the tile's visible design identity above all else: match the tone variation, veining flow, stone character, pattern rhythm, print character, surface texture depth, micro-contrast, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, module size${entry.tileSize ? ` (${entry.tileSize})` : ""}, and installation orientation${entry.tileOrientation ? ` (${entry.tileOrientation})` : ""} as closely as possible. ${orientationInstruction} The tile pattern and texture are critical and must stay recognizable in the final image. Do not invent a different tile look, do not simplify or blur the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction}`;
+    return `Reference image ${referenceNumber} is the exact installed ${entry.surface} tile material. ${surfaceInstruction} Use this reference as the authoritative material source, not as loose inspiration. Prioritize the tile's visible design identity above all else: match the tone variation, veining flow, stone character, pattern rhythm, print character, surface texture depth, micro-contrast, edge rhythm, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, module size${entry.tileSize ? ` (${entry.tileSize})` : ""}, and installation orientation${entry.tileOrientation ? ` (${entry.tileOrientation})` : ""} as closely as possible. ${orientationInstruction} The tile pattern and texture are critical and must stay recognizable in the final image. Do not invent a different tile look, do not simplify or blur the pattern, and do not replace it with a generic stone or generic ceramic texture. ${sizeInstruction} ${finishInstruction}`;
   }).join(" ");
+  const physicalTileScaleContract = buildRenderPhysicalScaleContract(normalizedSurfaces);
+  const surfaceAssignmentContract = [
+    "MANDATORY SURFACE ASSIGNMENT CONTRACT: every selected material is required and its reference-image assignment is authoritative, regardless of the product name or product category.",
+    hasWallSurface
+      ? `First install the wall reference across all visible target wall planes${hasPointSurface ? "; this remains the base wall finish everywhere outside the exact accent zone" : ""}. The wall reference must remain clearly recognizable in the final image.`
+      : "",
+    hasFloorSurface
+      ? "Install the floor reference across the complete visible target floor plane."
+      : "",
+    hasPointSurface
+      ? `Only after the base wall is complete, place the point reference in the single localized zone described as "${pointMemo || "shower booth back wall"}". The point reference must never become the default wall finish.`
+      : "",
+    "Before returning the final image, visually verify that every selected surface material is present on its assigned plane. A result that omits the required wall or floor material is invalid."
+  ].filter(Boolean).join(" ");
   const roomContextInstruction = buildRenderRoomContextInstruction(roomContext);
+  const constructionCompletionInstruction = [
+    "CONSTRUCTION COMPLETION CLEANUP: when image 1 is an unfinished construction photo, make the edited result look like the same site after professional completion.",
+    "Conceal or finish over exposed plumbing supply pipes, drain pipes, rough-in pipe ends, temporary pipe caps, hoses, electrical wires, conduits, junction boxes, open service penetrations, temporary supports, protective film, masking, construction dust, loose debris, and temporary installation hardware so these construction-only elements are not visible in the completed photograph.",
+    "Do not relocate plumbing or invent a different room layout. Preserve the exact room geometry and the real positions of permanent service points. Keep intended finished fixtures such as faucets, shower heads, floor drains, toilets, basins, and visible design hardware when they already exist; remove only unfinished or temporary construction exposure.",
+    "Close and finish disturbed wall or floor areas naturally with the assigned tile and realistic grout, silicone, trim, or finished surface as appropriate. Never leave a visible pipe opening, unfinished chase, exposed cable, or construction debris in the final image."
+  ].join(" ");
   const premiumInstruction = qualityMode === "premium-photoreal"
     ? "Quality target: professional interior photography realism, like a professional photographer captured the completed renovated space after installation. The image should feel polished, clean, premium, and photo-real, but still physically real. Keep crisp material detail, correct perspective, realistic grout depth, subtle bevels, natural light falloff, contact shadows, ambient occlusion, and believable camera lens behavior while preserving the exact original site geometry. Do not make it look like CGI, a graphic mockup, or a synthetic showroom render."
     : "";
@@ -2898,6 +3005,9 @@ async function generateRenderPreview(payload) {
     guideInstruction,
     compositionInstruction,
     roomContextInstruction,
+    constructionCompletionInstruction,
+    surfaceAssignmentContract,
+    physicalTileScaleContract,
     referenceInstructions,
     "Replace only the existing finish material on the selected planes. Preserve the original site photo structure, camera angle, lens distortion, perspective, room proportions, horizontal and vertical lines, and all non-target surfaces.",
     "Do not redesign the room. Do not move fixtures, doors, drains, moldings, furniture, sanitary ware, silicone lines, or architectural elements.",
@@ -2913,34 +3023,138 @@ async function generateRenderPreview(payload) {
     "Strictly avoid CGI, illustration, painterly style, cartoon style, over-sharpened edges, plastic texture, fake glossy reflections, fake showroom lighting, excessive depth-of-field blur, perfectly uniform repetition, and artificial interior staging.",
     "Photographic realism priority is higher than decorative style. Interior style may guide the completed-photo mood, color palette, and lighting balance only; it must never make the image look designed from scratch.",
     "At corners, drains, thresholds, base trims, silicone edges, and cut lines, make grout joints and tile cuts look naturally installed.",
-    "If multiple surfaces are selected, keep each reference tile assigned only to its matching surface and never mix wall, floor, and point materials.",
+    "If multiple surfaces are selected, keep each reference tile assigned only to its matching surface and never mix wall, floor, and point materials. The base wall material takes precedence over the point material everywhere except the one explicitly named accent zone.",
     "Final result style: a realistic completed-interior photograph captured by a professional interior photographer, suitable for a client proposal, with no graphic-render feeling."
   ].join(" ");
 
+  if (strictSurfaceMapping || normalizedSurfaces.length > 1) {
+    // Install the floor first so a later wall pass can correct any accidental
+    // floor-material spill onto vertical planes before the masked point pass.
+    const orderedSurfaces = ["floor", "wall", "point"]
+      .map((surface) => normalizedSurfaces.find((entry) => entry.surface === surface))
+      .filter(Boolean);
+    const completedSurfaces = [];
+    let currentImageDataUrl = siteImageDataUrl;
+
+    const hasBaseSurfaceStage = orderedSurfaces.some((entry) => entry.surface !== "point");
+    if (!hasBaseSurfaceStage) {
+      currentImageDataUrl = await requestOpenAiRenderEdit({
+        baseImageDataUrl: currentImageDataUrl,
+        prompt: [
+          "Convert this unfinished site photograph into the same space after professional construction cleanup, while preserving the original camera, crop, architecture, room proportions, fixtures, openings, and perspective.",
+          constructionCompletionInstruction,
+          roomContextInstruction,
+          premiumInstruction,
+          "Do not install or invent a new tile design in this cleanup stage. Preserve all existing finish materials so the separately masked point-tile stage can follow. Return a realistic completed-site photograph, not CGI or a redesigned room."
+        ].filter(Boolean).join(" "),
+        references: [],
+        stage: "construction-cleanup"
+      });
+    }
+
+    for (const entry of orderedSurfaces) {
+      const shouldMaskStage = strictSurfaceMapping && entry.surface === "point";
+      const targetInstruction = entry.surface === "wall"
+        ? "Apply reference image 2 only to vertical architectural wall planes. Cover every visible target wall with this exact wall tile. Never place it on the horizontal walkable floor, countertop, vanity top, ceiling, fixture, or sanitary ware."
+        : entry.surface === "floor"
+          ? "HARD FLOOR-ONLY EDIT BOUNDARY: apply reference image 2 exclusively to the lowest horizontal walkable floor plane below the wall-to-floor junction. Every vertical or sloped wall plane, including the main wall, shower wall, accent wall, niche back, ledge face, and wall point zone, is locked and must retain image 1 exactly. Never place even a partial floor-tile module, floor pattern, floor color, or floor texture on a wall, ledge, countertop, vanity top, ceiling, fixture, or sanitary ware. Follow the ground-plane perspective toward the vanishing point. If the floor boundary is uncertain, leave the uncertain pixels unchanged instead of extending floor material upward."
+          : `Apply reference image 2 only to the single localized point area described as \"${pointMemo || "shower booth back wall"}\". Never use it as the main wall material and never place it on the floor.`;
+      const preservationInstruction = completedSurfaces.length
+        ? `Image 1 already contains the correctly completed ${completedSurfaces.join(" and ")} material. Lock those completed surfaces: preserve their material, color, pattern, grout, scale, and placement exactly. Do not repaint, replace, recolor, blur, or reinterpret them.`
+        : "Image 1 is the original site photograph. Preserve its camera, crop, geometry, fixtures, openings, and room proportions.";
+      const stagePrompt = [
+        `Perform the ${entry.surface} material stage of a photorealistic completed-interior edit.`,
+        entry.surface === "floor"
+          ? "NON-NEGOTIABLE PLANE RULE: the floor reference belongs to the walkable ground plane only. A result showing this material on any vertical wall or point wall is invalid and must not be returned."
+          : "",
+        preservationInstruction,
+        roomContextInstruction,
+        constructionCompletionInstruction,
+        premiumInstruction,
+        shouldMaskStage
+          ? "The transparent mask area is the ONLY editable target in this stage. Every opaque pixel is locked and must remain identical to image 1. Do not extend tile material beyond the transparent mask, even when another plane appears visually similar."
+          : "",
+        targetInstruction,
+        `Reference image 2 is the authoritative ${entry.surface} tile material. Match its exact color, pattern, texture, finish${entry.tileFinish ? ` (${entry.tileFinish})` : ""}, module size${entry.tileSize ? ` (${entry.tileSize})` : ""}, grout scale, orientation, and perspective.`,
+        physicalTileScaleContract,
+        buildRenderSizeInstruction(entry.tileSize, entry.surface, entry.tileOrientation),
+        buildRenderFinishInstruction(entry.tileFinish),
+        "Modify only the assigned target plane for this stage. Do not move or alter fixtures, sanitary ware, doors, windows, drains, furniture, openings, or architectural geometry.",
+        "Return the same room as a realistic professional after-photo, not a redesigned room, illustration, CGI render, or showroom scene."
+      ].filter(Boolean).join(" ");
+
+      const stageBaseImageDataUrl = shouldMaskStage
+        ? normalizeRenderImageToPngDataUrl(currentImageDataUrl)
+        : currentImageDataUrl;
+      const maskImageDataUrl = shouldMaskStage
+        ? createRenderSurfaceMaskDataUrl(stageBaseImageDataUrl, surfaceRegions.point)
+        : "";
+      const generatedImageDataUrl = await requestOpenAiRenderEdit({
+        baseImageDataUrl: stageBaseImageDataUrl,
+        maskImageDataUrl,
+        prompt: stagePrompt,
+        references: [entry],
+        stage: `surface-${entry.surface}`
+      });
+      currentImageDataUrl = shouldMaskStage
+        ? compositeRenderResultInsideMask(stageBaseImageDataUrl, generatedImageDataUrl, maskImageDataUrl)
+        : generatedImageDataUrl;
+      completedSurfaces.push(entry.surface);
+    }
+
+    return {
+      ok: true,
+      imageDataUrl: currentImageDataUrl,
+      format: strictSurfaceMapping ? "png" : openAiRenderOutputFormat
+    };
+  }
+
+  const references = [];
+  if (hasGuideImage) {
+    references.push({ tileImageDataUrl: guideImageDataUrl, tileName: "surface-guide" });
+  }
+  if (hasCompositionImage) {
+    references.push({ tileImageDataUrl: compositionImageDataUrl, tileName: "tile-layout-preview" });
+  }
+  references.push(...normalizedSurfaces);
+
+  return {
+    ok: true,
+    imageDataUrl: await requestOpenAiRenderEdit({
+      baseImageDataUrl: siteImageDataUrl,
+      prompt,
+      references,
+      stage: "single-pass"
+    }),
+    format: openAiRenderOutputFormat
+  };
+}
+
+async function requestOpenAiRenderEdit({ baseImageDataUrl, maskImageDataUrl = "", prompt, references = [], stage = "render" }) {
+  const requestOutputFormat = maskImageDataUrl ? "png" : openAiRenderOutputFormat;
   const form = new FormData();
   form.append("model", openAiImageModel);
   form.append("prompt", prompt);
   form.append("size", openAiRenderSize);
   form.append("quality", openAiRenderQuality);
-  form.append("output_format", openAiRenderOutputFormat);
-  if (openAiRenderOutputFormat === "jpeg" || openAiRenderOutputFormat === "webp") {
+  form.append("output_format", requestOutputFormat);
+  if (requestOutputFormat === "jpeg" || requestOutputFormat === "webp") {
     form.append("output_compression", String(openAiRenderOutputCompression));
   }
-  form.append("image[]", dataUrlToBlob(siteImageDataUrl), "site-photo.png");
-  if (hasGuideImage) {
-    form.append("image[]", dataUrlToBlob(guideImageDataUrl), "surface-guide.png");
+  form.append("image[]", dataUrlToBlob(baseImageDataUrl), "site-photo.png");
+  if (maskImageDataUrl) {
+    assertRenderMaskMatchesBaseImage(baseImageDataUrl, maskImageDataUrl);
+    form.append("mask", dataUrlToBlob(maskImageDataUrl), "surface-mask.png");
   }
-  if (hasCompositionImage) {
-    form.append("image[]", dataUrlToBlob(compositionImageDataUrl), "tile-layout-preview.png");
-  }
-  normalizedSurfaces.forEach((entry) => {
-    form.append("image[]", dataUrlToBlob(entry.tileImageDataUrl), `${sanitizeFileName(entry.tileName || "tile")}.png`);
+  references.forEach((entry, index) => {
+    const name = sanitizeFileName(entry.tileName || `reference-${index + 1}`);
+    form.append("image[]", dataUrlToBlob(entry.tileImageDataUrl), `${name}.png`);
   });
 
   const renderStartedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), openAiRenderTimeoutMs);
-  console.log(`[render] OpenAI image edit started. model=${openAiImageModel}, size=${openAiRenderSize}, quality=${openAiRenderQuality}, format=${openAiRenderOutputFormat}, surfaces=${normalizedSurfaces.length}, guide=${hasGuideImage}, composition=${hasCompositionImage}, timeoutMs=${openAiRenderTimeoutMs}`);
+  console.log(`[render] OpenAI image edit started. stage=${stage}, model=${openAiImageModel}, size=${openAiRenderSize}, quality=${openAiRenderQuality}, format=${requestOutputFormat}, references=${references.length}, masked=${Boolean(maskImageDataUrl)}, timeoutMs=${openAiRenderTimeoutMs}`);
   let response;
   try {
     response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -2958,7 +3172,7 @@ async function generateRenderPreview(payload) {
     throw error;
   } finally {
     clearTimeout(timeout);
-    console.log(`[render] OpenAI image edit finished waiting in ${Math.round((Date.now() - renderStartedAt) / 1000)}s`);
+    console.log(`[render] OpenAI image edit finished. stage=${stage}, elapsed=${Math.round((Date.now() - renderStartedAt) / 1000)}s`);
   }
 
   const payloadText = await response.text();
@@ -2970,19 +3184,15 @@ async function generateRenderPreview(payload) {
   }
 
   if (!response.ok) {
-    throw new Error(result?.error?.message || "OpenAI ?ㅼ궗 蹂댁젙 API ?붿껌??ㅽ뙣?덉뒿?덈떎.");
+    throw new Error(result?.error?.message || "OpenAI 실사 보정 API 요청에 실패했습니다.");
   }
 
   const imageBase64 = result?.data?.[0]?.b64_json;
   if (!imageBase64) {
-    throw new Error("OpenAI媛 蹂댁젙 ?대?吏瑜?諛섑솚?섏? ?딆븯?듬땲??");
+    throw new Error("OpenAI가 보정 결과 이미지를 반환하지 않았습니다.");
   }
 
-  return {
-    ok: true,
-    imageDataUrl: `data:${getOpenAiRenderOutputMimeType(openAiRenderOutputFormat)};base64,${imageBase64}`,
-    format: openAiRenderOutputFormat
-  };
+  return `data:${getOpenAiRenderOutputMimeType(requestOutputFormat)};base64,${imageBase64}`;
 }
 
 async function findSimilarTilesByImage(payload, context = {}) {
@@ -4693,26 +4903,277 @@ function buildRenderRoomContextInstruction(roomContext) {
   return instructions.join(" ");
 }
 
+function normalizeRenderSurfaceRegionPoints(points) {
+  return (Array.isArray(points) ? points : [])
+    .map((point) => ({
+      x: Math.max(0, Math.min(1, Number(point?.x))),
+      y: Math.max(0, Math.min(1, Number(point?.y)))
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    .slice(0, 16);
+}
+
+function getRenderSurfaceRegionArea(points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  if (normalizedPoints.length < 3) return 0;
+  let sum = 0;
+  normalizedPoints.forEach((point, index) => {
+    const nextPoint = normalizedPoints[(index + 1) % normalizedPoints.length];
+    sum += (point.x * nextPoint.y) - (nextPoint.x * point.y);
+  });
+  return Math.abs(sum) / 2;
+}
+
+function isRenderSurfaceRegionValid(points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  return normalizedPoints.length >= 3
+    && getRenderSurfaceRegionArea(normalizedPoints) >= 0.0005
+    && !doesRenderSurfaceRegionSelfIntersect(normalizedPoints);
+}
+
+function getRenderSegmentOrientation(a, b, c) {
+  return ((b.x - a.x) * (c.y - a.y)) - ((b.y - a.y) * (c.x - a.x));
+}
+
+function doRenderSegmentsCross(a, b, c, d) {
+  const first = getRenderSegmentOrientation(a, b, c);
+  const second = getRenderSegmentOrientation(a, b, d);
+  const third = getRenderSegmentOrientation(c, d, a);
+  const fourth = getRenderSegmentOrientation(c, d, b);
+  return ((first > 0 && second < 0) || (first < 0 && second > 0))
+    && ((third > 0 && fourth < 0) || (third < 0 && fourth > 0));
+}
+
+function doesRenderSurfaceRegionSelfIntersect(points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  if (normalizedPoints.length < 4) return false;
+  for (let firstIndex = 0; firstIndex < normalizedPoints.length; firstIndex += 1) {
+    const firstNextIndex = (firstIndex + 1) % normalizedPoints.length;
+    for (let secondIndex = firstIndex + 1; secondIndex < normalizedPoints.length; secondIndex += 1) {
+      const secondNextIndex = (secondIndex + 1) % normalizedPoints.length;
+      const sharesVertex = firstIndex === secondIndex
+        || firstIndex === secondNextIndex
+        || firstNextIndex === secondIndex
+        || firstNextIndex === secondNextIndex;
+      if (sharesVertex) continue;
+      if (doRenderSegmentsCross(
+        normalizedPoints[firstIndex],
+        normalizedPoints[firstNextIndex],
+        normalizedPoints[secondIndex],
+        normalizedPoints[secondNextIndex]
+      )) return true;
+    }
+  }
+  return false;
+}
+
+function doRenderSurfaceRegionsOverlap(firstPoints, secondPoints) {
+  const first = normalizeRenderSurfaceRegionPoints(firstPoints);
+  const second = normalizeRenderSurfaceRegionPoints(secondPoints);
+  if (!isRenderSurfaceRegionValid(first) || !isRenderSurfaceRegionValid(second)) return false;
+  const minX = Math.max(Math.min(...first.map((point) => point.x)), Math.min(...second.map((point) => point.x)));
+  const maxX = Math.min(Math.max(...first.map((point) => point.x)), Math.max(...second.map((point) => point.x)));
+  const minY = Math.max(Math.min(...first.map((point) => point.y)), Math.min(...second.map((point) => point.y)));
+  const maxY = Math.min(Math.max(...first.map((point) => point.y)), Math.max(...second.map((point) => point.y)));
+  if (maxX <= minX || maxY <= minY) return false;
+
+  const sampleCount = 120;
+  for (let yIndex = 0; yIndex < sampleCount; yIndex += 1) {
+    const y = minY + ((yIndex + 0.5) / sampleCount) * (maxY - minY);
+    for (let xIndex = 0; xIndex < sampleCount; xIndex += 1) {
+      const x = minX + ((xIndex + 0.5) / sampleCount) * (maxX - minX);
+      if (isPointInsideRenderPolygon(x, y, first) && isPointInsideRenderPolygon(x, y, second)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function decodeRenderImageDataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:image\/(png|jpe?g);base64,(.+)$/i);
+  if (!match) {
+    throw new Error("영역 마스크에는 PNG 또는 JPEG 현장 사진이 필요합니다.");
+  }
+
+  const format = match[1].toLowerCase();
+  const buffer = Buffer.from(match[2], "base64");
+  try {
+    if (format === "png") {
+      const decoded = PNG.sync.read(buffer);
+      return {
+        width: decoded.width,
+        height: decoded.height,
+        data: Buffer.from(decoded.data)
+      };
+    }
+
+    const decoded = jpeg.decode(buffer, { useTArray: true });
+    return {
+      width: decoded.width,
+      height: decoded.height,
+      data: Buffer.from(decoded.data)
+    };
+  } catch {
+    throw new Error("현장 사진을 영역 마스크용 이미지로 변환하지 못했습니다.");
+  }
+}
+
+function encodeRenderPngDataUrl({ width, height, data }) {
+  const png = new PNG({ width, height });
+  png.data = Buffer.from(data);
+  return `data:image/png;base64,${PNG.sync.write(png).toString("base64")}`;
+}
+
+function normalizeRenderImageToPngDataUrl(dataUrl) {
+  return encodeRenderPngDataUrl(decodeRenderImageDataUrl(dataUrl));
+}
+
+function isPointInsideRenderPolygon(x, y, points) {
+  let inside = false;
+  for (let index = 0, previousIndex = points.length - 1; index < points.length; previousIndex = index++) {
+    const current = points[index];
+    const previous = points[previousIndex];
+    const intersects = ((current.y > y) !== (previous.y > y))
+      && (x < ((previous.x - current.x) * (y - current.y)) / ((previous.y - current.y) || Number.EPSILON) + current.x);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function createRenderSurfaceMaskDataUrl(baseImageDataUrl, points) {
+  const normalizedPoints = normalizeRenderSurfaceRegionPoints(points);
+  if (!isRenderSurfaceRegionValid(normalizedPoints)) {
+    throw new Error("타일 적용 영역을 서로 겹치지 않는 3개 이상의 점으로 지정해주세요.");
+  }
+
+  const baseImage = decodeRenderImageDataUrl(baseImageDataUrl);
+  const mask = new PNG({ width: baseImage.width, height: baseImage.height });
+  mask.data.fill(255);
+
+  const minX = Math.max(0, Math.floor(Math.min(...normalizedPoints.map((point) => point.x)) * baseImage.width));
+  const maxX = Math.min(baseImage.width - 1, Math.ceil(Math.max(...normalizedPoints.map((point) => point.x)) * baseImage.width));
+  const minY = Math.max(0, Math.floor(Math.min(...normalizedPoints.map((point) => point.y)) * baseImage.height));
+  const maxY = Math.min(baseImage.height - 1, Math.ceil(Math.max(...normalizedPoints.map((point) => point.y)) * baseImage.height));
+
+  for (let y = minY; y <= maxY; y += 1) {
+    const normalizedY = (y + 0.5) / baseImage.height;
+    for (let x = minX; x <= maxX; x += 1) {
+      const normalizedX = (x + 0.5) / baseImage.width;
+      if (!isPointInsideRenderPolygon(normalizedX, normalizedY, normalizedPoints)) continue;
+      const offset = (y * baseImage.width + x) * 4;
+      mask.data[offset] = 0;
+      mask.data[offset + 1] = 0;
+      mask.data[offset + 2] = 0;
+      mask.data[offset + 3] = 0;
+    }
+  }
+
+  return `data:image/png;base64,${PNG.sync.write(mask).toString("base64")}`;
+}
+
+function resizeRenderImageData(image, targetWidth, targetHeight) {
+  if (image.width === targetWidth && image.height === targetHeight) return image;
+  const output = Buffer.alloc(targetWidth * targetHeight * 4);
+  const sourceWidth = image.width;
+  const sourceHeight = image.height;
+
+  for (let y = 0; y < targetHeight; y += 1) {
+    const sourceY = Math.max(0, Math.min(sourceHeight - 1, ((y + 0.5) * sourceHeight / targetHeight) - 0.5));
+    const y0 = Math.floor(sourceY);
+    const y1 = Math.min(sourceHeight - 1, y0 + 1);
+    const yWeight = sourceY - y0;
+    for (let x = 0; x < targetWidth; x += 1) {
+      const sourceX = Math.max(0, Math.min(sourceWidth - 1, ((x + 0.5) * sourceWidth / targetWidth) - 0.5));
+      const x0 = Math.floor(sourceX);
+      const x1 = Math.min(sourceWidth - 1, x0 + 1);
+      const xWeight = sourceX - x0;
+      const outputOffset = (y * targetWidth + x) * 4;
+      const topLeftOffset = (y0 * sourceWidth + x0) * 4;
+      const topRightOffset = (y0 * sourceWidth + x1) * 4;
+      const bottomLeftOffset = (y1 * sourceWidth + x0) * 4;
+      const bottomRightOffset = (y1 * sourceWidth + x1) * 4;
+
+      for (let channel = 0; channel < 4; channel += 1) {
+        const top = image.data[topLeftOffset + channel] * (1 - xWeight)
+          + image.data[topRightOffset + channel] * xWeight;
+        const bottom = image.data[bottomLeftOffset + channel] * (1 - xWeight)
+          + image.data[bottomRightOffset + channel] * xWeight;
+        output[outputOffset + channel] = Math.round(top * (1 - yWeight) + bottom * yWeight);
+      }
+    }
+  }
+
+  return { width: targetWidth, height: targetHeight, data: output };
+}
+
+function compositeRenderResultInsideMask(baseImageDataUrl, generatedImageDataUrl, maskImageDataUrl) {
+  const baseImage = decodeRenderImageDataUrl(baseImageDataUrl);
+  const maskImage = decodeRenderImageDataUrl(maskImageDataUrl);
+  if (baseImage.width !== maskImage.width || baseImage.height !== maskImage.height) {
+    throw new Error("현장 사진과 적용 영역 마스크의 크기가 일치하지 않습니다.");
+  }
+
+  const generatedImage = resizeRenderImageData(
+    decodeRenderImageDataUrl(generatedImageDataUrl),
+    baseImage.width,
+    baseImage.height
+  );
+  const output = Buffer.from(baseImage.data);
+  for (let offset = 0; offset < output.length; offset += 4) {
+    const editableWeight = 1 - (maskImage.data[offset + 3] / 255);
+    if (editableWeight <= 0) continue;
+    for (let channel = 0; channel < 3; channel += 1) {
+      output[offset + channel] = Math.round(
+        generatedImage.data[offset + channel] * editableWeight
+        + baseImage.data[offset + channel] * (1 - editableWeight)
+      );
+    }
+    output[offset + 3] = baseImage.data[offset + 3];
+  }
+
+  return encodeRenderPngDataUrl({
+    width: baseImage.width,
+    height: baseImage.height,
+    data: output
+  });
+}
+
+function assertRenderMaskMatchesBaseImage(baseImageDataUrl, maskImageDataUrl) {
+  const baseImage = decodeRenderImageDataUrl(baseImageDataUrl);
+  const maskImage = decodeRenderImageDataUrl(maskImageDataUrl);
+  if (baseImage.width !== maskImage.width || baseImage.height !== maskImage.height) {
+    throw new Error("현장 사진과 적용 영역 마스크의 크기가 일치하지 않습니다.");
+  }
+}
+
 function normalizeRenderSurfaceValue(value) {
   if (value === "wall") return "wall";
   if (value === "point") return "point";
   return "floor";
 }
 
-function buildRenderSizeInstruction(tileSize, surface) {
+function buildRenderSizeInstruction(tileSize, surface, tileOrientation = "") {
   const parsed = parseTileSizeSpec(tileSize);
   if (!parsed) {
-    return "Keep the tile module size realistic and consistent with normal installed tile dimensions.";
+    return "STOP: the exact tile module dimensions are unavailable. Do not guess, normalize, or invent a module size.";
   }
 
   const { widthMm, heightMm, ratioLabel, shapeLabel } = parsed;
+  const widthLabel = formatRenderDimensionMm(widthMm);
+  const heightLabel = formatRenderDimensionMm(heightMm);
+  const normalizedOrientation = String(tileOrientation || "").trim().toLowerCase();
   const directionHint = widthMm === heightMm
-    ? "Use an even square module grid."
-    : surface === "wall"
-      ? "Keep the rectangular module orientation natural for wall installation unless the photo strongly suggests another orientation."
-      : "Keep the rectangular module orientation natural for floor installation and perspective."
+    ? `Use an even square module grid. Each grout-to-grout module must remain exactly ${widthLabel}mm by ${heightLabel}mm before perspective projection.`
+    : normalizedOrientation === "vertical"
+      ? `Place the ${formatRenderDimensionMm(Math.max(widthMm, heightMm))}mm long edge vertically and the ${formatRenderDimensionMm(Math.min(widthMm, heightMm))}mm edge horizontally.`
+      : normalizedOrientation === "horizontal"
+        ? `Place the ${formatRenderDimensionMm(Math.max(widthMm, heightMm))}mm long edge horizontally and the ${formatRenderDimensionMm(Math.min(widthMm, heightMm))}mm edge vertically.`
+        : surface === "wall"
+          ? `Preserve the true ${widthLabel}mm by ${heightLabel}mm rectangle. By default place the ${formatRenderDimensionMm(Math.max(widthMm, heightMm))}mm long edge horizontally on the wall, unless the uploaded reference or an explicit user direction clearly requires vertical installation. Never turn it into a square module.`
+          : `Preserve the true ${widthLabel}mm by ${heightLabel}mm rectangle and align it naturally to the floor perspective. Never turn it into a square module.`;
 
-  return `The installed tile module size is ${widthMm}mm x ${heightMm}mm (${ratioLabel}, ${shapeLabel}). Show grout joints and repeat density at that real-world scale. ${directionHint}`;
+  return `HARD MODULE-SIZE RULE: the installed tile module is exactly ${widthLabel}mm x ${heightLabel}mm (${ratioLabel}, ${shapeLabel}) measured grout-joint to grout-joint. Calculate grout lines, module count, repeat density, edge cuts, and perspective from those millimeter dimensions before rendering. For every visible plane span, divide the estimated real span by these exact module edges and leave the remainder as a realistic cut tile instead of rescaling modules to fit. ${directionHint} Do not stretch the texture across several modules and do not subdivide one module into invented smaller tiles.`;
 }
 
 function parseTileSizeSpec(value) {
@@ -4722,9 +5183,13 @@ function parseTileSizeSpec(value) {
   const normalized = raw
     .replace(/[Xx×]/g, "*")
     .replace(/\s+/g, "")
+    .replace(/,/g, "")
     .replace(/mm/gi, "");
 
-  const match = normalized.match(/^(\d{2,4})\*(\d{2,4})$/);
+  const squareMatch = normalized.match(/(?:^|[^0-9.])(\d{1,4}(?:\.\d{1,3})?)각(?:$|[^0-9.])/);
+  const match = squareMatch
+    ? [squareMatch[0], squareMatch[1], squareMatch[1]]
+    : normalized.match(/(?:^|[^0-9.])(\d{1,4}(?:\.\d{1,3})?)\*(\d{1,4}(?:\.\d{1,3})?)(?=$|[^0-9.])/);
   if (!match) return null;
 
   const widthMm = Number(match[1]);
@@ -4737,6 +5202,102 @@ function parseTileSizeSpec(value) {
   const ratioLabel = `${Math.round((bigger / smaller) * 100) / 100}:1`;
 
   return { widthMm, heightMm, shapeLabel, ratioLabel };
+}
+
+function buildRenderPhysicalScaleContract(surfaces = []) {
+  const parsedSurfaces = surfaces
+    .map((entry) => ({
+      surface: normalizeRenderSurfaceValue(entry?.surface),
+      orientation: String(entry?.tileOrientation || "").trim().toLowerCase(),
+      parsed: parseTileSizeSpec(entry?.tileSize)
+    }))
+    .filter((entry) => entry.parsed);
+
+  if (!parsedSurfaces.length) {
+    return "PHYSICAL TILE SCALE CONTRACT: keep every selected tile at a believable real installation scale and never make different tile specifications appear as the same module size.";
+  }
+
+  const surfaceSpecs = parsedSurfaces.map(({ surface, orientation, parsed }) => {
+    const { widthMm, heightMm } = parsed;
+    const oriented = getRenderOrientedTileDimensions(parsed, surface, orientation);
+    return `${surface} uses a true ${formatRenderDimensionMm(widthMm)}mm x ${formatRenderDimensionMm(heightMm)}mm module, oriented as ${formatRenderDimensionMm(oriented.horizontalMm)}mm across the plane and ${formatRenderDimensionMm(oriented.verticalMm)}mm along the perpendicular plane direction; each full module covers ${formatRenderModuleCount((widthMm * heightMm) / 1000000)} square meters`;
+  }).join(". ");
+
+  const pairwiseScaleChecks = [];
+  for (let leftIndex = 0; leftIndex < parsedSurfaces.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < parsedSurfaces.length; rightIndex += 1) {
+      pairwiseScaleChecks.push(buildRenderPairwiseScaleCheck(parsedSurfaces[leftIndex], parsedSurfaces[rightIndex]));
+    }
+  }
+
+  return [
+    "PHYSICAL TILE SCALE CONTRACT: establish one shared real-world millimeter scale for the entire room before applying perspective. Different selected tile sizes must remain proportionally different on their assigned planes.",
+    surfaceSpecs,
+    pairwiseScaleChecks.filter(Boolean).join(" "),
+    "Count grout joints from the actual module edges for EVERY selected tile size, not from a preset example. Perspective may foreshorten the modules in depth, but it must never change their real proportional relationship. Verify module counts against nearby fixtures, doors, drains, and wall-to-floor junctions before returning the image."
+  ].filter(Boolean).join(" ");
+}
+
+function getRenderOrientedTileDimensions(parsed, surface, orientation = "") {
+  const shorter = Math.min(parsed.widthMm, parsed.heightMm);
+  const longer = Math.max(parsed.widthMm, parsed.heightMm);
+  if (parsed.widthMm === parsed.heightMm) {
+    return { horizontalMm: parsed.widthMm, verticalMm: parsed.heightMm };
+  }
+  if (orientation === "vertical") return { horizontalMm: shorter, verticalMm: longer };
+  if (orientation === "horizontal" || surface === "wall") return { horizontalMm: longer, verticalMm: shorter };
+  return { horizontalMm: parsed.widthMm, verticalMm: parsed.heightMm };
+}
+
+function buildRenderPairwiseScaleCheck(left, right) {
+  if (!left?.parsed || !right?.parsed) return "";
+  const leftOriented = getRenderOrientedTileDimensions(left.parsed, left.surface, left.orientation);
+  const rightOriented = getRenderOrientedTileDimensions(right.parsed, right.surface, right.orientation);
+  const leftArea = left.parsed.widthMm * left.parsed.heightMm;
+  const rightArea = right.parsed.widthMm * right.parsed.heightMm;
+  const horizontalRatio = leftOriented.horizontalMm / rightOriented.horizontalMm;
+  const verticalRatio = leftOriented.verticalMm / rightOriented.verticalMm;
+  const areaRatio = leftArea / rightArea;
+  return `PAIRWISE SCALE CHECK (${left.surface} vs ${right.surface}): one ${left.surface} module is ${formatRenderModuleCount(horizontalRatio)} times the ${right.surface} module across the plane, ${formatRenderModuleCount(verticalRatio)} times along the perpendicular plane direction, and ${formatRenderModuleCount(areaRatio)} times its real area. Preserve these relationships even when the two surfaces meet at an angle.`;
+}
+
+function formatRenderDimensionMm(value) {
+  if (!Number.isFinite(value)) return "0";
+  return String(Math.round(value * 1000) / 1000);
+}
+
+function formatRenderModuleCount(value) {
+  if (!Number.isFinite(value)) return "the correct number of";
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 1000000) / 1000000);
+}
+
+function buildRenderFinishInstruction(tileFinish) {
+  const finish = String(tileFinish || "").trim();
+  const normalized = finish.toLowerCase().replace(/[\s_-]+/g, "");
+  if (!normalized) {
+    return "Preserve the surface response visible in the reference image without inventing extra gloss or roughness.";
+  }
+
+  if (/(논슬립|미끄럼방지|antislip|rough|러프)/i.test(normalized)) {
+    return `HARD FINISH RULE (${finish}): render a low-sheen anti-slip surface with fine physical micro-texture, soft scattered highlights, and subtle relief shadows. It must not look polished, mirror-like, wet, or plasticky.`;
+  }
+  if (/(엠보|3d|텍스처|texture|리브드|골지|플루티드)/i.test(normalized)) {
+    return `HARD FINISH RULE (${finish}): preserve the actual raised or recessed relief, directional texture, grazing-light highlights, and contact shadows visible in the reference. Do not flatten it into a printed pattern.`;
+  }
+  if (/(반무광|라파토|lappato|세미글로시|semigloss|satin|새틴)/i.test(normalized)) {
+    return `HARD FINISH RULE (${finish}): render a controlled satin or honed sheen with broad soft reflections and restrained specular highlights. It must sit clearly between polished gloss and fully diffuse matte.`;
+  }
+  if (/(혼드|honed)/i.test(normalized)) {
+    return `HARD FINISH RULE (${finish}): render a smooth honed low-sheen surface with very soft broad highlights, no sharp polished reflection, and enough fine grain to read as a refined matte finish.`;
+  }
+  if (/(유광|폴리싱|polished|gloss|glossy|유약|highgloss|p$)/i.test(normalized)) {
+    return `HARD FINISH RULE (${finish}): render a smooth glossy or polished surface with coherent light reflections, crisp but physically plausible specular highlights, and reflected brightness that follows the real plane perspective. Do not make it a mirror, wet surface, or plastic sheet.`;
+  }
+  if (/(무광|매트|matt|matte|natural|내추럴|m$)/i.test(normalized)) {
+    return `HARD FINISH RULE (${finish}): render a diffuse low-sheen surface with restrained highlights, visible material grain, and natural soft light scattering. It must not show polished reflections or a wet/plastic shine.`;
+  }
+
+  return `HARD FINISH RULE (${finish}): copy the reference surface reflectance, roughness, texture depth, and highlight behavior exactly. Do not substitute a generic glossy or generic matte finish.`;
 }
 
 function dataUrlToBlob(dataUrl) {
@@ -4752,8 +5313,39 @@ function sanitizeFileName(value) {
   return String(value || "tile").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "tile";
 }
 
-async function buildProfessionalProposalDeck(payload) {
-  const normalized = normalizeProposalPayload(payload);
+async function authorizeProposalRequest(request) {
+  const adminContext = readOptionalAdminContextFromRequest(request);
+  if (adminContext.isAdmin) {
+    return {
+      actorType: "admin",
+      actorId: adminContext.adminUsername,
+      memberAccess: {
+        memberGrade: "",
+        priceTier: "wholesale",
+        pricingAccess: "approved"
+      }
+    };
+  }
+
+  const credentials = readMemberProductCredentialsFromRequest(request);
+  const memberAccess = await verifyMemberProductAccess(credentials.businessNumber, credentials.memberToken);
+  return {
+    actorType: "member",
+    actorId: memberAccess.businessNumber,
+    memberAccess
+  };
+}
+
+async function buildProfessionalProposalDeck(payload, actorContext = {}) {
+  const products = await readProducts();
+  const normalized = normalizeSecureProposalPayload(payload, {
+    products,
+    memberAccess: actorContext.memberAccess,
+    allowPriceOverride: actorContext.actorType === "admin",
+    isPublicCatalogProduct,
+    mapMemberProduct,
+    getUnitPrice: getServerOrderUnitPrice
+  });
   await fs.promises.mkdir(proposalOutputDir, { recursive: true });
   await fs.promises.mkdir(proposalTmpDir, { recursive: true });
 
@@ -4771,17 +5363,40 @@ async function buildProfessionalProposalDeck(payload) {
   try {
     const stdout = await execFileAsync(process.execPath, [proposalBuilderPath, requestPath], { cwd: root, maxBuffer: 20 * 1024 * 1024 });
     const result = JSON.parse(stdout.trim() || "{}");
-    const relativePath = path.relative(root, result.outputPath || outputPath).replace(/\\/g, "/");
+    const finalOutputPath = result.outputPath || outputPath;
+    const download = proposalDownloadStore.register(finalOutputPath, path.basename(finalOutputPath));
 
     return {
       ok: true,
-      fileName: path.basename(result.outputPath || outputPath),
-      downloadUrl: `/${relativePath}`,
-      outputPath: result.outputPath || outputPath
+      fileName: path.basename(finalOutputPath),
+      downloadUrl: `/api/proposal-download?token=${encodeURIComponent(download.token)}`,
+      expiresAt: new Date(download.expiresAt).toISOString()
     };
   } finally {
     await fs.promises.rm(requestPath, { force: true });
   }
+}
+
+async function sendProposalDownload(response, token) {
+  const entry = proposalDownloadStore.resolve(token);
+  const encodedName = encodeURIComponent(entry.fileName).replace(/['()]/g, (character) => (
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+  ));
+  const stat = await fs.promises.stat(entry.filePath);
+  response.writeHead(200, {
+    "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "Content-Length": stat.size,
+    "Content-Disposition": `attachment; filename*=UTF-8''${encodedName}`,
+    "Cache-Control": "private, no-store, max-age=0",
+    "X-Content-Type-Options": "nosniff"
+  });
+  await new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(entry.filePath);
+    stream.on("error", reject);
+    response.on("finish", resolve);
+    response.on("close", resolve);
+    stream.pipe(response);
+  });
 }
 
 async function handleServerControl(payload) {
@@ -4824,94 +5439,24 @@ function loadEnvFile(filePath) {
   }
 }
 
-function normalizeProposalPayload(payload) {
-  if (!payload || typeof payload !== "object") {
-    throw new Error("?쒖븞???앹꽦 ?붿껌 ?곗씠?곌? ?꾩슂?⑸땲??");
-  }
-
-  const proposal = payload.proposal || {};
-  const company = payload.company || {};
-  const summary = payload.summary || {};
-  const cart = Array.isArray(payload.cart) ? payload.cart : [];
-  if (!cart.length) {
-    throw new Error("?λ컮援щ땲 ?곹뭹???덉뼱???꾨줈 ?쒖븞?쒕? 留뚮뱾 ???덉뒿?덈떎.");
-  }
-
-  return {
-    proposal: {
-      customerName: String(proposal.customerName || "고객").trim(),
-      customerPhone: String(proposal.customerPhone || "").trim(),
-      siteAddress: String(proposal.siteAddress || "현장 주소 미입력").trim(),
-      startDate: String(proposal.startDate || "").trim(),
-      validDays: Number(proposal.validDays) || 14,
-      proposalDate: String(proposal.proposalDate || new Date().toISOString()),
-      validDate: String(proposal.validDate || new Date().toISOString()),
-      memo: String(proposal.memo || "").trim(),
-      theme: String(proposal.theme || "beige-black").trim() || "beige-black"
-    },
-    company: {
-      name: String(company.name || "타일앤바스플러스").trim(),
-      managerName: String(company.managerName || "").trim(),
-      managerTitle: String(company.managerTitle || "").trim(),
-      managerPhone: String(company.managerPhone || "").trim()
-    },
-    summary: {
-      itemCount: Number(summary.itemCount) || cart.length,
-      subtotal: Number(summary.subtotal) || 0,
-      vat: Number(summary.vat) || 0,
-      total: Number(summary.total) || 0
-    },
-    cart: cart.map((item) => ({
-      id: String(item.id || "").trim(),
-      productType: String(item.productType || "").trim(),
-      kind: String(item.kind || "").trim(),
-      name: String(item.name || "").trim(),
-      size: String(item.size || "").trim(),
-      option: String(item.option || "").trim(),
-      finish: String(item.finish || "").trim(),
-      maker: String(item.maker || "").trim(),
-      unit: String(item.unit || "").trim(),
-      qty: Number(item.qty) || 0,
-      quotePrice: Number(item.quotePrice) || 0,
-      costPrice: Number(item.costPrice) || 0,
-      image: String(item.image || "").trim(),
-      renderedImage: String(item.renderedImage || "").trim(),
-      renderTarget: String(item.renderTarget || "").trim(),
-      renderPointMemo: String(item.renderPointMemo || "").trim(),
-      renderSurfaceSelections: normalizeRenderSurfaceSelections(item.renderSurfaceSelections)
-    }))
-  };
-}
-
-function normalizeRenderSurfaceSelections(value) {
-  const source = value && typeof value === "object" ? value : {};
-  return ["wall", "floor", "point"].reduce((result, surface) => {
-    const entry = source[surface] && typeof source[surface] === "object" ? source[surface] : {};
-    result[surface] = {
-      tileId: String(entry.tileId || "").trim()
-    };
-    return result;
-  }, {});
-}
-
 function buildNarrativePlan(payload) {
   const kinds = [...new Set(payload.cart.map((item) => item.kind).filter(Boolean))];
   return [
-    "# ?꾨줈 ?쒖븞???대윭?곕툕 ?뚮옖",
+    "# 프로 제안서 구성 계획",
     "",
-    `- ???怨좉컼: ${payload.proposal.customerName || "怨좉컼"} / ${payload.proposal.siteAddress || "?꾩옣"}`,
+    `- 대상 고객: ${payload.proposal.customerName || "고객"} / ${payload.proposal.siteAddress || "현장"}`,
     `- 템플릿 타입: ${payload.proposal.theme || "beige-black"}`,
     `- 업체 정보: ${payload.company?.name || "타일앤바스플러스"} / ${payload.company?.managerName || "담당자 미입력"} ${payload.company?.managerTitle ? `(${payload.company.managerTitle})` : ""} / ${payload.company?.managerPhone || "연락처 미입력"}`,
-    "- 紐⑹쟻: ?λ컮援щ땲???닿릿 ??? ?꾩깮?꾧린, 遺?먯옱瑜??꾨Ц ?쒖븞???뺥깭??PPT濡??뺣━",
-    "- ?ㅼ븻留ㅻ꼫: ?명뀒由ъ뼱 ?ㅻТ ?쒖븞?? 源붾걫???뚯옱 以묒떖 鍮꾩＜?? ?ㅼ젣 ?곹뭹 ?대?吏 媛뺤“",
-    "- ?щ씪?대뱶 援ъ꽦:",
-    "  1. 而ㅻ쾭",
-    "  2. ?꾨줈?앺듃 媛쒖슂 諛??듭떖 ?섏튂",
-    "  3. ?좎젙 ?쒗뭹 ?뚭컻",
-    "  4. 異붽? ?좎젙 ?쒗뭹 ?먮뒗 ?ㅼ궗 蹂댁젙 ?대?吏",
-    "  5. 寃ъ쟻 ?붿빟",
-    `- 二쇱슂 遺꾨쪟: ${kinds.join(", ") || "?좎젙 ?덈ぉ"}`,
-    `- 硫붾え: ${payload.proposal.memo || "?놁쓬"}`,
+    "- 목적: 장바구니에서 선택한 타일, 위생도기, 부자재를 고객용 제안서로 정리",
+    "- 디자인 방향: 실제 상품 이미지와 현장 적용 결과를 중심으로 간결하게 구성",
+    "- 슬라이드 구성:",
+    "  1. 표지",
+    "  2. 프로젝트 개요 및 핵심 제안",
+    "  3. 선정 상품 소개",
+    "  4. 현장 적용 이미지",
+    "  5. 견적 요약",
+    `- 주요 분류: ${kinds.join(", ") || "선정 품목"}`,
+    `- 메모: ${payload.proposal.memo || "없음"}`,
     ""
   ].join("\n");
 }

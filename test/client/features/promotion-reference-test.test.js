@@ -85,9 +85,9 @@ test("promotion reference page does not expose internal product metadata", () =>
 });
 
 test("approved promotion design is mounted only on the guest home", () => {
-  assert.match(appHtml, /id="guestHomeGate"[\s\S]*data-promo-source="\/promotion-reference-test\.html\?v=20260803-wrap3"/);
-  assert.match(appHtml, /promotion-reference-test\.css\?v=20260803-wrap3/);
-  assert.match(appHtml, /promotion-reference-test\.js\?v=20260803-wrap3/);
+  assert.match(appHtml, /id="guestHomeGate"[\s\S]*data-promo-source="\/promotion-reference-test\.html\?v=[^"]+"/);
+  assert.match(appHtml, /promotion-reference-test\.css\?v=[^"]+/);
+  assert.match(appHtml, /promotion-reference-test\.js\?v=[^"]+/);
   assert.doesNotMatch(html, /promo-scroll-link|>SCROLL</);
   assert.doesNotMatch(css, /promo-scroll-link|promo-scroll-pulse/);
   assert.match(html, /field-cart-tile-preview-20260802\.webp/);

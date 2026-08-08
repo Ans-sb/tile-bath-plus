@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>자재GO SketchUp 연동</title>
+    <link rel="stylesheet" href="dialog.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <span>JAJAEGO</span>
+      <strong>SketchUp 연동</strong>
+    </header>
+    <main>
+      <section class="connect-panel">
+        <label>로컬 서버<input id="apiBase" type="url" value="http://localhost:4173" /></label>
+        <label>연동 코드<input id="pairingCode" type="text" maxlength="6" placeholder="ABC234" autocomplete="off" /></label>
+        <button id="connectButton" type="button">타일 불러오기</button>
+        <p id="status" aria-live="polite">자재GO 웹에서 만든 6자리 코드를 입력하세요.</p>
+      </section>
+      <section class="package-panel" id="packagePanel" hidden>
+        <div class="package-heading">
+          <div><span id="projectMeta"></span><strong id="projectName"></strong></div>
+          <small id="packageOptions"></small>
+        </div>
+        <div class="layout-controls">
+          <label>가로 시작점<input id="offsetX" type="number" min="-5000" max="5000" step="1" value="0" /><span>mm</span></label>
+          <label>세로 시작점<input id="offsetY" type="number" min="-5000" max="5000" step="1" value="0" /><span>mm</span></label>
+          <div><small>줄눈</small><strong id="groutPreview"><i></i><b>2mm</b></strong></div>
+        </div>
+        <div class="material-list" id="materialList"></div>
+      </section>
+      <section class="usage-panel" id="usagePanel" hidden>
+        <strong>최근 적용 결과</strong>
+        <div id="usageResult"></div>
+      </section>
+    </main>
+    <footer><button id="helpButton" type="button">연결 방법</button><span>자재GO Local Connector 0.2</span></footer>
+    <script src="dialog.js"></script>
+  </body>
+</html>

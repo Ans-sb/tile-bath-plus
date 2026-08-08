@@ -1,4 +1,10 @@
 async function handleMediaRoutes(request, response, context) {
+  if (request.method === "GET" && request.url.startsWith("/api/proposal-download")) {
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    await context.sendProposalDownload(response, url.searchParams.get("token"));
+    return true;
+  }
+
   if (request.method === "GET" && request.url.startsWith("/api/image-data-url")) {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const imageUrl = String(url.searchParams.get("url") || "").trim();
@@ -44,8 +50,9 @@ async function handleMediaRoutes(request, response, context) {
   }
 
   if (request.method === "POST" && request.url === "/api/proposal-ppt") {
-    const payload = JSON.parse(await context.readRequestBody(request));
-    context.sendJson(response, 200, await context.buildProfessionalProposalDeck(payload));
+    const actorContext = await context.authorizeProposalRequest(request);
+    const payload = JSON.parse(await context.readRequestBody(request, { bodyLimit: 16 * 1024 * 1024 }) || "{}");
+    context.sendJson(response, 200, await context.buildProfessionalProposalDeck(payload, actorContext));
     return true;
   }
 

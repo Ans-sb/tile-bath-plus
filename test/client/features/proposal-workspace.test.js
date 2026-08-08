@@ -9,17 +9,26 @@ const appJs = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(rootDir, "styles.css"), "utf8");
 
 test("proposal page presents a compact three-step workflow", () => {
-  assert.match(indexHtml, /class="proposal-workflow-steps"/);
-  assert.match(indexHtml, /<strong>현장 정보<\/strong>/);
-  assert.match(indexHtml, /<strong>상품 선택<\/strong>/);
-  assert.match(indexHtml, /<strong>확인·다운로드<\/strong>/);
+  assert.match(indexHtml, /<span class="proposal-step-badge">1<\/span>[\s\S]*?<h2>제안서 내용<\/h2>/);
+  assert.match(indexHtml, /<span class="proposal-step-badge">2<\/span>[\s\S]*?<h3>상품 선택<\/h3>/);
+  assert.match(indexHtml, /<span class="proposal-step-badge">3<\/span>[\s\S]*?<strong>제안서 확인<\/strong>/);
   assert.match(indexHtml, /<details class="wide proposal-advanced-panel">/);
-  assert.match(indexHtml, /id="createProProposalBtn"[^>]*>제안서 다운로드<\/button>/);
-  assert.match(indexHtml, /class="proposal-theme-options"/);
-  assert.match(indexHtml, />심플<\/span>/);
-  assert.match(indexHtml, />모던<\/span>/);
-  assert.match(indexHtml, />내추럴<\/span>/);
+  assert.match(indexHtml, /id="createProProposalBtn"[^>]*>프로 제안서 만들기<\/button>/);
+  assert.match(indexHtml, /class="proposal-template-grid"/);
+  assert.match(indexHtml, /<strong>클린 비즈니스<\/strong>/);
+  assert.match(indexHtml, /<strong>비주얼 프리미엄<\/strong>/);
+  assert.match(indexHtml, /<strong>웜 인테리어<\/strong>/);
   assert.doesNotMatch(indexHtml, /Proposal Template|Choose What To Include|Company Info|Minimal Proposal|Creative Brief|Warm Neutral/);
+});
+
+test("proposal generation sends the active member or admin session to the server", () => {
+  const start = appJs.indexOf("async function generateProfessionalProposalDeck(");
+  const end = appJs.indexOf("function showProposalGenerationDialog(", start);
+  const source = appJs.slice(start, end);
+
+  assert.match(source, /getAdminAuthHeaders\(\{ "Content-Type": "application\/json" \}\)/);
+  assert.match(source, /getMemberProductAuthHeaders\(\{ "Content-Type": "application\/json" \}\)/);
+  assert.match(source, /timeoutMs:\s*120000/);
 });
 
 test("proposal workspace stays split on desktop and stacks on mobile", () => {

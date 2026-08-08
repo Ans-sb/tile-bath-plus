@@ -360,7 +360,7 @@
   }
 
   function parseTileDimensionsMeters(size, surface = "floor", orientation = "horizontal") {
-    const matches = String(size || "").match(/(\d{2,4})\D+(\d{2,4})/);
+    const matches = String(size || "").replace(/,/g, "").match(/(\d{1,4}(?:\.\d{1,3})?)\s*(?:x|×|\*)\s*(\d{1,4}(?:\.\d{1,3})?)/i);
     const dimensions = !matches
       ? (surface === "floor" ? { width: 0.6, height: 0.6 } : { width: 0.3, height: 0.6 })
       : {

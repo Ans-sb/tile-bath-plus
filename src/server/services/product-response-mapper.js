@@ -58,6 +58,7 @@ function createProductResponseMapper({
         modelName: String(customerProduct.modelName || "").trim() === String(customerProduct.name || "").trim()
           ? customerName
           : String(customerProduct.modelName || customerName).trim(),
+        thickness: String(customerProduct.thickness || "").trim(),
         material: String(customerProduct.material || "").trim(),
         surface: String(customerProduct.surface || "").trim(),
         patternCategory: String(customerProduct.patternCategory || "").trim() || classifyPatternCategory(customerProduct),
@@ -67,6 +68,8 @@ function createProductResponseMapper({
         countryOfOrigin: String(customerProduct.countryOfOrigin || "").trim(),
         maker: "",
         unit: String(customerProduct.unit || "").trim(),
+        boxPcs: Number(customerProduct.boxPcs || customerProduct.box_pcs || 0) || 0,
+        boxSqm: Number(customerProduct.boxSqm || customerProduct.box_sqm || 0) || 0,
         option: String(customerProduct.option || "").trim(),
         stockQty: shouldHideStock ? 0 : Number(customerProduct.stockQty) || 0,
         stockText: shouldHideStock ? "" : String(customerProduct.stockText || "").trim(),

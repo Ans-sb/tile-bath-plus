@@ -48,6 +48,8 @@ test("quick login is the primary section and business login is stacked below it"
 
   assert.ok(quickLoginIndex >= 0);
   assert.ok(businessLoginIndex > quickLoginIndex);
+  assert.match(indexHtml, /사업자등록번호 또는 관리자 아이디/);
+  assert.doesNotMatch(indexHtml, /name="businessNumber"[^>]*inputmode="numeric"/);
   assert.match(
     fs.readFileSync(path.join(rootDir, "styles.css"), "utf8"),
     /#loginPage\.login-workspace\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)/

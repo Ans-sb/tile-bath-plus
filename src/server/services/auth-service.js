@@ -39,6 +39,32 @@ function readOptionalAdminContextFromRequest(request, config) {
   };
 }
 
+function loginAsConfiguredAdmin(credentials, config) {
+  const username = String(credentials?.username || credentials?.identifier || "").trim();
+  const password = String(credentials?.password || "");
+  const configuredUsername = String(config?.adminUsername || "").trim();
+  const configuredPassword = String(config?.adminPassword || "");
+  if (!username || !password || !configuredUsername || !configuredPassword) return null;
+  if (!accountSession.safeEqualText(username, configuredUsername)) return null;
+  if (!accountSession.safeEqualText(password, configuredPassword)) return null;
+
+  return {
+    ok: true,
+    user: {
+      role: "admin",
+      adminUsername: configuredUsername,
+      name: String(config?.adminDisplayName || "내부관리자").trim(),
+      companyName: String(config?.adminDisplayName || "자재GO 관리자").trim(),
+      provider: "관리자 직접 로그인",
+      approvalStatus: "승인",
+      pricingAccess: "approved",
+      memberGrade: "관리자",
+      priceTier: "internal",
+      adminToken: accountSession.createAdminToken(config)
+    }
+  };
+}
+
 function loginAsConfiguredSocialAdmin(profile, config) {
   if (normalizeSocialProviderOptional(profile?.provider) !== "naver") return null;
 
@@ -79,6 +105,7 @@ function parseAdminNaverIdentifiers(value) {
 
 module.exports = {
   assertAdminCredentials,
+  loginAsConfiguredAdmin,
   loginAsConfiguredSocialAdmin,
   parseAdminNaverIdentifiers,
   readAdminCredentialsFromRequest,

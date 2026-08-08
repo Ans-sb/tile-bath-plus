@@ -13,8 +13,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-    <link rel="stylesheet" href="styles.css?v=20260803-floating-controls1" />
-    <link rel="stylesheet" href="promotion-reference-test.css?v=20260803-wrap3" />
+  <link rel="stylesheet" href="styles.css?v=20260806-point-area1" />
+    <link rel="stylesheet" href="promotion-reference-test.css?v=20260809-marquee1" />
     <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260803-product-link1" />
   </head>
   <body>
@@ -68,7 +68,7 @@
           <button type="button" data-page-target="productsPage">타일GO</button>
           <button type="button" data-page-target="bathProductsPage">바스GO</button>
           <button type="button" data-page-target="aiTileFinderPage">AI 타일검색</button>
-          <button type="button" data-page-target="plannerPage">시공 미리보기</button>
+          <button type="button" data-page-target="renderPage">시공 미리보기</button>
         </nav>
 
         <button class="topbar-search" type="button" data-page-target="taxonomyTestPage">
@@ -145,7 +145,7 @@
             <span class="nav-glyph">MY</span>
             <span class="nav-copy">마이페이지</span>
           </button>
-          <button class="customer-nav-button" type="button" data-page-target="plannerPage">
+          <button class="customer-nav-button" type="button" data-page-target="renderPage">
             <span class="nav-glyph">3D</span>
             <span class="nav-copy">시공 미리보기</span>
           </button>
@@ -185,7 +185,7 @@
             <section
               class="guest-home-gate promo-layout"
               id="guestHomeGate"
-              data-promo-source="/promotion-reference-test.html?v=20260803-wrap3"
+              data-promo-source="/promotion-reference-test.html?v=20260809-marquee1"
               aria-label="자재GO 사업자 회원 시작"
             >
               <section class="guest-promotion-hero" aria-labelledby="guestPromotionTitle">
@@ -287,6 +287,38 @@
               </header>
 
               <div class="square-main-grid">
+                <section class="member-agent-home" aria-labelledby="memberAgentTitle">
+                  <div class="member-agent-copy">
+                    <p class="member-agent-eyebrow"><span aria-hidden="true"></span> AI 자재 영업사원</p>
+                    <h1 id="memberAgentTitle">어떤 자재가<br />필요하세요?</h1>
+                    <p class="member-agent-description">현장에서 쓰는 말이나 사진으로 알려주세요. 조건을 해석해 맞는 상품부터 찾아드립니다.</p>
+                  </div>
+
+                  <div class="member-agent-search-panel">
+                    <form class="member-agent-search-form" id="memberAgentSearchForm" role="search">
+                      <label class="sr-only" for="memberAgentSearchInput">찾을 자재 설명</label>
+                      <span class="member-agent-search-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="m20 20-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z"></path></svg>
+                      </span>
+                      <input id="memberAgentSearchInput" type="search" maxlength="180" autocomplete="off" placeholder="예: 욕실 바닥용 600각 무광 베이지 스톤 타일" />
+                      <input class="sr-only" id="memberAgentImageInput" type="file" accept="image/*" />
+                      <label class="member-agent-image-button" for="memberAgentImageInput" title="사진으로 찾기">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l1.4-2h7.2L17 7h3v12H4V7Zm8 2.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"></path></svg>
+                        <span>사진</span>
+                      </label>
+                      <button class="member-agent-submit" id="memberAgentSearchBtn" type="submit">찾기</button>
+                    </form>
+
+                    <div class="member-agent-quick-queries" id="memberAgentQuickQueries" aria-label="빠른 검색 예시">
+                      <button type="button" data-member-agent-query="600각 무광 베이지 스톤 타일">600각 무광 베이지</button>
+                      <button type="button" data-member-agent-query="욕실 벽 화이트 유광 타일">욕실 벽 화이트 유광</button>
+                      <button type="button" data-member-agent-query="외부 바닥 논슬립 타일">외부 바닥 논슬립</button>
+                    </div>
+                    <p class="member-agent-status" id="memberAgentStatus" aria-live="polite"></p>
+                  </div>
+
+                </section>
+
                 <section class="square-main-intro">
                   <img src="images/branding/btn-material-go.png?v=20260429-goentry2" alt="자재GO" decoding="async" />
                   <div>
@@ -336,7 +368,7 @@
                   </span>
                 </button>
 
-                <button class="square-main-tile square-main-photo mosaic-planner-tile" type="button" data-page-target="plannerPage">
+                <button class="square-main-tile square-main-photo mosaic-planner-tile" type="button" data-page-target="renderPage">
                   <img src="images/branding/home-construction-preview-blue-20260728.webp?v=20260728-performance1" alt="" loading="eager" decoding="async" data-site-image="homePlanner" />
                   <span class="square-main-label">
                     <span>
@@ -1113,8 +1145,8 @@
           </div>
           <form id="loginForm" class="form-grid login-business-form">
             <label>
-              사업자등록번호
-              <input name="businessNumber" type="text" inputmode="numeric" autocomplete="username" placeholder="123-45-67890" required />
+              사업자등록번호 또는 관리자 아이디
+              <input name="businessNumber" type="text" autocomplete="username" placeholder="사업자등록번호 / 관리자 아이디" required />
             </label>
             <label>
               비밀번호
@@ -1122,7 +1154,7 @@
             </label>
             <button class="primary-action wide" type="submit">로그인</button>
           </form>
-          <div class="signup-status-bar" id="loginStatus">사업자등록번호와 비밀번호로 로그인할 수 있습니다.</div>
+          <div class="signup-status-bar" id="loginStatus">사업자등록번호 또는 관리자 아이디와 비밀번호로 로그인할 수 있습니다.</div>
         </section>
       </main>
 
@@ -2062,7 +2094,8 @@
           </div>
           <div class="detail-actions">
             <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
-            <button class="primary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
+            <button class="secondary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
+            <button class="primary-action cart-proposal-action" type="button" data-page-target="proposalPage">제안서 만들기</button>
           </div>
         </section>
         <section class="commerce-panel customer-cart-panel">
@@ -2080,8 +2113,9 @@
           <div class="cost-summary" id="costSummary"></div>
           <div class="customer-cart-actions">
             <button class="secondary-action" type="button" data-page-target="taxonomyTestPage">상품 더 담기</button>
-            <button class="primary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
-            <button class="secondary-action" type="button" data-page-target="plannerPage">3D 시공 보기</button>
+            <button class="secondary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
+            <button class="secondary-action" type="button" data-page-target="renderPage">시공 미리보기</button>
+            <button class="primary-action cart-proposal-action" type="button" data-page-target="proposalPage">제안서 만들기</button>
           </div>
         </section>
       </main>
@@ -2114,6 +2148,7 @@
               <button type="button" data-my-page-view-target="account"><span>07</span>계정·등급</button>
               <button type="button" data-page-target="renderPage"><span>08</span>실사보정</button>
               <button type="button" data-page-target="proposalPage"><span>09</span>제안서</button>
+              <button type="button" data-page-target="sketchupPage"><span>10</span>SketchUp 연동</button>
             </nav>
           </aside>
 
@@ -2205,6 +2240,108 @@
           </article>
           </section>
         </div>
+      </main>
+
+      <main class="app-page page-panel customer-page sketchup-page" id="sketchupPage">
+        <section class="page-heading customer-page-heading sketchup-page-heading">
+          <div>
+            <p class="eyebrow">SKETCHUP MATERIAL CONNECTOR</p>
+            <h2>SketchUp 연동</h2>
+            <p>장바구니 타일을 실제 규격의 재질로 만들어 SketchUp 면에 적용합니다.</p>
+          </div>
+          <div class="detail-actions">
+            <a class="secondary-action" href="downloads/jajaego-sketchup-local.rbz" download>확장 프로그램 받기</a>
+            <button class="secondary-action" type="button" data-page-target="cartPage">장바구니</button>
+            <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
+          </div>
+        </section>
+
+        <div class="sketchup-progress" aria-label="SketchUp 연동 단계">
+          <div class="is-active"><span>01</span><strong>프로젝트</strong></div>
+          <div><span>02</span><strong>타일 선택</strong></div>
+          <div><span>03</span><strong>코드 연결</strong></div>
+          <div><span>04</span><strong>면 적용</strong></div>
+        </div>
+
+        <section class="sketchup-layout">
+          <form class="sketchup-builder" id="sketchupPackageForm">
+            <section class="sketchup-section">
+              <header>
+                <span>01</span>
+                <div>
+                  <strong>프로젝트 정보</strong>
+                  <small>SketchUp에서 확인할 작업명을 입력합니다.</small>
+                </div>
+              </header>
+              <div class="sketchup-project-grid">
+                <label>프로젝트명<input id="sketchupProjectName" type="text" maxlength="120" value="자재GO 타일 프로젝트" required /></label>
+                <label>현장명<input id="sketchupSiteName" type="text" maxlength="120" placeholder="예: 성수동 상가" /></label>
+                <label>공간<input id="sketchupRoomName" type="text" maxlength="120" placeholder="예: 1층 욕실" /></label>
+                <label>줄눈 간격<input id="sketchupGroutMm" type="number" min="0" max="20" step="1" value="2" /><em>mm</em></label>
+                <label>줄눈 색상<span class="sketchup-color-input"><input id="sketchupGroutColor" type="color" value="#d8d5cf" /><b id="sketchupGroutColorValue">#D8D5CF</b></span></label>
+                <label>가로 시작점<input id="sketchupOffsetX" type="number" min="-5000" max="5000" step="1" value="0" /><em>mm</em></label>
+                <label>세로 시작점<input id="sketchupOffsetY" type="number" min="-5000" max="5000" step="1" value="0" /><em>mm</em></label>
+                <label>로스율<input id="sketchupWastePercent" type="number" min="0" max="50" step="1" value="10" /><em>%</em></label>
+                <label class="is-wide">메모<textarea id="sketchupProjectNote" rows="2" maxlength="800" placeholder="시공 방향이나 현장 특이사항"></textarea></label>
+              </div>
+            </section>
+
+            <section class="sketchup-section">
+              <header>
+                <span>02</span>
+                <div>
+                  <strong>타일 선택</strong>
+                  <small>전체 타일 DB 또는 장바구니에서 검색합니다.</small>
+                </div>
+              </header>
+              <div class="sketchup-product-tools">
+                <div class="sketchup-source-tabs" role="tablist" aria-label="타일 검색 범위">
+                  <button class="is-active" type="button" data-sketchup-source="catalog" aria-selected="true">전체 타일</button>
+                  <button type="button" data-sketchup-source="cart" aria-selected="false">장바구니</button>
+                </div>
+                <label class="sketchup-product-search">
+                  <span class="sr-only">타일 검색</span>
+                  <input id="sketchupProductSearch" type="search" placeholder="품명, 품번, 규격, 색상, 마감 검색" autocomplete="off" />
+                </label>
+                <span class="sketchup-product-count" id="sketchupProductCount"></span>
+              </div>
+              <div class="sketchup-product-list" id="sketchupProductList"></div>
+              <button class="secondary-action sketchup-load-more" id="sketchupLoadMoreBtn" type="button" hidden>더 보기</button>
+            </section>
+
+            <div class="sketchup-submit-row">
+              <p id="sketchupPackageStatus" aria-live="polite">타일을 선택한 뒤 연동 코드를 만드세요.</p>
+              <button class="primary-action" id="sketchupCreatePackageBtn" type="submit">연동 코드 만들기</button>
+            </div>
+          </form>
+
+          <aside class="sketchup-connector-panel">
+            <section class="sketchup-code-card" id="sketchupCodeCard">
+              <span>PAIRING CODE</span>
+              <strong id="sketchupPairingCode">------</strong>
+              <p>SketchUp 확장 프로그램에 이 코드를 입력하면 선택한 타일이 연결됩니다.</p>
+              <button class="secondary-action" id="sketchupCopyCodeBtn" type="button" disabled>코드 복사</button>
+            </section>
+            <section class="sketchup-install-card">
+              <span>LOCAL SETUP</span>
+              <ol>
+                <li>확장 프로그램 관리자에서 RBZ를 설치합니다.</li>
+                <li>확장 메뉴의 자재GO 연동을 엽니다.</li>
+                <li>코드를 입력하고 연결합니다.</li>
+                <li>면을 선택한 뒤 타일 적용을 누릅니다.</li>
+              </ol>
+              <small>SketchUp Desktop 전용 · 로컬 서버가 켜져 있어야 합니다.</small>
+            </section>
+            <section class="sketchup-report-card">
+              <header><span>APPLIED SURFACES</span><strong>적용 결과</strong></header>
+              <div id="sketchupReportList">아직 적용된 면이 없습니다.</div>
+            </section>
+            <section class="sketchup-recent-card">
+              <header><span>RECENT PROJECTS</span><strong>최근 연동 작업</strong></header>
+              <div id="sketchupRecentPackages"><p>최근 작업을 불러오는 중입니다.</p></div>
+            </section>
+          </aside>
+        </section>
       </main>
 
       <main class="app-page page-panel customer-page planner-page planner-photo-page" id="plannerPage">
@@ -2347,9 +2484,9 @@
             <h2>제안서 만들기</h2>
           </div>
           <ol class="proposal-workflow-steps" aria-label="제안서 작성 단계">
-            <li><span>1</span><strong>현장 정보</strong></li>
-            <li><span>2</span><strong>상품 선택</strong></li>
-            <li><span>3</span><strong>확인·다운로드</strong></li>
+            <li><span>1</span><strong>내용 편집</strong></li>
+            <li><span>2</span><strong>상품 확인</strong></li>
+            <li><span>3</span><strong>프로 제안서</strong></li>
           </ol>
           <button class="secondary-action" type="button" data-back-action>뒤로가기</button>
         </header>
@@ -2357,10 +2494,14 @@
           <div class="panel-heading">
             <div>
               <span class="proposal-step-badge">1</span>
-              <h2>현장 정보</h2>
+              <h2>제안서 내용</h2>
             </div>
           </div>
           <form id="proposalForm" class="form-grid">
+            <label class="wide proposal-title-field">
+              제안서 제목
+              <input name="proposalTitle" type="text" value="현장 맞춤 제안서" maxlength="48" />
+            </label>
             <label>
               고객명
               <input name="customerName" type="text" value="고객님" />
@@ -2386,36 +2527,81 @@
               </select>
             </label>
             <label class="wide">
-              제안 메모
-              <textarea name="memo" rows="3" placeholder="현장 특이사항, 고객 요청사항"></textarea>
+              제안 개요
+              <textarea name="proposalIntro" rows="4" maxlength="500" placeholder="선정한 자재와 제안 방향을 입력하세요."></textarea>
             </label>
+            <label class="wide">
+              안내 사항
+              <textarea name="proposalNotice" rows="3" maxlength="400" placeholder="견적 유효기간, 재고와 시공 조건 등 고객 안내 내용을 입력하세요."></textarea>
+            </label>
+            <label class="wide">
+              추가 요청사항
+              <textarea name="memo" rows="2" maxlength="300" placeholder="현장 특이사항 또는 고객 요청사항"></textarea>
+            </label>
+            <section class="wide proposal-template-picker" aria-labelledby="proposalTemplateHeading">
+              <div class="proposal-template-heading" id="proposalTemplateHeading">
+                <div>
+                  <span class="proposal-template-heading-mark">FORM</span>
+                  <div>
+                    <strong>제안서 폼 선택</strong>
+                    <small>예시를 보고 고객과 현장에 맞는 형식을 선택하세요.</small>
+                  </div>
+                </div>
+                <span>3개 폼</span>
+              </div>
+              <div class="proposal-template-grid">
+                <label class="proposal-template-card is-selected">
+                  <input name="proposalTheme" type="radio" value="beige-black" checked />
+                  <span class="proposal-template-visual template-preview-beige-black" aria-hidden="true">
+                    <img class="clean-business-template-thumb" src="images/proposal-templates/clean-business-preview.png" alt="" />
+                  </span>
+                  <span class="proposal-template-card-copy">
+                    <span class="proposal-template-kicker">Form 01</span>
+                    <strong>클린 비즈니스</strong>
+                    <span>상품·규격·견적을 정돈해 전달하는 기본 제안서</span>
+                  </span>
+                </label>
+                <label class="proposal-template-card">
+                  <input name="proposalTheme" type="radio" value="beige-red" />
+                  <span class="proposal-template-visual template-preview-beige-red" aria-hidden="true">
+                    <span class="proposal-template-visual-cover">
+                      <span>JAJAEGO</span>
+                      <strong>VISUAL</strong>
+                    </span>
+                    <span class="proposal-template-visual-pages"><span></span><span></span><span></span></span>
+                  </span>
+                  <span class="proposal-template-card-copy">
+                    <span class="proposal-template-kicker">Form 02</span>
+                    <strong>비주얼 프리미엄</strong>
+                    <span>상품 이미지와 실사 보정 결과를 크게 보여주는 제안서</span>
+                  </span>
+                </label>
+                <label class="proposal-template-card">
+                  <input name="proposalTheme" type="radio" value="beige-brown" />
+                  <span class="proposal-template-visual template-preview-beige-brown" aria-hidden="true">
+                    <span class="proposal-template-visual-cover">
+                      <span>JAJAEGO</span>
+                      <strong>WARM</strong>
+                    </span>
+                    <span class="proposal-template-visual-pages"><span></span><span></span><span></span></span>
+                  </span>
+                  <span class="proposal-template-card-copy">
+                    <span class="proposal-template-kicker">Form 03</span>
+                    <strong>웜 인테리어</strong>
+                    <span>공간 이미지와 따뜻한 마감에 집중한 인테리어 제안서</span>
+                  </span>
+                </label>
+              </div>
+            </section>
             <details class="wide proposal-advanced-panel">
               <summary>
-                <span>제안서 설정</span>
+                <span>회사·담당자 정보</span>
                 <small>선택 사항</small>
               </summary>
               <div class="proposal-advanced-content">
-                <fieldset class="proposal-theme-control">
-                  <legend>디자인</legend>
-                  <div class="proposal-theme-options">
-                    <label class="proposal-theme-option">
-                      <input name="proposalTheme" type="radio" value="beige-black" checked />
-                      <span>심플</span>
-                    </label>
-                    <label class="proposal-theme-option">
-                      <input name="proposalTheme" type="radio" value="beige-red" />
-                      <span>모던</span>
-                    </label>
-                    <label class="proposal-theme-option">
-                      <input name="proposalTheme" type="radio" value="beige-brown" />
-                      <span>내추럴</span>
-                    </label>
-                  </div>
-                </fieldset>
                 <div class="proposal-company-grid">
                   <div class="proposal-compact-section-heading">
-                    <strong>회사·담당자 정보</strong>
-                    <small>제안서에 표시됩니다.</small>
+                    <small>제안서 표지와 마지막 페이지에 표시됩니다.</small>
                   </div>
                   <label>
                     회사명
@@ -2474,15 +2660,34 @@
           </section>
         </section>
         <section class="preview-panel proposal-preview-panel">
+          <section class="proposal-template-preview-board" id="proposalTemplatePreviewBoard" data-theme="beige-black" aria-live="polite">
+            <div class="proposal-template-preview-stage template-preview-beige-black" id="proposalTemplatePreviewStage">
+              <img class="clean-business-template-stage-image" src="images/proposal-templates/clean-business-preview.png" alt="클린 비즈니스 제안서 표지 미리보기" />
+              <div class="proposal-template-preview-cover">
+                <span class="proposal-template-preview-brand">JAJAEGO PROPOSAL</span>
+                <strong class="proposal-template-preview-headline">Clean Proposal</strong>
+                <span class="proposal-template-preview-subline">고객 맞춤 자재 제안서</span>
+              </div>
+              <div class="proposal-template-preview-spread" aria-hidden="true">
+                <article></article><article></article><article></article>
+              </div>
+            </div>
+            <div class="proposal-template-preview-copy">
+              <span class="proposal-template-preview-label" id="proposalTemplatePreviewLabel">Form 01</span>
+              <strong id="proposalTemplatePreviewTitle">클린 비즈니스</strong>
+              <p id="proposalTemplatePreviewSummary">상품과 견적을 정돈해 전달하는 기본 제안서입니다.</p>
+              <div class="proposal-template-preview-meta" id="proposalTemplatePreviewMeta"></div>
+            </div>
+          </section>
           <div class="document-actions">
             <div class="proposal-preview-heading">
               <span class="proposal-step-badge">3</span>
               <strong>제안서 확인</strong>
             </div>
-            <button class="primary-action" id="createProProposalBtn" type="button">제안서 다운로드</button>
+            <button class="primary-action" id="createProProposalBtn" type="button">프로 제안서 만들기</button>
             <div class="document-action-status">
-              <span id="proposalPptStatus">상품을 선택한 뒤 다운로드하세요.</span>
-              <a class="hidden" id="proposalPptDownloadLink" href="#" download>다시 다운로드</a>
+              <span id="proposalPptStatus">내용을 확인한 뒤 프로 제안서를 만들어보세요.</span>
+              <a class="hidden" id="proposalPptDownloadLink" href="#" download>프로 제안서 다운로드</a>
             </div>
           </div>
           <div class="document-tabs">
@@ -2493,7 +2698,7 @@
             <div class="doc-brand">
               <div>
                 <p class="eyebrow">자재GO 바스GO</p>
-                <h2>현장 맞춤 제안서</h2>
+                <h2 id="proposalDocumentTitle">현장 맞춤 제안서</h2>
               </div>
               <span id="proposalDate"></span>
             </div>
@@ -2555,6 +2760,17 @@
               <div class="grand-total"><span>총 견적</span><strong id="estimateTotal"></strong></div>
             </div>
           </article>
+          <div class="proposal-generation-overlay hidden" id="proposalGenerationOverlay" aria-hidden="true">
+            <section class="proposal-generation-dialog" role="dialog" aria-modal="true" aria-labelledby="proposalGenerationTitle">
+              <div class="proposal-generation-indicator" id="proposalGenerationIndicator" aria-hidden="true"></div>
+              <strong id="proposalGenerationTitle">프로 제안서를 만들고 있습니다.</strong>
+              <p id="proposalGenerationMessage">선택한 내용과 상품을 제안서에 정리하고 있습니다.</p>
+              <div class="proposal-generation-actions">
+                <a class="primary-action hidden" id="proposalGenerationDownloadLink" href="#" download>PPT 다운로드</a>
+                <button class="secondary-action hidden" id="closeProposalGenerationBtn" type="button">닫기</button>
+              </div>
+            </section>
+          </div>
         </section>
       </main>
 
@@ -2583,6 +2799,30 @@
               <input id="renderSiteImage" type="file" accept="image/*" />
             </label>
           </div>
+
+          <section class="render-surface-guide-panel" id="renderSurfaceGuidePanel">
+            <div class="render-section-heading">
+              <strong>포인트 적용 영역</strong>
+              <span>포인트 타일을 선택한 경우에만 타일이 들어갈 영역을 3점 이상 지정하세요.</span>
+            </div>
+            <div class="render-surface-guide-toolbar">
+              <div class="render-surface-guide-modes" role="group" aria-label="포인트 적용 영역 선택">
+                <button class="render-surface-guide-mode active" type="button" data-render-guide-surface="point" aria-pressed="true">
+                  <span>포인트</span><small data-render-guide-count>0/3</small>
+                </button>
+              </div>
+              <div class="render-surface-guide-actions">
+                <button class="secondary-action" id="undoRenderSurfacePointBtn" type="button">되돌리기</button>
+                <button class="secondary-action" id="clearRenderSurfaceRegionBtn" type="button">영역 지우기</button>
+                <button class="secondary-action" id="resetRenderSurfaceRegionsBtn" type="button">모두 지우기</button>
+              </div>
+            </div>
+            <div class="render-surface-guide-canvas-wrap">
+              <canvas class="hidden" id="renderSurfaceGuideCanvas" aria-label="현장 사진 포인트 적용 영역 지정"></canvas>
+              <div class="render-surface-guide-empty" id="renderSurfaceGuideEmpty">현장 사진을 먼저 올려주세요.</div>
+            </div>
+            <p class="render-surface-guide-status" id="renderSurfaceGuideStatus" aria-live="polite">포인트 타일을 선택한 경우에만 포인트 적용 영역을 지정합니다.</p>
+          </section>
 
           <section class="render-direction-panel">
             <div class="render-section-heading">
@@ -3606,15 +3846,17 @@
     <script src="src/client/features/products/product-detail.js?v=20260724-sample-snt1"></script>
     <script src="src/client/features/cart/cart-tile-metrics.js?v=20260710-module-split5"></script>
     <script src="src/client/features/cart/cart-rendering.js?v=20260713-hs-stock1"></script>
+    <script src="src/client/features/proposal/proposal-payload.js?v=20260805-proposal-security1"></script>
     <script src="src/client/features/admin/admin-products-overview.js?v=20260713-hs-stock1"></script>
     <script src="src/client/features/admin/admin-orders.js?v=20260719-order-db1"></script>
     <script src="src/client/features/admin/site-studio.js?v=20260802-tone-system2"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
+    <script src="src/client/features/sketchup/sketchup-workspace.js?v=20260803-sketchup-local2"></script>
     <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260803-product-link1"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260730-mobile-auth2"></script>
   <script src="promotion-reference-test.js?v=20260803-wrap3"></script>
-    <script src="app.js?v=20260803-tile-ai-product-link1"></script>
+  <script src="app.js?v=20260807-render-all-sizes1"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260730-mobile-auth2"></script>
   </body>
 </html>

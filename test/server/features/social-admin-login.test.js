@@ -1,9 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  loginAsConfiguredAdmin,
   loginAsConfiguredSocialAdmin,
   parseAdminNaverIdentifiers
 } = require("../../../src/server/services/auth-service");
+const { verifyAdminToken } = require("../../../src/server/services/account-session");
 
 const config = {
   adminUsername: "admin",
@@ -11,6 +13,28 @@ const config = {
   adminDisplayName: "자재GO 관리자",
   adminNaverIdentifiers: "owner@example.com,naver-owner-id"
 };
+
+test("configured admin credentials receive a signed admin session", () => {
+  const result = loginAsConfiguredAdmin({
+    username: "admin",
+    password: "server-secret"
+  }, config);
+
+  assert.equal(result.user.role, "admin");
+  assert.equal(result.user.adminUsername, "admin");
+  assert.equal(result.user.provider, "관리자 직접 로그인");
+  assert.equal(result.user.pricingAccess, "approved");
+  assert.ok(verifyAdminToken(result.user.adminToken, config));
+});
+
+test("direct admin login rejects a wrong id, password, or missing server secret", () => {
+  assert.equal(loginAsConfiguredAdmin({ username: "wrong", password: "server-secret" }, config), null);
+  assert.equal(loginAsConfiguredAdmin({ username: "admin", password: "wrong" }, config), null);
+  assert.equal(loginAsConfiguredAdmin({ username: "admin", password: "server-secret" }, {
+    ...config,
+    adminPassword: ""
+  }), null);
+});
 
 test("configured Naver email receives an admin session", () => {
   const result = loginAsConfiguredSocialAdmin({
