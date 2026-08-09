@@ -102,11 +102,86 @@ test("tile assistant adds a safe product search action for recommendation questi
   assert.equal(result.actions.length, 1);
   assert.deepEqual(result.actions[0], {
     type: "open-product-search",
-    label: "추천 상품 보기",
+    label: "전체 검색 결과",
     targetPage: "productsPage",
     query: "600*600 바닥 무광 베이지 스톤"
   });
   assert.doesNotMatch(JSON.stringify(result.actions), /brand|supplier|cost|원가|공급처/i);
+});
+
+test("tile sales agent interprets Korean field terms and asks only one missing condition", async () => {
+  const service = createTileAssistantService();
+  const result = await service.answer({ message: "카페에 쓸 베이지 타일 추천해줘" });
+
+  assert.equal(result.stage, "조건확인");
+  assert.deepEqual(result.missingConditions, ["application", "size", "finish"]);
+  assert.match(result.message, /벽에 시공할 타일인지, 바닥에 시공할 타일인지/);
+  assert.doesNotMatch(result.message, /원하는 규격을 알려주세요/);
+});
+
+test("tile sales agent returns five to ten safe catalog comparisons", async () => {
+  let searched;
+  const service = createTileAssistantService({
+    searchCatalog: async (payload) => {
+      searched = payload;
+      return {
+        results: Array.from({ length: 8 }, (_, index) => ({
+          id: `tile-${index}`,
+          name: `베이지 스톤 ${index + 1}`,
+          size: "600*600",
+          finish: "무광",
+          color: "베이지",
+          style: "스톤",
+          material: "포세린",
+          image: `/tiles/${index}.jpg`,
+          widthMm: 600,
+          heightMm: 600,
+          sqmPerBox: 1.44,
+          reasons: ["규격 일치", "마감 일치"],
+          internalBrandName: "SHOULD_NOT_LEAK",
+          supplierName: "SHOULD_NOT_LEAK",
+          cost: 1000
+        }))
+      };
+    }
+  });
+
+  const result = await service.answer({ message: "카페 바닥에 쓸 베이지 스톤 600각 무광" });
+
+  assert.equal(searched.query, "600*600 바닥 무광 베이지 스톤");
+  assert.equal(result.stage, "상품추천");
+  assert.equal(result.recommendations.length, 8);
+  assert.equal(result.actions.some((action) => action.targetPage === "samplePage"), true);
+  assert.doesNotMatch(JSON.stringify(result), /SHOULD_NOT_LEAK|internalBrand|supplier|cost/i);
+});
+
+test("tile sales agent calculates quantity and advances the project stage", async () => {
+  const service = createTileAssistantService({
+    searchCatalog: async () => ({
+      results: [{
+        id: "tile-1",
+        name: "베이지 스톤",
+        size: "600*600",
+        finish: "무광",
+        widthMm: 600,
+        heightMm: 600,
+        sqmPerBox: 1.44
+      }]
+    })
+  });
+  const result = await service.answer({
+    message: "카페 바닥 베이지 스톤 600각 무광, 면적은 32㎡이고 로스 10%로 계산해줘"
+  });
+
+  assert.equal(result.stage, "물량계산");
+  assert.deepEqual(result.quantityEstimate, {
+    areaSqm: 32,
+    lossRate: 10,
+    orderAreaSqm: 35.2,
+    boxCount: 25,
+    tileCount: 98
+  });
+  assert.match(result.message, /35\.2㎡/);
 });
 
 test("tile assistant does not add a product action to knowledge or accessory questions", async () => {

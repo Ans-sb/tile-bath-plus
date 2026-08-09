@@ -74,3 +74,26 @@ test("tile assistant route requires JSON requests", async () => {
   });
   assert.equal(sent.status, 415);
 });
+
+test("tile assistant route restores an owned field project", async () => {
+  let sent;
+  let readArgs;
+  const handled = await handleTileAssistantRoutes({
+    method: "GET",
+    url: "/api/tile-assistant/project?projectId=project-1&clientKey=browser-1",
+    headers: { host: "localhost:4173" },
+    socket: { remoteAddress: "127.0.0.1" }
+  }, {}, {
+    resolveTileAssistantActor: async (_request, payload) => ({ type: "guest", id: payload.clientKey }),
+    readTileAssistantProject: async (projectId, actor) => {
+      readArgs = { projectId, actor };
+      return { id: projectId, stage: "상품추천" };
+    },
+    sendJson: (_response, status, body) => { sent = { status, body }; }
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(readArgs, { projectId: "project-1", actor: { type: "guest", id: "browser-1" } });
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.project.stage, "상품추천");
+});

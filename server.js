@@ -44,6 +44,7 @@ const {
   handleTileAssistantRoutes
 } = require("./src/server/features/tile-assistant/tile-assistant-routes");
 const { createTileAssistantService } = require("./src/server/features/tile-assistant/tile-assistant-service");
+const { createTileSalesProjectStore } = require("./src/server/features/tile-assistant/tile-sales-project-store");
 const { normalizeProposalPayload: normalizeSecureProposalPayload } = require("./src/server/features/proposal/proposal-payload-normalizer");
 const { createProposalDownloadStore } = require("./src/server/features/proposal/proposal-download-store");
 
@@ -62,6 +63,7 @@ const adminActionRequestsPath = path.join(root, "data", "admin-action-requests.j
 const ordersPath = path.join(root, "data", "orders.json");
 const siteSettingsPath = path.join(root, "data", "site-settings.json");
 const sketchupPackagesPath = path.join(root, "data", "sketchup-material-packages.json");
+const tileSalesProjectsPath = path.join(root, "data", "tile-sales-projects.json");
 const siteStudioUploadDir = path.join(root, "uploads", "site-studio");
 const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
 const proposalOutputDir = path.join(root, "outputs", "proposals");
@@ -307,7 +309,12 @@ const tileAssistantChatClient = {
   }
 };
 const hermesAdminService = createHermesAdminService({ hermesClient });
-const tileAssistantService = createTileAssistantService({ chatClient: tileAssistantChatClient });
+const tileSalesProjectStore = createTileSalesProjectStore({ filePath: tileSalesProjectsPath });
+const tileAssistantService = createTileAssistantService({
+  chatClient: tileAssistantChatClient,
+  searchCatalog: (payload) => searchTileCatalog({ ...payload, audience: "customer" }),
+  projectStore: tileSalesProjectStore
+});
 const allowTileAssistantRequest = createTileAssistantRateLimiter();
 
 const server = http.createServer(async (request, response) => {
@@ -481,8 +488,41 @@ function getTileAssistantRouteContext() {
     sendJson,
     allowTileAssistantRequest,
     isTileAssistantOriginAllowed,
-    answerTileQuestion: (payload) => tileAssistantService.answer(payload)
+    answerTileQuestion: (payload) => tileAssistantService.answer(payload),
+    resolveTileAssistantActor,
+    readTileAssistantProject: (projectId, actor) => tileSalesProjectStore.readProject(projectId, actor)
   };
+}
+
+async function resolveTileAssistantActor(request, payload = {}) {
+  try {
+    const adminContext = readOptionalAdminContextFromRequest(request);
+    if (adminContext.isAdmin) {
+      return { type: "admin", id: adminContext.adminUsername };
+    }
+  } catch {
+    // Keep the customer-safe assistant available when an old login token
+    // remains in the browser. Internal catalog fields are never returned here.
+  }
+
+  const memberCredentials = readMemberProductCredentialsFromRequest(request);
+  if (memberCredentials.businessNumber || memberCredentials.memberToken) {
+    try {
+      const member = await verifyMemberSessionAccess(
+        memberCredentials.businessNumber,
+        memberCredentials.memberToken
+      );
+      return { type: "member", id: member.businessNumber };
+    } catch {
+      // Continue with an isolated guest project when the member session expired.
+    }
+  }
+
+  const clientKey = String(payload?.clientKey || "")
+    .trim()
+    .replace(/[^a-z0-9_-]/gi, "")
+    .slice(0, 120);
+  return { type: "guest", id: clientKey };
 }
 
 function isTileAssistantOriginAllowed(request) {

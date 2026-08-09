@@ -1314,6 +1314,20 @@ function bindEvents() {
     void openTileAiProductSearch(event.detail?.query);
   });
 
+  document.addEventListener("tile-ai:navigate", (event) => {
+    const targetPage = String(event.detail?.targetPage || "");
+    if (!["samplePage", "quantityCalculatorPage", "proposalPage", "cartPage"].includes(targetPage)) return;
+    event.preventDefault();
+    switchPage(targetPage);
+  });
+
+  document.addEventListener("tile-ai:open-product-detail", (event) => {
+    const productId = String(event.detail?.productId || "").trim();
+    if (!productId) return;
+    event.preventDefault();
+    openProductDetail(productId);
+  });
+
   document.querySelector("#memberAgentSearchForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     void openMemberAgentSearch();

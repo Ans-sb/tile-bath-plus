@@ -37,6 +37,30 @@ function createTileAssistantRateLimiter({
 }
 
 async function handleTileAssistantRoutes(request, response, context) {
+  if (request.method === "GET" && request.url.startsWith("/api/tile-assistant/project")) {
+    if (context.isTileAssistantOriginAllowed && !context.isTileAssistantOriginAllowed(request)) {
+      context.sendJson(response, 403, { error: "허용되지 않은 요청 출처입니다." });
+      return true;
+    }
+    try {
+      const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+      const payload = {
+        projectId: String(url.searchParams.get("projectId") || ""),
+        clientKey: String(url.searchParams.get("clientKey") || "")
+      };
+      const actor = context.resolveTileAssistantActor
+        ? await context.resolveTileAssistantActor(request, payload)
+        : null;
+      const project = context.readTileAssistantProject
+        ? await context.readTileAssistantProject(payload.projectId, actor)
+        : null;
+      context.sendJson(response, 200, { ok: true, project });
+    } catch (error) {
+      context.sendJson(response, Number(error?.statusCode || 400), { error: String(error?.message || "현장 상담 기록을 불러오지 못했습니다.") });
+    }
+    return true;
+  }
+
   if (request.method !== "POST" || request.url !== "/api/tile-assistant/chat") return false;
 
   const contentType = String(request.headers?.["content-type"] || "").toLowerCase();
@@ -55,7 +79,15 @@ async function handleTileAssistantRoutes(request, response, context) {
 
   try {
     const payload = JSON.parse(await context.readRequestBody(request, { bodyLimit: TILE_ASSISTANT_BODY_LIMIT }));
-    const result = await context.answerTileQuestion({ message: payload?.message, history: payload?.history });
+    const actor = context.resolveTileAssistantActor
+      ? await context.resolveTileAssistantActor(request, payload)
+      : null;
+    const result = await context.answerTileQuestion({
+      message: payload?.message,
+      history: payload?.history,
+      projectId: payload?.projectId,
+      actor
+    });
     context.sendJson(response, 200, result);
   } catch (error) {
     const message = String(error?.message || "타일 질문을 처리하지 못했습니다.");

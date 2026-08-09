@@ -11,5 +11,6 @@ server.out.log
 outputs/
 tmp/
 backups/
+data/tile-sales-projects.json
 scripts/__pycache__/
 ~$*

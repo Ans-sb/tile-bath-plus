@@ -202,13 +202,20 @@ export function searchTiles(products, query, options = {}) {
 export function summarizeResult(result) {
   const item = result.item || result;
   return {
-    id: item.id || "",
+    id: item.id || item.productId || "",
     name: item.productName || item.skuName || item.modelName || item.collectionName || item.product?.name || "",
     score: result.score || item.taxonomySearchScore || 0,
     size: item.sizeLabel || "",
     finish: item.finishGroup || item.surfaceFinish || "",
     color: item.mainColor || "",
     style: Array.isArray(item.styleCategories) ? item.styleCategories.join(", ") : "",
+    material: item.materialCategory || item.materialDetail || "",
+    application: Array.isArray(item.applicationCategories) ? item.applicationCategories.join(", ") : "",
+    widthMm: Number(item.widthMm || 0),
+    heightMm: Number(item.heightMm || 0),
+    thicknessMm: Number(item.thicknessMm || 0),
+    pcsPerBox: Number(item.pcsPerBox || 0),
+    sqmPerBox: Number(item.sqmPerBox || 0),
     origin: item.originRegion || "",
     stockQty: Number(item.stockQty || item.product?.stockQty || 0),
     image: item.image || item.product?.image || "",

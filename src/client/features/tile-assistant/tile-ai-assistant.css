@@ -71,12 +71,12 @@
 }
 
 .tile-ai-panel {
-  width: min(390px, calc(100vw - 28px));
-  height: min(650px, calc(100dvh - 130px));
-  max-height: min(650px, calc(100vh - 130px));
+  width: min(460px, calc(100vw - 28px));
+  height: min(720px, calc(100dvh - 130px));
+  max-height: min(720px, calc(100vh - 130px));
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
   border: 1px solid #d9e3f2;
   border-radius: 24px;
   background: #fff;
@@ -161,7 +161,7 @@
 }
 
 .tile-ai-message {
-  max-width: 88%;
+  max-width: 94%;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -230,10 +230,186 @@
   cursor: pointer;
 }
 
+.tile-ai-project-bar {
+  min-height: 48px;
+  padding: 8px 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #e3e9f3;
+  background: #fff;
+}
+
+.tile-ai-project-bar strong {
+  overflow: hidden;
+  color: #17213e;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-ai-project-bar span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #0b4fcc;
+  background: #edf4ff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tile-ai-project-bar button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid #d4dfef;
+  border-radius: 8px;
+  color: #34425f;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
 .tile-ai-message__actions button:hover,
 .tile-ai-message__actions button:focus-visible {
   background: #1268ff;
   border-color: #1268ff;
+}
+
+.tile-ai-message__actions button:not(:first-child) {
+  color: #081957;
+  background: #fff;
+  border-color: #cbd8ec;
+}
+
+.tile-ai-condition-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tile-ai-condition-list span {
+  padding: 5px 8px;
+  border: 1px solid #cfe0f8;
+  border-radius: 999px;
+  color: #174b95;
+  background: #f5f9ff;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.tile-ai-recommendations {
+  width: min(100%, 410px);
+  display: grid;
+  gap: 8px;
+}
+
+.tile-ai-product-card {
+  min-height: 104px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  border: 1px solid #dce5f2;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.tile-ai-product-card > img {
+  width: 104px;
+  height: 100%;
+  min-height: 104px;
+  object-fit: cover;
+  background: #eef2f7;
+}
+
+.tile-ai-product-card__body {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 4px 8px;
+}
+
+.tile-ai-product-card__body:only-child {
+  grid-column: 1 / -1;
+}
+
+.tile-ai-product-card__rank {
+  grid-row: 1 / span 2;
+  color: #1268ff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.tile-ai-product-card__body strong,
+.tile-ai-product-card__body p,
+.tile-ai-product-card__body small {
+  min-width: 0;
+  margin: 0;
+}
+
+.tile-ai-product-card__body strong {
+  overflow: hidden;
+  color: #101a34;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-ai-product-card__body p,
+.tile-ai-product-card__body small {
+  grid-column: 2;
+  color: #65708a;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tile-ai-product-card__body button {
+  grid-column: 2;
+  width: fit-content;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid #cbd8ec;
+  border-radius: 8px;
+  color: #081957;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tile-ai-quantity {
+  width: min(100%, 410px);
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #dce5f2;
+  border-radius: 12px;
+  background: #dce5f2;
+}
+
+.tile-ai-quantity > div {
+  min-height: 55px;
+  padding: 8px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  background: #fff;
+}
+
+.tile-ai-quantity span {
+  color: #6d7891;
+  font-size: 10px;
+}
+
+.tile-ai-quantity strong {
+  color: #081957;
+  font-size: 15px;
 }
 
 .tile-ai-suggestions {
@@ -346,6 +522,18 @@
     height: calc(100dvh - 188px - env(safe-area-inset-bottom));
     max-height: calc(100dvh - 188px - env(safe-area-inset-bottom));
     border-radius: 20px;
+  }
+
+  .tile-ai-project-bar {
+    padding-inline: 11px;
+  }
+
+  .tile-ai-product-card {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .tile-ai-product-card > img {
+    width: 88px;
   }
 
   .tile-ai-messages {
