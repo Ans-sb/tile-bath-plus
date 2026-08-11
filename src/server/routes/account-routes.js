@@ -4,11 +4,6 @@ async function handleAccountRoutes(request, response, context) {
     return true;
   }
 
-  if (request.method === "POST" && request.url === "/api/approval-rules") {
-    const payload = JSON.parse(await context.readRequestBody(request));
-    context.sendJson(response, 200, await context.saveApprovalRules(payload));
-    return true;
-  }
 
   if (request.method === "POST" && request.url === "/api/signup-requests") {
     const payload = JSON.parse(await context.readRequestBody(request));

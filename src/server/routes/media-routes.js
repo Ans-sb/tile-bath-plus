@@ -1,4 +1,16 @@
 async function handleMediaRoutes(request, response, context) {
+  const isHighCostRequest = (request.method === "GET" && request.url.startsWith("/api/image-data-url"))
+    || (request.method === "POST" && [
+      "/api/render",
+      "/api/tile-match",
+      "/api/business-status",
+      "/api/proposal-ppt"
+    ].includes(request.url));
+  if (isHighCostRequest && context.allowMediaRequest && !context.allowMediaRequest(request)) {
+    context.sendJson(response, 429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." });
+    return true;
+  }
+
   if (request.method === "GET" && request.url.startsWith("/api/proposal-download")) {
     const url = new URL(request.url, `http://${request.headers.host}`);
     await context.sendProposalDownload(response, url.searchParams.get("token"));
@@ -56,11 +68,6 @@ async function handleMediaRoutes(request, response, context) {
     return true;
   }
 
-  if (request.method === "POST" && request.url === "/api/server-control") {
-    const payload = JSON.parse(await context.readRequestBody(request));
-    context.sendJson(response, 200, await context.handleServerControl(payload));
-    return true;
-  }
 
   return false;
 }

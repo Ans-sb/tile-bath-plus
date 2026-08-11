@@ -8872,7 +8872,10 @@ function renderPastOrderCard(order) {
   `;
 }
 
+let orderSubmissionInFlight = false;
+
 async function saveCurrentCartAsPastOrder() {
+  if (orderSubmissionInFlight) return;
   const statusNode = document.querySelector("#cartOrderStatus");
   const submitButton = document.querySelector("#cartOrderSubmitBtn");
   const setOrderStatus = (message, tone = "") => {
@@ -8905,6 +8908,9 @@ async function saveCurrentCartAsPastOrder() {
     return;
   }
 
+  orderSubmissionInFlight = true;
+  const clientOrderId = globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const originalText = submitButton?.textContent || "주문 접수";
   if (submitButton) {
     submitButton.disabled = true;
@@ -8919,6 +8925,7 @@ async function saveCurrentCartAsPastOrder() {
         ...getMemberProductAuthHeaders()
       },
       body: JSON.stringify({
+        clientOrderId,
         businessNumber: authUser.businessNumber,
         companyName: authUser.companyName || "",
         contactName: authUser.name || "",
@@ -8938,8 +8945,9 @@ async function saveCurrentCartAsPastOrder() {
     renderMyPage();
   } catch (error) {
     console.warn(error);
-    setOrderStatus(error.message || "주문 접수에 실패했습니다. 잠시 후 다시 시도해주세요.", "error");
+    setOrderStatus(error.message || "주문 접수에 실패했습니다. 주문내역을 새로고침하여 접수 여부를 확인해주세요.", "error");
   } finally {
+    orderSubmissionInFlight = false;
     if (submitButton) {
       submitButton.disabled = false;
       submitButton.textContent = originalText;
@@ -13629,9 +13637,9 @@ async function saveApprovalRulesFromForm() {
   approvalRules = { businessTypes, businessItems };
   localStorage.setItem("tbpApprovalRules", JSON.stringify(approvalRules));
   try {
-    await requestJson("/api/approval-rules", {
+    await requestJson("/api/admin/approval-rules", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         businessTypes: businessTypes.map((item) => formatRuleLabel(item)),
         businessItems: businessItems.map((item) => formatRuleLabel(item))

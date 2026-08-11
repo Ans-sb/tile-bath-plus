@@ -105,6 +105,7 @@ function mapLocalOrder(row) {
   const operationInfo = decodeOrderNote(row.note);
   return {
     id: clean(row.id),
+    clientOrderId: clean(row.clientOrderId),
     orderNumber: clean(row.orderNumber),
     businessNumber: clean(row.businessNumber),
     companyName: clean(row.companyName),
@@ -130,6 +131,7 @@ function mapSupabaseOrder(row) {
   const operationInfo = decodeOrderNote(row.order_note);
   return {
     id: clean(row.id),
+    clientOrderId: clean(row.client_order_id),
     orderNumber: clean(row.order_number),
     businessNumber: clean(row.business_number),
     companyName: clean(row.company_name),
@@ -168,6 +170,7 @@ function mapSupabaseOrderItem(row) {
 }
 
 function createOrderStore({
+  allowLocalFallback = false,
   hasSupabaseConfig,
   isMissingSupabaseTableError,
   normalizeCartItem,
@@ -195,6 +198,21 @@ function createOrderStore({
     }
   }
 
+  async function readRemoteOrderByClientId(businessNumber, clientOrderId) {
+    if (!businessNumber || !clientOrderId || !hasSupabaseConfig()) return null;
+    const query = new URLSearchParams({
+      select: "id,client_order_id,order_number,business_number,company_name,contact_name,order_status,item_count,total_quote,order_note,created_at,updated_at",
+      business_number: `eq.${businessNumber}`,
+      client_order_id: `eq.${clientOrderId}`,
+      limit: "1"
+    });
+    const rows = await requestSupabase(`/rest/v1/orders?${query.toString()}`);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) return null;
+    const itemsByOrder = await readOrderItems([row.id]);
+    return { ...mapSupabaseOrder(row), items: itemsByOrder.get(row.id) || [] };
+  }
+
   function readLocalOrders() {
     return readJsonArray(ordersPath).map(mapLocalOrder);
   }
@@ -209,15 +227,26 @@ function createOrderStore({
   return {
     async createOrder(payload) {
       const businessNumber = clean(payload?.businessNumber);
+      const clientOrderId = clean(payload?.clientOrderId).slice(0, 128);
       const items = (Array.isArray(payload?.items) ? payload.items : [])
         .map((item) => normalizeOrderItem(item, normalizeCartItem))
         .filter((item) => item.qty > 0);
       if (!businessNumber) throw new Error("주문 접수에는 사업자등록번호가 필요합니다.");
       if (!items.length) throw new Error("주문 접수할 상품이 없습니다.");
+      if (items.some((item) => item.quotePrice <= 0)) {
+        throw createOrderError(422, "판매가가 확정되지 않은 상품은 주문할 수 없습니다.");
+      }
+      if (clientOrderId && allowLocalFallback && !hasSupabaseConfig()) {
+        const existingOrder = readLocalOrders().find((row) => (
+          row.businessNumber === businessNumber && row.clientOrderId === clientOrderId
+        ));
+        if (existingOrder) return { ok: true, order: existingOrder, storage: "local", replayed: true };
+      }
 
       const now = new Date().toISOString();
       const order = {
         id: crypto.randomUUID(),
+        clientOrderId,
         orderNumber: createOrderNumber(),
         businessNumber,
         companyName: clean(payload?.companyName),
@@ -239,10 +268,14 @@ function createOrderStore({
 
       if (hasSupabaseConfig()) {
         try {
-          const rows = await requestSupabase("/rest/v1/orders", {
+          const insertPath = clientOrderId
+            ? "/rest/v1/orders?on_conflict=business_number%2Cclient_order_id"
+            : "/rest/v1/orders";
+          const rows = await requestSupabase(insertPath, {
             method: "POST",
-            headers: { Prefer: "return=representation" },
+            headers: { Prefer: clientOrderId ? "resolution=ignore-duplicates,return=representation" : "return=representation" },
             body: JSON.stringify([{
+              client_order_id: clientOrderId || null,
               order_number: order.orderNumber,
               business_number: order.businessNumber,
               company_name: order.companyName,
@@ -255,9 +288,14 @@ function createOrderStore({
             }])
           });
           const remoteOrder = Array.isArray(rows) ? rows[0] : null;
-          if (remoteOrder?.id) {
-            const itemPayload = items.map((item) => ({
-              order_id: remoteOrder.id,
+          const replayed = !remoteOrder?.id;
+          const storedOrder = remoteOrder?.id
+            ? mapSupabaseOrder(remoteOrder)
+            : await readRemoteOrderByClientId(businessNumber, clientOrderId);
+          if (storedOrder?.id) {
+            const itemPayload = items.map((item, index) => ({
+              order_id: storedOrder.id,
+              line_number: index + 1,
               product_id: item.id,
               management_code: item.managementCode,
               product_type: item.productType,
@@ -271,18 +309,24 @@ function createOrderStore({
               stock_qty: item.stockQty,
               image: item.image
             }));
-            await requestSupabase("/rest/v1/order_items", {
+            await requestSupabase("/rest/v1/order_items?on_conflict=order_id%2Cline_number", {
               method: "POST",
-              headers: { Prefer: "return=minimal" },
+              headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
               body: JSON.stringify(itemPayload)
             });
-            return { ok: true, order: { ...mapSupabaseOrder(remoteOrder), items } };
+            return { ok: true, order: { ...storedOrder, items }, ...(replayed ? { replayed: true } : {}) };
           }
         } catch (error) {
           if (!isMissingSupabaseTableError(error, "orders") && !isMissingSupabaseTableError(error, "order_items")) throw error;
+          if (!allowLocalFallback) {
+            throw createOrderError(503, "주문 저장소가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+          }
         }
       }
 
+      if (!allowLocalFallback) {
+        throw createOrderError(503, "주문 저장소에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+      }
       return { ok: true, order: saveLocalOrder(order), storage: "local" };
     },
 

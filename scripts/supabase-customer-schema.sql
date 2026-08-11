@@ -127,19 +127,28 @@ create table if not exists public.carts (
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
+  client_order_id text,
+  request_fingerprint text,
   order_number text not null unique,
   business_number text not null,
   company_name text not null default '',
   contact_name text not null default '',
   order_status text not null default '접수대기',
-  item_count integer not null default 0,
-  total_quote numeric not null default 0,
+  item_count integer not null default 0 check (item_count >= 0),
+  total_quote numeric(14, 2) not null default 0 check (total_quote >= 0),
   order_note text not null default '',
   source text not null default 'cart',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+alter table public.orders
+add column if not exists client_order_id text;
+alter table public.orders
+add column if not exists request_fingerprint text;
+
+create unique index if not exists orders_business_client_order_unique
+on public.orders (business_number, client_order_id);
 create index if not exists orders_business_number_idx on public.orders (business_number);
 create index if not exists orders_order_status_idx on public.orders (order_status);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);
@@ -147,6 +156,7 @@ create index if not exists orders_created_at_idx on public.orders (created_at de
 create table if not exists public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
+  line_number integer not null check (line_number > 0),
   product_id text not null default '',
   management_code text not null default '',
   product_type text not null default '',
@@ -154,17 +164,39 @@ create table if not exists public.order_items (
   size text not null default '',
   finish text not null default '',
   unit text not null default '',
-  qty numeric not null default 0,
-  quote_price numeric not null default 0,
-  line_total numeric not null default 0,
-  stock_qty numeric not null default 0,
+  qty numeric(14, 3) not null check (qty > 0),
+  quote_price numeric(14, 2) not null check (quote_price > 0),
+  line_total numeric(14, 2) not null check (line_total > 0),
+  stock_qty numeric(14, 3) not null default 0,
   image text not null default '',
   item_data jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 
+alter table public.order_items
+add column if not exists line_number integer;
+alter table public.order_items
+add column if not exists item_data jsonb not null default '{}'::jsonb;
+
+with numbered_items as (
+  select id, row_number() over (partition by order_id order by created_at, id)::integer as line_number
+  from public.order_items
+)
+update public.order_items as target
+set line_number = numbered_items.line_number
+from numbered_items
+where target.id = numbered_items.id
+  and target.line_number is distinct from numbered_items.line_number;
+
+alter table public.order_items alter column line_number set not null;
+
+create unique index if not exists order_items_order_line_unique
+on public.order_items (order_id, line_number);
 create index if not exists order_items_order_id_idx on public.order_items (order_id);
 create index if not exists order_items_management_code_idx on public.order_items (management_code);
+
+alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
 
 create or replace function public.set_generic_updated_at()
 returns trigger
