@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node scripts/prepare-runtime.cjs && node server.js",
-    "test": "node --test test/server/features/*.test.js test/client/features/*.test.js",
+    "test": "node --test test/server/features/*.test.js test/server/security/*.test.js test/client/features/*.test.js",
     "app:install": "npm --prefix mobile install",
     "app:sync": "npm --prefix mobile run sync",
     "app:doctor": "npm --prefix mobile run doctor",

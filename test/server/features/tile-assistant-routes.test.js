@@ -60,6 +60,13 @@ test("rate limiter ignores spoofed forwarded addresses unless proxy trust is exp
   assert.equal(allow({ ...base, headers: { "x-forwarded-for": "2.2.2.2" } }), false);
 });
 
+test("trusted proxy rate limiting cannot be bypassed with spoofed leading addresses", () => {
+  const allow = createTileAssistantRateLimiter({ limit: 1, trustProxy: true });
+  const base = { socket: { remoteAddress: "10.0.0.5" } };
+  assert.equal(allow({ ...base, headers: { "x-forwarded-for": "1.1.1.1, 203.0.113.10" } }), true);
+  assert.equal(allow({ ...base, headers: { "x-forwarded-for": "2.2.2.2, 203.0.113.10" } }), false);
+});
+
 test("rate limiter rejects new identities when its bounded store is full", () => {
   const allow = createTileAssistantRateLimiter({ limit: 1, maxClients: 2 });
   assert.equal(allow({ headers: {}, socket: { remoteAddress: "a" } }), true);

@@ -26,7 +26,14 @@ async function serveStaticFile(request, response, options) {
   const shouldBlockStaticPath = options.shouldBlockStaticPath || (() => false);
   const mimeTypes = options.mimeTypes || DEFAULT_MIME_TYPES;
   const url = new URL(request.url, `http://${request.headers.host}`);
-  const pathname = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
+  } catch {
+    response.writeHead(400);
+    response.end("Bad request");
+    return;
+  }
   if (shouldBlockStaticPath(pathname)) {
     response.writeHead(404);
     response.end("Not found");
@@ -34,8 +41,9 @@ async function serveStaticFile(request, response, options) {
   }
 
   const resolved = path.resolve(root, `.${pathname}`);
+  const relative = path.relative(root, resolved);
 
-  if (!resolved.startsWith(root)) {
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     response.writeHead(403);
     response.end("Forbidden");
     return;

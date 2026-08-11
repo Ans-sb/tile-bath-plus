@@ -6,12 +6,20 @@ async function handleAccountRoutes(request, response, context) {
 
 
   if (request.method === "POST" && request.url === "/api/signup-requests") {
+    if (context.allowSignupRequest && !context.allowSignupRequest(request)) {
+      context.sendJson(response, 429, { error: "가입 요청이 너무 많습니다. 잠시 후 다시 시도해주세요." });
+      return true;
+    }
     const payload = JSON.parse(await context.readRequestBody(request));
     context.sendJson(response, 200, await context.saveSignupRequestRecord(payload));
     return true;
   }
 
   if (request.method === "POST" && request.url === "/api/login") {
+    if (context.allowLoginRequest && !context.allowLoginRequest(request)) {
+      context.sendJson(response, 429, { error: "로그인 시도가 너무 많습니다. 15분 후 다시 시도해주세요." });
+      return true;
+    }
     const payload = JSON.parse(await context.readRequestBody(request));
     context.sendJson(response, 200, await context.loginWithSignupRequest(payload));
     return true;

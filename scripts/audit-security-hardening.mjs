@@ -62,6 +62,10 @@ const accountSessionJs = await readText("src/server/services/account-session.js"
 const passwordServiceJs = await readText("src/server/services/password-service.js");
 const authServiceJs = await readText("src/server/services/auth-service.js");
 const accountRoutesJs = await readText("src/server/routes/account-routes.js");
+const mediaRoutesJs = await readText("src/server/routes/media-routes.js");
+const staticPathPolicyJs = await readText("src/server/security/static-path-policy.js");
+const securityHeadersJs = await readText("src/server/security/security-headers.js");
+const localRequestPolicyJs = await readText("src/server/security/local-request-policy.js");
 const cartStoreJs = await readText("src/server/services/cart-store.js");
 const productResponseMapperJs = await readText("src/server/services/product-response-mapper.js");
 const productDtoJs = await readText("src/client/shared/product-dto.js");
@@ -81,6 +85,36 @@ record("cartSensitivePriceNotPersisted", /sanitizeStoredCartItem/.test(cartStore
   && !/retailPrice:\s*normalized\.retailPrice/.test(cartStoreJs)
   && !/wholesalePrice:\s*normalized\.wholesalePrice/.test(cartStoreJs));
 record("clientSignupPasswordNotCached", /delete safePayload\.password/.test(appJs) && /delete safePayload\.passwordConfirm/.test(appJs));
+record("serverControlDisabled", !appJs.includes("/api/server-control")
+  && !mediaRoutesJs.includes("/api/server-control")
+  && !serverJs.includes("handleServerControl")
+  && !serverJs.includes("stop.flag"));
+record("mediaAuthentication", [
+  "/api/image-data-url",
+  "/api/render",
+  "/api/render-feedback",
+  "/api/tile-match"
+].every((route) => mediaRoutesJs.includes(route))
+  && (mediaRoutesJs.match(/authorizeMediaRequest/g) || []).length >= 4);
+record("businessStatusProof", /authorizeBusinessStatusRequest/.test(mediaRoutesJs)
+  && /verifySocialSignupToken/.test(serverJs));
+record("loginRateLimit", /allowLoginRequest/.test(accountRoutesJs)
+  && /allowSignupRequest/.test(accountRoutesJs));
+record("staticAllowlist", /PUBLIC_ROOT_FILES/.test(staticPathPolicyJs)
+  && /PUBLIC_DIRECTORY_PREFIXES/.test(staticPathPolicyJs)
+  && /shouldBlockStaticPath/.test(serverJs));
+record("securityHeaders", [
+  "Content-Security-Policy",
+  "Strict-Transport-Security",
+  "X-Frame-Options",
+  "Referrer-Policy"
+].every((header) => securityHeadersJs.includes(header)));
+record("localRequestSocketOnly", /socket\?\.remoteAddress/.test(localRequestPolicyJs)
+  && !/headers/.test(localRequestPolicyJs));
+record("independentMemberTokenSecret", /MEMBER_TOKEN_SECRET/.test(serverJs)
+  && /at least 32 characters/.test(serverJs));
+record("genericServerErrors", /statusCode >= 500/.test(serverJs)
+  && /requestId/.test(serverJs));
 record("serverCustomerSensitiveList", alwaysDeniedProductFields.every((field) => productResponseMapperJs.includes(`"${field}"`)));
 record("clientCustomerSensitiveList", alwaysDeniedProductFields.every((field) => productDtoJs.includes(`"${field}"`)));
 

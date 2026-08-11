@@ -1996,8 +1996,6 @@ function bindEvents() {
   document.querySelector("#openSignupBtn").addEventListener("click", () => switchPage("signupPage"));
   document.querySelector("#createProProposalBtn").addEventListener("click", generateProfessionalProposalDeck);
   document.querySelector("#closeProposalGenerationBtn")?.addEventListener("click", closeProposalGenerationDialog);
-  document.querySelector("#restartServerBtn")?.addEventListener("click", () => controlServer("restart"));
-  document.querySelector("#stopServerBtn")?.addEventListener("click", () => controlServer("stop"));
   document.querySelector("#refreshServerBtn")?.addEventListener("click", async () => {
     setText("#serverControlStatus", "서버 상태를 다시 확인하고 있습니다...");
     const online = await refreshServerConnection();
@@ -6989,7 +6987,7 @@ async function runTaxonomyImageSearch() {
   try {
     const payload = await requestJson("/api/tile-match", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthenticatedApiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         imageDataUrl: taxonomyImageSearchDataUrl,
         size,
@@ -7219,9 +7217,7 @@ async function handleTileFinderSearch() {
   try {
     const payload = await requestJson("/api/tile-match", {
       method: "POST",
-      headers: isAdminUser()
-        ? getAdminAuthHeaders({ "Content-Type": "application/json" })
-        : { "Content-Type": "application/json" },
+      headers: getAuthenticatedApiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         imageDataUrl: tileFinderImageDataUrl,
         size,
@@ -11417,36 +11413,6 @@ function getServerRequiredMessage() {
   return "프로 제안서는 서버 연결이 필요합니다. run-app.bat 실행 후 서버 주소로 다시 접속해주세요.";
 }
 
-async function controlServer(action) {
-  const status = document.querySelector("#serverControlStatus");
-  const actionLabel = action === "restart" ? "재시작" : "종료";
-  status.textContent = `서버 ${actionLabel} 요청을 보내는 중입니다...`;
-
-  try {
-    const result = await requestJson("/api/server-control", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action })
-    }, { retries: 0, timeoutMs: 5000 });
-
-    status.textContent = result.message || `서버 ${actionLabel} 요청을 완료했습니다.`;
-
-    if (action === "restart") {
-      serverConnection = { online: false, checked: true, failures: 1 };
-      renderServerConnection();
-      setTimeout(() => refreshServerConnection(), 3000);
-      setTimeout(() => refreshServerConnection(), 7000);
-      return;
-    }
-
-    serverConnection = { online: false, checked: true, failures: 2 };
-    renderServerConnection();
-    status.textContent = "서버를 종료했습니다. 다시 켜려면 run-app.bat 또는 run-server.bat를 실행해주세요.";
-  } catch (error) {
-    status.textContent = error.message || `서버 ${actionLabel} 요청 중 오류가 발생했습니다.`;
-  }
-}
-
 function showServerStartGuide() {
   setText("#serverControlStatus", "서버 켜기는 브라우저 보안 때문에 페이지 안에서 직접 실행할 수 없습니다. run-app.bat 또는 run-server.bat를 실행해주세요.");
 }
@@ -11517,6 +11483,12 @@ function getMemberProductAuthHeaders(extraHeaders = {}) {
     "X-Business-Number": authUser?.businessNumber || "",
     "X-Member-Token": authUser?.memberToken || ""
   };
+}
+
+function getAuthenticatedApiHeaders(extraHeaders = {}) {
+  return isAdminUser()
+    ? getAdminAuthHeaders(extraHeaders)
+    : getMemberProductAuthHeaders(extraHeaders);
 }
 
 function delay(ms) {
@@ -12368,7 +12340,9 @@ async function imageUrlToDataUrl(url) {
     const optimizedDataUrl = await resizeRenderReferenceDataUrl(rawDataUrl);
     return rememberRenderImageDataUrl(url, optimizedDataUrl);
   } catch {
-    const payload = await requestJson(`/api/image-data-url?url=${encodeURIComponent(url)}`, {}, { retries: 1, timeoutMs: 30000 });
+    const payload = await requestJson(`/api/image-data-url?url=${encodeURIComponent(url)}`, {
+      headers: getAuthenticatedApiHeaders()
+    }, { retries: 1, timeoutMs: 30000 });
     const imageDataUrl = String(payload?.imageDataUrl || "");
     if (!imageDataUrl) throw new Error("\uD0C0\uC77C \uC774\uBBF8\uC9C0\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
     const optimizedDataUrl = await resizeRenderReferenceDataUrl(imageDataUrl);
@@ -12442,7 +12416,7 @@ async function handleRenderFeedbackClick(event) {
       "/api/render-feedback",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthenticatedApiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(buildRenderFeedbackPayload(code))
       },
       { timeoutMs: 30000 }
@@ -12521,7 +12495,7 @@ async function generateRenderPreview() {
       "/api/render",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthenticatedApiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           siteImageDataUrl: pendingSiteImage,
           surfaces: surfacesPayload,
@@ -13614,8 +13588,11 @@ async function verifyBusinessRegistration() {
   try {
     const payload = await requestJson("/api/business-status", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ businessNumber })
+      headers: getAuthenticatedApiHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        businessNumber,
+        socialSignupToken: socialSignupProfile?.socialSignupToken || ""
+      })
     }, { retries: 1, timeoutMs: 10000 });
 
     businessVerification = {

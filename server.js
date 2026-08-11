@@ -9,6 +9,9 @@ const { PNG } = require("pngjs");
 const { readRequestBody, sendJson, sendRawJson } = require("./src/server/http-utils");
 const { createHttpError } = require("./src/server/http-errors");
 const { readRemoteImageDataUrlSafely } = require("./src/server/security/remote-image-policy");
+const { shouldBlockStaticPath } = require("./src/server/security/static-path-policy");
+const { applySecurityHeaders } = require("./src/server/security/security-headers");
+const { isLocalRequest } = require("./src/server/security/local-request-policy");
 const { serveStaticFile } = require("./src/server/static-files");
 const { handleProductRoutes } = require("./src/server/routes/product-routes");
 const { handleAccountRoutes } = require("./src/server/routes/account-routes");
@@ -85,8 +88,6 @@ const proposalDownloadStore = createProposalDownloadStore({
   rootDir: proposalOutputDir,
   ttlMs: Number(process.env.PROPOSAL_DOWNLOAD_TTL_MS || 15 * 60 * 1000)
 });
-const serverControlDir = path.join(root, "tmp", "server-control");
-const stopFlagPath = path.join(serverControlDir, "stop.flag");
 const startedAt = new Date();
 const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
 const openAiImageModel = String(process.env.OPENAI_IMAGE_MODEL || "gpt-image-1").trim();
@@ -156,7 +157,13 @@ const adminNaverIdentifiers = [
 const tile114UserId = String(process.env.TILE114_USER_ID || "").trim();
 const tile114Password = String(process.env.TILE114_PASSWORD || "").trim();
 const tile114LoginUrl = String(process.env.TILE114_LOGIN_URL || "https://vgtns.tile114.co.kr/Web/ExInDex.asp?PopTF=2").trim();
-const memberTokenSecret = crypto
+const isProductionRuntime = String(process.env.NODE_ENV || "").trim().toLowerCase() === "production"
+  || Boolean(String(process.env.RAILWAY_ENVIRONMENT || "").trim());
+const configuredMemberTokenSecret = String(process.env.MEMBER_TOKEN_SECRET || "").trim();
+if (isProductionRuntime && configuredMemberTokenSecret.length < 32) {
+  throw new Error("MEMBER_TOKEN_SECRET must be configured with at least 32 characters in production.");
+}
+const memberTokenSecret = configuredMemberTokenSecret || crypto
   .createHash("sha256")
   .update([supabaseSecretKey, adminPassword, "tile-bath-plus-member-token"].filter(Boolean).join(":"))
   .digest("hex");
@@ -337,8 +344,12 @@ const trustProxyForRateLimits = /^(1|true|yes)$/i.test(String(process.env.TRUST_
 const allowTileAssistantRequest = createTileAssistantRateLimiter({ trustProxy: trustProxyForRateLimits });
 const allowMediaRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
 const allowOrderRequest = createTileAssistantRateLimiter({ limit: 12, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
+const allowLoginRequest = createTileAssistantRateLimiter({ limit: 20, windowMs: 15 * 60 * 1000, trustProxy: trustProxyForRateLimits });
+const allowSignupRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, trustProxy: trustProxyForRateLimits });
 
 const server = http.createServer(async (request, response) => {
+  const requestId = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
+  applySecurityHeaders(response, { isProduction: isProductionRuntime, requestId });
   try {
     if (await handleSystemRoutes(request, response, getSystemRouteContext())) {
       return;
@@ -383,7 +394,21 @@ const server = http.createServer(async (request, response) => {
 
     sendJson(response, 405, { error: "지원하지 않는 요청입니다." });
   } catch (error) {
-    sendJson(response, error.statusCode || 500, { error: error.message || "서버 오류가 발생했습니다." });
+    const statusCode = Number(error?.statusCode || 500);
+    if (statusCode >= 500) {
+      console.error(`[server:${requestId}]`, error);
+    }
+    if (response.writableEnded) return;
+    if (response.headersSent) {
+      response.destroy();
+      return;
+    }
+    sendJson(response, statusCode, {
+      error: statusCode >= 500
+        ? "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        : String(error?.message || "요청을 처리할 수 없습니다.").slice(0, 300),
+      requestId
+    });
   }
 });
 
@@ -450,6 +475,8 @@ function getAccountRouteContext() {
     verifyMemberSessionAccess,
     readCartRecord,
     saveCartRecord,
+    allowLoginRequest,
+    allowSignupRequest,
     allowOrderRequest,
     createOrderFromCart,
     readMemberOrders
@@ -488,6 +515,8 @@ function getMediaRouteContext() {
     readRequestBody,
     sendJson,
     allowMediaRequest,
+    authorizeMediaRequest,
+    authorizeBusinessStatusRequest,
     readRemoteImageDataUrl,
     generateRenderPreview,
     appendRenderFeedback,
@@ -1209,8 +1238,8 @@ function getOpenAiRenderOutputMimeType(format) {
 async function writeRenderFeedbackImage(assetDir, role, dataUrl) {
   const parsed = parseImageDataUrl(dataUrl);
   if (!parsed) return null;
-  if (parsed.buffer.length > 18 * 1024 * 1024) {
-    throw createHttpError(413, "보정 평가 이미지는 18MB 이하만 저장할 수 있습니다.");
+  if (parsed.buffer.length > 8 * 1024 * 1024) {
+    throw createHttpError(413, "보정 평가 이미지는 8MB 이하만 저장할 수 있습니다.");
   }
   const extension = parsed.mimeType.includes("jpeg") || parsed.mimeType.includes("jpg")
     ? "jpg"
@@ -1414,22 +1443,6 @@ async function readSearchTrainingStats() {
   }
 }
 
-function shouldBlockStaticPath(pathname) {
-  const normalized = pathname.replace(/\\/g, "/").replace(/^\/+/, "").toLowerCase();
-  if (!normalized || normalized === "index.html") return false;
-  if (normalized.startsWith(".")) return true;
-  if (normalized === "catalog-data.js") return true;
-  return [
-    "data/",
-    "docs/",
-    "outputs/",
-    "scripts/",
-    "tmp/",
-    "vendor/",
-    "정보서류/"
-  ].some((prefix) => normalized.startsWith(prefix.toLowerCase()));
-}
-
 async function saveSiteStudioImage(payload = {}, reviewer = "admin") {
   const dataUrl = String(payload.dataUrl || "").trim();
   const match = dataUrl.match(/^data:image\/(png|jpeg|webp);base64,([a-z0-9+/=\s]+)$/i);
@@ -1591,15 +1604,6 @@ function stripInternalBrandFromNormalizedProduct(item) {
     ...safe,
     customerSearchableText: String(item?.customerSearchableText || "")
   });
-}
-
-function isLocalRequest(request) {
-  const hostHeader = String(request.headers.host || "").split(":")[0].toLowerCase();
-  const remoteAddress = String(request.socket?.remoteAddress || "").toLowerCase();
-  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostHeader)
-    || remoteAddress === "127.0.0.1"
-    || remoteAddress === "::1"
-    || remoteAddress === "::ffff:127.0.0.1";
 }
 
 async function readApprovalRules() {
@@ -5576,6 +5580,37 @@ async function authorizeProposalRequest(request) {
   };
 }
 
+async function authorizeMediaRequest(request) {
+  const adminContext = readOptionalAdminContextFromRequest(request);
+  if (adminContext.isAdmin) {
+    return { actorType: "admin", actorId: adminContext.adminUsername };
+  }
+
+  const credentials = readMemberProductCredentialsFromRequest(request);
+  const member = await verifyMemberSessionAccess(credentials.businessNumber, credentials.memberToken);
+  return { actorType: "member", actorId: member.businessNumber, memberAccess: member };
+}
+
+async function authorizeBusinessStatusRequest(request, payload = {}) {
+  const adminContext = readOptionalAdminContextFromRequest(request);
+  if (adminContext.isAdmin) return { actorType: "admin", actorId: adminContext.adminUsername };
+
+  const credentials = readMemberProductCredentialsFromRequest(request);
+  if (credentials.businessNumber || credentials.memberToken) {
+    const member = await verifyMemberSessionAccess(credentials.businessNumber, credentials.memberToken);
+    return { actorType: "member", actorId: member.businessNumber };
+  }
+
+  const signupProof = accountSession.verifySocialSignupToken(
+    String(payload?.socialSignupToken || ""),
+    memberTokenSecret
+  );
+  if (!signupProof) {
+    throw createHttpError(403, "간편가입 계정을 다시 확인한 후 사업자 상태를 조회해주세요.");
+  }
+  return { actorType: "social-signup", actorId: String(signupProof.providerId || "") };
+}
+
 async function buildProfessionalProposalDeck(payload, actorContext = {}) {
   const products = await readProducts();
   const normalized = normalizeSecureProposalPayload(payload, {
@@ -5637,27 +5672,6 @@ async function sendProposalDownload(response, token) {
     response.on("close", resolve);
     stream.pipe(response);
   });
-}
-
-async function handleServerControl(payload) {
-  const action = String(payload?.action || "").trim().toLowerCase();
-  if (!action) {
-    throw new Error("?쒕쾭 ?쒖뼱 ?묒뾽???꾩슂?⑸땲??");
-  }
-
-  if (action === "restart") {
-    setTimeout(() => shutdownServer(false), 150);
-    return { ok: true, action, message: "?쒕쾭瑜??ъ떆?묓빀?덈떎." };
-  }
-
-  if (action === "stop") {
-    await fs.promises.mkdir(serverControlDir, { recursive: true });
-    await fs.promises.writeFile(stopFlagPath, "stop\n", "utf8");
-    setTimeout(() => shutdownServer(true), 150);
-    return { ok: true, action, message: "?쒕쾭瑜?醫낅즺?⑸땲??" };
-  }
-
-  throw new Error("吏?먰븯吏 ?딅뒗 ?쒕쾭 ?쒖뼱 ?묒뾽?낅땲??");
 }
 
 function loadEnvFile(filePath) {
@@ -5730,19 +5744,3 @@ function execFileAsync(command, args, options = {}) {
     });
   });
 }
-
-function shutdownServer(expectStopFlag) {
-  server.close(() => {
-    if (!expectStopFlag) {
-      try {
-        if (fs.existsSync(stopFlagPath)) fs.unlinkSync(stopFlagPath);
-      } catch {}
-    }
-    process.exit(0);
-  });
-
-  setTimeout(() => {
-    process.exit(0);
-  }, 1000).unref();
-}
-

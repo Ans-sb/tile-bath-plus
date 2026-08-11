@@ -18,6 +18,7 @@ async function handleMediaRoutes(request, response, context) {
   }
 
   if (request.method === "GET" && request.url.startsWith("/api/image-data-url")) {
+    await context.authorizeMediaRequest(request);
     const url = new URL(request.url, `http://${request.headers.host}`);
     const imageUrl = String(url.searchParams.get("url") || "").trim();
     context.sendJson(response, 200, {
@@ -28,7 +29,8 @@ async function handleMediaRoutes(request, response, context) {
   }
 
   if (request.method === "POST" && request.url === "/api/render") {
-    const payload = JSON.parse(await context.readRequestBody(request) || "{}");
+    await context.authorizeMediaRequest(request);
+    const payload = JSON.parse(await context.readRequestBody(request, { bodyLimit: 32 * 1024 * 1024 }) || "{}");
     const siteImageDataUrl = String(payload?.siteImageDataUrl || "").trim();
     const surfaces = Array.isArray(payload?.surfaces) ? payload.surfaces : [];
     const hasTileReference = surfaces.some((entry) => String(entry?.tileImageDataUrl || "").trim());
@@ -43,20 +45,28 @@ async function handleMediaRoutes(request, response, context) {
   }
 
   if (request.method === "POST" && request.url === "/api/render-feedback") {
-    const payload = JSON.parse(await context.readRequestBody(request));
+    if (context.allowMediaRequest && !context.allowMediaRequest(request)) {
+      context.sendJson(response, 429, { error: "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요." });
+      return true;
+    }
+    await context.authorizeMediaRequest(request);
+    const payload = JSON.parse(await context.readRequestBody(request, { bodyLimit: 24 * 1024 * 1024 }));
     context.sendJson(response, 200, await context.appendRenderFeedback(payload, request));
     return true;
   }
 
   if (request.method === "POST" && request.url === "/api/tile-match") {
-    const payload = JSON.parse(await context.readRequestBody(request));
+    await context.authorizeMediaRequest(request);
+    const payload = JSON.parse(await context.readRequestBody(request, { bodyLimit: 12 * 1024 * 1024 }));
     const adminContext = context.readOptionalAdminContextFromRequest(request);
     context.sendJson(response, 200, await context.findSimilarTilesByImage(payload, adminContext));
     return true;
   }
 
   if (request.method === "POST" && request.url === "/api/business-status") {
-    const { businessNumber } = JSON.parse(await context.readRequestBody(request));
+    const payload = JSON.parse(await context.readRequestBody(request, { bodyLimit: 32 * 1024 }));
+    await context.authorizeBusinessStatusRequest(request, payload);
+    const { businessNumber } = payload;
     context.sendJson(response, 200, await context.checkBusinessStatus(String(businessNumber || "")));
     return true;
   }

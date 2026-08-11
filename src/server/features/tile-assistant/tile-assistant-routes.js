@@ -10,9 +10,13 @@ function createTileAssistantRateLimiter({
   const clients = new Map();
 
   return function allowTileAssistantRequest(request) {
-    const forwardedAddress = trustProxy
-      ? String(request?.headers?.["x-forwarded-for"] || "").split(",")[0].trim()
-      : "";
+    const forwardedAddresses = trustProxy
+      ? String(request?.headers?.["x-forwarded-for"] || "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+      : [];
+    const forwardedAddress = forwardedAddresses.at(-1) || "";
     const clientAddress = forwardedAddress || String(request?.socket?.remoteAddress || "unknown");
     const currentTime = now();
     const current = clients.get(clientAddress);
