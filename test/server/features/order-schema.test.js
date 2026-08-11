@@ -19,6 +19,9 @@ test("customer schema provisions durable idempotent order storage with RLS", () 
   assert.match(sql, /check \(quote_price > 0\)/);
   assert.match(sql, /line_number integer not null/);
   assert.match(sql, /create unique index if not exists order_items_order_line_unique/);
+  assert.match(sql, /and target\.line_number is null/);
+  assert.match(sql, /coalesce\(max\(line_number\), 0\)/);
+  assert.doesNotMatch(sql, /target\.line_number is distinct from numbered_items\.line_number/);
   assert.match(sql, /order_items_qty_positive/);
   assert.match(sql, /add constraint order_items_qty_positive check \(qty > 0\) not valid/);
   assert.match(sql, /add constraint orders_item_count_positive check \(item_count > 0\) not valid/);

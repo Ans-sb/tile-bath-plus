@@ -178,15 +178,25 @@ add column if not exists line_number integer;
 alter table public.order_items
 add column if not exists item_data jsonb not null default '{}'::jsonb;
 
-with numbered_items as (
-  select id, row_number() over (partition by order_id order by created_at, id)::integer as line_number
+with order_line_max as (
+  select order_id, coalesce(max(line_number), 0) as max_line_number
   from public.order_items
+  group by order_id
+), missing_line_numbers as (
+  select
+    item.id,
+    (line_max.max_line_number + row_number() over (
+      partition by item.order_id order by item.created_at, item.id
+    ))::integer as line_number
+  from public.order_items item
+  join order_line_max line_max on line_max.order_id = item.order_id
+  where item.line_number is null
 )
 update public.order_items as target
-set line_number = numbered_items.line_number
-from numbered_items
-where target.id = numbered_items.id
-  and target.line_number is distinct from numbered_items.line_number;
+set line_number = missing_line_numbers.line_number
+from missing_line_numbers
+where target.id = missing_line_numbers.id
+  and target.line_number is null;
 
 alter table public.order_items alter column line_number set not null;
 
