@@ -15,9 +15,19 @@
 
 - 저장 파일: `data/tile-sales-projects.json`
 - 브라우저별 `clientKey`와 로그인 사용자를 함께 사용해 소유자를 분리한다.
-- 현장 조건, 상담 단계, 대화, 추천 상품, 물량 계산 결과를 저장한다.
-- 새로고침 후 기존 프로젝트를 복원할 수 있다.
-- 새 현장 버튼은 현재 대화와 분리된 새 프로젝트를 시작한다.
+- 현장명, 거래처명, 공간, 주소, 필요일, 요청사항을 현장 원장에 저장한다.
+- 현장 조건, 상담 단계, 대화, 추천 상품, 선택 상품, 물량 계산 결과를 저장한다.
+- 현장 목록에서 이전 프로젝트를 다시 열고 상담을 이어갈 수 있다.
+- 추천 상품은 `현장에 저장` 버튼으로 추천 목록과 별도의 선택 상품 목록에 보관한다.
+- 새 현장 버튼은 현장 정보를 먼저 만든 뒤 현재 대화와 분리된 상담을 시작한다.
+
+## 현장 원장 API
+
+- `GET /api/tile-assistant/projects`: 소유자의 현장 목록
+- `POST /api/tile-assistant/projects`: 새 현장 생성
+- `GET /api/tile-assistant/project`: 현장 상담 복원
+- `PATCH /api/tile-assistant/project`: 현장 정보 수정
+- `POST /api/tile-assistant/project/products`: 추천 상품 선택 또는 선택 해제
 
 ## 고객 정보 보호
 

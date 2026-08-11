@@ -92,7 +92,7 @@ function normalizeSignupRequest(payload) {
     businessItem: String(payload?.businessItem || "").trim(),
     businessCategorySection: String(payload?.businessCategorySection || "").trim(),
     approvalStatus: normalizeApprovalStatus(payload?.approvalStatus),
-    memberGrade: String(payload?.memberGrade || "사업자").trim(),
+    memberGrade: String(payload?.memberGrade || "B등급").trim(),
     priceTier: normalizeMemberPriceTier(payload?.priceTier || "wholesale"),
     businessFileName: String(payload?.businessFileName || "").trim(),
     businessFileMime: String(payload?.businessFileMime || "").trim(),
@@ -159,7 +159,7 @@ function mapSupabaseSignupRequest(row) {
     businessItem: String(row.business_item || "").trim(),
     businessCategorySection: String(row.business_category_section || "").trim(),
     approvalStatus: normalizeApprovalStatus(row.approval_status),
-    memberGrade: String(row.member_grade || "사업자").trim(),
+    memberGrade: String(row.member_grade || "B등급").trim(),
     priceTier: normalizeMemberPriceTier(row.price_tier || "wholesale"),
     businessFileName: String(row.business_file_name || "").trim(),
     submittedAt: String(row.submitted_at || "").trim()

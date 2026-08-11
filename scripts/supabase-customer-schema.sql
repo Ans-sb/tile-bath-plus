@@ -37,7 +37,7 @@ create table if not exists public.business_profiles (
   business_item text not null default '',
   business_category_section text not null default '',
   verification_status text not null default 'pending',
-  member_grade text not null default '사업자',
+  member_grade text not null default 'B등급',
   price_tier text not null default 'retail',
   pricing_access text not null default 'pending',
   approved_at timestamptz,
@@ -88,7 +88,7 @@ create table if not exists public.signup_requests (
   business_item text not null default '',
   business_category_section text not null default '',
   approval_status text not null default '보류',
-  member_grade text not null default '사업자',
+  member_grade text not null default 'B등급',
   price_tier text not null default 'retail',
   business_file_name text not null default '',
   submitted_at timestamptz not null default now(),
@@ -102,7 +102,7 @@ add column if not exists social_email text not null default '',
 add column if not exists social_provider_id text not null default '',
 add column if not exists social_name text not null default '',
 add column if not exists social_avatar_url text not null default '',
-add column if not exists member_grade text not null default '사업자',
+add column if not exists member_grade text not null default 'B등급',
 add column if not exists price_tier text not null default 'retail',
 add column if not exists updated_at timestamptz not null default now();
 
@@ -124,6 +124,47 @@ create table if not exists public.carts (
   cart_data jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.orders (
+  id uuid primary key default gen_random_uuid(),
+  order_number text not null unique,
+  business_number text not null,
+  company_name text not null default '',
+  contact_name text not null default '',
+  order_status text not null default '접수대기',
+  item_count integer not null default 0,
+  total_quote numeric not null default 0,
+  order_note text not null default '',
+  source text not null default 'cart',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists orders_business_number_idx on public.orders (business_number);
+create index if not exists orders_order_status_idx on public.orders (order_status);
+create index if not exists orders_created_at_idx on public.orders (created_at desc);
+
+create table if not exists public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  product_id text not null default '',
+  management_code text not null default '',
+  product_type text not null default '',
+  product_name text not null default '',
+  size text not null default '',
+  finish text not null default '',
+  unit text not null default '',
+  qty numeric not null default 0,
+  quote_price numeric not null default 0,
+  line_total numeric not null default 0,
+  stock_qty numeric not null default 0,
+  image text not null default '',
+  item_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists order_items_order_id_idx on public.order_items (order_id);
+create index if not exists order_items_management_code_idx on public.order_items (management_code);
 
 create or replace function public.set_generic_updated_at()
 returns trigger
@@ -162,5 +203,11 @@ execute function public.set_generic_updated_at();
 drop trigger if exists trg_carts_updated_at on public.carts;
 create trigger trg_carts_updated_at
 before update on public.carts
+for each row
+execute function public.set_generic_updated_at();
+
+drop trigger if exists trg_orders_updated_at on public.orders;
+create trigger trg_orders_updated_at
+before update on public.orders
 for each row
 execute function public.set_generic_updated_at();

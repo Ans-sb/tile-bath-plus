@@ -40,15 +40,52 @@ function createOrderError(statusCode, message) {
   return error;
 }
 
+const ORDER_NOTE_PREFIX = "JAJAEGO_ORDER_V1:";
+
 function normalizeOrderStatus(value) {
   const text = clean(value);
-  if (["접수완료", "received", "confirmed"].includes(text)) return "접수완료";
+  if (["주문확인", "received", "confirmed"].includes(text)) return "주문확인";
+  if (text === "접수완료") return "접수완료";
+  if (["결제대기", "payment_pending"].includes(text)) return "결제대기";
+  if (["결제완료", "paid"].includes(text)) return "결제완료";
   if (["재고확인", "stock_check"].includes(text)) return "재고확인";
   if (["견적확정", "quote_confirmed"].includes(text)) return "견적확정";
   if (["출고준비", "shipping_ready"].includes(text)) return "출고준비";
+  if (["배차대기", "dispatch_pending"].includes(text)) return "배차대기";
+  if (["배송중", "shipping"].includes(text)) return "배송중";
+  if (["배송완료", "delivered"].includes(text)) return "배송완료";
   if (["완료", "done", "completed"].includes(text)) return "완료";
   if (["취소", "cancelled", "canceled"].includes(text)) return "취소";
   return "접수대기";
+}
+
+function decodeOrderNote(value) {
+  const text = clean(value);
+  if (!text.startsWith(ORDER_NOTE_PREFIX)) return { note: text };
+  try {
+    const parsed = JSON.parse(text.slice(ORDER_NOTE_PREFIX.length));
+    return {
+      note: clean(parsed.note),
+      contactPhone: clean(parsed.contactPhone),
+      deliveryAddress: clean(parsed.deliveryAddress),
+      requestedDeliveryDate: clean(parsed.requestedDeliveryDate),
+      memberGradeSnapshot: clean(parsed.memberGradeSnapshot),
+      priceTierSnapshot: clean(parsed.priceTierSnapshot)
+    };
+  } catch {
+    return { note: text };
+  }
+}
+
+function encodeOrderNote(order) {
+  return `${ORDER_NOTE_PREFIX}${JSON.stringify({
+    note: clean(order.note),
+    contactPhone: clean(order.contactPhone),
+    deliveryAddress: clean(order.deliveryAddress),
+    requestedDeliveryDate: clean(order.requestedDeliveryDate),
+    memberGradeSnapshot: clean(order.memberGradeSnapshot),
+    priceTierSnapshot: clean(order.priceTierSnapshot)
+  })}`;
 }
 
 function normalizeOrderItem(item, normalizeCartItem) {
@@ -65,6 +102,7 @@ function normalizeOrderItem(item, normalizeCartItem) {
 
 function mapLocalOrder(row) {
   const items = Array.isArray(row.items) ? row.items : [];
+  const operationInfo = decodeOrderNote(row.note);
   return {
     id: clean(row.id),
     orderNumber: clean(row.orderNumber),
@@ -75,7 +113,12 @@ function mapLocalOrder(row) {
     statusLabel: normalizeOrderStatus(row.status),
     itemCount: Number(row.itemCount) || items.length,
     totalQuote: toNumber(row.totalQuote),
-    note: clean(row.note),
+    note: operationInfo.note,
+    contactPhone: clean(row.contactPhone || operationInfo.contactPhone),
+    deliveryAddress: clean(row.deliveryAddress || operationInfo.deliveryAddress),
+    requestedDeliveryDate: clean(row.requestedDeliveryDate || operationInfo.requestedDeliveryDate),
+    memberGradeSnapshot: clean(row.memberGradeSnapshot || operationInfo.memberGradeSnapshot),
+    priceTierSnapshot: clean(row.priceTierSnapshot || operationInfo.priceTierSnapshot),
     createdAt: clean(row.createdAt),
     updatedAt: clean(row.updatedAt || row.createdAt),
     items
@@ -84,6 +127,7 @@ function mapLocalOrder(row) {
 
 function mapSupabaseOrder(row) {
   const items = Array.isArray(row.items) ? row.items : [];
+  const operationInfo = decodeOrderNote(row.order_note);
   return {
     id: clean(row.id),
     orderNumber: clean(row.order_number),
@@ -94,7 +138,12 @@ function mapSupabaseOrder(row) {
     statusLabel: normalizeOrderStatus(row.order_status),
     itemCount: Number(row.item_count) || items.length,
     totalQuote: toNumber(row.total_quote),
-    note: clean(row.order_note),
+    note: operationInfo.note,
+    contactPhone: operationInfo.contactPhone,
+    deliveryAddress: operationInfo.deliveryAddress,
+    requestedDeliveryDate: operationInfo.requestedDeliveryDate,
+    memberGradeSnapshot: operationInfo.memberGradeSnapshot,
+    priceTierSnapshot: operationInfo.priceTierSnapshot,
     createdAt: clean(row.created_at),
     updatedAt: clean(row.updated_at || row.created_at),
     items
@@ -178,6 +227,11 @@ function createOrderStore({
         itemCount: items.length,
         totalQuote: items.reduce((sum, item) => sum + item.lineTotal, 0),
         note: clean(payload?.note),
+        contactPhone: clean(payload?.contactPhone),
+        deliveryAddress: clean(payload?.deliveryAddress),
+        requestedDeliveryDate: clean(payload?.requestedDeliveryDate),
+        memberGradeSnapshot: clean(payload?.memberGradeSnapshot),
+        priceTierSnapshot: clean(payload?.priceTierSnapshot),
         createdAt: now,
         updatedAt: now,
         items
@@ -196,7 +250,7 @@ function createOrderStore({
               order_status: order.status,
               item_count: order.itemCount,
               total_quote: order.totalQuote,
-              order_note: order.note,
+              order_note: encodeOrderNote(order),
               source: "cart"
             }])
           });

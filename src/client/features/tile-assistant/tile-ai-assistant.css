@@ -249,6 +249,13 @@
   white-space: nowrap;
 }
 
+.tile-ai-project-bar > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .tile-ai-project-bar span {
   padding: 4px 8px;
   border-radius: 999px;
@@ -269,6 +276,215 @@
   font-size: 11px;
   font-weight: 750;
   cursor: pointer;
+}
+
+.tile-ai-project-manager {
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+  background: #f6f8fc;
+}
+
+.tile-ai-project-manager[hidden] {
+  display: none;
+}
+
+.tile-ai-project-manager > header {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tile-ai-project-manager > header strong,
+.tile-ai-project-manager > header span {
+  display: block;
+}
+
+.tile-ai-project-manager > header strong {
+  color: #101a34;
+  font-size: 16px;
+}
+
+.tile-ai-project-manager > header span {
+  margin-top: 3px;
+  color: #6b7690;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.tile-ai-project-manager > header button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid #d5deed;
+  border-radius: 8px;
+  color: #34425f;
+  background: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.tile-ai-project-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tile-ai-project-list[hidden],
+.tile-ai-project-form[hidden] {
+  display: none;
+}
+
+.tile-ai-project-row {
+  padding: 11px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #dce5f2;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.tile-ai-project-row.is-current {
+  border-color: #1268ff;
+  box-shadow: inset 3px 0 #1268ff;
+}
+
+.tile-ai-project-row strong,
+.tile-ai-project-row span {
+  display: block;
+}
+
+.tile-ai-project-row strong {
+  overflow: hidden;
+  color: #101a34;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-ai-project-row span {
+  margin-top: 4px;
+  color: #68738a;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.tile-ai-project-row > div:last-child {
+  display: flex;
+  gap: 5px;
+}
+
+.tile-ai-project-row button,
+.tile-ai-project-empty button,
+.tile-ai-project-form button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #cad6e8;
+  border-radius: 8px;
+  color: #081957;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tile-ai-project-row button:disabled {
+  color: #6c7690;
+  background: #edf2f8;
+  cursor: default;
+}
+
+.tile-ai-project-empty {
+  min-height: 150px;
+  padding: 20px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  border: 1px dashed #c8d4e7;
+  border-radius: 12px;
+  color: #67738c;
+  background: #fff;
+  font-size: 12px;
+}
+
+.tile-ai-project-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tile-ai-project-form label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.tile-ai-project-form label > span {
+  color: #46536e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tile-ai-project-form input,
+.tile-ai-project-form select,
+.tile-ai-project-form textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #cad6e8;
+  border-radius: 8px;
+  color: #17213e;
+  background: #fff;
+  font: inherit;
+  font-size: 12px;
+}
+
+.tile-ai-project-form textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.tile-ai-project-form .is-wide {
+  grid-column: 1 / -1;
+}
+
+.tile-ai-project-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.tile-ai-project-form__actions button[type="submit"] {
+  border-color: #081957;
+  color: #fff;
+  background: #081957;
+}
+
+.tile-ai-project-status {
+  min-height: 18px;
+  margin: 10px 0 0;
+  color: #5c6880;
+  font-size: 11px;
+}
+
+.tile-ai-project-status[data-tone="error"] {
+  color: #b42318;
+}
+
+.tile-ai-project-status[data-tone="notice"] {
+  color: #0b4fcc;
+}
+
+.tile-ai-panel.is-project-manager-open .tile-ai-messages,
+.tile-ai-panel.is-project-manager-open .tile-ai-suggestions,
+.tile-ai-panel.is-project-manager-open > .tile-ai-form,
+.tile-ai-panel.is-project-manager-open .tile-ai-disclaimer {
+  display: none;
 }
 
 .tile-ai-message__actions button:hover,
@@ -325,11 +541,12 @@
 
 .tile-ai-product-card__body {
   min-width: 0;
-  padding: 10px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-content: start;
-  gap: 4px 8px;
+  position: relative;
+  padding: 10px 10px 10px 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .tile-ai-product-card__body:only-child {
@@ -337,7 +554,9 @@
 }
 
 .tile-ai-product-card__rank {
-  grid-row: 1 / span 2;
+  position: absolute;
+  top: 11px;
+  left: 10px;
   color: #1268ff;
   font-size: 11px;
   font-weight: 900;
@@ -351,6 +570,7 @@
 }
 
 .tile-ai-product-card__body strong {
+  width: 100%;
   overflow: hidden;
   color: #101a34;
   font-size: 13px;
@@ -360,14 +580,19 @@
 
 .tile-ai-product-card__body p,
 .tile-ai-product-card__body small {
-  grid-column: 2;
+  width: 100%;
   color: #65708a;
   font-size: 11px;
   line-height: 1.4;
 }
 
+.tile-ai-product-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
 .tile-ai-product-card__body button {
-  grid-column: 2;
   width: fit-content;
   min-height: 30px;
   padding: 5px 9px;
@@ -379,6 +604,12 @@
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.tile-ai-product-card__body button.is-selected {
+  border-color: #1268ff;
+  color: #fff;
+  background: #1268ff;
 }
 
 .tile-ai-quantity {
@@ -526,6 +757,26 @@
 
   .tile-ai-project-bar {
     padding-inline: 11px;
+  }
+
+  .tile-ai-project-bar button {
+    padding-inline: 7px;
+  }
+
+  .tile-ai-project-form {
+    grid-template-columns: 1fr;
+  }
+
+  .tile-ai-project-form .is-wide {
+    grid-column: 1;
+  }
+
+  .tile-ai-project-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tile-ai-project-row > div:last-child {
+    justify-content: flex-end;
   }
 
   .tile-ai-product-card {

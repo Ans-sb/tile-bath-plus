@@ -32,6 +32,11 @@ const { createAdminProductService } = require("./src/server/services/admin-produ
 const { createApprovalRulesService } = require("./src/server/services/approval-rules-service");
 const { createCartStore } = require("./src/server/services/cart-store");
 const { createOrderStore } = require("./src/server/services/order-store");
+const {
+  getMemberUnitPrice,
+  mapMemberProductForAccess: buildMemberProductForAccess,
+  normalizeMemberGrade
+} = require("./src/server/services/member-pricing-service");
 const { createSiteSettingsService } = require("./src/server/services/site-settings-service");
 const { createHermesClient } = require("./src/server/services/hermes-client");
 const { createOpenAiChatClient } = require("./src/server/services/openai-chat-client");
@@ -43,8 +48,13 @@ const {
   createTileAssistantRateLimiter,
   handleTileAssistantRoutes
 } = require("./src/server/features/tile-assistant/tile-assistant-routes");
-const { createTileAssistantService } = require("./src/server/features/tile-assistant/tile-assistant-service");
+const {
+  createTileAssistantService,
+  summarizeProject: summarizeTileAssistantProject
+} = require("./src/server/features/tile-assistant/tile-assistant-service");
 const { createTileSalesProjectStore } = require("./src/server/features/tile-assistant/tile-sales-project-store");
+const { handleSampleRequestRoutes } = require("./src/server/features/sample-requests/sample-request-routes");
+const { createSampleRequestStore } = require("./src/server/features/sample-requests/sample-request-store");
 const { normalizeProposalPayload: normalizeSecureProposalPayload } = require("./src/server/features/proposal/proposal-payload-normalizer");
 const { createProposalDownloadStore } = require("./src/server/features/proposal/proposal-download-store");
 
@@ -64,6 +74,7 @@ const ordersPath = path.join(root, "data", "orders.json");
 const siteSettingsPath = path.join(root, "data", "site-settings.json");
 const sketchupPackagesPath = path.join(root, "data", "sketchup-material-packages.json");
 const tileSalesProjectsPath = path.join(root, "data", "tile-sales-projects.json");
+const sampleRequestsPath = path.join(root, "data", "sample-requests.json");
 const siteStudioUploadDir = path.join(root, "uploads", "site-studio");
 const productsHiddenFlagPath = path.join(root, "data", "products-hidden.flag");
 const proposalOutputDir = path.join(root, "outputs", "proposals");
@@ -177,7 +188,8 @@ const productWriter = createProductWriter({
   fileStore: productFileStore,
   cache: productCache,
   hasSupabaseConfig,
-  upsertProductToSupabase
+  upsertProductToSupabase,
+  upsertProductsToSupabase
 });
 const tileImageSignatureCache = new Map();
 const tileImageSignatureLimit = Math.max(24, Number(process.env.TILE_IMAGE_SIGNATURE_CACHE_LIMIT || 2500));
@@ -255,6 +267,7 @@ const adminProductService = createAdminProductService({
   assertAdminCredentials,
   readProducts,
   saveProduct,
+  saveProducts: (products, changedProducts, options) => productWriter.saveProducts(products, changedProducts, options),
   normalizeProduct,
   mapPublicProduct
 });
@@ -310,6 +323,7 @@ const tileAssistantChatClient = {
 };
 const hermesAdminService = createHermesAdminService({ hermesClient });
 const tileSalesProjectStore = createTileSalesProjectStore({ filePath: tileSalesProjectsPath });
+const sampleRequestStore = createSampleRequestStore({ filePath: sampleRequestsPath });
 const tileAssistantService = createTileAssistantService({
   chatClient: tileAssistantChatClient,
   searchCatalog: (payload) => searchTileCatalog({ ...payload, audience: "customer" }),
@@ -332,6 +346,10 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (await handleTileAssistantRoutes(request, response, getTileAssistantRouteContext())) {
+      return;
+    }
+
+    if (await handleSampleRequestRoutes(request, response, getSampleRequestRouteContext())) {
       return;
     }
 
@@ -403,11 +421,13 @@ function getProductRouteContext() {
     readProducts,
     readBestTileProducts,
     isPublicCatalogProduct,
-    mapMemberProduct,
+    mapMemberProductForAccess,
     readAdminCredentialsFromRequest,
     readAdminProducts,
     readAdminProduct,
-    saveAdminProduct
+    saveAdminProduct,
+    previewAdminGradePricing,
+    applyAdminGradePricing
   };
 }
 
@@ -490,8 +510,130 @@ function getTileAssistantRouteContext() {
     isTileAssistantOriginAllowed,
     answerTileQuestion: (payload) => tileAssistantService.answer(payload),
     resolveTileAssistantActor,
-    readTileAssistantProject: (projectId, actor) => tileSalesProjectStore.readProject(projectId, actor)
+    listTileAssistantProjects: (actor) => tileSalesProjectStore.listProjects(actor),
+    readTileAssistantProject: async (projectId, actor) => {
+      const project = await tileSalesProjectStore.readProject(projectId, actor);
+      return project ? summarizeTileAssistantProject(project) : null;
+    },
+    createTileAssistantProject: async (actor, site) => {
+      const project = await tileSalesProjectStore.createProject({ owner: actor, site });
+      return project ? summarizeTileAssistantProject(project) : null;
+    },
+    updateTileAssistantProject: async (projectId, actor, site) => {
+      const project = await tileSalesProjectStore.updateProject({ projectId, owner: actor, site });
+      return project ? summarizeTileAssistantProject(project) : null;
+    },
+    setTileAssistantSelectedProduct: async (projectId, actor, product, selected) => {
+      const project = await tileSalesProjectStore.setSelectedProduct({ projectId, owner: actor, product, selected });
+      return project ? summarizeTileAssistantProject(project) : null;
+    }
   };
+}
+
+function getSampleRequestRouteContext() {
+  return {
+    readRequestBody,
+    sendJson,
+    resolveSampleRequestActor,
+    listSampleRequests: (actor) => sampleRequestStore.listRequests(actor),
+    createSampleRequest,
+    assertSampleRequestAdmin,
+    listAdminSampleRequests: () => sampleRequestStore.listAllRequests(),
+    updateAdminSampleRequest: (payload, admin) => sampleRequestStore.updateRequest(payload, admin.adminUsername)
+  };
+}
+
+async function resolveSampleRequestActor(request) {
+  const adminContext = readOptionalAdminContextFromRequest(request);
+  if (adminContext.isAdmin) {
+    return {
+      type: "admin",
+      id: adminContext.adminUsername,
+      businessNumber: "",
+      companyName: adminDisplayName,
+      contactName: adminDisplayName,
+      contact: ""
+    };
+  }
+
+  const credentials = readMemberProductCredentialsFromRequest(request);
+  const member = await verifyMemberSessionAccess(credentials.businessNumber, credentials.memberToken);
+  return {
+    type: "member",
+    id: member.businessNumber,
+    businessNumber: member.businessNumber,
+    companyName: member.companyName || "",
+    contactName: member.name || member.contactName || "",
+    contact: member.phone || member.contact || ""
+  };
+}
+
+function assertSampleRequestAdmin(request) {
+  const credentials = readAdminCredentialsFromRequest(request);
+  assertAdminCredentials(credentials.adminUsername, credentials.adminToken);
+  return { adminUsername: credentials.adminUsername };
+}
+
+async function createSampleRequest(actor, payload = {}) {
+  const projectId = String(payload.projectId || "").trim();
+  const project = await tileSalesProjectStore.readProject(projectId, actor);
+  if (!project) throw createHttpError(404, "샘플을 신청할 현장 프로젝트를 찾지 못했습니다.");
+
+  const selectedProducts = Array.isArray(project.selectedProducts) ? project.selectedProducts : [];
+  const selectedIds = new Set(selectedProducts.map((entry) => String(entry.id || "").trim()).filter(Boolean));
+  const requestedItems = Array.isArray(payload.items) ? payload.items : [];
+  const requestedQuantityById = new Map(requestedItems.map((entry) => [
+    String(entry?.id || "").trim(),
+    Math.min(20, Math.max(1, Math.round(Number(entry?.quantity) || 1)))
+  ]));
+  const requestedIds = requestedItems.length
+    ? requestedItems.map((entry) => String(entry?.id || "").trim()).filter((id) => selectedIds.has(id))
+    : [...selectedIds];
+  if (!requestedIds.length) throw createHttpError(400, "현장에 저장된 상품 중 신청할 샘플을 선택해주세요.");
+
+  const productMap = new Map((await readProducts()).map((product) => [String(product.id || "").trim(), product]));
+  const items = [...new Set(requestedIds)].flatMap((id) => {
+    const product = productMap.get(id);
+    if (!product || !isPublicCatalogProduct(product) || !isSntSampleProduct(product)) return [];
+    const safe = mapPublicProduct(product);
+    return [{
+      id: safe.id,
+      code: safe.modelName || "",
+      name: safe.name,
+      size: safe.size,
+      finish: safe.finish,
+      color: safe.color,
+      style: safe.patternCategory,
+      material: safe.material,
+      image: safe.image || safe.originalImage || "",
+      quantity: requestedQuantityById.get(id) || 1
+    }];
+  });
+  if (!items.length) throw createHttpError(400, "현재 샘플 제공이 가능한 선택 상품이 없습니다.");
+
+  return sampleRequestStore.createRequest({
+    owner: actor,
+    businessNumber: actor.businessNumber,
+    companyName: actor.companyName,
+    projectId: project.id,
+    projectTitle: project.title,
+    site: project.site,
+    recipient: {
+      name: payload.recipient?.name || actor.contactName,
+      contact: payload.recipient?.contact || actor.contact,
+      address: payload.recipient?.address || project.site?.siteAddress,
+      addressDetail: payload.recipient?.addressDetail
+    },
+    requestedDate: payload.requestedDate,
+    note: payload.note,
+    items
+  });
+}
+
+function isSntSampleProduct(product) {
+  return String(product?.id || "").startsWith("snt-")
+    || /^SNT$/i.test(String(product?.catalogSource || "").trim())
+    || /^SNT$/i.test(String(product?.maker || "").trim());
 }
 
 async function resolveTileAssistantActor(request, payload = {}) {
@@ -634,6 +776,9 @@ function normalizeProduct(product) {
     costPrice: Number(product.costPrice) || 0,
     retailPrice: Number(product.retailPrice) || 0,
     wholesalePrice: Number(product.wholesalePrice) || 0,
+    gradeAPrice: Number(product.gradeAPrice) || 0,
+    gradeBPrice: Number(product.gradeBPrice) || 0,
+    gradeCPrice: Number(product.gradeCPrice) || 0,
     stockQty: Number(product.stockQty) || 0,
     image: String(product.image || "").trim(),
     originalImage: String(product.originalImage || "").trim(),
@@ -755,6 +900,14 @@ function mapMemberProduct(product) {
   return productResponseMapper.mapMemberProduct(product);
 }
 
+function mapMemberProductForAccess(product, memberAccess) {
+  return buildMemberProductForAccess(
+    product,
+    memberAccess,
+    (entry) => productResponseMapper.mapPublicProduct(entry)
+  );
+}
+
 function mapAdminTileMatchProduct(product) {
   return productResponseMapper.mapAdminTileMatchProduct(product);
 }
@@ -849,6 +1002,14 @@ async function readAdminProducts(adminUsernameValue, adminTokenValue) {
 
 async function saveAdminProduct(payload) {
   return adminProductService.saveAdminProduct(payload);
+}
+
+async function previewAdminGradePricing(adminUsernameValue, adminTokenValue, payload) {
+  return adminProductService.previewAdminGradePricing(adminUsernameValue, adminTokenValue, payload);
+}
+
+async function applyAdminGradePricing(adminUsernameValue, adminTokenValue, payload) {
+  return adminProductService.applyAdminGradePricing(adminUsernameValue, adminTokenValue, payload);
 }
 
 async function appendSearchTrainingFeedback(payload, reviewer) {
@@ -1509,8 +1670,6 @@ async function saveSignupRequestRecord(payload) {
 async function updateSignupRequestApprovalStatus(payload, adminUsernameValue = "") {
   const businessNumber = String(payload?.businessNumber || "").trim();
   const approvalStatus = normalizeApprovalStatus(payload?.approvalStatus);
-  const memberGrade = String(payload?.memberGrade || "사업자").trim();
-  const priceTier = normalizeMemberPriceTier(payload?.priceTier || (approvalStatus === "승인" ? "wholesale" : "retail"));
   const isApproved = approvalStatus === "승인";
   const now = new Date().toISOString();
 
@@ -1519,6 +1678,10 @@ async function updateSignupRequestApprovalStatus(payload, adminUsernameValue = "
 
   const existing = await readSignupRequestByBusinessNumber(businessNumber);
   if (!existing) throw createHttpError(404, "가입 신청 정보를 찾지 못했습니다.");
+  const memberGrade = `${normalizeMemberGrade(payload?.memberGrade || existing.memberGrade, "B")}등급`;
+  const priceTier = normalizeMemberPriceTier(
+    payload?.priceTier || existing.priceTier || (isApproved ? "wholesale" : "retail")
+  );
 
   await requestSupabase(`/rest/v1/signup_requests?business_number=eq.${encodeURIComponent(businessNumber)}`, {
     method: "PATCH",
@@ -1568,6 +1731,8 @@ async function updateSignupRequestApprovalStatus(payload, adminUsernameValue = "
     businessNumber,
     approvalStatus,
     pricingAccess: isApproved ? "approved" : "pending",
+    memberGrade,
+    priceTier,
     handledBy: String(adminUsernameValue || "").trim(),
     updatedAt: now
   };
@@ -1729,11 +1894,25 @@ async function createOrderFromCart(payload, memberCredentials = {}) {
   const businessNumber = String(payload?.businessNumber || memberCredentials.businessNumber || "").trim();
   const memberAccess = await verifyMemberProductAccess(businessNumber, memberCredentials.memberToken);
   const secureItems = await buildServerPricedOrderItems(payload?.items, memberAccess);
+  const contactPhone = String(payload?.contactPhone || "").trim();
+  const deliveryAddress = String(payload?.deliveryAddress || "").trim();
+  const requestedDeliveryDate = String(payload?.requestedDeliveryDate || "").trim();
+  if (!contactPhone) throw createHttpError(400, "주문 담당자 연락처를 입력해주세요.");
+  if (!deliveryAddress) throw createHttpError(400, "현장 배송 주소를 입력해주세요.");
+  if (requestedDeliveryDate && !/^\d{4}-\d{2}-\d{2}$/.test(requestedDeliveryDate)) {
+    throw createHttpError(400, "희망 배송일 형식이 올바르지 않습니다.");
+  }
   return orderStore.createOrder({
     ...payload,
     businessNumber,
     items: secureItems,
-    status: payload?.status || "접수대기"
+    status: "접수대기",
+    contactPhone,
+    deliveryAddress,
+    requestedDeliveryDate,
+    note: String(payload?.note || "").trim().slice(0, 1000),
+    memberGradeSnapshot: `${normalizeMemberGrade(memberAccess.memberGrade)}등급`,
+    priceTierSnapshot: memberAccess.priceTier
   });
 }
 
@@ -1748,7 +1927,11 @@ async function buildServerPricedOrderItems(rawItems, memberAccess) {
       throw createHttpError(400, "상품 DB에서 확인되지 않은 상품은 주문 접수할 수 없습니다.");
     }
     const qty = Math.max(Number(item?.qty) || 0, 0);
+    if (!qty) throw createHttpError(400, "주문 수량은 1개 이상이어야 합니다.");
     const quotePrice = getServerOrderUnitPrice(product, memberAccess);
+    if (!quotePrice) {
+      throw createHttpError(409, `${String(product.name || "상품").trim()}의 회원 단가가 등록되지 않았습니다. 관리자에게 문의해주세요.`);
+    }
     return {
       id: String(product.id || "").trim(),
       managementCode: String(product.managementCode || item?.managementCode || "").trim(),
@@ -1794,21 +1977,7 @@ function findOrderProduct(productIndex, item) {
 }
 
 function getServerOrderUnitPrice(product, memberAccess) {
-  const grade = String(memberAccess?.memberGrade || "").trim().toUpperCase();
-  const gradePrices = {
-    A: Number(product?.gradeAPrice || 0),
-    B: Number(product?.gradeBPrice || 0),
-    C: Number(product?.gradeCPrice || 0)
-  };
-  if (grade.includes("A") && gradePrices.A) return gradePrices.A;
-  if (grade.includes("B") && gradePrices.B) return gradePrices.B;
-  if (grade.includes("C") && gradePrices.C) return gradePrices.C;
-  const firstGradePrice = [gradePrices.A, gradePrices.B, gradePrices.C].find((price) => Number(price) > 0) || 0;
-  const tier = normalizeMemberPriceTier(memberAccess?.priceTier || "");
-  if (tier === "wholesale") {
-    return Number(product?.wholesalePrice || 0) || firstGradePrice || Number(product?.retailPrice || 0) || 0;
-  }
-  return Number(product?.retailPrice || 0) || Number(product?.wholesalePrice || 0) || firstGradePrice || 0;
+  return getMemberUnitPrice(product, memberAccess);
 }
 
 async function readMemberOrders(businessNumber, memberCredentials = {}) {
@@ -1971,6 +2140,11 @@ function mapMemberOrder(order) {
     itemCount: order.itemCount,
     totalQuote: order.totalQuote,
     note: order.note,
+    contactPhone: order.contactPhone,
+    deliveryAddress: order.deliveryAddress,
+    requestedDeliveryDate: order.requestedDeliveryDate,
+    memberGradeSnapshot: order.memberGradeSnapshot,
+    priceTierSnapshot: order.priceTierSnapshot,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
     items: (Array.isArray(order.items) ? order.items : []).map((item) => ({
@@ -2023,6 +2197,9 @@ async function readAdminOverview(adminUsernameValue, adminTokenValue) {
       businessType: entry.businessType,
       businessItem: entry.businessItem,
       approvalStatus: entry.approvalStatus,
+      pricingAccess: entry.approvalStatus === "승인" ? "approved" : "pending",
+      memberGrade: `${normalizeMemberGrade(entry.memberGrade, "B")}등급`,
+      priceTier: normalizeMemberPriceTier(entry.priceTier || "wholesale"),
       businessFileName: entry.businessFileName,
       submittedAt: entry.submittedAt
     })),
@@ -2599,7 +2776,7 @@ async function upsertBusinessProfileFromSignupRecord(record) {
     business_item: record.businessItem,
     business_category_section: record.businessCategorySection,
     verification_status: isApproved ? "approved" : "pending",
-    member_grade: record.memberGrade || "사업자",
+    member_grade: record.memberGrade || "B등급",
     price_tier: record.priceTier || (isApproved ? "wholesale" : "retail"),
     pricing_access: isApproved ? "approved" : "pending",
     approved_at: isApproved ? new Date().toISOString() : null
@@ -2833,7 +3010,7 @@ async function verifyMemberSessionAccess(businessNumber, memberToken) {
     businessNumber: record.businessNumber,
     companyName: record.companyName,
     approvalStatus: record.approvalStatus,
-    memberGrade: record.memberGrade || "사업자",
+    memberGrade: `${normalizeMemberGrade(record.memberGrade, "B")}등급`,
     priceTier: record.priceTier || "wholesale"
   };
 }
@@ -2854,7 +3031,7 @@ async function verifyMemberProductAccess(businessNumber, memberToken) {
     businessNumber: record.businessNumber,
     companyName: record.companyName,
     approvalStatus: record.approvalStatus,
-    memberGrade: record.memberGrade || "사업자",
+    memberGrade: `${normalizeMemberGrade(record.memberGrade, "B")}등급`,
     priceTier: record.priceTier || "wholesale",
     pricingAccess: "approved"
   };
@@ -5056,6 +5233,30 @@ function decodeRenderImageDataUrl(dataUrl) {
     };
   } catch {
     throw new Error("현장 사진을 영역 마스크용 이미지로 변환하지 못했습니다.");
+  }
+}
+
+async function upsertProductsToSupabase(products) {
+  const source = Array.isArray(products) ? products : [];
+  const batchSize = 250;
+  for (let index = 0; index < source.length; index += batchSize) {
+    const payload = source.slice(index, index + batchSize).map(mapAppProductToSupabase);
+    try {
+      await requestSupabase("/rest/v1/products", {
+        method: "POST",
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal"
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch (error) {
+      if (String(error?.message || "").match(/column .* does not exist|could not find .* column/i)) {
+        const schemaError = new Error("Supabase products 테이블에 등급별 가격 컬럼이 없습니다. 스키마 적용 후 다시 실행해주세요.");
+        schemaError.statusCode = 409;
+        throw schemaError;
+      }
+      throw error;
+    }
   }
 }
 

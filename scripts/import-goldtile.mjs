@@ -12,6 +12,8 @@ const mergeExistingProducts = String(cli.merge || "true") !== "false" && String(
 const outputOnly = String(cli.outputOnly || cli["output-only"] || "false") === "true";
 const detailConcurrency = Math.max(1, Math.min(20, Number(cli.concurrency || 8) || 8));
 const requestTimeoutMs = Math.max(5000, Number(cli.timeout || cli["timeout-ms"] || 25000) || 25000);
+const listDelayMs = Math.max(0, Number(cli.listDelayMs || cli["list-delay-ms"] || 80) || 0);
+const detailDelayMs = Math.max(0, Number(cli.detailDelayMs || cli["detail-delay-ms"] || 30) || 0);
 const loginUrl = firstEnvValue("thegold_LOGIN_URL", "THEGOLD_LOGIN_URL", "GOLDTILE_LOGIN_URL") || "https://thegoldtile.com/";
 const userId = firstEnvValue("thegold_USER_ID", "THEGOLD_USER_ID", "GOLDTILE_USER_ID");
 const password = firstEnvValue("thegold_PASSWORD", "THEGOLD_PASSWORD", "GOLDTILE_PASSWORD");
@@ -41,7 +43,7 @@ for (const [categoryPath, categoryName] of categoryMap.entries()) {
 
   if (!config && !initialItems.length) {
     console.log(`[skip] ${categoryName} ${categoryPath}`);
-    await sleep(40);
+    await sleep(listDelayMs);
     continue;
   }
 
@@ -54,14 +56,14 @@ for (const [categoryPath, categoryName] of categoryMap.entries()) {
       const items = parseProductBlocks(html, categoryPath, categoryName);
       newCount = addDiscovered(discovered, items);
       console.log(`  page=${page} items=${items.length} new=${newCount} total=${discovered.size}`);
-      await sleep(60);
+      await sleep(listDelayMs);
     }
   }
-  await sleep(80);
+  await sleep(listDelayMs);
 }
 
 const listItems = Array.from(discovered.values());
-console.log(`[detail] ${listItems.length} products concurrency=${detailConcurrency}`);
+console.log(`[detail] ${listItems.length} products concurrency=${detailConcurrency} delayMs=${detailDelayMs}`);
 
 let completed = 0;
 await mapWithConcurrency(listItems, detailConcurrency, async (item) => {
@@ -76,7 +78,7 @@ await mapWithConcurrency(listItems, detailConcurrency, async (item) => {
   if (completed % 50 === 0 || completed === listItems.length) {
     console.log(`  detail=${completed}/${listItems.length}`);
   }
-  await sleep(30);
+  await sleep(detailDelayMs);
 });
 
 const products = listItems

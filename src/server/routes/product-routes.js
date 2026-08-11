@@ -37,7 +37,9 @@ async function handleProductRoutes(request, response, context) {
     context.sendJson(response, 200, {
       ok: true,
       user: member,
-      products: (await context.readProducts()).filter(context.isPublicCatalogProduct).map(context.mapMemberProduct)
+      products: (await context.readProducts())
+        .filter(context.isPublicCatalogProduct)
+        .map((product) => context.mapMemberProductForAccess(product, member))
     });
     return true;
   }
@@ -70,6 +72,28 @@ async function handleProductRoutes(request, response, context) {
   if (request.method === "POST" && request.url === "/api/admin/product") {
     const payload = JSON.parse(await context.readRequestBody(request));
     context.sendJson(response, 200, await context.saveAdminProduct(payload));
+    return true;
+  }
+
+  if (request.method === "POST" && request.url === "/api/admin/product-grade-pricing/preview") {
+    const payload = JSON.parse(await context.readRequestBody(request));
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.sendJson(response, 200, await context.previewAdminGradePricing(
+      adminCredentials.adminUsername,
+      adminCredentials.adminToken,
+      payload
+    ));
+    return true;
+  }
+
+  if (request.method === "POST" && request.url === "/api/admin/product-grade-pricing/apply") {
+    const payload = JSON.parse(await context.readRequestBody(request));
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.sendJson(response, 200, await context.applyAdminGradePricing(
+      adminCredentials.adminUsername,
+      adminCredentials.adminToken,
+      payload
+    ));
     return true;
   }
 

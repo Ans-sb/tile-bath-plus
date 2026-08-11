@@ -1,7 +1,10 @@
+const { buildGradePricingPlan } = require("./grade-pricing-policy");
+
 function createAdminProductService({
   assertAdminCredentials,
   readProducts,
   saveProduct,
+  saveProducts,
   normalizeProduct,
   mapPublicProduct
 }) {
@@ -32,6 +35,43 @@ function createAdminProductService({
         ok: true,
         product,
         products: products.map(mapPublicProduct)
+      };
+    },
+
+    async previewAdminGradePricing(adminUsernameValue, adminTokenValue, payload = {}) {
+      assertAdminCredentials(adminUsernameValue, adminTokenValue);
+      const plan = buildGradePricingPlan(await readProducts({ cache: false }), {
+        filters: payload.filters,
+        stockInquiryThresholdQty: payload.stockInquiryThresholdQty
+      });
+      return {
+        ok: true,
+        filters: plan.filters,
+        previewToken: plan.previewToken,
+        summary: plan.summary
+      };
+    },
+
+    async applyAdminGradePricing(adminUsernameValue, adminTokenValue, payload = {}) {
+      assertAdminCredentials(adminUsernameValue, adminTokenValue);
+      const plan = buildGradePricingPlan(await readProducts({ cache: false }), {
+        filters: payload.filters,
+        stockInquiryThresholdQty: payload.stockInquiryThresholdQty
+      });
+      if (!payload.previewToken || payload.previewToken !== plan.previewToken) {
+        const error = new Error("상품 데이터가 변경되었습니다. 가격 미리보기를 다시 실행해주세요.");
+        error.statusCode = 409;
+        throw error;
+      }
+      if (!plan.changedProducts.length) {
+        return { ok: true, applied: false, summary: plan.summary, backupPath: "" };
+      }
+      const saved = await saveProducts(plan.products, plan.changedProducts, { backupLabel: "grade-pricing" });
+      return {
+        ok: true,
+        applied: true,
+        summary: plan.summary,
+        backupPath: saved.backupPath || ""
       };
     }
   };

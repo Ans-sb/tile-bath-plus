@@ -74,8 +74,23 @@
     const panel = doc.getElementById("tileAiPanel");
     const closeButton = doc.getElementById("tileAiClose");
     const newProjectButton = doc.getElementById("tileAiNewProject");
+    const projectListButton = doc.getElementById("tileAiProjectList");
     const projectTitle = doc.getElementById("tileAiProjectTitle");
     const projectStage = doc.getElementById("tileAiProjectStage");
+    const projectManager = doc.getElementById("tileAiProjectManager");
+    const projectManagerTitle = doc.getElementById("tileAiProjectManagerTitle");
+    const projectManagerClose = doc.getElementById("tileAiProjectManagerClose");
+    const projectListItems = doc.getElementById("tileAiProjectListItems");
+    const projectForm = doc.getElementById("tileAiProjectForm");
+    const projectEditId = doc.getElementById("tileAiProjectEditId");
+    const siteNameInput = doc.getElementById("tileAiSiteName");
+    const clientNameInput = doc.getElementById("tileAiClientName");
+    const spaceTypeInput = doc.getElementById("tileAiSpaceType");
+    const neededByInput = doc.getElementById("tileAiNeededBy");
+    const siteAddressInput = doc.getElementById("tileAiSiteAddress");
+    const siteNotesInput = doc.getElementById("tileAiSiteNotes");
+    const projectFormCancel = doc.getElementById("tileAiProjectFormCancel");
+    const projectStatus = doc.getElementById("tileAiProjectStatus");
     const form = doc.getElementById("tileAiForm");
     const input = doc.getElementById("tileAiInput");
     const sendButton = doc.getElementById("tileAiSend");
@@ -89,10 +104,147 @@
     let projectId = readStoredProjectId(storage);
     let pending = false;
     let restored = false;
+    let currentProject = null;
 
     function setProjectMeta(project) {
+      currentProject = project || null;
       if (projectTitle) projectTitle.textContent = String(project?.title || "새 현장 상담");
       if (projectStage) projectStage.textContent = String(project?.stage || "조건확인");
+    }
+
+    async function assistantFetch(path, options = {}) {
+      const headers = {
+        Accept: "application/json",
+        ...buildAssistantAuthHeaders(storage),
+        ...(options.headers || {})
+      };
+      const response = await fetchImpl(path, { ...options, headers });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || "현장 프로젝트를 처리하지 못했습니다.");
+      return result;
+    }
+
+    function setProjectStatus(message, tone = "") {
+      if (!projectStatus) return;
+      projectStatus.textContent = String(message || "");
+      projectStatus.dataset.tone = tone;
+    }
+
+    function closeProjectManager() {
+      if (!projectManager) return;
+      projectManager.hidden = true;
+      panel.classList.remove("is-project-manager-open");
+      setProjectStatus("");
+      globalScope.setTimeout(() => input.focus(), 0);
+    }
+
+    function fillProjectForm(project) {
+      const site = project?.site || {};
+      if (projectEditId) projectEditId.value = String(project?.id || "");
+      if (siteNameInput) siteNameInput.value = String(site.siteName || "");
+      if (clientNameInput) clientNameInput.value = String(site.clientName || "");
+      if (spaceTypeInput) spaceTypeInput.value = String(site.spaceType || "");
+      if (neededByInput) neededByInput.value = String(site.neededBy || "");
+      if (siteAddressInput) siteAddressInput.value = String(site.siteAddress || "");
+      if (siteNotesInput) siteNotesInput.value = String(site.notes || "");
+    }
+
+    function showProjectForm(project = null) {
+      if (!projectManager || !projectForm || !projectListItems) return;
+      projectManager.hidden = false;
+      panel.classList.add("is-project-manager-open");
+      projectListItems.hidden = true;
+      projectForm.hidden = false;
+      fillProjectForm(project);
+      if (projectManagerTitle) projectManagerTitle.textContent = project?.id ? "현장 정보 수정" : "새 현장 만들기";
+      setProjectStatus("");
+      globalScope.setTimeout(() => siteNameInput?.focus(), 0);
+    }
+
+    function formatProjectDate(value) {
+      const date = new Date(value);
+      if (!Number.isFinite(date.getTime())) return "";
+      return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+    }
+
+    function renderProjectList(projects) {
+      if (!projectListItems) return;
+      projectListItems.innerHTML = "";
+      const entries = Array.isArray(projects) ? projects : [];
+      if (!entries.length) {
+        const empty = doc.createElement("div");
+        empty.className = "tile-ai-project-empty";
+        empty.textContent = "저장된 현장이 없습니다.";
+        const createButton = doc.createElement("button");
+        createButton.type = "button";
+        createButton.textContent = "첫 현장 만들기";
+        createButton.addEventListener("click", () => showProjectForm());
+        empty.appendChild(createButton);
+        projectListItems.appendChild(empty);
+        return;
+      }
+
+      entries.forEach((project) => {
+        const row = doc.createElement("article");
+        row.className = "tile-ai-project-row";
+        if (project.id === projectId) row.classList.add("is-current");
+        const content = doc.createElement("div");
+        const title = doc.createElement("strong");
+        title.textContent = String(project.title || project.site?.siteName || "현장 타일 프로젝트");
+        const meta = doc.createElement("span");
+        meta.textContent = [
+          project.site?.clientName,
+          project.site?.spaceType,
+          `${Number(project.selectedProductCount) || 0}개 저장`,
+          formatProjectDate(project.updatedAt)
+        ].filter(Boolean).join(" · ");
+        content.append(title, meta);
+
+        const actions = doc.createElement("div");
+        const openButton = doc.createElement("button");
+        openButton.type = "button";
+        openButton.textContent = project.id === projectId ? "현재 현장" : "열기";
+        openButton.disabled = project.id === projectId;
+        openButton.addEventListener("click", () => void loadProject(project.id));
+        const editButton = doc.createElement("button");
+        editButton.type = "button";
+        editButton.textContent = "수정";
+        editButton.addEventListener("click", async () => {
+          try {
+            setProjectStatus("현장 정보를 불러오는 중입니다.");
+            const query = new URLSearchParams({ projectId: project.id, clientKey });
+            const result = await assistantFetch(`/api/tile-assistant/project?${query.toString()}`);
+            showProjectForm(result.project);
+          } catch (error) {
+            setProjectStatus(error.message, "error");
+          }
+        });
+        actions.append(openButton, editButton);
+        row.append(content, actions);
+        projectListItems.appendChild(row);
+      });
+    }
+
+    async function openProjectManager(mode = "list") {
+      if (!projectManager || !projectForm || !projectListItems) return;
+      if (mode === "new") {
+        showProjectForm();
+        return;
+      }
+      projectManager.hidden = false;
+      panel.classList.add("is-project-manager-open");
+      projectForm.hidden = true;
+      projectListItems.hidden = false;
+      if (projectManagerTitle) projectManagerTitle.textContent = "현장 프로젝트";
+      setProjectStatus("현장 목록을 불러오는 중입니다.");
+      try {
+        const query = new URLSearchParams({ clientKey });
+        const result = await assistantFetch(`/api/tile-assistant/projects?${query.toString()}`);
+        renderProjectList(result.projects);
+        setProjectStatus("");
+      } catch (error) {
+        setProjectStatus(error.message, "error");
+      }
     }
 
     function setOpen(open) {
@@ -134,6 +286,37 @@
       return !doc.dispatchEvent(event);
     }
 
+    function isProductSelected(productId) {
+      return (Array.isArray(currentProject?.selectedProducts) ? currentProject.selectedProducts : [])
+        .some((product) => String(product?.id || "") === String(productId || ""));
+    }
+
+    async function toggleSelectedProduct(product, button) {
+      if (!product?.id) return;
+      if (!projectId) {
+        await openProjectManager("new");
+        setProjectStatus("추천상품을 저장할 현장을 먼저 만들어주세요.", "notice");
+        return;
+      }
+      const selected = !isProductSelected(product.id);
+      button.disabled = true;
+      try {
+        const result = await assistantFetch("/api/tile-assistant/project/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, clientKey, product, selected })
+        });
+        setProjectMeta(result.project);
+        button.classList.toggle("is-selected", selected);
+        button.textContent = selected ? "현장에 저장됨" : "현장에 저장";
+      } catch (error) {
+        button.textContent = "저장 실패";
+        button.title = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     function appendRecommendations(article, recommendations) {
       const entries = normalizeRecommendations(recommendations);
       if (!entries.length) return;
@@ -167,6 +350,15 @@
           body.appendChild(reason);
         }
         if (product.id) {
+          const buttonWrap = doc.createElement("div");
+          buttonWrap.className = "tile-ai-product-card__actions";
+          const saveButton = doc.createElement("button");
+          saveButton.type = "button";
+          saveButton.className = "tile-ai-product-save";
+          const selected = isProductSelected(product.id);
+          saveButton.classList.toggle("is-selected", selected);
+          saveButton.textContent = selected ? "현장에 저장됨" : "현장에 저장";
+          saveButton.addEventListener("click", () => void toggleSelectedProduct(product, saveButton));
           const detailButton = doc.createElement("button");
           detailButton.type = "button";
           detailButton.textContent = "상품 상세";
@@ -175,7 +367,8 @@
             setOpen(false);
             if (!handled && globalScope.location) globalScope.location.hash = "productDetailPage";
           });
-          body.appendChild(detailButton);
+          buttonWrap.append(saveButton, detailButton);
+          body.appendChild(buttonWrap);
         }
         card.appendChild(body);
         wrap.appendChild(card);
@@ -250,33 +443,56 @@
       return article;
     }
 
+    function renderProject(project) {
+      setProjectMeta(project);
+      const projectMessages = Array.isArray(project?.messages) ? project.messages : [];
+      messagesElement.innerHTML = "";
+      messages.length = 0;
+      if (!projectMessages.length) {
+        appendMessage("assistant", `${project?.title || "새 현장"} 상담을 시작합니다. 필요한 타일을 현장 말로 알려주세요.`);
+        return;
+      }
+      projectMessages.forEach((entry, index) => {
+        const isLast = index === projectMessages.length - 1 && entry.role === "assistant";
+        appendMessage(entry.role, entry.content, isLast ? {
+          conditions: toConditionEntries(project.intent),
+          recommendations: project.recommendations,
+          quantityEstimate: project.quantityEstimate
+        } : {});
+        messages.push({ role: entry.role, content: entry.content });
+      });
+    }
+
+    async function loadProject(nextProjectId) {
+      const cleanProjectId = String(nextProjectId || "").trim();
+      if (!cleanProjectId) return;
+      setProjectStatus("현장 상담을 불러오는 중입니다.");
+      try {
+        const query = new URLSearchParams({ projectId: cleanProjectId, clientKey });
+        const result = await assistantFetch(`/api/tile-assistant/project?${query.toString()}`);
+        if (!result?.project) throw new Error("현장 상담 기록을 찾지 못했습니다.");
+        projectId = cleanProjectId;
+        storeProjectId(storage, projectId);
+        restored = true;
+        renderProject(result.project);
+        closeProjectManager();
+      } catch (error) {
+        setProjectStatus(error.message, "error");
+      }
+    }
+
     async function restoreProject() {
       if (restored || !projectId || pending) return;
       restored = true;
       try {
         const query = new URLSearchParams({ projectId, clientKey });
-        const response = await fetchImpl(`/api/tile-assistant/project?${query.toString()}`, {
-          headers: { Accept: "application/json", ...buildAssistantAuthHeaders(storage) }
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result?.project) return;
-        const project = result.project;
-        const projectMessages = Array.isArray(project.messages) ? project.messages : [];
-        if (!projectMessages.length) return;
-        messagesElement.innerHTML = "";
-        messages.length = 0;
-        projectMessages.forEach((entry, index) => {
-          const isLast = index === projectMessages.length - 1 && entry.role === "assistant";
-          appendMessage(entry.role, entry.content, isLast ? {
-            conditions: toConditionEntries(project.intent),
-            recommendations: project.recommendations,
-            quantityEstimate: project.quantityEstimate
-          } : {});
-          messages.push({ role: entry.role, content: entry.content });
-        });
-        setProjectMeta(project);
+        const result = await assistantFetch(`/api/tile-assistant/project?${query.toString()}`);
+        if (!result?.project) return;
+        renderProject(result.project);
       } catch {
-        // The next message starts a fresh project if restoration is unavailable.
+        projectId = "";
+        removeStoredProjectId(storage);
+        setProjectMeta(null);
       }
     }
 
@@ -305,6 +521,11 @@
         if (!response.ok) throw new Error(result?.error || "타일 AI에 연결하지 못했습니다.");
         const answer = String(result?.message || "답변을 생성하지 못했습니다.").trim();
         loadingMessage.remove();
+        if (result?.projectId) {
+          projectId = String(result.projectId);
+          storeProjectId(storage, projectId);
+        }
+        setProjectMeta(result?.project || { stage: result?.stage });
         appendMessage("assistant", answer, {
           actions: result?.actions,
           conditions: result?.interpretedConditions,
@@ -312,11 +533,6 @@
           quantityEstimate: result?.quantityEstimate
         });
         messages.push({ role: "assistant", content: answer });
-        if (result?.projectId) {
-          projectId = String(result.projectId);
-          storeProjectId(storage, projectId);
-        }
-        setProjectMeta(result?.project || { stage: result?.stage });
       } catch (error) {
         loadingMessage.remove();
         appendMessage("error", String(error?.message || "잠시 후 다시 질문해 주세요."));
@@ -330,18 +546,59 @@
     }
 
     function startNewProject() {
-      projectId = "";
-      restored = true;
-      removeStoredProjectId(storage);
-      messages.length = 0;
-      messagesElement.innerHTML = initialMessagesMarkup;
-      setProjectMeta(null);
-      input.focus();
+      void openProjectManager("new");
+    }
+
+    async function saveProjectForm(event) {
+      event.preventDefault();
+      if (!projectForm) return;
+      const editId = String(projectEditId?.value || "").trim();
+      const site = {
+        siteName: String(siteNameInput?.value || "").trim(),
+        clientName: String(clientNameInput?.value || "").trim(),
+        spaceType: String(spaceTypeInput?.value || "").trim(),
+        neededBy: String(neededByInput?.value || "").trim(),
+        siteAddress: String(siteAddressInput?.value || "").trim(),
+        notes: String(siteNotesInput?.value || "").trim()
+      };
+      if (!site.siteName) {
+        setProjectStatus("현장명을 입력해 주세요.", "error");
+        siteNameInput?.focus();
+        return;
+      }
+      const submitButton = projectForm.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
+      setProjectStatus("현장 정보를 저장하는 중입니다.");
+      try {
+        const result = await assistantFetch(editId ? "/api/tile-assistant/project" : "/api/tile-assistant/projects", {
+          method: editId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId: editId, clientKey, site })
+        });
+        if (!result?.project?.id) throw new Error("저장된 현장을 불러오지 못했습니다.");
+        projectId = String(result.project.id);
+        storeProjectId(storage, projectId);
+        restored = true;
+        if (!editId) {
+          messages.length = 0;
+          messagesElement.innerHTML = initialMessagesMarkup;
+        }
+        renderProject(result.project);
+        closeProjectManager();
+      } catch (error) {
+        setProjectStatus(error.message, "error");
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
     }
 
     launcher.addEventListener("click", () => setOpen(panel.hidden));
     closeButton.addEventListener("click", () => setOpen(false));
     newProjectButton?.addEventListener("click", startNewProject);
+    projectListButton?.addEventListener("click", () => void openProjectManager("list"));
+    projectManagerClose?.addEventListener("click", closeProjectManager);
+    projectFormCancel?.addEventListener("click", () => void openProjectManager("list"));
+    projectForm?.addEventListener("submit", saveProjectForm);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       askQuestion(input.value);
@@ -359,7 +616,9 @@
       });
     });
     doc.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !panel.hidden) setOpen(false);
+      if (event.key !== "Escape" || panel.hidden) return;
+      if (projectManager && !projectManager.hidden) closeProjectManager();
+      else setOpen(false);
     });
 
     return { askQuestion, setOpen, startNewProject };

@@ -544,6 +544,14 @@ let productCollectionMode = "all";
 let bestTileProductIds = [];
 let bathProductCurrentPage = 1;
 let sampleProductCurrentPage = 1;
+let sampleRequestProject = null;
+let sampleRequestProjectCacheKey = "";
+let memberSampleRequests = [];
+let adminSampleRequests = [];
+let memberSampleRequestsLoaded = false;
+let adminSampleRequestsLoaded = false;
+let memberSampleRequestsOwnerKey = "";
+let adminSampleRequestsOwnerKey = "";
 let bathProductCategory = "all";
 let bathProductSubcategory = "all";
 let bathProductSortMode = "recommended";
@@ -846,6 +854,8 @@ const adminProductFilters = {
   productType: "",
   stock: ""
 };
+let adminGradePricingPreviewToken = "";
+let adminGradePricingPreviewFilterKey = "";
 const adminOrderFilters = {
   query: "",
   stage: ""
@@ -1604,6 +1614,15 @@ function bindEvents() {
     if (productCard) openProductDetail(productCard.dataset.viewProduct, productCard);
   });
 
+  document.querySelector("#sampleRequestOpenAiBtn")?.addEventListener("click", () => {
+    document.querySelector("#tileAiLauncher")?.click();
+  });
+  document.querySelector("#sampleRequestForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitSampleRequest();
+  });
+  document.querySelector("#sampleRequestProject")?.addEventListener("change", handleSampleRequestSelectionChange);
+
   document.querySelector("#bathCategoryTabs")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-bath-category]");
     if (!button) return;
@@ -1995,6 +2014,8 @@ function bindEvents() {
   document.querySelector("#adminProductTypeFilter")?.addEventListener("change", handleAdminProductFilters);
   document.querySelector("#adminProductStockFilter")?.addEventListener("change", handleAdminProductFilters);
   document.querySelector("#adminProductFilterResetBtn")?.addEventListener("click", resetAdminProductFilters);
+  document.querySelector("#adminGradePricingPreviewBtn")?.addEventListener("click", previewAdminGradePricing);
+  document.querySelector("#adminGradePricingApplyBtn")?.addEventListener("click", applyAdminGradePricing);
   document.querySelector("#adminOrderSearch")?.addEventListener("input", handleAdminOrderFilters);
   document.querySelector("#adminOrderStageFilter")?.addEventListener("change", handleAdminOrderFilters);
   document.querySelector("#adminOrderFilterResetBtn")?.addEventListener("click", resetAdminOrderFilters);
@@ -2022,9 +2043,17 @@ function bindEvents() {
     if (button) switchAdminView(button.dataset.adminViewTarget);
   });
   document.querySelector("#adminPage")?.addEventListener("click", handleAdminOperationsActionClick);
+  document.querySelector("#adminSampleRequestList")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-sample-save]");
+    if (button) void saveAdminSampleRequest(button.dataset.adminSampleSave);
+  });
   document.querySelector("#tile114FetchBtn")?.addEventListener("click", fetchTile114SampleProducts);
   document.querySelector("#startServerGuideBtn")?.addEventListener("click", showServerStartGuide);
   document.querySelector("#saveCurrentOrderBtn")?.addEventListener("click", saveCurrentCartAsPastOrder);
+  document.querySelector("#cartOrderForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveCurrentCartAsPastOrder();
+  });
   document.querySelector("#saveClientManagementBtn")?.addEventListener("click", saveClientManagementInfo);
   document.querySelector("#myPage")?.addEventListener("click", (event) => {
     if (event.target.closest("#saveMyContactInfoBtn")) saveMyContactInfo();
@@ -2066,6 +2095,9 @@ function bindEvents() {
 
 async function loadProducts() {
   if (!authUser) {
+    memberSampleRequests = [];
+    memberSampleRequestsLoaded = false;
+    memberSampleRequestsOwnerKey = "";
     products = [];
     productsLoadedFromRemote = false;
     return [];
@@ -2210,7 +2242,7 @@ async function hydrateMemberPricingProducts(options = {}) {
       ...authUser,
       approvalStatus: payload.user?.approvalStatus || authUser.approvalStatus,
       pricingAccess: payload.user?.pricingAccess || "approved",
-      memberGrade: payload.user?.memberGrade || authUser.memberGrade || "사업자",
+      memberGrade: payload.user?.memberGrade || authUser.memberGrade || "B등급",
       priceTier: payload.user?.priceTier || authUser.priceTier || "wholesale"
     };
     memberPricingHydratedFor = pricingIdentity;
@@ -3908,6 +3940,215 @@ function renderSamplePage() {
     setText("#sampleProductStatus", "샘플 상품 데이터를 불러오는 중입니다.");
   }
   renderSampleProductPagination(filtered.length, totalPages);
+  void loadSampleRequestWorkspace();
+}
+
+function getTileAssistantProjectOwnerKey(user = authUser) {
+  if (user?.role === "admin") return String(user.adminUsername || "guest").trim() || "guest";
+  return String(user?.businessNumber || "guest").trim() || "guest";
+}
+
+function getStoredTileAssistantProjectId(user = authUser) {
+  try {
+    return String(localStorage.getItem(`tbpTileSalesProjectId:${getTileAssistantProjectOwnerKey(user)}`) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function getTileAssistantClientKey() {
+  try {
+    return String(localStorage.getItem("tbpTileAssistantClientKey") || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function getSampleRequestAuthHeaders(extraHeaders = {}) {
+  return isAdminUser()
+    ? getAdminAuthHeaders(extraHeaders)
+    : getMemberProductAuthHeaders(extraHeaders);
+}
+
+async function loadSampleRequestWorkspace({ force = false } = {}) {
+  const projectPanel = document.querySelector("#sampleRequestProject");
+  const form = document.querySelector("#sampleRequestForm");
+  if (!projectPanel || !form) return;
+  if (!authUser) {
+    sampleRequestProject = null;
+    sampleRequestProjectCacheKey = "";
+    form.hidden = true;
+    projectPanel.innerHTML = `<div class="empty-state">로그인 후 현장별 샘플을 신청할 수 있습니다.</div>`;
+    return;
+  }
+
+  const projectId = getStoredTileAssistantProjectId();
+  const cacheKey = `${getTileAssistantProjectOwnerKey()}:${projectId}`;
+  if (!projectId) {
+    sampleRequestProject = null;
+    sampleRequestProjectCacheKey = "";
+    form.hidden = true;
+    projectPanel.innerHTML = `
+      <div class="sample-request-empty">
+        <strong>저장된 현장이 없습니다.</strong>
+        <span>AI 영업사원에서 현장을 만들고 추천 상품을 저장하면 이곳에서 바로 샘플을 신청할 수 있습니다.</span>
+        <button class="primary-action" type="button" data-open-sample-ai>AI 영업사원에서 시작</button>
+      </div>
+    `;
+    projectPanel.querySelector("[data-open-sample-ai]")?.addEventListener("click", () => {
+      document.querySelector("#tileAiLauncher")?.click();
+    });
+    return;
+  }
+  if (!force && sampleRequestProject && sampleRequestProjectCacheKey === cacheKey) {
+    renderSampleRequestProject(sampleRequestProject);
+    return;
+  }
+
+  form.hidden = true;
+  projectPanel.innerHTML = `<div class="empty-state">현재 현장과 선택 상품을 확인하는 중입니다.</div>`;
+  try {
+    const query = new URLSearchParams({ projectId, clientKey: getTileAssistantClientKey() });
+    const result = await requestJson(`/api/tile-assistant/project?${query.toString()}`, {
+      headers: getSampleRequestAuthHeaders()
+    }, { retries: 1, timeoutMs: 8000 });
+    sampleRequestProject = result?.project || null;
+    sampleRequestProjectCacheKey = cacheKey;
+    renderSampleRequestProject(sampleRequestProject);
+  } catch (error) {
+    sampleRequestProject = null;
+    sampleRequestProjectCacheKey = "";
+    projectPanel.innerHTML = `<div class="empty-state">${escapeHtml(error.message || "현장 정보를 불러오지 못했습니다.")}</div>`;
+  }
+}
+
+function renderSampleRequestProject(project) {
+  const projectPanel = document.querySelector("#sampleRequestProject");
+  const form = document.querySelector("#sampleRequestForm");
+  if (!projectPanel || !form) return;
+  if (!project) {
+    form.hidden = true;
+    projectPanel.innerHTML = `<div class="empty-state">현재 현장 프로젝트를 찾지 못했습니다. AI 영업사원에서 현장을 다시 선택해주세요.</div>`;
+    return;
+  }
+
+  const selectedProducts = (Array.isArray(project.selectedProducts) ? project.selectedProducts : [])
+    .map((entry) => products.find((product) => String(product.id) === String(entry.id)) || entry);
+  const eligibleProducts = selectedProducts.filter(isSntSampleProduct);
+  const siteMeta = [project.site?.clientName, project.site?.siteName, project.site?.spaceType].filter(Boolean).join(" · ");
+  projectPanel.innerHTML = `
+    <div class="sample-project-summary">
+      <div>
+        <span>현재 현장</span>
+        <strong>${escapeHtml(project.title || project.site?.siteName || "현장 타일 프로젝트")}</strong>
+        <small>${escapeHtml(siteMeta || "현장 정보 확인 전")}</small>
+      </div>
+      <span>${number(eligibleProducts.length)}개 신청 가능</span>
+    </div>
+    <div class="sample-request-product-grid">
+      ${eligibleProducts.map((product) => {
+        const image = product.image || product.originalImage || "";
+        return `
+          <label class="sample-request-product is-selected">
+            <input type="checkbox" data-sample-request-product value="${escapeHtml(product.id)}" checked />
+            <span class="sample-request-product-image">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" />` : "이미지 없음"}</span>
+            <span class="sample-request-product-copy">
+              <strong>${escapeHtml(getProductDisplayName(product))}</strong>
+              <small>${escapeHtml([product.size, getProductDisplayFinish(product), getProductDisplayColor(product)].filter(Boolean).join(" · "))}</small>
+            </span>
+            <span class="sample-request-quantity">
+              <span>수량</span>
+              <input type="number" data-sample-request-quantity value="1" min="1" max="20" inputmode="numeric" aria-label="${escapeHtml(getProductDisplayName(product))} 샘플 수량" />
+            </span>
+          </label>
+        `;
+      }).join("") || `
+        <div class="sample-request-empty">
+          <strong>현재 현장에 샘플 가능 상품이 없습니다.</strong>
+          <span>AI 추천에서 SNT 타일을 현장에 저장하거나 아래 샘플 상품을 확인해주세요.</span>
+        </div>
+      `}
+    </div>
+  `;
+
+  form.hidden = !eligibleProducts.length;
+  if (!eligibleProducts.length) return;
+  const contact = getUserContactInfo(authUser);
+  setInputValueIfEmpty("#sampleRecipientName", contact.name || authUser?.name || "");
+  setInputValueIfEmpty("#sampleRecipientContact", contact.phone || authUser?.phone || "");
+  setInputValueIfEmpty("#sampleRecipientAddress", project.site?.siteAddress || contact.address || authUser?.companyAddress || "");
+  setInputValueIfEmpty("#sampleRequestedDate", project.site?.neededBy || "");
+  updateSampleRequestSelectionStatus();
+}
+
+function setInputValueIfEmpty(selector, value) {
+  const input = document.querySelector(selector);
+  if (input && !input.value && value) input.value = value;
+}
+
+function handleSampleRequestSelectionChange(event) {
+  const product = event.target.closest(".sample-request-product");
+  if (product) {
+    const selected = Boolean(product.querySelector("[data-sample-request-product]")?.checked);
+    product.classList.toggle("is-selected", selected);
+    const quantity = product.querySelector("[data-sample-request-quantity]");
+    if (quantity) quantity.disabled = !selected;
+  }
+  updateSampleRequestSelectionStatus();
+}
+
+function getSelectedSampleRequestItems() {
+  return Array.from(document.querySelectorAll("[data-sample-request-product]:checked")).map((input) => {
+    const card = input.closest(".sample-request-product");
+    const quantity = Math.min(20, Math.max(1, Math.round(Number(card?.querySelector("[data-sample-request-quantity]")?.value) || 1)));
+    return { id: String(input.value || ""), quantity };
+  }).filter((item) => item.id);
+}
+
+function updateSampleRequestSelectionStatus() {
+  const items = getSelectedSampleRequestItems();
+  setText("#sampleRequestSubmitStatus", items.length
+    ? `${number(items.length)}개 상품 · 총 ${number(items.reduce((sum, item) => sum + item.quantity, 0))}장 신청`
+    : "신청할 샘플을 한 개 이상 선택해주세요.");
+}
+
+async function submitSampleRequest() {
+  const form = document.querySelector("#sampleRequestForm");
+  const submitButton = document.querySelector("#submitSampleRequestBtn");
+  if (!form || !sampleRequestProject?.id) return;
+  if (!form.reportValidity()) return;
+  const items = getSelectedSampleRequestItems();
+  if (!items.length) {
+    setText("#sampleRequestSubmitStatus", "신청할 샘플을 한 개 이상 선택해주세요.");
+    return;
+  }
+
+  if (submitButton) submitButton.disabled = true;
+  setText("#sampleRequestSubmitStatus", "샘플 신청을 접수하는 중입니다.");
+  try {
+    const result = await requestJson("/api/sample-requests", {
+      method: "POST",
+      headers: getSampleRequestAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        projectId: sampleRequestProject.id,
+        items,
+        recipient: {
+          name: form.elements.recipientName?.value.trim() || "",
+          contact: form.elements.recipientContact?.value.trim() || "",
+          address: form.elements.recipientAddress?.value.trim() || "",
+          addressDetail: form.elements.recipientAddressDetail?.value.trim() || ""
+        },
+        requestedDate: form.elements.requestedDate?.value || "",
+        note: form.elements.note?.value.trim() || ""
+      })
+    }, { timeoutMs: 10000 });
+    setText("#sampleRequestSubmitStatus", `${result.request?.requestNumber || "샘플 신청"} 접수가 완료되었습니다.`);
+    await loadMemberSampleRequests({ force: true });
+  } catch (error) {
+    setText("#sampleRequestSubmitStatus", error.message || "샘플 신청을 접수하지 못했습니다.");
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
 }
 
 function renderSampleProductPagination(totalItems, totalPages) {
@@ -7722,6 +7963,9 @@ function fillDetailEditForm(product) {
   setFormValue(form, "option", product.option || "");
   setFormValue(form, "retailPrice", product.retailPrice ?? 0);
   setFormValue(form, "wholesalePrice", product.wholesalePrice ?? 0);
+  setFormValue(form, "gradeAPrice", product.gradeAPrice ?? 0);
+  setFormValue(form, "gradeBPrice", product.gradeBPrice ?? 0);
+  setFormValue(form, "gradeCPrice", product.gradeCPrice ?? 0);
   setFormValue(form, "costPrice", product.costPrice ?? 0);
   setFormValue(form, "stockQty", product.stockQty ?? 0);
   setFormValue(form, "catalogSource", product.catalogSource || "");
@@ -7758,6 +8002,9 @@ async function saveDetailProductSpecs(event) {
     option: String(formData.get("option") || "").trim(),
     retailPrice: Number(formData.get("retailPrice")) || 0,
     wholesalePrice: Number(formData.get("wholesalePrice")) || 0,
+    gradeAPrice: Number(formData.get("gradeAPrice")) || 0,
+    gradeBPrice: Number(formData.get("gradeBPrice")) || 0,
+    gradeCPrice: Number(formData.get("gradeCPrice")) || 0,
     costPrice: Number(formData.get("costPrice")) || 0,
     stockQty: Number(formData.get("stockQty")) || 0,
     catalogSource: String(formData.get("catalogSource") || "").trim(),
@@ -7816,6 +8063,10 @@ function getGradePriceRows(product) {
 }
 
 function getMemberGradePriceRow(product, user = authUser) {
+  const assignedPrice = Number(product?.memberUnitPrice || 0);
+  if (assignedPrice) {
+    return [String(product?.memberPriceLabel || user?.memberGrade || "회원가"), assignedPrice];
+  }
   const gradeRows = getGradePriceRows(product);
   if (!gradeRows.length) return null;
   const gradeSource = String([
@@ -7829,7 +8080,7 @@ function getMemberGradePriceRow(product, user = authUser) {
   if (/(^|[^A-Z])B([^A-Z]|$)|B등급|GRADE B/.test(gradeSource)) {
     return gradeRows.find(([label]) => label.startsWith("B")) || gradeRows[0];
   }
-  return gradeRows.find(([label]) => label.startsWith("A")) || gradeRows[0];
+  return gradeRows.find(([label]) => label.startsWith("B")) || gradeRows[0];
 }
 
 function renderProductCardPriceLine(product) {
@@ -7856,6 +8107,9 @@ function renderProductPriceLine(product) {
     return `<span class="price-locked">${escapeHtml(getPriceLockedMessage())}</span>`;
   }
 
+  if (!isAdminUser()) {
+    return renderProductCardPriceLine(product);
+  }
   const gradeRows = getGradePriceRows(product);
   if (gradeRows.length) {
     return `<span class="member-price-line">${gradeRows.map(([label, value]) => `${escapeHtml(label)} ${money.format(value)}`).join(" · ")}</span>`;
@@ -7870,6 +8124,10 @@ function renderProductPriceLine(product) {
 
 function getProductDetailPriceSpecs(product) {
   if (!hasMemberPriceAccess()) return [["가격", getPriceLockedMessage()]];
+  if (!isAdminUser()) {
+    const memberRow = getMemberGradePriceRow(product);
+    return memberRow ? [[memberRow[0], money.format(memberRow[1])]] : [["가격", "협의"]];
+  }
   const gradeRows = getGradePriceRows(product);
   if (gradeRows.length) return gradeRows;
   return [
@@ -7927,8 +8185,8 @@ function getMemberPriceTier(user = authUser) {
 
 function getMemberBaseUnitPrice(product, user = authUser) {
   if (!hasMemberPriceAccess(user)) return 0;
-  const gradeRows = getGradePriceRows(product);
-  if (gradeRows.length) return gradeRows[0][1];
+  const gradeRow = getMemberGradePriceRow(product, user);
+  if (gradeRow) return gradeRow[1];
   const tier = getMemberPriceTier(user);
   return tier === "wholesale"
     ? Number(product?.wholesalePrice || 0)
@@ -7950,8 +8208,37 @@ function renderCartMemberPriceReadout(item) {
 function renderCart() {
   renderCartSummary();
   renderCartList();
+  syncCartOrderForm();
   renderMemberHomeBoard();
   renderMyPage();
+}
+
+function syncCartOrderForm() {
+  const form = document.querySelector("#cartOrderForm");
+  if (!form) return;
+  const contactPhone = document.querySelector("#cartOrderContactPhone");
+  const deliveryAddress = document.querySelector("#cartOrderDeliveryAddress");
+  const requestedDate = document.querySelector("#cartOrderRequestedDate");
+  const submitButton = document.querySelector("#cartOrderSubmitBtn");
+  const today = new Date();
+  const minDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  if (contactPhone && !contactPhone.value) {
+    contactPhone.value = authUser?.contactPhone || authUser?.phone || authUser?.contactInfo?.phone || "";
+  }
+  if (deliveryAddress && !deliveryAddress.value) {
+    deliveryAddress.value = authUser?.contactAddress || authUser?.companyAddress || authUser?.contactInfo?.address || "";
+  }
+  if (requestedDate) requestedDate.min = minDate;
+  if (submitButton) {
+    submitButton.disabled = !cart.length || !hasMemberPriceAccess();
+    submitButton.title = !authUser
+      ? "로그인 후 주문할 수 있습니다."
+      : !hasMemberPriceAccess()
+        ? "사업자 승인 후 주문할 수 있습니다."
+        : !cart.length
+          ? "상품을 먼저 담아주세요."
+          : "";
+  }
 }
 
 function getOrderHistoryStorageKey(user = authUser) {
@@ -7978,6 +8265,11 @@ function normalizeOrderHistoryRow(order) {
     updatedAt: order?.updatedAt || order?.updated_at || order?.createdAt || order?.created_at || "",
     status: order?.status || order?.statusLabel || order?.order_status || "접수대기",
     totalQuote: Number(order?.totalQuote || order?.total_quote || 0),
+    contactPhone: String(order?.contactPhone || "").trim(),
+    deliveryAddress: String(order?.deliveryAddress || "").trim(),
+    requestedDeliveryDate: String(order?.requestedDeliveryDate || "").trim(),
+    memberGradeSnapshot: String(order?.memberGradeSnapshot || "").trim(),
+    priceTierSnapshot: String(order?.priceTierSnapshot || "").trim(),
     items: Array.isArray(order?.items) ? order.items : []
   };
 }
@@ -8197,6 +8489,7 @@ const MY_PAGE_VIEW_META = Object.freeze({
   history: { eyebrow: "ORDER HISTORY", title: "지난 주문" },
   dispatch: { eyebrow: "DISPATCH", title: "배차 현황" },
   cart: { eyebrow: "CART", title: "장바구니" },
+  samples: { eyebrow: "SAMPLE REQUESTS", title: "샘플 신청 현황" },
   clients: { eyebrow: "CLIENTS", title: "거래처 관리" },
   account: { eyebrow: "ACCOUNT", title: "계정·회원등급" }
 });
@@ -8231,6 +8524,7 @@ function switchMyPageView(view = "overview", options = {}) {
   const searchInput = page.querySelector("#myPageSearchInput");
   if (searchInput) searchInput.value = "";
   filterMyPageView("");
+  if (nextView === "samples") void loadMemberSampleRequests();
 
   if (options.scroll && window.matchMedia("(max-width: 760px)").matches) {
     page.querySelector(".my-page-board-toolbar")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -8248,7 +8542,7 @@ function filterMyPageView(value = "") {
     return;
   }
 
-  const candidates = Array.from(panel.querySelectorAll(".my-past-order-card, .my-order-item, .client-management-card"))
+  const candidates = Array.from(panel.querySelectorAll(".my-past-order-card, .my-order-item, .my-sample-request-card, .client-management-card"))
     .filter((item) => !item.classList.contains("my-order-item") || !item.closest(".my-past-order-card"));
   let visibleCount = 0;
   candidates.forEach((item) => {
@@ -8273,6 +8567,7 @@ function renderMyPageOverview(pastOrders = []) {
     { label: "지난 주문", value: `${number(pastOrders.length)}건`, hint: "전체 주문 기록", view: "history" },
     { label: "배차 진행", value: `${number(dispatchOrders.length)}건`, hint: dispatchOrders[0]?.status || "대기 없음", view: "dispatch" },
     { label: "장바구니", value: `${number(cart.length)}개`, hint: "선택한 자재", view: "cart" },
+    { label: "샘플 신청", value: `${number(memberSampleRequests.length)}건`, hint: memberSampleRequests[0]?.status || "신청 내역 확인", view: "samples" },
     { label: "회원 등급", value: getCompactMemberGradeLabel(), hint: hasMemberPriceAccess() ? "금액 열람 가능" : "사업자 승인 필요", view: "account" },
     { label: "거래처", value: hasClientInfo ? "관리 중" : "미등록", hint: hasClientInfo ? (clientInfo.clientName || clientInfo.siteName || "정보 확인") : "새 거래처 등록", view: "clients" },
     { label: "실사보정", value: "사진 적용", hint: "현장 사진에 장바구니 자재 적용", pageTarget: "renderPage" },
@@ -8293,9 +8588,10 @@ function renderMyPage() {
   const current = document.querySelector("#myCurrentOrderSummary");
   const myCart = document.querySelector("#myCartList");
   const clientPanel = document.querySelector("#myClientManagementPanel");
+  const samples = document.querySelector("#mySampleRequestList");
   const past = document.querySelector("#myPastOrderList");
   const dispatch = document.querySelector("#myDispatchOrderList");
-  if (!profile || !current || !myCart || !clientPanel || !past || !dispatch) return;
+  if (!profile || !current || !myCart || !clientPanel || !samples || !past || !dispatch) return;
 
   page?.classList.toggle("is-signed-out", !authUser);
   page?.classList.toggle("is-signed-in", Boolean(authUser));
@@ -8315,10 +8611,18 @@ function renderMyPage() {
     current.innerHTML = "";
     myCart.innerHTML = "";
     clientPanel.innerHTML = "";
+    samples.innerHTML = "";
     past.innerHTML = "";
     dispatch.innerHTML = "";
     switchMyPageView("account");
     return;
+  }
+
+  const sampleOwnerKey = `${authUser.role || "member"}:${getTileAssistantProjectOwnerKey()}`;
+  if (memberSampleRequestsOwnerKey !== sampleOwnerKey) {
+    memberSampleRequestsOwnerKey = sampleOwnerKey;
+    memberSampleRequests = [];
+    memberSampleRequestsLoaded = false;
   }
 
   const totalQuote = getCartQuoteTotal(cart);
@@ -8382,7 +8686,79 @@ function renderMyPage() {
   const dispatchOrders = getDispatchOrders(pastOrders);
   dispatch.innerHTML = dispatchOrders.map(renderPastOrderCard).join("") || `<div class="empty-state">현재 진행 중인 배차가 없습니다.</div>`;
   renderMyPageOverview(pastOrders);
+  void loadMemberSampleRequests();
   switchMyPageView(myPageCurrentView);
+}
+
+async function loadMemberSampleRequests({ force = false } = {}) {
+  const list = document.querySelector("#mySampleRequestList");
+  if (!list || !authUser) return;
+  const ownerKey = `${authUser.role || "member"}:${getTileAssistantProjectOwnerKey()}`;
+  if (memberSampleRequestsOwnerKey !== ownerKey) {
+    memberSampleRequestsOwnerKey = ownerKey;
+    memberSampleRequests = [];
+    memberSampleRequestsLoaded = false;
+  }
+  if (!force && memberSampleRequestsLoaded) {
+    renderMemberSampleRequests();
+    return;
+  }
+  list.innerHTML = `<div class="empty-state">샘플 신청 현황을 불러오는 중입니다.</div>`;
+  try {
+    const result = await requestJson("/api/sample-requests", {
+      headers: getSampleRequestAuthHeaders()
+    }, { retries: 1, timeoutMs: 8000 });
+    memberSampleRequests = Array.isArray(result?.requests) ? result.requests : [];
+    memberSampleRequestsLoaded = true;
+    renderMemberSampleRequests();
+    renderMyPageOverview(mergeOrderHistory(loadPastOrders(), remoteOrders));
+  } catch (error) {
+    list.innerHTML = `<div class="empty-state">${escapeHtml(error.message || "샘플 신청 현황을 불러오지 못했습니다.")}</div>`;
+  }
+}
+
+function renderMemberSampleRequests() {
+  const list = document.querySelector("#mySampleRequestList");
+  if (!list) return;
+  list.innerHTML = memberSampleRequests.map((request) => {
+    const items = Array.isArray(request.items) ? request.items : [];
+    const tracking = [request.tracking?.carrier, request.tracking?.number].filter(Boolean).join(" · ");
+    return `
+      <article class="my-sample-request-card">
+        <div class="my-sample-request-head">
+          <div>
+            <span>${escapeHtml(request.requestNumber || "샘플 신청")}</span>
+            <strong>${escapeHtml(request.projectTitle || request.site?.siteName || "현장 샘플")}</strong>
+          </div>
+          <span class="sample-status sample-status-${escapeHtml(normalizeSampleStatusClass(request.status))}">${escapeHtml(request.status || "접수")}</span>
+        </div>
+        <div class="my-sample-request-items">
+          ${items.map((item) => `
+            <div>
+              ${item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy" />` : `<span class="sample-image-placeholder">이미지 없음</span>`}
+              <span><strong>${escapeHtml(item.name || item.code || "타일 샘플")}</strong><small>${escapeHtml([item.size, item.finish, `${number(item.quantity || 1)}장`].filter(Boolean).join(" · "))}</small></span>
+            </div>
+          `).join("")}
+        </div>
+        <dl class="my-sample-request-meta">
+          <div><dt>배송지</dt><dd>${escapeHtml([request.recipient?.address, request.recipient?.addressDetail].filter(Boolean).join(" ") || "확인 중")}</dd></div>
+          <div><dt>희망일</dt><dd>${escapeHtml(request.requestedDate || "미지정")}</dd></div>
+          <div><dt>배송</dt><dd>${escapeHtml(tracking || "접수 후 안내")}</dd></div>
+          <div><dt>신청일</dt><dd>${escapeHtml(formatDateTime(request.createdAt))}</dd></div>
+        </dl>
+      </article>
+    `;
+  }).join("") || `<div class="empty-state">아직 샘플 신청 내역이 없습니다.</div>`;
+  filterMyPageView(document.querySelector("#myPageSearchInput")?.value || "");
+}
+
+function normalizeSampleStatusClass(status) {
+  const value = String(status || "접수");
+  if (value === "완료") return "complete";
+  if (value === "취소") return "cancelled";
+  if (["발송준비", "배송중"].includes(value)) return "shipping";
+  if (value === "확인중") return "review";
+  return "received";
 }
 
 function renderClientManagementPanel() {
@@ -8497,28 +8873,44 @@ function renderPastOrderCard(order) {
 }
 
 async function saveCurrentCartAsPastOrder() {
+  const statusNode = document.querySelector("#cartOrderStatus");
+  const submitButton = document.querySelector("#cartOrderSubmitBtn");
+  const setOrderStatus = (message, tone = "") => {
+    if (!statusNode) return;
+    statusNode.textContent = message;
+    statusNode.dataset.tone = tone;
+  };
   if (!authUser) {
     switchPage("loginPage");
     return;
   }
   if (!hasMemberPriceAccess()) {
-    setText("#loginStatus", "사업자등록증 승인 후 주문 접수가 가능합니다.");
+    setOrderStatus("사업자등록증 승인 후 주문 접수가 가능합니다.", "error");
     renderMyPage();
     return;
   }
   if (!cart.length) {
+    setOrderStatus("주문할 상품을 먼저 담아주세요.", "error");
     renderMyPage();
     return;
   }
-  const createdAt = new Date().toISOString();
-  const existingOrders = loadPastOrders();
-  let order = {
-    orderNumber: `TBP-${createdAt.slice(0, 10).replaceAll("-", "")}-${String(existingOrders.length + 1).padStart(3, "0")}`,
-    createdAt,
-    status: "접수대기",
-    totalQuote: getCartQuoteTotal(cart),
-    items: cart.map((item) => ({ ...item }))
-  };
+
+  const contactPhone = String(document.querySelector("#cartOrderContactPhone")?.value || authUser?.contactPhone || authUser?.phone || "").trim();
+  const deliveryAddress = String(document.querySelector("#cartOrderDeliveryAddress")?.value || authUser?.contactAddress || authUser?.companyAddress || "").trim();
+  const requestedDeliveryDate = String(document.querySelector("#cartOrderRequestedDate")?.value || "").trim();
+  const note = String(document.querySelector("#cartOrderNote")?.value || "").trim();
+  if (!contactPhone || !deliveryAddress) {
+    setOrderStatus("연락처와 현장 배송지를 입력해주세요.", "error");
+    (!contactPhone ? document.querySelector("#cartOrderContactPhone") : document.querySelector("#cartOrderDeliveryAddress"))?.focus();
+    return;
+  }
+
+  const originalText = submitButton?.textContent || "주문 접수";
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = "접수 중";
+  }
+  setOrderStatus("등급별 단가와 주문 정보를 확인하고 있습니다.", "progress");
   try {
     const payload = await requestJson("/api/orders", {
       method: "POST",
@@ -8530,20 +8922,30 @@ async function saveCurrentCartAsPastOrder() {
         businessNumber: authUser.businessNumber,
         companyName: authUser.companyName || "",
         contactName: authUser.name || "",
+        contactPhone,
+        deliveryAddress,
+        requestedDeliveryDate,
+        note,
         items: cart,
-        status: "접수대기"
       })
     }, { retries: 1, timeoutMs: 10000 });
-    if (payload?.order) {
-      order = normalizeOrderHistoryRow(payload.order);
-      remoteOrders = mergeOrderHistory([order], remoteOrders);
-    }
+    if (!payload?.order?.orderNumber) throw new Error("주문 접수번호를 받지 못했습니다.");
+    const order = normalizeOrderHistoryRow(payload.order);
+    remoteOrders = mergeOrderHistory([order], remoteOrders);
+    savePastOrders(mergeOrderHistory([order], loadPastOrders()).slice(0, 50));
+    setOrderStatus(`${order.orderNumber} 주문이 접수되었습니다. 관리자가 확인 후 상태를 안내합니다.`, "success");
+    renderMemberHomeBoard();
+    renderMyPage();
   } catch (error) {
     console.warn(error);
+    setOrderStatus(error.message || "주문 접수에 실패했습니다. 잠시 후 다시 시도해주세요.", "error");
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+    }
+    syncCartOrderForm();
   }
-  savePastOrders([order, ...existingOrders].slice(0, 50));
-  renderMemberHomeBoard();
-  renderMyPage();
 }
 
 const QUALITY_CORE_FIELDS = [
@@ -9700,12 +10102,17 @@ async function handleAdminLaunchExecuteClick(event) {
 }
 
 async function handleAdminOperationsActionClick(event) {
+  const tierButton = event.target.closest("[data-admin-member-tier-save]");
+  if (tierButton) {
+    await updateAdminMemberTier(tierButton);
+    return;
+  }
   const signupButton = event.target.closest("[data-admin-signup-status]");
   if (signupButton) {
     await updateAdminSignupStatus(signupButton);
     return;
   }
-  const orderButton = event.target.closest("[data-admin-order-status]");
+  const orderButton = event.target.closest("[data-admin-order-status], [data-admin-order-status-save]");
   if (orderButton) {
     await updateAdminOrderStatus(orderButton);
   }
@@ -9742,13 +10149,51 @@ async function updateAdminSignupStatus(button) {
   }
 }
 
+async function updateAdminMemberTier(button) {
+  if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) {
+    setText("#adminStatus", "관리자 로그인 후 회원 등급을 변경할 수 있습니다.");
+    return;
+  }
+  const row = button.closest("tr");
+  const businessNumber = String(button.dataset.businessNumber || "").trim();
+  const approvalStatus = String(row?.querySelector("[data-admin-member-approval]")?.value || "보류").trim();
+  const memberGrade = String(row?.querySelector("[data-admin-member-grade]")?.value || "B등급").trim();
+  const priceTier = String(row?.querySelector("[data-admin-member-price-tier]")?.value || "wholesale").trim();
+  if (!businessNumber) {
+    setText("#adminStatus", "저장할 회원의 사업자등록번호가 없습니다.");
+    return;
+  }
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "저장 중";
+  setText("#adminStatus", `${businessNumber} 회원의 승인·가격 권한을 저장하는 중입니다...`);
+  try {
+    await requestJson("/api/admin/signup-request/status", {
+      method: "POST",
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ businessNumber, approvalStatus, memberGrade, priceTier })
+    }, { timeoutMs: 12000 });
+    setText("#adminStatus", `${businessNumber} 회원을 ${approvalStatus} · ${memberGrade}으로 저장했습니다.`);
+    await loadAdminOverview();
+  } catch (error) {
+    setText("#adminStatus", error.message || "회원 등급 저장에 실패했습니다.");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
 async function updateAdminOrderStatus(button) {
   if (!isAdminUser() || !authUser?.adminUsername || !authUser?.adminToken) {
     setText("#adminStatus", "관리자 로그인 후 주문 상태를 변경할 수 있습니다.");
     return;
   }
   const orderNumber = String(button.dataset.orderNumber || "").trim();
-  const status = String(button.dataset.adminOrderStatus || "").trim();
+  const status = String(
+    button.dataset.adminOrderStatus
+    || button.closest(".admin-inline-actions")?.querySelector("[data-admin-order-status-select]")?.value
+    || ""
+  ).trim();
   if (!orderNumber || !status) {
     setText("#adminStatus", "처리할 주문 정보를 찾지 못했습니다.");
     return;
@@ -9785,7 +10230,7 @@ function resetAdminLaunchTodos() {
 
 function getOrderStageFromStatus(status) {
   const text = String(status || "").trim();
-  if (["완료", "취소"].includes(text)) return "done";
+  if (["배송완료", "완료", "취소"].includes(text)) return "done";
   return "waiting";
 }
 
@@ -9975,6 +10420,7 @@ function handleAdminProductFilters() {
   adminProductFilters.query = document.querySelector("#adminProductSearch")?.value || "";
   adminProductFilters.productType = document.querySelector("#adminProductTypeFilter")?.value || "";
   adminProductFilters.stock = document.querySelector("#adminProductStockFilter")?.value || "";
+  clearAdminGradePricingPreview();
   if (currentAdminView === "products") renderAdminOverview();
 }
 
@@ -9988,7 +10434,118 @@ function resetAdminProductFilters() {
   if (brand) brand.value = "";
   if (type) type.value = "";
   if (stock) stock.value = "";
+  clearAdminGradePricingPreview();
   if (currentAdminView === "products") renderAdminOverview();
+}
+
+function getAdminGradePricingRequestPayload() {
+  return {
+    filters: { ...adminProductFilters },
+    stockInquiryThresholdQty: STOCK_INQUIRY_THRESHOLD_QTY
+  };
+}
+
+function getAdminGradePricingFilterKey() {
+  return JSON.stringify(getAdminGradePricingRequestPayload());
+}
+
+function clearAdminGradePricingPreview() {
+  adminGradePricingPreviewToken = "";
+  adminGradePricingPreviewFilterKey = "";
+  const applyButton = document.querySelector("#adminGradePricingApplyBtn");
+  if (applyButton) applyButton.disabled = true;
+  const wrap = document.querySelector("#adminGradePricingPreviewWrap");
+  wrap?.classList.add("hidden");
+  const summary = document.querySelector("#adminGradePricingSummary");
+  if (summary) summary.innerHTML = "";
+  setText("#adminGradePricingStatus", "현재 필터를 확인한 뒤 가격 미리보기를 실행하세요.");
+}
+
+function renderAdminGradePricingPreview(payload) {
+  const summary = payload?.summary || {};
+  const summaryElement = document.querySelector("#adminGradePricingSummary");
+  const rows = document.querySelector("#adminGradePricingPreviewRows");
+  const wrap = document.querySelector("#adminGradePricingPreviewWrap");
+  if (summaryElement) {
+    summaryElement.innerHTML = [
+      ["선택 대상", `${number(summary.selectedCount || 0)}개`],
+      ["가격 계산 가능", `${number(summary.eligibleCount || 0)}개`],
+      ["변경 예정", `${number(summary.changedCount || 0)}개`],
+      ["원가 미등록 제외", `${number(summary.missingCostCount || 0)}개`]
+    ].map(([label, value]) => `<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+  }
+  const preview = Array.isArray(summary.preview) ? summary.preview : [];
+  if (rows) {
+    rows.innerHTML = preview.map((item) => `
+      <tr>
+        <td>${escapeHtml(item.managementCode || "-")}</td>
+        <td>${escapeHtml(item.name || "-")}</td>
+        <td>${money.format(item.costPrice || 0)}</td>
+        <td>${money.format(item.gradeAPrice || 0)}</td>
+        <td>${money.format(item.gradeBPrice || 0)}</td>
+        <td>${money.format(item.gradeCPrice || 0)}</td>
+      </tr>
+    `).join("") || `<tr><td colspan="6">변경할 가격이 없습니다.</td></tr>`;
+  }
+  wrap?.classList.remove("hidden");
+  setText(
+    "#adminGradePricingStatus",
+    summary.changedCount
+      ? `${number(summary.changedCount)}개 상품의 등급별 가격을 적용할 준비가 되었습니다.`
+      : "현재 정책과 동일하거나 원가가 없어 변경할 상품이 없습니다."
+  );
+}
+
+async function previewAdminGradePricing() {
+  const previewButton = document.querySelector("#adminGradePricingPreviewBtn");
+  const applyButton = document.querySelector("#adminGradePricingApplyBtn");
+  if (!isAdminUser()) return;
+  if (previewButton) previewButton.disabled = true;
+  if (applyButton) applyButton.disabled = true;
+  setText("#adminGradePricingStatus", "현재 필터의 원가와 등급별 가격을 계산하고 있습니다.");
+  try {
+    const payload = await requestJson("/api/admin/product-grade-pricing/preview", {
+      method: "POST",
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(getAdminGradePricingRequestPayload())
+    }, { retries: 1, timeoutMs: 30000 });
+    adminGradePricingPreviewToken = String(payload?.previewToken || "");
+    adminGradePricingPreviewFilterKey = getAdminGradePricingFilterKey();
+    renderAdminGradePricingPreview(payload);
+    if (applyButton) applyButton.disabled = !adminGradePricingPreviewToken || !Number(payload?.summary?.changedCount || 0);
+  } catch (error) {
+    clearAdminGradePricingPreview();
+    setText("#adminGradePricingStatus", error.message || "가격 미리보기를 불러오지 못했습니다.");
+  } finally {
+    if (previewButton) previewButton.disabled = false;
+  }
+}
+
+async function applyAdminGradePricing() {
+  const applyButton = document.querySelector("#adminGradePricingApplyBtn");
+  if (!adminGradePricingPreviewToken || adminGradePricingPreviewFilterKey !== getAdminGradePricingFilterKey()) {
+    clearAdminGradePricingPreview();
+    setText("#adminGradePricingStatus", "필터가 변경되었습니다. 가격 미리보기를 다시 실행해주세요.");
+    return;
+  }
+  if (!window.confirm("미리보기 대상에 A +25%, B +30%, C +50% 가격을 적용하시겠습니까?")) return;
+  if (applyButton) applyButton.disabled = true;
+  setText("#adminGradePricingStatus", "상품 DB를 백업하고 등급별 가격을 적용하고 있습니다.");
+  try {
+    const requestPayload = getAdminGradePricingRequestPayload();
+    const payload = await requestJson("/api/admin/product-grade-pricing/apply", {
+      method: "POST",
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ ...requestPayload, previewToken: adminGradePricingPreviewToken })
+    }, { retries: 0, timeoutMs: 120000 });
+    adminGradePricingPreviewToken = "";
+    adminGradePricingPreviewFilterKey = "";
+    setText("#adminGradePricingStatus", `${number(payload?.summary?.changedCount || 0)}개 상품 가격을 적용했습니다. 적용 전 DB 백업도 생성했습니다.`);
+    await hydrateAdminProducts({ render: false });
+    renderAdminOverview();
+  } catch (error) {
+    setText("#adminGradePricingStatus", error.message || "등급별 가격을 적용하지 못했습니다.");
+  }
 }
 
 function getFilteredAdminOrders(orderRecords) {
@@ -10019,6 +10576,48 @@ function resetAdminOrderFilters() {
   if (search) search.value = "";
   if (stage) stage.value = "";
   if (currentAdminView === "orders") renderAdminOverview();
+}
+
+function renderAdminMemberTiers(signupRequests) {
+  const rows = document.querySelector("#adminMemberTierRows");
+  if (!rows) return;
+  const members = (Array.isArray(signupRequests) ? signupRequests : [])
+    .filter((entry) => entry.businessNumber)
+    .sort((left, right) => {
+      if (left.approvalStatus !== right.approvalStatus) return left.approvalStatus === "승인" ? 1 : -1;
+      return String(left.companyName || left.contactCompanyName || "").localeCompare(String(right.companyName || right.contactCompanyName || ""), "ko");
+    });
+  setText("#adminMemberTierCount", `${number(members.length)}명`);
+  rows.innerHTML = members.map((entry) => {
+    const gradeText = String(entry.memberGrade || "").toUpperCase();
+    const grade = gradeText.includes("A") ? "A등급" : gradeText.includes("C") ? "C등급" : "B등급";
+    const tier = String(entry.priceTier || "wholesale").toLowerCase() === "retail" ? "retail" : "wholesale";
+    const approved = entry.approvalStatus === "승인";
+    return `
+      <tr>
+        <td><strong>${escapeHtml(entry.companyName || entry.contactCompanyName || entry.name || "-")}</strong><small>${escapeHtml(entry.name || entry.contactName || "-")}</small></td>
+        <td>${escapeHtml(entry.businessNumber)}</td>
+        <td>
+          <select data-admin-member-approval aria-label="${escapeHtml(entry.businessNumber)} 승인 상태">
+            <option value="보류"${approved ? "" : " selected"}>보류</option>
+            <option value="승인"${approved ? " selected" : ""}>승인</option>
+          </select>
+        </td>
+        <td>
+          <select data-admin-member-grade aria-label="${escapeHtml(entry.businessNumber)} 회원 등급">
+            ${["A등급", "B등급", "C등급"].map((value) => `<option value="${value}"${grade === value ? " selected" : ""}>${value}</option>`).join("")}
+          </select>
+        </td>
+        <td>
+          <select data-admin-member-price-tier aria-label="${escapeHtml(entry.businessNumber)} 가격 정책">
+            <option value="wholesale"${tier === "wholesale" ? " selected" : ""}>사업자 등급가</option>
+            <option value="retail"${tier === "retail" ? " selected" : ""}>소매 기준가</option>
+          </select>
+        </td>
+        <td><button class="primary-action compact-action" type="button" data-admin-member-tier-save data-business-number="${escapeHtml(entry.businessNumber)}">저장</button></td>
+      </tr>
+    `;
+  }).join("") || `<tr><td colspan="6">가입 회원이 없습니다.</td></tr>`;
 }
 
 function renderAdminOverview() {
@@ -10065,6 +10664,7 @@ function renderAdminOverview() {
     const result = document.querySelector("#adminOrderFilterResult");
     if (result) result.textContent = `${number(filteredOrders.length)} / ${number(orderRecords.length)}건 표시`;
     renderAdminOrderFlow(filteredOrders);
+    renderAdminMemberTiers(signupRequests);
     cartRows.innerHTML = window.TbpAdminOrders.buildAdminCartRowsHtml({
       orderRecords: filteredOrders,
       callbacks: getAdminOrdersCallbacks()
@@ -10112,6 +10712,108 @@ function renderAdminOrderFlow(orderRecords) {
   });
 }
 
+async function loadAdminSampleRequests({ force = false } = {}) {
+  const list = document.querySelector("#adminSampleRequestList");
+  if (!list || !isAdminUser()) return;
+  const ownerKey = String(authUser?.adminUsername || "");
+  if (adminSampleRequestsOwnerKey !== ownerKey) {
+    adminSampleRequestsOwnerKey = ownerKey;
+    adminSampleRequests = [];
+    adminSampleRequestsLoaded = false;
+  }
+  if (!force && adminSampleRequestsLoaded) {
+    renderAdminSampleRequests();
+    return;
+  }
+  list.innerHTML = `<div class="empty-state">샘플 신청을 불러오는 중입니다.</div>`;
+  try {
+    const result = await requestJson("/api/admin/sample-requests", {
+      headers: getAdminAuthHeaders()
+    }, { retries: 1, timeoutMs: 8000 });
+    adminSampleRequests = Array.isArray(result?.requests) ? result.requests : [];
+    adminSampleRequestsLoaded = true;
+    renderAdminSampleRequests();
+  } catch (error) {
+    list.innerHTML = `<div class="empty-state">${escapeHtml(error.message || "샘플 신청을 불러오지 못했습니다.")}</div>`;
+  }
+}
+
+function renderAdminSampleRequests() {
+  const list = document.querySelector("#adminSampleRequestList");
+  if (!list) return;
+  setText("#adminSampleRequestCount", `${number(adminSampleRequests.length)}건`);
+  list.innerHTML = adminSampleRequests.map((request) => {
+    const items = Array.isArray(request.items) ? request.items : [];
+    return `
+      <article class="admin-sample-request-card" data-admin-sample-request="${escapeHtml(request.id)}">
+        <div class="admin-sample-request-head">
+          <div>
+            <span>${escapeHtml(request.requestNumber || "샘플 신청")}</span>
+            <strong>${escapeHtml(request.companyName || request.projectTitle || "회원 샘플")}</strong>
+            <small>${escapeHtml([request.projectTitle, request.site?.siteName, request.site?.spaceType].filter(Boolean).join(" · "))}</small>
+          </div>
+          <span class="sample-status sample-status-${escapeHtml(normalizeSampleStatusClass(request.status))}">${escapeHtml(request.status || "접수")}</span>
+        </div>
+        <div class="admin-sample-request-items">
+          ${items.map((item) => `
+            <div>
+              ${item.image ? `<img src="${escapeHtml(item.image)}" alt="" loading="lazy" />` : ""}
+              <span><strong>${escapeHtml(item.name || item.code || "타일 샘플")}</strong><small>${escapeHtml([item.size, item.finish, `${number(item.quantity || 1)}장`].filter(Boolean).join(" · "))}</small></span>
+            </div>
+          `).join("")}
+        </div>
+        <div class="admin-sample-delivery">
+          <div><span>받는 분</span><strong>${escapeHtml(request.recipient?.name || "-")} · ${escapeHtml(request.recipient?.contact || "-")}</strong></div>
+          <div><span>배송지</span><strong>${escapeHtml([request.recipient?.address, request.recipient?.addressDetail].filter(Boolean).join(" ") || "-")}</strong></div>
+          <div><span>희망일</span><strong>${escapeHtml(request.requestedDate || "미지정")}</strong></div>
+        </div>
+        <div class="admin-sample-controls">
+          <label>상태<select data-admin-sample-status>
+            ${["접수", "확인중", "발송준비", "배송중", "완료", "취소"].map((status) => `<option value="${status}"${status === request.status ? " selected" : ""}>${status}</option>`).join("")}
+          </select></label>
+          <label>택배사<input data-admin-sample-carrier type="text" maxlength="80" value="${escapeHtml(request.tracking?.carrier || "")}" placeholder="예: CJ대한통운" /></label>
+          <label>송장번호<input data-admin-sample-tracking type="text" maxlength="120" value="${escapeHtml(request.tracking?.number || "")}" /></label>
+          <label class="is-wide">관리 메모<input data-admin-sample-note type="text" maxlength="1000" value="${escapeHtml(request.adminNote || "")}" /></label>
+          <button class="primary-action" type="button" data-admin-sample-save="${escapeHtml(request.id)}">저장</button>
+          <span class="admin-sample-save-status" aria-live="polite"></span>
+        </div>
+      </article>
+    `;
+  }).join("") || `<div class="empty-state">접수된 샘플 신청이 없습니다.</div>`;
+}
+
+async function saveAdminSampleRequest(requestId) {
+  const card = document.querySelector(`[data-admin-sample-request="${CSS.escape(String(requestId || ""))}"]`);
+  if (!card) return;
+  const button = card.querySelector("[data-admin-sample-save]");
+  const status = card.querySelector(".admin-sample-save-status");
+  if (button) button.disabled = true;
+  if (status) status.textContent = "저장 중";
+  try {
+    const result = await requestJson("/api/admin/sample-request", {
+      method: "PATCH",
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        id: requestId,
+        status: card.querySelector("[data-admin-sample-status]")?.value || "접수",
+        carrier: card.querySelector("[data-admin-sample-carrier]")?.value.trim() || "",
+        trackingNumber: card.querySelector("[data-admin-sample-tracking]")?.value.trim() || "",
+        adminNote: card.querySelector("[data-admin-sample-note]")?.value.trim() || ""
+      })
+    }, { timeoutMs: 10000 });
+    const index = adminSampleRequests.findIndex((entry) => entry.id === requestId);
+    if (index >= 0) adminSampleRequests[index] = result.request;
+    renderAdminSampleRequests();
+    const updatedCard = document.querySelector(`[data-admin-sample-request="${CSS.escape(String(requestId || ""))}"]`);
+    const updatedStatus = updatedCard?.querySelector(".admin-sample-save-status");
+    if (updatedStatus) updatedStatus.textContent = "저장 완료";
+  } catch (error) {
+    if (status) status.textContent = error.message || "저장 실패";
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function switchAdminView(view) {
   currentAdminView = view;
   document.querySelector("#adminOperationsTab")?.classList.toggle("active", view === "operations");
@@ -10125,6 +10827,7 @@ function switchAdminView(view) {
   document.querySelector("#adminSearchTrainingView")?.classList.toggle("hidden", view !== "searchTraining");
   document.querySelector("#adminOrdersView")?.classList.toggle("hidden", view !== "orders");
   if (["operations", "products", "orders"].includes(view)) renderAdminOverview();
+  if (view === "orders") void loadAdminSampleRequests();
   if (view === "quality") renderQualityDashboard();
   if (view === "searchTraining") renderSearchTrainingView();
   void ensureAdminProductsForView(view);
@@ -13405,7 +14108,7 @@ async function submitSignupForm(event) {
     businessItem: manualBusinessItem || extractedBusinessInfo.businessItem,
     businessCategorySection: extractedBusinessInfo.businessCategorySection || [manualBusinessType, manualBusinessItem].filter(Boolean).join(" / "),
     approvalStatus,
-    memberGrade: "사업자",
+    memberGrade: "B등급",
     priceTier: "retail",
     businessFileName: businessFile?.name || "",
     businessFileMime: businessFile?.type || "",
@@ -13524,7 +14227,7 @@ async function submitLoginForm(event) {
       provider: localMatchedUser.provider || "일반 회원가입",
       approvalStatus: localMatchedUser.approvalStatus,
       pricingAccess: "approved",
-      memberGrade: localMatchedUser.memberGrade || "사업자",
+      memberGrade: localMatchedUser.memberGrade || "B등급",
       priceTier: localMatchedUser.priceTier || "wholesale",
       memberToken: localMatchedUser.memberToken || ""
     };

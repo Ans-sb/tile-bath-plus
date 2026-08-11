@@ -37,13 +37,21 @@ function createTileAssistantRateLimiter({
 }
 
 async function handleTileAssistantRoutes(request, response, context) {
-  if (request.method === "GET" && request.url.startsWith("/api/tile-assistant/project")) {
-    if (context.isTileAssistantOriginAllowed && !context.isTileAssistantOriginAllowed(request)) {
-      context.sendJson(response, 403, { error: "허용되지 않은 요청 출처입니다." });
-      return true;
-    }
+  const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+  const pathname = url.pathname;
+  const isAssistantRoute = pathname === "/api/tile-assistant/chat"
+    || pathname === "/api/tile-assistant/project"
+    || pathname === "/api/tile-assistant/projects"
+    || pathname === "/api/tile-assistant/project/products";
+  if (!isAssistantRoute) return false;
+
+  if (context.isTileAssistantOriginAllowed && !context.isTileAssistantOriginAllowed(request)) {
+    context.sendJson(response, 403, { error: "허용되지 않은 요청 출처입니다." });
+    return true;
+  }
+
+  if (request.method === "GET" && ["/api/tile-assistant/project", "/api/tile-assistant/projects"].includes(pathname)) {
     try {
-      const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
       const payload = {
         projectId: String(url.searchParams.get("projectId") || ""),
         clientKey: String(url.searchParams.get("clientKey") || "")
@@ -51,25 +59,32 @@ async function handleTileAssistantRoutes(request, response, context) {
       const actor = context.resolveTileAssistantActor
         ? await context.resolveTileAssistantActor(request, payload)
         : null;
-      const project = context.readTileAssistantProject
-        ? await context.readTileAssistantProject(payload.projectId, actor)
-        : null;
-      context.sendJson(response, 200, { ok: true, project });
+      if (pathname === "/api/tile-assistant/projects") {
+        const projects = context.listTileAssistantProjects
+          ? await context.listTileAssistantProjects(actor)
+          : [];
+        context.sendJson(response, 200, { ok: true, projects });
+      } else {
+        const project = context.readTileAssistantProject
+          ? await context.readTileAssistantProject(payload.projectId, actor)
+          : null;
+        context.sendJson(response, 200, { ok: true, project });
+      }
     } catch (error) {
       context.sendJson(response, Number(error?.statusCode || 400), { error: String(error?.message || "현장 상담 기록을 불러오지 못했습니다.") });
     }
     return true;
   }
 
-  if (request.method !== "POST" || request.url !== "/api/tile-assistant/chat") return false;
+  const isProjectWrite = (request.method === "POST" && pathname === "/api/tile-assistant/projects")
+    || (request.method === "PATCH" && pathname === "/api/tile-assistant/project")
+    || (request.method === "POST" && pathname === "/api/tile-assistant/project/products");
+  const isChatRequest = request.method === "POST" && pathname === "/api/tile-assistant/chat";
+  if (!isProjectWrite && !isChatRequest) return false;
 
   const contentType = String(request.headers?.["content-type"] || "").toLowerCase();
   if (!contentType.startsWith("application/json")) {
     context.sendJson(response, 415, { error: "JSON 형식의 요청만 허용됩니다." });
-    return true;
-  }
-  if (context.isTileAssistantOriginAllowed && !context.isTileAssistantOriginAllowed(request)) {
-    context.sendJson(response, 403, { error: "허용되지 않은 요청 출처입니다." });
     return true;
   }
   if (context.allowTileAssistantRequest && !context.allowTileAssistantRequest(request)) {
@@ -82,6 +97,30 @@ async function handleTileAssistantRoutes(request, response, context) {
     const actor = context.resolveTileAssistantActor
       ? await context.resolveTileAssistantActor(request, payload)
       : null;
+
+    if (isProjectWrite) {
+      let project = null;
+      if (pathname === "/api/tile-assistant/projects") {
+        project = context.createTileAssistantProject
+          ? await context.createTileAssistantProject(actor, payload?.site)
+          : null;
+      } else if (pathname === "/api/tile-assistant/project") {
+        project = context.updateTileAssistantProject
+          ? await context.updateTileAssistantProject(payload?.projectId, actor, payload?.site)
+          : null;
+      } else {
+        project = context.setTileAssistantSelectedProduct
+          ? await context.setTileAssistantSelectedProduct(payload?.projectId, actor, payload?.product, payload?.selected !== false)
+          : null;
+      }
+      if (!project) {
+        context.sendJson(response, 404, { error: "현장 프로젝트를 찾지 못했습니다." });
+        return true;
+      }
+      context.sendJson(response, pathname === "/api/tile-assistant/projects" ? 201 : 200, { ok: true, project });
+      return true;
+    }
+
     const result = await context.answerTileQuestion({
       message: payload?.message,
       history: payload?.history,

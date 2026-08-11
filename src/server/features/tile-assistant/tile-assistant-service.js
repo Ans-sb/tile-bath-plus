@@ -318,8 +318,9 @@ function buildInterpretedConditions(intent) {
   });
 }
 
-function normalizeRecommendations(entries) {
-  return (Array.isArray(entries) ? entries : []).slice(0, 10).map((entry) => ({
+function normalizeRecommendations(entries, limit = 10) {
+  const safeLimit = Math.min(30, Math.max(1, Math.round(Number(limit) || 10)));
+  return (Array.isArray(entries) ? entries : []).slice(0, safeLimit).map((entry) => ({
     id: String(entry?.id || "").trim().slice(0, 120),
     name: String(entry?.name || "타일 상품").trim().slice(0, 240),
     size: String(entry?.size || "").trim().slice(0, 80),
@@ -372,12 +373,21 @@ function summarizeProject(project) {
     status: String(project?.status || "상담중"),
     stage: String(project?.stage || SALES_STAGES.DISCOVERY),
     updatedAt: String(project?.updatedAt || ""),
+    site: {
+      clientName: String(project?.site?.clientName || "").slice(0, 120),
+      siteName: String(project?.site?.siteName || "").slice(0, 120),
+      siteAddress: String(project?.site?.siteAddress || "").slice(0, 240),
+      spaceType: String(project?.site?.spaceType || "").slice(0, 60),
+      neededBy: String(project?.site?.neededBy || "").slice(0, 20),
+      notes: String(project?.site?.notes || "").slice(0, 1000)
+    },
     messages: (Array.isArray(project?.messages) ? project.messages : []).slice(-30).map((entry) => ({
       role: entry?.role === "assistant" ? "assistant" : "user",
       content: String(entry?.content || "").slice(0, 6000)
     })),
     intent: project?.intent || {},
     recommendations: normalizeRecommendations(project?.recommendations),
+    selectedProducts: normalizeRecommendations(project?.selectedProducts, 30),
     quantityEstimate: project?.quantityEstimate || null
   };
 }

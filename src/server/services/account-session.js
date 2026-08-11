@@ -124,7 +124,7 @@ function createUserSessionFromSignupRecord(record, memberTokenSecret) {
     provider: record.provider || "일반 회원가입",
     approvalStatus: record.approvalStatus,
     pricingAccess: pricingApproved ? "approved" : "pending",
-    memberGrade: record.memberGrade || "사업자",
+    memberGrade: record.memberGrade || "B등급",
     priceTier: record.priceTier || (pricingApproved ? "wholesale" : "retail"),
     memberToken: createMemberToken(record, memberTokenSecret)
   };

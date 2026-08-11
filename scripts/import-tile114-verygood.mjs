@@ -14,6 +14,9 @@ const managementPrefix = String(cli.managementPrefix || cli["management-prefix"]
 const mergeExistingProducts = String(cli.merge || "true") !== "false" && String(cli.replace || "false") !== "true";
 const outputOnly = String(cli.outputOnly || cli["output-only"] || "false") === "true";
 const listMode = String(cli.listMode || cli["list-mode"] || "categories").trim().toLowerCase();
+const detailConcurrency = Math.max(1, Math.min(10, Number(cli.concurrency || cli["detail-concurrency"] || 5) || 5));
+const listDelayMs = Math.max(0, Number(cli.listDelayMs || cli["list-delay-ms"] || 80) || 0);
+const detailDelayMs = Math.max(0, Number(cli.detailDelayMs || cli["detail-delay-ms"] || 50) || 0);
 const productsPath = path.join(root, "data", "products.json");
 const outputDir = path.join(root, "outputs", "tile114-import");
 const resultPath = path.join(outputDir, `${idPrefix}-products-${timestamp()}.json`);
@@ -89,7 +92,7 @@ async function collectAllProductList(discoveredProducts) {
     }
     console.log(`  page=${pageNumber} items=${items.length} new=${newCount} total=${discoveredProducts.size}`);
     if (newCount === 0 && pageNumber > 20) break;
-    await sleep(80);
+    await sleep(listDelayMs);
   }
 }
 
@@ -127,17 +130,17 @@ async function collectCategoryProductList(discoveredProducts) {
       }
       console.log(`  page=${pageNumber} items=${items.length} new=${newCount} total=${discoveredProducts.size}`);
       if (newCount === 0 && pageNumber > 20) break;
-      await sleep(80);
+      await sleep(listDelayMs);
     }
   }
 }
 
 const listItems = Array.from(discovered.values());
-console.log(`[detail] ${listItems.length} products`);
+console.log(`[detail] ${listItems.length} products concurrency=${detailConcurrency} delayMs=${detailDelayMs}`);
 
 const products = [];
 let completed = 0;
-await mapWithConcurrency(listItems, 5, async (item) => {
+await mapWithConcurrency(listItems, detailConcurrency, async (item) => {
   const detailHtml = await (await session.fetch(`/Web/productView.asp?ItemId=${encodeURIComponent(item.sourceProductId)}`)).text();
   const detail = parseTile114ProductDetail(detailHtml);
   const product = mapTile114ToAppProduct({
@@ -151,7 +154,7 @@ await mapWithConcurrency(listItems, 5, async (item) => {
   if (completed % 50 === 0 || completed === listItems.length) {
     console.log(`  detail=${completed}/${listItems.length}`);
   }
-  await sleep(50);
+  await sleep(detailDelayMs);
 });
 
 products.sort((a, b) => {

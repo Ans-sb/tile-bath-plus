@@ -9,6 +9,9 @@ const idPrefix = String(cli.idPrefix || cli["id-prefix"] || "sgcera").trim();
 const managementPrefix = String(cli.managementPrefix || cli["management-prefix"] || "SG").trim();
 const mergeExistingProducts = String(cli.merge || "true") !== "false" && String(cli.replace || "false") !== "true";
 const outputOnly = String(cli.outputOnly || cli["output-only"] || "false") === "true";
+const detailConcurrency = Math.max(1, Math.min(10, Number(cli.concurrency || cli["detail-concurrency"] || 5) || 5));
+const listDelayMs = Math.max(0, Number(cli.listDelayMs || cli["list-delay-ms"] || 80) || 0);
+const detailDelayMs = Math.max(0, Number(cli.detailDelayMs || cli["detail-delay-ms"] || 50) || 0);
 const loginUrl = firstEnvValue("SGCERA_LOGIN_URL") || "https://www.sgcera.kr/front/index.php?g_page=member&m_page=member01";
 const userId = firstEnvValue("SGCERA_USER_ID");
 const password = firstEnvValue("SGCERA_PASSWORD");
@@ -52,16 +55,16 @@ for (const category of CATEGORIES) {
       newCount += 1;
     }
     console.log(`  page=${page} items=${items.length} new=${newCount} total=${discovered.size}`);
-    await sleep(80);
+    await sleep(listDelayMs);
   }
 }
 
 const listItems = Array.from(discovered.values());
-console.log(`[detail] ${listItems.length} products`);
+console.log(`[detail] ${listItems.length} products concurrency=${detailConcurrency} delayMs=${detailDelayMs}`);
 
 const products = [];
 let completed = 0;
-await mapWithConcurrency(listItems, 5, async (item) => {
+await mapWithConcurrency(listItems, detailConcurrency, async (item) => {
   const detailHtml = await (await session.fetch(item.detailPath)).text();
   const detail = parseProductDetail(detailHtml, item);
   products.push(mapSgCeraToAppProduct({ ...item, ...detail }));
@@ -69,7 +72,7 @@ await mapWithConcurrency(listItems, 5, async (item) => {
   if (completed % 50 === 0 || completed === listItems.length) {
     console.log(`  detail=${completed}/${listItems.length}`);
   }
-  await sleep(50);
+  await sleep(detailDelayMs);
 });
 
 products.sort((a, b) => {

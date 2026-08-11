@@ -4,6 +4,7 @@ function createProductWriter(options = {}) {
   const cache = options.cache;
   const hasSupabaseConfig = options.hasSupabaseConfig;
   const upsertProductToSupabase = options.upsertProductToSupabase;
+  const upsertProductsToSupabase = options.upsertProductsToSupabase;
 
   async function saveProduct(product) {
     let products = await readProducts({ cache: false });
@@ -22,8 +23,26 @@ function createProductWriter(options = {}) {
     return products;
   }
 
+  async function saveProducts(products, changedProducts = products, saveOptions = {}) {
+    const nextProducts = Array.isArray(products) ? products : [];
+    const changed = Array.isArray(changedProducts) ? changedProducts : [];
+    const backupPath = saveOptions.backupLabel
+      ? await fileStore.backupProducts(saveOptions.backupLabel)
+      : "";
+
+    if (hasSupabaseConfig() && changed.length) {
+      await upsertProductsToSupabase(changed);
+      cache.invalidate();
+    }
+
+    await fileStore.writeProducts(nextProducts);
+    cache.setProducts(nextProducts, "file");
+    return { products: nextProducts, backupPath };
+  }
+
   return {
-    saveProduct
+    saveProduct,
+    saveProducts
   };
 }
 

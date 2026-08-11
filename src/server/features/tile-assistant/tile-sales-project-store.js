@@ -43,6 +43,77 @@ function createTileSalesProjectStore({ filePath, now = () => new Date() } = {}) 
     return project;
   }
 
+  async function listProjects(owner, { limit = 30 } = {}) {
+    const cleanOwner = normalizeOwner(owner);
+    if (!cleanOwner.id) return [];
+    const safeLimit = Math.min(50, Math.max(1, Math.round(Number(limit) || 30)));
+    const rows = await readRows();
+    return rows
+      .filter((row) => isSameOwner(row.owner, cleanOwner))
+      .sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")))
+      .slice(0, safeLimit)
+      .map(summarizeProjectRow);
+  }
+
+  async function createProject({ owner, site } = {}) {
+    const cleanOwner = normalizeOwner(owner);
+    if (!cleanOwner.id) return null;
+    const cleanSite = sanitizeSite(site);
+
+    return mutate((rows) => {
+      const currentTime = now().toISOString();
+      const project = createEmptyProject({
+        owner: cleanOwner,
+        currentTime,
+        title: cleanSite.siteName || cleanSite.clientName || "새 현장 상담",
+        site: cleanSite
+      });
+      if (cleanSite.spaceType) project.intent.space = cleanSite.spaceType;
+      rows.unshift(project);
+      rows.splice(500);
+      return project;
+    });
+  }
+
+  async function updateProject({ projectId, owner, site } = {}) {
+    const cleanOwner = normalizeOwner(owner);
+    const cleanProjectId = sanitizeText(projectId, 80);
+    if (!cleanOwner.id || !cleanProjectId) return null;
+
+    return mutate((rows) => {
+      const project = rows.find((row) => row.id === cleanProjectId && isSameOwner(row.owner, cleanOwner));
+      if (!project) return null;
+      const cleanSite = sanitizeSite(site);
+      project.site = cleanSite;
+      project.title = cleanSite.siteName || cleanSite.clientName || project.title || "현장 타일 프로젝트";
+      project.intent = sanitizeIntent({ ...project.intent, ...(cleanSite.spaceType ? { space: cleanSite.spaceType } : {}) });
+      project.updatedAt = now().toISOString();
+      rows.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+      return project;
+    });
+  }
+
+  async function setSelectedProduct({ projectId, owner, product, selected = true } = {}) {
+    const cleanOwner = normalizeOwner(owner);
+    const cleanProjectId = sanitizeText(projectId, 80);
+    const cleanProduct = sanitizeRecommendations([product], 1)[0];
+    if (!cleanOwner.id || !cleanProjectId || !cleanProduct?.id) return null;
+
+    return mutate((rows) => {
+      const project = rows.find((row) => row.id === cleanProjectId && isSameOwner(row.owner, cleanOwner));
+      if (!project) return null;
+      project.selectedProducts = sanitizeRecommendations(project.selectedProducts, 30);
+      const currentIndex = project.selectedProducts.findIndex((entry) => entry.id === cleanProduct.id);
+      if (selected && currentIndex < 0) project.selectedProducts.push(cleanProduct);
+      if (selected && currentIndex >= 0) project.selectedProducts[currentIndex] = cleanProduct;
+      if (!selected && currentIndex >= 0) project.selectedProducts.splice(currentIndex, 1);
+      project.selectedProducts = project.selectedProducts.slice(0, 30);
+      project.updatedAt = now().toISOString();
+      rows.sort((left, right) => String(right.updatedAt || "").localeCompare(String(left.updatedAt || "")));
+      return project;
+    });
+  }
+
   async function saveTurn({ projectId, owner, userMessage, result }) {
     const cleanOwner = normalizeOwner(owner);
     if (!cleanOwner.id) return null;
@@ -52,23 +123,17 @@ function createTileSalesProjectStore({ filePath, now = () => new Date() } = {}) 
       const cleanProjectId = sanitizeText(projectId, 80);
       let project = rows.find((row) => row.id === cleanProjectId && isSameOwner(row.owner, cleanOwner));
       if (!project) {
-        project = {
-          id: crypto.randomUUID(),
+        project = createEmptyProject({
           owner: cleanOwner,
-          title: buildProjectTitle(result?.intent, userMessage),
-          status: "상담중",
-          stage: "조건확인",
-          intent: {},
-          messages: [],
-          recommendations: [],
-          quantityEstimate: null,
-          createdAt: currentTime,
-          updatedAt: currentTime
-        };
+          currentTime,
+          title: buildProjectTitle(result?.intent, userMessage)
+        });
         rows.unshift(project);
       }
 
-      project.title = buildProjectTitle(result?.intent, userMessage, project.title);
+      project.site = sanitizeSite(project.site);
+      project.selectedProducts = sanitizeRecommendations(project.selectedProducts, 30);
+      project.title = project.site.siteName || buildProjectTitle(result?.intent, userMessage, project.title);
       project.stage = sanitizeText(result?.stage, 40) || project.stage;
       project.intent = sanitizeIntent(result?.intent);
       project.recommendations = sanitizeRecommendations(result?.recommendations);
@@ -85,7 +150,25 @@ function createTileSalesProjectStore({ filePath, now = () => new Date() } = {}) 
     });
   }
 
-  return { readProject, saveTurn };
+  return { createProject, listProjects, readProject, saveTurn, setSelectedProduct, updateProject };
+}
+
+function createEmptyProject({ owner, currentTime, title, site = {} }) {
+  return {
+    id: crypto.randomUUID(),
+    owner,
+    title: sanitizeText(title, 120) || "새 현장 상담",
+    status: "상담중",
+    stage: "조건확인",
+    site: sanitizeSite(site),
+    intent: {},
+    messages: [],
+    recommendations: [],
+    selectedProducts: [],
+    quantityEstimate: null,
+    createdAt: currentTime,
+    updatedAt: currentTime
+  };
 }
 
 function normalizeOwner(owner) {
@@ -111,8 +194,21 @@ function sanitizeIntent(intent) {
   return safe;
 }
 
-function sanitizeRecommendations(entries) {
-  return (Array.isArray(entries) ? entries : []).slice(0, 10).map((entry) => ({
+function sanitizeSite(site) {
+  const neededBy = sanitizeText(site?.neededBy, 20);
+  return {
+    clientName: sanitizeText(site?.clientName, 120),
+    siteName: sanitizeText(site?.siteName, 120),
+    siteAddress: sanitizeText(site?.siteAddress, 240),
+    spaceType: sanitizeText(site?.spaceType, 60),
+    neededBy: /^\d{4}-\d{2}-\d{2}$/.test(neededBy) ? neededBy : "",
+    notes: sanitizeText(site?.notes, 1000)
+  };
+}
+
+function sanitizeRecommendations(entries, limit = 10) {
+  const safeLimit = Math.min(30, Math.max(1, Math.round(Number(limit) || 10)));
+  return (Array.isArray(entries) ? entries : []).slice(0, safeLimit).map((entry) => ({
     id: sanitizeText(entry?.id, 120),
     name: sanitizeText(entry?.name, 240),
     size: sanitizeText(entry?.size, 80),
@@ -133,6 +229,18 @@ function sanitizeQuantityEstimate(value) {
     orderAreaSqm: toSafeNumber(value.orderAreaSqm),
     boxCount: Math.max(0, Math.round(toSafeNumber(value.boxCount))),
     tileCount: Math.max(0, Math.round(toSafeNumber(value.tileCount)))
+  };
+}
+
+function summarizeProjectRow(project) {
+  return {
+    id: sanitizeText(project?.id, 80),
+    title: sanitizeText(project?.title, 120) || "현장 타일 프로젝트",
+    status: sanitizeText(project?.status, 40) || "상담중",
+    stage: sanitizeText(project?.stage, 40) || "조건확인",
+    site: sanitizeSite(project?.site),
+    selectedProductCount: sanitizeRecommendations(project?.selectedProducts, 30).length,
+    updatedAt: sanitizeText(project?.updatedAt, 40)
   };
 }
 

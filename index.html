@@ -13,9 +13,9 @@
     <link rel="icon" type="image/png" sizes="32x32" href="images/branding/favicon-jajaego-32.png?v=20260730-favicon1" />
     <link rel="icon" type="image/png" sizes="192x192" href="images/branding/app-icon-jajaego-192.png?v=20260730-favicon1" />
     <link rel="apple-touch-icon" sizes="180x180" href="images/branding/apple-touch-icon-jajaego-180.png?v=20260730-favicon1" />
-  <link rel="stylesheet" href="styles.css?v=20260806-point-area1" />
+  <link rel="stylesheet" href="styles.css?v=20260811-sample-project1" />
     <link rel="stylesheet" href="promotion-reference-test.css?v=20260809-marquee1" />
-    <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260810-sales-project1" />
+    <link rel="stylesheet" href="src/client/features/tile-assistant/tile-ai-assistant.css?v=20260810-project-ledger2" />
   </head>
   <body>
     <!-- build: home-mosaic-20260727 -->
@@ -1018,6 +1018,32 @@
             <button class="primary-action" type="button" data-page-target="cartPage">장바구니 보기</button>
           </div>
         </section>
+        <section class="sample-request-workspace" aria-labelledby="sampleRequestHeading">
+          <div class="sample-request-heading">
+            <div>
+              <p class="eyebrow">Field Sample Request</p>
+              <h3 id="sampleRequestHeading">현장에 저장한 타일 샘플 신청</h3>
+            </div>
+            <button class="secondary-action" id="sampleRequestOpenAiBtn" type="button">AI 영업사원 열기</button>
+          </div>
+          <div class="sample-request-project" id="sampleRequestProject">
+            <div class="empty-state">현재 현장과 선택 상품을 확인하는 중입니다.</div>
+          </div>
+          <form class="sample-request-form" id="sampleRequestForm" hidden>
+            <div class="sample-request-fields">
+              <label>받는 분<input id="sampleRecipientName" name="recipientName" type="text" maxlength="80" required /></label>
+              <label>연락처<input id="sampleRecipientContact" name="recipientContact" type="tel" maxlength="80" required /></label>
+              <label class="is-wide">배송지<input id="sampleRecipientAddress" name="recipientAddress" type="text" maxlength="240" required /></label>
+              <label>상세 주소<input id="sampleRecipientAddressDetail" name="recipientAddressDetail" type="text" maxlength="160" /></label>
+              <label>희망일<input id="sampleRequestedDate" name="requestedDate" type="date" /></label>
+              <label class="is-wide">요청 메모<textarea id="sampleRequestNote" name="note" rows="2" maxlength="1000" placeholder="현장 일정이나 확인할 내용을 적어주세요."></textarea></label>
+            </div>
+            <div class="sample-request-submit">
+              <p id="sampleRequestSubmitStatus" aria-live="polite">상품별 수량을 확인한 뒤 신청해주세요.</p>
+              <button class="primary-action" id="submitSampleRequestBtn" type="submit">샘플 신청</button>
+            </div>
+          </form>
+        </section>
         <section class="commerce-panel catalog-panel customer-catalog-panel">
           <div class="catalog-toolbar customer-catalog-hero">
             <div class="catalog-toolbar-copy">
@@ -1904,6 +1930,18 @@
                   <input name="wholesalePrice" type="number" min="0" step="100" />
                 </label>
                 <label>
+                  A등급 단가
+                  <input name="gradeAPrice" type="number" min="0" step="100" />
+                </label>
+                <label>
+                  B등급 단가
+                  <input name="gradeBPrice" type="number" min="0" step="100" />
+                </label>
+                <label>
+                  C등급 단가
+                  <input name="gradeCPrice" type="number" min="0" step="100" />
+                </label>
+                <label>
                   원가
                   <input name="costPrice" type="number" min="0" step="100" />
                 </label>
@@ -2111,6 +2149,37 @@
           </div>
           <div class="cart-list cart-page-list" id="cartList"></div>
           <div class="cost-summary" id="costSummary"></div>
+          <form class="cart-order-form" id="cartOrderForm">
+            <div class="cart-order-form-heading">
+              <div>
+                <span>ORDER REQUEST</span>
+                <strong>주문 접수 정보</strong>
+              </div>
+              <p>관리자가 주문과 배송 조건을 확인한 뒤 접수 상태를 안내합니다.</p>
+            </div>
+            <div class="cart-order-form-grid">
+              <label>
+                <span>연락처</span>
+                <input id="cartOrderContactPhone" type="tel" autocomplete="tel" placeholder="010-0000-0000" required />
+              </label>
+              <label>
+                <span>희망 배송일</span>
+                <input id="cartOrderRequestedDate" type="date" />
+              </label>
+              <label class="cart-order-address-field">
+                <span>현장 배송지</span>
+                <input id="cartOrderDeliveryAddress" type="text" autocomplete="street-address" placeholder="현장 주소를 입력해주세요" required />
+              </label>
+              <label class="cart-order-note-field">
+                <span>요청사항</span>
+                <textarea id="cartOrderNote" rows="3" placeholder="진입 조건, 하차 위치, 담당자 요청사항"></textarea>
+              </label>
+            </div>
+            <div class="cart-order-submit-row">
+              <p id="cartOrderStatus" role="status" aria-live="polite"></p>
+              <button class="primary-action" id="cartOrderSubmitBtn" type="submit">주문 접수</button>
+            </div>
+          </form>
           <div class="customer-cart-actions">
             <button class="secondary-action" type="button" data-page-target="taxonomyTestPage">상품 더 담기</button>
             <button class="secondary-action" type="button" data-page-target="renderPage">실사 보정하기</button>
@@ -2148,7 +2217,8 @@
               <button type="button" data-my-page-view-target="account"><span>07</span>계정·등급</button>
               <button type="button" data-page-target="renderPage"><span>08</span>실사보정</button>
               <button type="button" data-page-target="proposalPage"><span>09</span>제안서</button>
-              <button type="button" data-page-target="sketchupPage"><span>10</span>SketchUp 연동</button>
+              <button type="button" data-my-page-view-target="samples"><span>10</span>샘플 신청</button>
+              <button type="button" data-page-target="sketchupPage"><span>11</span>SketchUp 연동</button>
             </nav>
           </aside>
 
@@ -2216,6 +2286,17 @@
                 <button class="secondary-action" type="button" data-page-target="cartPage">장바구니 수정</button>
               </div>
               <div class="my-order-list" id="myCartList"></div>
+            </section>
+
+            <section class="commerce-panel my-sample-panel my-page-view-panel" data-my-page-panel="samples" hidden>
+              <div class="section-header-inline">
+                <div>
+                  <span class="my-page-section-kicker">SAMPLE REQUESTS</span>
+                  <h3>샘플 신청 현황</h3>
+                </div>
+                <button class="secondary-action" type="button" data-page-target="samplePage">새 샘플 신청</button>
+              </div>
+              <div class="my-sample-request-list" id="mySampleRequestList"></div>
             </section>
 
             <section class="commerce-panel my-client-panel my-page-view-panel" data-my-page-panel="clients" hidden>
@@ -3512,6 +3593,34 @@
             <button class="secondary-action" id="adminProductFilterResetBtn" type="button">초기화</button>
             <strong id="adminProductFilterResult">전체 상품 표시</strong>
           </div>
+          <section class="admin-grade-pricing-panel" aria-labelledby="adminGradePricingTitle">
+            <div class="admin-grade-pricing-heading">
+              <div>
+                <p class="eyebrow">Grade Pricing</p>
+                <h4 id="adminGradePricingTitle">원가 기준 등급별 가격</h4>
+                <p>현재 필터 대상에 A +25%, B +30%, C +50%를 적용하고 100원 단위로 올림합니다.</p>
+              </div>
+              <div class="admin-grade-pricing-actions">
+                <button class="secondary-action" id="adminGradePricingPreviewBtn" type="button">가격 미리보기</button>
+                <button class="primary-action" id="adminGradePricingApplyBtn" type="button" disabled>검토한 가격 적용</button>
+              </div>
+            </div>
+            <div class="admin-grade-pricing-rates" aria-label="등급별 원가 가산율">
+              <span><b>A등급</b> 원가 +25%</span>
+              <span><b>B등급</b> 원가 +30%</span>
+              <span><b>C등급</b> 원가 +50%</span>
+            </div>
+            <div class="admin-grade-pricing-status" id="adminGradePricingStatus">현재 필터를 확인한 뒤 가격 미리보기를 실행하세요.</div>
+            <div class="admin-grade-pricing-summary" id="adminGradePricingSummary"></div>
+            <div class="table-wrap admin-grade-pricing-preview-wrap hidden" id="adminGradePricingPreviewWrap">
+              <table class="admin-table">
+                <thead>
+                  <tr><th>상품코드</th><th>품명</th><th>원가</th><th>A등급</th><th>B등급</th><th>C등급</th></tr>
+                </thead>
+                <tbody id="adminGradePricingPreviewRows"></tbody>
+              </table>
+            </div>
+          </section>
           <div class="admin-summary-grid" id="adminSummaryGrid"></div>
           <div class="table-wrap">
             <table class="admin-table">
@@ -3537,6 +3646,9 @@
                   <th>원가</th>
                   <th>소매가</th>
                   <th>도매가</th>
+                  <th>A등급</th>
+                  <th>B등급</th>
+                  <th>C등급</th>
                   <th>재고</th>
                 </tr>
               </thead>
@@ -3768,6 +3880,42 @@
               <div class="admin-flow-list" id="adminFlowWaiting"></div>
             </article>
           </div>
+          <section class="admin-sample-requests" aria-labelledby="adminSampleRequestsHeading">
+            <div class="section-header-inline compact-section-header">
+              <div>
+                <p class="eyebrow">Sample Requests</p>
+                <h4 id="adminSampleRequestsHeading">샘플 신청 처리</h4>
+              </div>
+              <strong id="adminSampleRequestCount">0건</strong>
+            </div>
+            <div class="admin-sample-request-list" id="adminSampleRequestList">
+              <div class="empty-state">샘플 신청을 불러오는 중입니다.</div>
+            </div>
+          </section>
+          <section class="admin-member-tier-panel" aria-labelledby="adminMemberTierHeading">
+            <div class="section-header-inline compact-section-header">
+              <div>
+                <p class="eyebrow">Member Pricing</p>
+                <h4 id="adminMemberTierHeading">회원 등급·가격 권한</h4>
+              </div>
+              <strong id="adminMemberTierCount">0명</strong>
+            </div>
+            <div class="table-wrap">
+              <table class="admin-table admin-member-tier-table">
+                <thead>
+                  <tr>
+                    <th>업체명</th>
+                    <th>사업자등록번호</th>
+                    <th>승인</th>
+                    <th>회원등급</th>
+                    <th>가격정책</th>
+                    <th>저장</th>
+                  </tr>
+                </thead>
+                <tbody id="adminMemberTierRows"></tbody>
+              </table>
+            </div>
+          </section>
           <div class="table-wrap">
             <table class="admin-table">
               <thead>
@@ -3812,8 +3960,60 @@
             <strong id="tileAiProjectTitle">새 현장 상담</strong>
             <span id="tileAiProjectStage">조건확인</span>
           </div>
+          <button id="tileAiProjectList" type="button">현장 목록</button>
           <button id="tileAiNewProject" type="button">새 현장</button>
         </div>
+        <section class="tile-ai-project-manager" id="tileAiProjectManager" hidden aria-label="현장 프로젝트 관리">
+          <header>
+            <div>
+              <strong id="tileAiProjectManagerTitle">현장 프로젝트</strong>
+              <span>상담과 선택상품을 현장별로 이어서 관리합니다.</span>
+            </div>
+            <button id="tileAiProjectManagerClose" type="button" aria-label="현장 프로젝트 관리 닫기">×</button>
+          </header>
+          <div class="tile-ai-project-list" id="tileAiProjectListItems"></div>
+          <form class="tile-ai-project-form" id="tileAiProjectForm" hidden>
+            <input id="tileAiProjectEditId" type="hidden" />
+            <label>
+              <span>현장명</span>
+              <input id="tileAiSiteName" name="siteName" type="text" maxlength="120" placeholder="예: 성수동 카페 리모델링" required />
+            </label>
+            <label>
+              <span>거래처명</span>
+              <input id="tileAiClientName" name="clientName" type="text" maxlength="120" placeholder="예: 가나다 인테리어" />
+            </label>
+            <label>
+              <span>공간</span>
+              <select id="tileAiSpaceType" name="spaceType">
+                <option value="">선택</option>
+                <option value="욕실">욕실</option>
+                <option value="주방">주방</option>
+                <option value="카페">카페</option>
+                <option value="상업공간">상업공간</option>
+                <option value="거실">거실</option>
+                <option value="현관">현관</option>
+                <option value="외부">외부</option>
+              </select>
+            </label>
+            <label>
+              <span>필요일</span>
+              <input id="tileAiNeededBy" name="neededBy" type="date" />
+            </label>
+            <label class="is-wide">
+              <span>현장주소</span>
+              <input id="tileAiSiteAddress" name="siteAddress" type="text" maxlength="240" placeholder="배송 또는 시공 현장 주소" />
+            </label>
+            <label class="is-wide">
+              <span>요청사항</span>
+              <textarea id="tileAiSiteNotes" name="notes" rows="2" maxlength="1000" placeholder="예산, 납기, 샘플 등 필요한 내용을 적어주세요."></textarea>
+            </label>
+            <div class="tile-ai-project-form__actions is-wide">
+              <button id="tileAiProjectFormCancel" type="button">취소</button>
+              <button type="submit">현장 저장</button>
+            </div>
+          </form>
+          <p class="tile-ai-project-status" id="tileAiProjectStatus" aria-live="polite"></p>
+        </section>
         <div class="tile-ai-messages" id="tileAiMessages" aria-live="polite">
           <article class="tile-ai-message is-assistant">
             <div class="tile-ai-message__bubble">필요한 타일을 현장 말로 알려주세요. 조건을 해석하고 상품 비교부터 샘플, 물량, 제안서·견적, 주문까지 이어서 도와드리겠습니다.</div>
@@ -3859,11 +4059,11 @@
     <script src="src/client/features/admin/site-studio.js?v=20260802-tone-system2"></script>
     <script src="src/client/features/planner/photo-render-engine.js?v=20260713-local-render-engine1"></script>
     <script src="src/client/features/sketchup/sketchup-workspace.js?v=20260803-sketchup-local2"></script>
-    <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260810-sales-project1"></script>
+    <script src="src/client/features/tile-assistant/tile-ai-assistant.js?v=20260810-project-ledger2"></script>
     <script src="src/client/mobile/pwa-install.js?v=20260729-app-shell1"></script>
     <script src="src/client/mobile/auth-bridge.js?v=20260730-mobile-auth2"></script>
   <script src="promotion-reference-test.js?v=20260803-wrap3"></script>
-  <script src="app.js?v=20260807-render-all-sizes1"></script>
+  <script src="app.js?v=20260811-sample-project1"></script>
     <script src="src/client/mobile/native-bridge.js?v=20260730-mobile-auth2"></script>
   </body>
 </html>

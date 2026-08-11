@@ -70,15 +70,18 @@
         <td>${callbacks.money.format(product.costPrice || 0)}</td>
         <td>${callbacks.money.format(product.retailPrice || 0)}</td>
         <td>${callbacks.money.format(product.wholesalePrice || 0)}</td>
+        <td>${product.gradeAPrice ? callbacks.money.format(product.gradeAPrice) : "미등록"}</td>
+        <td>${product.gradeBPrice ? callbacks.money.format(product.gradeBPrice) : "미등록"}</td>
+        <td>${product.gradeCPrice ? callbacks.money.format(product.gradeCPrice) : "미등록"}</td>
         <td>${escapeHtml(formatStockQuantity(product))}</td>
       </tr>
     `),
       ...(products.length > tableLimit ? [`
         <tr>
-          <td colspan="9">대량 운영 속도를 위해 전체 ${callbacks.number(products.length)}개 중 ${callbacks.number(tableLimit)}개만 우선 표시합니다.</td>
+          <td colspan="12">대량 운영 속도를 위해 전체 ${callbacks.number(products.length)}개 중 ${callbacks.number(tableLimit)}개만 우선 표시합니다.</td>
         </tr>
       `] : [])
-    ].join("") || `<tr><td colspan="9">표시할 상품이 없습니다.</td></tr>`;
+    ].join("") || `<tr><td colspan="12">표시할 상품이 없습니다.</td></tr>`;
 
     return {
       summaryHtml,

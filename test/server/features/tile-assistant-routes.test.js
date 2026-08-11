@@ -97,3 +97,55 @@ test("tile assistant route restores an owned field project", async () => {
   assert.equal(sent.status, 200);
   assert.equal(sent.body.project.stage, "상품추천");
 });
+
+test("tile assistant route lists projects for the resolved owner", async () => {
+  let sent;
+  let listedActor;
+  const handled = await handleTileAssistantRoutes({
+    method: "GET",
+    url: "/api/tile-assistant/projects?clientKey=browser-1",
+    headers: { host: "localhost:4173" },
+    socket: { remoteAddress: "127.0.0.1" }
+  }, {}, {
+    resolveTileAssistantActor: async (_request, payload) => ({ type: "guest", id: payload.clientKey }),
+    listTileAssistantProjects: async (actor) => {
+      listedActor = actor;
+      return [{ id: "project-1", title: "성수동 카페" }];
+    },
+    sendJson: (_response, status, body) => { sent = { status, body }; }
+  });
+
+  assert.equal(handled, true);
+  assert.deepEqual(listedActor, { type: "guest", id: "browser-1" });
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.projects[0].title, "성수동 카페");
+});
+
+test("tile assistant route creates a site project and stores a selected product", async () => {
+  const writes = [];
+  let requestBody = { clientKey: "browser-1", site: { siteName: "성수동 카페" } };
+  const context = {
+    allowTileAssistantRequest: () => true,
+    readRequestBody: async () => JSON.stringify(requestBody),
+    resolveTileAssistantActor: async (_request, payload) => ({ type: "guest", id: payload.clientKey }),
+    createTileAssistantProject: async (actor, site) => {
+      writes.push({ type: "create", actor, site });
+      return { id: "project-1", title: site.siteName };
+    },
+    setTileAssistantSelectedProduct: async (projectId, actor, product, selected) => {
+      writes.push({ type: "product", projectId, actor, product, selected });
+      return { id: projectId, selectedProducts: [product] };
+    },
+    sendJson: (_response, status, body) => { context.sent = { status, body }; }
+  };
+
+  await handleTileAssistantRoutes(jsonRequest({ url: "/api/tile-assistant/projects" }), {}, context);
+  assert.equal(context.sent.status, 201);
+  assert.equal(writes[0].site.siteName, "성수동 카페");
+
+  requestBody = { clientKey: "browser-1", projectId: "project-1", product: { id: "tile-1" }, selected: true };
+  await handleTileAssistantRoutes(jsonRequest({ url: "/api/tile-assistant/project/products" }), {}, context);
+  assert.equal(context.sent.status, 200);
+  assert.equal(writes[1].product.id, "tile-1");
+  assert.equal(writes[1].selected, true);
+});

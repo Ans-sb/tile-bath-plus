@@ -32,6 +32,7 @@ jobs:
           rm -rf pages-dist
           mkdir -p pages-dist
           cp index.html app.js styles.css products-db.js catalog-data.js planner-reference-room.js pages-dist/
+          if [ -d src ]; then cp -R src pages-dist/src; fi
           if [ -d images ]; then cp -R images pages-dist/images; fi
           touch pages-dist/.nojekyll
       - name: Upload artifact
