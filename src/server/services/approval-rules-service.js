@@ -1,13 +1,26 @@
+const { createHttpError } = require("../http-errors");
+
+function sameStringArray(left, right) {
+  return Array.isArray(left)
+    && Array.isArray(right)
+    && left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
+
 function createApprovalRulesService({
   cloneApprovalRules,
   defaultApprovalRules,
   hasSupabaseConfig,
   isMissingSupabaseTableError,
   normalizeStringArray,
+  persistenceEnabled = () => true,
   requestSupabase
 }) {
   return {
     async readApprovalRules() {
+      if (!persistenceEnabled()) {
+        return { ...cloneApprovalRules(defaultApprovalRules), source: "disabled" };
+      }
       if (!hasSupabaseConfig()) {
         return { ...cloneApprovalRules(defaultApprovalRules), source: "local-default" };
       }
@@ -40,32 +53,49 @@ function createApprovalRulesService({
     },
 
     async saveApprovalRules(payload) {
+      if (!persistenceEnabled()) {
+        throw createHttpError(503, "승인 규칙 저장은 데이터베이스 보안 마이그레이션 후 사용할 수 있습니다.");
+      }
       const businessTypes = normalizeStringArray(payload?.businessTypes);
       const businessItems = normalizeStringArray(payload?.businessItems);
 
-      if (hasSupabaseConfig()) {
-        try {
-          await requestSupabase("/rest/v1/approval_settings", {
-            method: "POST",
-            headers: {
-              Prefer: "resolution=merge-duplicates,return=representation"
-            },
-            body: JSON.stringify([{
-              id: "default",
-              business_types: businessTypes,
-              business_items: businessItems
-            }])
-          });
-        } catch (error) {
-          if (!isMissingSupabaseTableError(error, "approval_settings")) throw error;
-          return { businessTypes, businessItems, source: "missing" };
+      if (!hasSupabaseConfig()) {
+        throw createHttpError(503, "승인 규칙 저장소가 준비되지 않았습니다.");
+      }
+
+      let rows;
+      try {
+        rows = await requestSupabase("/rest/v1/approval_settings", {
+          method: "POST",
+          headers: {
+            Prefer: "resolution=merge-duplicates,return=representation"
+          },
+          body: JSON.stringify([{
+            id: "default",
+            business_types: businessTypes,
+            business_items: businessItems
+          }])
+        });
+      } catch (error) {
+        if (isMissingSupabaseTableError(error, "approval_settings")) {
+          throw createHttpError(503, "승인 규칙 저장소가 준비되지 않았습니다.");
         }
+        throw error;
+      }
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      const verified = row?.id === "default"
+        && sameStringArray(row.business_types, businessTypes)
+        && sameStringArray(row.business_items, businessItems);
+      if (!verified) {
+        throw createHttpError(503, "승인 규칙 저장 결과를 확인하지 못했습니다.");
       }
 
       return {
-        businessTypes,
-        businessItems,
-        source: hasSupabaseConfig() ? "supabase" : "local"
+        businessTypes: row.business_types,
+        businessItems: row.business_items,
+        updatedAt: row.updated_at || "",
+        source: "supabase"
       };
     }
   };

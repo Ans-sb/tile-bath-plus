@@ -8260,6 +8260,7 @@ function savePastOrders(orders, user = authUser) {
 
 function normalizeOrderHistoryRow(order) {
   return {
+    clientOrderId: order?.clientOrderId || order?.client_order_id || "",
     orderNumber: order?.orderNumber || order?.order_number || "",
     createdAt: order?.createdAt || order?.created_at || order?.updatedAt || order?.updated_at || new Date().toISOString(),
     updatedAt: order?.updatedAt || order?.updated_at || order?.createdAt || order?.created_at || "",
@@ -8872,7 +8873,42 @@ function renderPastOrderCard(order) {
   `;
 }
 
+let orderSubmissionInFlight = false;
+
+function getPendingOrderAttemptKey(user = authUser) {
+  return `tbpPendingOrder:${String(user?.businessNumber || "guest").trim() || "guest"}`;
+}
+
+function hashPendingOrderPayload(value) {
+  const text = JSON.stringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function getOrCreatePendingOrderAttempt(signature) {
+  const storageKey = getPendingOrderAttemptKey();
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if (saved?.signature === signature && saved?.clientOrderId) return saved.clientOrderId;
+  } catch {
+    // Ignore malformed browser state and replace it with a safe attempt record.
+  }
+  const clientOrderId = globalThis.crypto?.randomUUID?.()
+    || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(storageKey, JSON.stringify({ signature, clientOrderId }));
+  return clientOrderId;
+}
+
+function clearPendingOrderAttempt() {
+  localStorage.removeItem(getPendingOrderAttemptKey());
+}
+
 async function saveCurrentCartAsPastOrder() {
+  if (orderSubmissionInFlight) return;
   const statusNode = document.querySelector("#cartOrderStatus");
   const submitButton = document.querySelector("#cartOrderSubmitBtn");
   const setOrderStatus = (message, tone = "") => {
@@ -8905,12 +8941,36 @@ async function saveCurrentCartAsPastOrder() {
     return;
   }
 
+  orderSubmissionInFlight = true;
+  const attemptSignature = hashPendingOrderPayload({
+    businessNumber: authUser.businessNumber,
+    contactPhone,
+    deliveryAddress,
+    requestedDeliveryDate,
+    note,
+    items: cart.map((item) => ({
+      id: item.id,
+      managementCode: item.managementCode,
+      qty: item.qty,
+      quotePrice: item.quotePrice
+    }))
+  });
+  const clientOrderId = getOrCreatePendingOrderAttempt(attemptSignature);
   const originalText = submitButton?.textContent || "주문 접수";
   if (submitButton) {
     submitButton.disabled = true;
     submitButton.textContent = "접수 중";
   }
   setOrderStatus("등급별 단가와 주문 정보를 확인하고 있습니다.", "progress");
+  const acceptOrder = (rawOrder) => {
+    clearPendingOrderAttempt();
+    const acceptedOrder = normalizeOrderHistoryRow(rawOrder);
+    remoteOrders = mergeOrderHistory([acceptedOrder], remoteOrders);
+    savePastOrders(mergeOrderHistory([acceptedOrder], loadPastOrders()).slice(0, 50));
+    setOrderStatus(`${acceptedOrder.orderNumber} 주문이 접수되었습니다. 관리자가 확인 후 상태를 안내합니다.`, "success");
+    renderMemberHomeBoard();
+    renderMyPage();
+  };
   try {
     const payload = await requestJson("/api/orders", {
       method: "POST",
@@ -8919,6 +8979,7 @@ async function saveCurrentCartAsPastOrder() {
         ...getMemberProductAuthHeaders()
       },
       body: JSON.stringify({
+        clientOrderId,
         businessNumber: authUser.businessNumber,
         companyName: authUser.companyName || "",
         contactName: authUser.name || "",
@@ -8930,16 +8991,26 @@ async function saveCurrentCartAsPastOrder() {
       })
     }, { retries: 1, timeoutMs: 10000 });
     if (!payload?.order?.orderNumber) throw new Error("주문 접수번호를 받지 못했습니다.");
-    const order = normalizeOrderHistoryRow(payload.order);
-    remoteOrders = mergeOrderHistory([order], remoteOrders);
-    savePastOrders(mergeOrderHistory([order], loadPastOrders()).slice(0, 50));
-    setOrderStatus(`${order.orderNumber} 주문이 접수되었습니다. 관리자가 확인 후 상태를 안내합니다.`, "success");
-    renderMemberHomeBoard();
-    renderMyPage();
+    acceptOrder(payload.order);
   } catch (error) {
     console.warn(error);
-    setOrderStatus(error.message || "주문 접수에 실패했습니다. 잠시 후 다시 시도해주세요.", "error");
+    try {
+      const query = new URLSearchParams({ businessNumber: authUser.businessNumber });
+      const reconciliation = await requestJson(`/api/orders?${query}`, {
+        headers: getMemberProductAuthHeaders()
+      }, { retries: 1, timeoutMs: 8000 });
+      const reconciledOrder = (Array.isArray(reconciliation?.orders) ? reconciliation.orders : [])
+        .find((entry) => String(entry?.clientOrderId || entry?.client_order_id || "") === clientOrderId);
+      if (reconciledOrder?.orderNumber || reconciledOrder?.order_number) {
+        acceptOrder(reconciledOrder);
+        return;
+      }
+    } catch (reconciliationError) {
+      console.warn(reconciliationError);
+    }
+    setOrderStatus("주문 응답을 확인하지 못했습니다. 주문내역을 새로고침한 뒤 재접수 여부를 결정해주세요.", "error");
   } finally {
+    orderSubmissionInFlight = false;
     if (submitButton) {
       submitButton.disabled = false;
       submitButton.textContent = originalText;
@@ -13626,12 +13697,13 @@ async function saveApprovalRulesFromForm() {
   if (!businessTypesInput || !businessItemsInput) return;
   const businessTypes = parseRuleInput(businessTypesInput.value);
   const businessItems = parseRuleInput(businessItemsInput.value);
-  approvalRules = { businessTypes, businessItems };
-  localStorage.setItem("tbpApprovalRules", JSON.stringify(approvalRules));
+  const previousRules = cloneApprovalRules(approvalRules);
+  setText("#approvalRuleStatus", "가입 승인 기준을 저장하고 있습니다.");
+  let savedRules;
   try {
-    await requestJson("/api/approval-rules", {
+    savedRules = await requestJson("/api/admin/approval-rules", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAdminAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         businessTypes: businessTypes.map((item) => formatRuleLabel(item)),
         businessItems: businessItems.map((item) => formatRuleLabel(item))
@@ -13639,7 +13711,16 @@ async function saveApprovalRulesFromForm() {
     }, { retries: 1, timeoutMs: 5000 });
   } catch (error) {
     console.warn(error);
+    approvalRules = previousRules;
+    renderApprovalRules();
+    setText("#approvalRuleStatus", error?.message || "가입 승인 기준 저장에 실패했습니다. 기존 기준을 유지합니다.");
+    return;
   }
+  approvalRules = {
+    businessTypes: savedRules.businessTypes,
+    businessItems: savedRules.businessItems
+  };
+  localStorage.setItem("tbpApprovalRules", JSON.stringify(approvalRules));
   extractedBusinessInfo.approvalStatus = evaluateBusinessApprovalStatus();
   setText("#approvalRuleStatus", "가입 승인 기준이 저장되었습니다. 이후 스캔 결과와 자동 비교합니다.");
   renderSignupSummary();

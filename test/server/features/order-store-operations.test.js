@@ -14,6 +14,7 @@ test("order store persists operational delivery data and grade snapshot", async 
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "jajaego-order-operations-"));
   context.after(() => fs.rm(directory, { recursive: true, force: true }));
   const store = createOrderStore({
+    allowLocalFallback: true,
     hasSupabaseConfig: () => false,
     isMissingSupabaseTableError: () => false,
     normalizeCartItem,
@@ -22,6 +23,7 @@ test("order store persists operational delivery data and grade snapshot", async 
   });
 
   const result = await store.createOrder({
+    clientOrderId: "operations-request-1",
     businessNumber: "123-45-67890",
     companyName: "현장 인테리어",
     contactName: "김담당",
@@ -47,6 +49,7 @@ test("order store supports dispatch and delivery workflow statuses", async (cont
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "jajaego-order-status-"));
   context.after(() => fs.rm(directory, { recursive: true, force: true }));
   const store = createOrderStore({
+    allowLocalFallback: true,
     hasSupabaseConfig: () => false,
     isMissingSupabaseTableError: () => false,
     normalizeCartItem,
@@ -54,6 +57,7 @@ test("order store supports dispatch and delivery workflow statuses", async (cont
     requestSupabase: async () => []
   });
   const created = await store.createOrder({
+    clientOrderId: "status-request-1",
     businessNumber: "123-45-67890",
     items: [{ id: "tile-1", name: "타일", qty: 1, quotePrice: 12000 }]
   });

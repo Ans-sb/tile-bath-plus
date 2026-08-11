@@ -1,4 +1,12 @@
 async function handleAdminRoutes(request, response, context) {
+  if (request.method === "POST" && request.url === "/api/admin/approval-rules") {
+    const adminCredentials = context.readAdminCredentialsFromRequest(request);
+    context.assertAdminCredentials(adminCredentials.adminUsername, adminCredentials.adminToken);
+    const payload = JSON.parse(await context.readRequestBody(request) || "{}");
+    context.sendJson(response, 200, await context.saveApprovalRules(payload, adminCredentials.adminUsername));
+    return true;
+  }
+
   if (request.method === "GET" && request.url.startsWith("/api/site-settings")) {
     context.sendJson(response, 200, {
       ok: true,

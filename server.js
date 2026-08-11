@@ -8,6 +8,7 @@ const jpeg = require("jpeg-js");
 const { PNG } = require("pngjs");
 const { readRequestBody, sendJson, sendRawJson } = require("./src/server/http-utils");
 const { createHttpError } = require("./src/server/http-errors");
+const { readRemoteImageDataUrlSafely } = require("./src/server/security/remote-image-policy");
 const { serveStaticFile } = require("./src/server/static-files");
 const { handleProductRoutes } = require("./src/server/routes/product-routes");
 const { handleAccountRoutes } = require("./src/server/routes/account-routes");
@@ -277,6 +278,7 @@ const approvalRulesService = createApprovalRulesService({
   hasSupabaseConfig,
   isMissingSupabaseTableError,
   normalizeStringArray,
+  persistenceEnabled: () => /^(1|true|yes)$/i.test(String(process.env.APPROVAL_RULES_PERSISTENCE_ENABLED || "")),
   requestSupabase
 });
 const cartStore = createCartStore({
@@ -286,6 +288,7 @@ const cartStore = createCartStore({
   requestSupabase
 });
 const orderStore = createOrderStore({
+  allowLocalFallback: String(process.env.ALLOW_LOCAL_ORDER_STORAGE || "").trim().toLowerCase() === "true",
   hasSupabaseConfig,
   isMissingSupabaseTableError,
   normalizeCartItem,
@@ -329,7 +332,11 @@ const tileAssistantService = createTileAssistantService({
   searchCatalog: (payload) => searchTileCatalog({ ...payload, audience: "customer" }),
   projectStore: tileSalesProjectStore
 });
-const allowTileAssistantRequest = createTileAssistantRateLimiter();
+const trustProxyForRateLimits = /^(1|true|yes)$/i.test(String(process.env.TRUST_PROXY || "").trim())
+  || Boolean(String(process.env.RAILWAY_ENVIRONMENT || "").trim());
+const allowTileAssistantRequest = createTileAssistantRateLimiter({ trustProxy: trustProxyForRateLimits });
+const allowMediaRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
+const allowOrderRequest = createTileAssistantRateLimiter({ limit: 12, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -443,6 +450,7 @@ function getAccountRouteContext() {
     verifyMemberSessionAccess,
     readCartRecord,
     saveCartRecord,
+    allowOrderRequest,
     createOrderFromCart,
     readMemberOrders
   };
@@ -459,6 +467,7 @@ function getAdminRouteContext() {
     appendSearchTrainingFeedbackBatch,
     appendAdminActionRequest,
     readAdminActionRequests,
+    saveApprovalRules,
     updateSignupRequestApprovalStatus,
     updateAdminOrderStatus,
     readAdminOverview,
@@ -478,6 +487,7 @@ function getMediaRouteContext() {
   return {
     readRequestBody,
     sendJson,
+    allowMediaRequest,
     readRemoteImageDataUrl,
     generateRenderPreview,
     appendRenderFeedback,
@@ -486,8 +496,7 @@ function getMediaRouteContext() {
     checkBusinessStatus,
     authorizeProposalRequest,
     buildProfessionalProposalDeck,
-    sendProposalDownload,
-    handleServerControl
+    sendProposalDownload
   };
 }
 
@@ -4658,18 +4667,12 @@ async function readImageBuffer(imageUrl, timeoutMs = tileImageFetchTimeoutMs) {
     return parsed;
   }
   if (!/^https?:\/\//i.test(url)) throw new Error("unsupported product image url");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Math.max(250, Number(timeoutMs) || tileImageFetchTimeoutMs));
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    if (!response.ok) throw new Error(`image fetch failed ${response.status}`);
-    return {
-      mimeType: normalizeImageContentType(response.headers.get("content-type") || "image/jpeg"),
-      buffer: Buffer.from(await response.arrayBuffer())
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
+  const dataUrl = await readRemoteImageDataUrlSafely(url, {
+    timeoutMs: Math.max(250, Number(timeoutMs) || tileImageFetchTimeoutMs)
+  });
+  const parsed = parseImageDataUrl(dataUrl);
+  if (!parsed) throw new Error("invalid remote product image");
+  return parsed;
 }
 
 function decodeImageBuffer(buffer, mimeType) {
@@ -4985,11 +4988,7 @@ async function rerankTileMatchesByVision(imageDataUrl, scoredMatches, analysis) 
 async function readRemoteImageDataUrl(imageUrl) {
   const url = String(imageUrl || "").trim();
   if (!/^https?:\/\//i.test(url)) return url;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`image fetch failed ${response.status}`);
-  const contentType = normalizeImageContentType(response.headers.get("content-type") || "image/jpeg");
-  const buffer = Buffer.from(await response.arrayBuffer());
-  return `data:${contentType};base64,${buffer.toString("base64")}`;
+  return readRemoteImageDataUrlSafely(url);
 }
 
 function normalizeImageContentType(value) {
