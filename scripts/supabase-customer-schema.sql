@@ -134,8 +134,8 @@ create table if not exists public.orders (
   company_name text not null default '',
   contact_name text not null default '',
   order_status text not null default '접수대기',
-  item_count integer not null default 0 check (item_count >= 0),
-  total_quote numeric(14, 2) not null default 0 check (total_quote >= 0),
+  item_count integer not null default 0 constraint orders_item_count_positive check (item_count > 0),
+  total_quote numeric(14, 2) not null default 0 constraint orders_total_quote_positive check (total_quote > 0),
   order_note text not null default '',
   source text not null default 'cart',
   created_at timestamptz not null default now(),
@@ -156,7 +156,7 @@ create index if not exists orders_created_at_idx on public.orders (created_at de
 create table if not exists public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
-  line_number integer not null check (line_number > 0),
+  line_number integer not null constraint order_items_line_number_positive check (line_number > 0),
   product_id text not null default '',
   management_code text not null default '',
   product_type text not null default '',
@@ -164,9 +164,9 @@ create table if not exists public.order_items (
   size text not null default '',
   finish text not null default '',
   unit text not null default '',
-  qty numeric(14, 3) not null check (qty > 0),
-  quote_price numeric(14, 2) not null check (quote_price > 0),
-  line_total numeric(14, 2) not null check (line_total > 0),
+  qty numeric(14, 3) not null constraint order_items_qty_positive check (qty > 0),
+  quote_price numeric(14, 2) not null constraint order_items_quote_price_positive check (quote_price > 0),
+  line_total numeric(14, 2) not null constraint order_items_line_total_positive check (line_total > 0),
   stock_qty numeric(14, 3) not null default 0,
   image text not null default '',
   item_data jsonb not null default '{}'::jsonb,
@@ -190,10 +190,61 @@ where target.id = numbered_items.id
 
 alter table public.order_items alter column line_number set not null;
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.orders'::regclass and conname = 'orders_item_count_positive'
+  ) then
+    alter table public.orders
+      add constraint orders_item_count_positive check (item_count > 0) not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.orders'::regclass and conname = 'orders_total_quote_positive'
+  ) then
+    alter table public.orders
+      add constraint orders_total_quote_positive check (total_quote > 0) not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_items'::regclass and conname = 'order_items_line_number_positive'
+  ) then
+    alter table public.order_items
+      add constraint order_items_line_number_positive check (line_number > 0) not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_items'::regclass and conname = 'order_items_qty_positive'
+  ) then
+    alter table public.order_items
+      add constraint order_items_qty_positive check (qty > 0) not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_items'::regclass and conname = 'order_items_quote_price_positive'
+  ) then
+    alter table public.order_items
+      add constraint order_items_quote_price_positive check (quote_price > 0) not valid;
+  end if;
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.order_items'::regclass and conname = 'order_items_line_total_positive'
+  ) then
+    alter table public.order_items
+      add constraint order_items_line_total_positive check (line_total > 0) not valid;
+  end if;
+end;
+$$;
+
 create unique index if not exists order_items_order_line_unique
 on public.order_items (order_id, line_number);
 create index if not exists order_items_order_id_idx on public.order_items (order_id);
 create index if not exists order_items_management_code_idx on public.order_items (management_code);
+
+alter table public.approval_settings enable row level security;
+revoke all on table public.approval_settings from anon, authenticated;
+grant all on table public.approval_settings to service_role;
 
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
@@ -243,3 +294,95 @@ create trigger trg_orders_updated_at
 before update on public.orders
 for each row
 execute function public.set_generic_updated_at();
+
+create or replace function public.create_order_with_items(p_order jsonb, p_items jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+  v_items jsonb;
+  v_business_number text := nullif(btrim(p_order->>'business_number'), '');
+  v_client_order_id text := nullif(btrim(p_order->>'client_order_id'), '');
+  v_request_fingerprint text := nullif(btrim(p_order->>'request_fingerprint'), '');
+  v_item_count integer := coalesce(jsonb_array_length(p_items), 0);
+  v_total numeric(14, 2);
+  v_replayed boolean := true;
+begin
+  if v_business_number is null or v_client_order_id is null or v_request_fingerprint is null then
+    raise exception 'INVALID_ORDER_REQUEST' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_items) <> 'array' or v_item_count < 1 then
+    raise exception 'INVALID_ORDER_ITEMS' using errcode = '22023';
+  end if;
+
+  select coalesce(sum((entry->>'line_total')::numeric), 0)
+  into v_total
+  from jsonb_array_elements(p_items) entry;
+  if v_total <= 0
+     or v_item_count <> coalesce((p_order->>'item_count')::integer, -1)
+     or round(v_total, 2) <> round(coalesce((p_order->>'total_quote')::numeric, -1), 2) then
+    raise exception 'ORDER_TOTAL_MISMATCH' using errcode = '22023';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_business_number || ':' || v_client_order_id, 0));
+  select * into v_order
+  from public.orders
+  where business_number = v_business_number and client_order_id = v_client_order_id
+  for update;
+
+  if found then
+    if coalesce(v_order.request_fingerprint, '') <> v_request_fingerprint then
+      raise exception 'IDEMPOTENCY_CONFLICT' using errcode = '22023';
+    end if;
+  else
+    v_replayed := false;
+    insert into public.orders (
+      client_order_id, request_fingerprint, order_number, business_number, company_name,
+      contact_name, order_status, item_count, total_quote, order_note, source
+    ) values (
+      v_client_order_id, v_request_fingerprint, p_order->>'order_number', v_business_number,
+      coalesce(p_order->>'company_name', ''), coalesce(p_order->>'contact_name', ''),
+      coalesce(p_order->>'order_status', '접수대기'), v_item_count, v_total,
+      coalesce(p_order->>'order_note', ''), 'cart'
+    ) returning * into v_order;
+
+    insert into public.order_items (
+      order_id, line_number, product_id, management_code, product_type, product_name,
+      size, finish, unit, qty, quote_price, line_total, stock_qty, image, item_data
+    )
+    select
+      v_order.id, x.line_number, coalesce(x.product_id, ''), coalesce(x.management_code, ''),
+      coalesce(x.product_type, ''), coalesce(x.product_name, ''), coalesce(x.size, ''),
+      coalesce(x.finish, ''), coalesce(x.unit, ''), x.qty, x.quote_price, x.line_total,
+      coalesce(x.stock_qty, 0), coalesce(x.image, ''), coalesce(x.item_data, '{}'::jsonb)
+    from jsonb_to_recordset(p_items) as x(
+      line_number integer, product_id text, management_code text, product_type text,
+      product_name text, size text, finish text, unit text, qty numeric,
+      quote_price numeric, line_total numeric, stock_qty numeric, image text, item_data jsonb
+    );
+  end if;
+
+  select coalesce(jsonb_agg(to_jsonb(oi) order by oi.line_number), '[]'::jsonb)
+  into v_items
+  from public.order_items oi
+  where oi.order_id = v_order.id;
+
+  if jsonb_array_length(v_items) <> v_order.item_count then
+    raise exception 'ORDER_ITEM_COUNT_MISMATCH' using errcode = '22023';
+  end if;
+
+  return jsonb_build_object(
+    'order', to_jsonb(v_order),
+    'items', v_items,
+    'replayed', v_replayed
+  );
+end;
+$$;
+
+revoke all on function public.create_order_with_items(jsonb, jsonb) from public;
+revoke all on function public.create_order_with_items(jsonb, jsonb) from anon;
+revoke all on function public.create_order_with_items(jsonb, jsonb) from authenticated;
+grant execute on function public.create_order_with_items(jsonb, jsonb) to service_role;

@@ -37,11 +37,23 @@ function makeStore(overrides = {}) {
   };
 }
 
+test("order creation requires a durable client idempotency key", async () => {
+  const { store } = makeStore({ allowLocalFallback: true });
+  await assert.rejects(
+    store.createOrder({
+      businessNumber: "1234567890",
+      items: [{ id: "tile-1", qty: 1, quotePrice: 12000 }]
+    }),
+    (error) => error.statusCode === 400 && /요청 ID/.test(error.message)
+  );
+});
+
 test("order creation rejects zero-priced items", async () => {
   const { store } = makeStore();
 
   await assert.rejects(
     store.createOrder({
+      clientOrderId: "zero-price-request-1",
       businessNumber: "1234567890",
       items: [{ id: "tile-1", qty: 1, quotePrice: 0 }]
     }),
@@ -59,6 +71,7 @@ test("production order storage fails closed when Supabase order tables are missi
 
   await assert.rejects(
     store.createOrder({
+      clientOrderId: "missing-table-request-1",
       businessNumber: "1234567890",
       items: [{ id: "tile-1", qty: 1, quotePrice: 12000 }]
     }),
@@ -70,6 +83,7 @@ test("production order storage fails closed when Supabase order tables are missi
 test("local order fallback remains available only when explicitly enabled", async () => {
   const { store } = makeStore({ allowLocalFallback: true });
   const result = await store.createOrder({
+    clientOrderId: "local-fallback-request-1",
     businessNumber: "1234567890",
     items: [{ id: "tile-1", qty: 1, quotePrice: 12000 }]
   });
@@ -96,37 +110,52 @@ test("repeated order submissions with the same client id are idempotent", async 
   assert.equal(saved.length, 1);
 });
 
-test("Supabase order inserts use a unique client id and replay the existing order", async () => {
-  const clientOrderId = "a4a04a89-456e-47f1-8a19-a3850778b915";
-  const remoteRow = {
-    id: "order-1",
-    client_order_id: clientOrderId,
-    order_number: "JG-20260811-ABC123",
-    business_number: "1234567890",
-    order_status: "접수대기",
-    item_count: 1,
-    total_quote: 12000,
-    created_at: "2026-08-11T00:00:00.000Z"
+test("reusing a client id with a different payload is rejected", async () => {
+  const { store } = makeStore({ allowLocalFallback: true });
+  const base = {
+    clientOrderId: "altered-payload-request-1",
+    businessNumber: "1234567890",
+    items: [{ id: "tile-1", qty: 1, quotePrice: 12000 }]
   };
-  let inserted = false;
+  await store.createOrder(base);
+  await assert.rejects(
+    store.createOrder({ ...base, items: [{ id: "tile-1", qty: 2, quotePrice: 12000 }] }),
+    (error) => error.statusCode === 409
+  );
+});
+
+test("Supabase order creation uses one transactional RPC and replays the existing order", async () => {
+  const clientOrderId = "a4a04a89-456e-47f1-8a19-a3850778b915";
+  let persisted = null;
   const calls = [];
   const { store } = makeStore({
     allowLocalFallback: false,
     hasSupabaseConfig: () => true,
     requestSupabase: async (requestPath, options = {}) => {
       calls.push({ requestPath, options });
-      if (requestPath.startsWith("/rest/v1/orders?on_conflict=")) {
-        const payload = JSON.parse(options.body);
-        assert.equal(payload[0].client_order_id, clientOrderId);
-        assert.match(options.headers.Prefer, /resolution=ignore-duplicates/);
-        if (inserted) return [];
-        inserted = true;
-        return [remoteRow];
+      assert.equal(requestPath, "/rest/v1/rpc/create_order_with_items");
+      assert.equal(options.method, "POST");
+      const body = JSON.parse(options.body);
+      assert.equal(body.p_order.client_order_id, clientOrderId);
+      assert.equal(body.p_items.length, 1);
+      if (!persisted) {
+        persisted = {
+          order: {
+            id: "order-1",
+            ...body.p_order,
+            created_at: "2026-08-11T00:00:00.000Z"
+          },
+          items: body.p_items.map((item, index) => ({
+            ...item,
+            id: `item-${index + 1}`,
+            order_id: "order-1",
+            created_at: "2026-08-11T00:00:00.000Z"
+          }))
+        };
+        return { ...persisted, replayed: false };
       }
-      if (requestPath.startsWith("/rest/v1/orders?select=")) return [remoteRow];
-      if (requestPath.startsWith("/rest/v1/order_items") && options.method === "POST") return [];
-      if (requestPath.startsWith("/rest/v1/order_items")) return [];
-      throw new Error(`unexpected request: ${requestPath}`);
+      assert.equal(body.p_order.request_fingerprint, persisted.order.request_fingerprint);
+      return { ...persisted, replayed: true };
     }
   });
   const payload = {
@@ -138,11 +167,64 @@ test("Supabase order inserts use a unique client id and replay the existing orde
   const first = await store.createOrder(payload);
   const repeated = await store.createOrder(payload);
 
-  assert.equal(first.order.orderNumber, remoteRow.order_number);
+  assert.equal(first.order.orderNumber, persisted.order.order_number);
   assert.equal(repeated.replayed, true);
   assert.equal(repeated.order.orderNumber, first.order.orderNumber);
-  const itemInsertCalls = calls.filter((call) => call.requestPath.startsWith("/rest/v1/order_items") && call.options.method === "POST");
-  assert.equal(itemInsertCalls.length, 2);
-  assert.ok(itemInsertCalls.every((call) => call.requestPath.includes("on_conflict=order_id%2Cline_number")));
-  assert.ok(itemInsertCalls.every((call) => /resolution=ignore-duplicates/.test(call.options.headers.Prefer)));
+  assert.equal(first.order.items.length, 1);
+  assert.equal(repeated.order.items.length, 1);
+  assert.equal(calls.length, 2);
+});
+
+test("legacy Supabase schema uses one atomic order row without partial item writes", async () => {
+  let persistedRow = null;
+  const calls = [];
+  const { store } = makeStore({
+    allowLocalFallback: false,
+    hasSupabaseConfig: () => true,
+    requestSupabase: async (requestPath, options = {}) => {
+      calls.push({ requestPath, options });
+      if (requestPath === "/rest/v1/rpc/create_order_with_items") {
+        throw new Error("PGRST202 create_order_with_items was not found in the schema cache");
+      }
+      if (requestPath === "/rest/v1/orders?on_conflict=order_number") {
+        if (persistedRow) return [];
+        const [payload] = JSON.parse(options.body);
+        persistedRow = {
+          id: "legacy-order-1",
+          ...payload,
+          created_at: "2026-08-11T00:00:00.000Z",
+          updated_at: "2026-08-11T00:00:00.000Z"
+        };
+        return [persistedRow];
+      }
+      if (requestPath.startsWith("/rest/v1/orders?") && options.method === "PATCH") {
+        Object.assign(persistedRow, JSON.parse(options.body), { updated_at: "2026-08-11T01:00:00.000Z" });
+        return [persistedRow];
+      }
+      if (requestPath.startsWith("/rest/v1/orders?select=")) return [persistedRow];
+      throw new Error(`unexpected request: ${requestPath}`);
+    }
+  });
+  const payload = {
+    clientOrderId: "legacy-atomic-request-1",
+    businessNumber: "1234567890",
+    items: [{ id: "tile-1", qty: 1, quotePrice: 12000 }]
+  };
+
+  const first = await store.createOrder(payload);
+  const updated = await store.updateOrderStatus({
+    orderNumber: first.order.orderNumber,
+    status: "배차대기",
+    note: "오후 현장 배송"
+  });
+  const replay = await store.createOrder(payload);
+
+  assert.equal(first.order.items.length, 1);
+  assert.equal(updated.order.note, "오후 현장 배송");
+  assert.equal(updated.order.items.length, 1);
+  assert.equal(replay.order.orderNumber, first.order.orderNumber);
+  assert.equal(replay.order.note, "오후 현장 배송");
+  assert.equal(replay.order.items.length, 1);
+  assert.equal(calls.filter((call) => call.requestPath === "/rest/v1/orders?on_conflict=order_number").length, 2);
+  assert.equal(calls.some((call) => call.requestPath.includes("order_items")), false);
 });

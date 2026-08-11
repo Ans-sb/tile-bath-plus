@@ -46,6 +46,10 @@ async function handleAccountRoutes(request, response, context) {
   }
 
   if (request.method === "POST" && request.url === "/api/orders") {
+    if (context.allowOrderRequest && !context.allowOrderRequest(request)) {
+      context.sendJson(response, 429, { error: "주문 요청이 너무 많습니다. 잠시 후 다시 시도해주세요." });
+      return true;
+    }
     const payload = JSON.parse(await context.readRequestBody(request));
     const memberCredentials = context.readMemberProductCredentialsFromRequest(request);
     context.sendJson(response, 200, await context.createOrderFromCart(payload, memberCredentials));

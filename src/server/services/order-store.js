@@ -28,7 +28,15 @@ function toNumber(value) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
-function createOrderNumber(date = new Date()) {
+function createOrderNumber(businessNumber, clientOrderId, date = new Date()) {
+  if (clean(businessNumber) && clean(clientOrderId)) {
+    const digest = crypto.createHash("sha256")
+      .update(`${clean(businessNumber)}:${clean(clientOrderId)}`)
+      .digest("hex")
+      .slice(0, 20)
+      .toUpperCase();
+    return `JG-${digest}`;
+  }
   const dateKey = date.toISOString().slice(0, 10).replaceAll("-", "");
   const suffix = crypto.randomBytes(3).toString("hex").toUpperCase();
   return `JG-${dateKey}-${suffix}`;
@@ -70,7 +78,9 @@ function decodeOrderNote(value) {
       deliveryAddress: clean(parsed.deliveryAddress),
       requestedDeliveryDate: clean(parsed.requestedDeliveryDate),
       memberGradeSnapshot: clean(parsed.memberGradeSnapshot),
-      priceTierSnapshot: clean(parsed.priceTierSnapshot)
+      priceTierSnapshot: clean(parsed.priceTierSnapshot),
+      requestFingerprint: clean(parsed.requestFingerprint),
+      items: Array.isArray(parsed.items) ? parsed.items : []
     };
   } catch {
     return { note: text };
@@ -84,8 +94,45 @@ function encodeOrderNote(order) {
     deliveryAddress: clean(order.deliveryAddress),
     requestedDeliveryDate: clean(order.requestedDeliveryDate),
     memberGradeSnapshot: clean(order.memberGradeSnapshot),
-    priceTierSnapshot: clean(order.priceTierSnapshot)
+    priceTierSnapshot: clean(order.priceTierSnapshot),
+    requestFingerprint: clean(order.requestFingerprint),
+    items: (Array.isArray(order.items) ? order.items : []).map((item) => ({
+      id: clean(item.id),
+      managementCode: clean(item.managementCode),
+      productType: clean(item.productType),
+      name: clean(item.name),
+      size: clean(item.size),
+      finish: clean(item.finish || item.option),
+      unit: clean(item.unit),
+      qty: toNumber(item.qty),
+      quotePrice: toNumber(item.quotePrice),
+      lineTotal: toNumber(item.lineTotal),
+      stockQty: toNumber(item.stockQty),
+      image: clean(item.image)
+    }))
   })}`;
+}
+
+function createOrderFingerprint(order) {
+  const canonical = {
+    businessNumber: clean(order.businessNumber),
+    companyName: clean(order.companyName),
+    contactName: clean(order.contactName),
+    contactPhone: clean(order.contactPhone),
+    deliveryAddress: clean(order.deliveryAddress),
+    requestedDeliveryDate: clean(order.requestedDeliveryDate),
+    memberGradeSnapshot: clean(order.memberGradeSnapshot),
+    priceTierSnapshot: clean(order.priceTierSnapshot),
+    note: clean(order.note),
+    items: (Array.isArray(order.items) ? order.items : []).map((item) => ({
+      id: clean(item.id),
+      managementCode: clean(item.managementCode),
+      qty: toNumber(item.qty),
+      quotePrice: toNumber(item.quotePrice),
+      lineTotal: toNumber(item.lineTotal)
+    }))
+  };
+  return crypto.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
 function normalizeOrderItem(item, normalizeCartItem) {
@@ -120,6 +167,7 @@ function mapLocalOrder(row) {
     requestedDeliveryDate: clean(row.requestedDeliveryDate || operationInfo.requestedDeliveryDate),
     memberGradeSnapshot: clean(row.memberGradeSnapshot || operationInfo.memberGradeSnapshot),
     priceTierSnapshot: clean(row.priceTierSnapshot || operationInfo.priceTierSnapshot),
+    requestFingerprint: clean(row.requestFingerprint || operationInfo.requestFingerprint),
     createdAt: clean(row.createdAt),
     updatedAt: clean(row.updatedAt || row.createdAt),
     items
@@ -146,9 +194,11 @@ function mapSupabaseOrder(row) {
     requestedDeliveryDate: operationInfo.requestedDeliveryDate,
     memberGradeSnapshot: operationInfo.memberGradeSnapshot,
     priceTierSnapshot: operationInfo.priceTierSnapshot,
+    requestFingerprint: operationInfo.requestFingerprint,
+    storageStatus: clean(row.order_status),
     createdAt: clean(row.created_at),
     updatedAt: clean(row.updated_at || row.created_at),
-    items
+    items: Array.isArray(items) && items.length ? items : (operationInfo.items || [])
   };
 }
 
@@ -198,21 +248,6 @@ function createOrderStore({
     }
   }
 
-  async function readRemoteOrderByClientId(businessNumber, clientOrderId) {
-    if (!businessNumber || !clientOrderId || !hasSupabaseConfig()) return null;
-    const query = new URLSearchParams({
-      select: "id,client_order_id,order_number,business_number,company_name,contact_name,order_status,item_count,total_quote,order_note,created_at,updated_at",
-      business_number: `eq.${businessNumber}`,
-      client_order_id: `eq.${clientOrderId}`,
-      limit: "1"
-    });
-    const rows = await requestSupabase(`/rest/v1/orders?${query.toString()}`);
-    const row = Array.isArray(rows) ? rows[0] : null;
-    if (!row) return null;
-    const itemsByOrder = await readOrderItems([row.id]);
-    return { ...mapSupabaseOrder(row), items: itemsByOrder.get(row.id) || [] };
-  }
-
   function readLocalOrders() {
     return readJsonArray(ordersPath).map(mapLocalOrder);
   }
@@ -231,23 +266,20 @@ function createOrderStore({
       const items = (Array.isArray(payload?.items) ? payload.items : [])
         .map((item) => normalizeOrderItem(item, normalizeCartItem))
         .filter((item) => item.qty > 0);
+      if (!clientOrderId || !/^[A-Za-z0-9._:-]{8,128}$/.test(clientOrderId)) {
+        throw createOrderError(400, "유효한 주문 요청 ID가 필요합니다.");
+      }
       if (!businessNumber) throw new Error("주문 접수에는 사업자등록번호가 필요합니다.");
       if (!items.length) throw new Error("주문 접수할 상품이 없습니다.");
       if (items.some((item) => item.quotePrice <= 0)) {
         throw createOrderError(422, "판매가가 확정되지 않은 상품은 주문할 수 없습니다.");
-      }
-      if (clientOrderId && allowLocalFallback && !hasSupabaseConfig()) {
-        const existingOrder = readLocalOrders().find((row) => (
-          row.businessNumber === businessNumber && row.clientOrderId === clientOrderId
-        ));
-        if (existingOrder) return { ok: true, order: existingOrder, storage: "local", replayed: true };
       }
 
       const now = new Date().toISOString();
       const order = {
         id: crypto.randomUUID(),
         clientOrderId,
-        orderNumber: createOrderNumber(),
+        orderNumber: createOrderNumber(businessNumber, clientOrderId),
         businessNumber,
         companyName: clean(payload?.companyName),
         contactName: clean(payload?.contactName),
@@ -265,61 +297,128 @@ function createOrderStore({
         updatedAt: now,
         items
       };
+      order.requestFingerprint = createOrderFingerprint(order);
+
+      if (allowLocalFallback && !hasSupabaseConfig()) {
+        const existingOrder = readLocalOrders().find((row) => (
+          row.businessNumber === businessNumber && row.clientOrderId === clientOrderId
+        ));
+        if (existingOrder) {
+          if (existingOrder.requestFingerprint !== order.requestFingerprint) {
+            throw createOrderError(409, "동일한 주문 요청 ID로 다른 주문을 접수할 수 없습니다.");
+          }
+          return { ok: true, order: existingOrder, storage: "local", replayed: true };
+        }
+      }
 
       if (hasSupabaseConfig()) {
+        const itemPayload = items.map((item, index) => ({
+          line_number: index + 1,
+          product_id: item.id,
+          management_code: item.managementCode,
+          product_type: item.productType,
+          product_name: item.name,
+          size: item.size,
+          finish: item.finish || item.option,
+          unit: item.unit,
+          qty: item.qty,
+          quote_price: item.quotePrice,
+          line_total: item.lineTotal,
+          stock_qty: item.stockQty,
+          image: item.image,
+          item_data: { option: clean(item.option) }
+        }));
         try {
-          const insertPath = clientOrderId
-            ? "/rest/v1/orders?on_conflict=business_number%2Cclient_order_id"
-            : "/rest/v1/orders";
-          const rows = await requestSupabase(insertPath, {
+          const result = await requestSupabase("/rest/v1/rpc/create_order_with_items", {
             method: "POST",
-            headers: { Prefer: clientOrderId ? "resolution=ignore-duplicates,return=representation" : "return=representation" },
-            body: JSON.stringify([{
-              client_order_id: clientOrderId || null,
-              order_number: order.orderNumber,
-              business_number: order.businessNumber,
-              company_name: order.companyName,
-              contact_name: order.contactName,
-              order_status: order.status,
-              item_count: order.itemCount,
-              total_quote: order.totalQuote,
-              order_note: encodeOrderNote(order),
-              source: "cart"
-            }])
+            body: JSON.stringify({
+              p_order: {
+                client_order_id: clientOrderId,
+                request_fingerprint: order.requestFingerprint,
+                order_number: order.orderNumber,
+                business_number: order.businessNumber,
+                company_name: order.companyName,
+                contact_name: order.contactName,
+                order_status: order.status,
+                item_count: order.itemCount,
+                total_quote: order.totalQuote,
+                order_note: encodeOrderNote(order)
+              },
+              p_items: itemPayload
+            })
           });
-          const remoteOrder = Array.isArray(rows) ? rows[0] : null;
-          const replayed = !remoteOrder?.id;
-          const storedOrder = remoteOrder?.id
-            ? mapSupabaseOrder(remoteOrder)
-            : await readRemoteOrderByClientId(businessNumber, clientOrderId);
-          if (storedOrder?.id) {
-            const itemPayload = items.map((item, index) => ({
-              order_id: storedOrder.id,
-              line_number: index + 1,
-              product_id: item.id,
-              management_code: item.managementCode,
-              product_type: item.productType,
-              product_name: item.name,
-              size: item.size,
-              finish: item.finish || item.option,
-              unit: item.unit,
-              qty: item.qty,
-              quote_price: item.quotePrice,
-              line_total: item.lineTotal,
-              stock_qty: item.stockQty,
-              image: item.image
-            }));
-            await requestSupabase("/rest/v1/order_items?on_conflict=order_id%2Cline_number", {
-              method: "POST",
-              headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
-              body: JSON.stringify(itemPayload)
-            });
-            return { ok: true, order: { ...storedOrder, items }, ...(replayed ? { replayed: true } : {}) };
+          const rpcResult = Array.isArray(result) ? result[0] : result;
+          if (!rpcResult?.order?.id || !Array.isArray(rpcResult?.items)) {
+            throw createOrderError(503, "주문 저장 결과를 확인하지 못했습니다.");
           }
+          const persistedItems = rpcResult.items.map(mapSupabaseOrderItem);
+          if (persistedItems.length !== items.length) {
+            throw createOrderError(503, "주문 품목 저장을 최종 확인하지 못했습니다.");
+          }
+          return {
+            ok: true,
+            order: { ...mapSupabaseOrder(rpcResult.order), items: persistedItems },
+            ...(rpcResult.replayed ? { replayed: true } : {})
+          };
         } catch (error) {
-          if (!isMissingSupabaseTableError(error, "orders") && !isMissingSupabaseTableError(error, "order_items")) throw error;
-          if (!allowLocalFallback) {
-            throw createOrderError(503, "주문 저장소가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+          if (/IDEMPOTENCY_CONFLICT/i.test(String(error?.message || ""))) {
+            throw createOrderError(409, "동일한 주문 요청 ID로 다른 주문을 접수할 수 없습니다.");
+          }
+          const rpcUnavailable = /create_order_with_items|PGRST202|schema cache/i.test(String(error?.message || ""));
+          if (rpcUnavailable) {
+            try {
+              const legacyRows = await requestSupabase("/rest/v1/orders?on_conflict=order_number", {
+                method: "POST",
+                headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
+                body: JSON.stringify([{
+                  order_number: order.orderNumber,
+                  business_number: order.businessNumber,
+                  company_name: order.companyName,
+                  contact_name: order.contactName,
+                  order_status: order.status,
+                  item_count: order.itemCount,
+                  total_quote: order.totalQuote,
+                  order_note: encodeOrderNote(order)
+                }])
+              });
+              let storedRow = Array.isArray(legacyRows) ? legacyRows[0] : null;
+              if (!storedRow) {
+                const legacyQuery = new URLSearchParams({
+                  select: "id,order_number,business_number,company_name,contact_name,order_status,item_count,total_quote,order_note,created_at,updated_at",
+                  order_number: `eq.${order.orderNumber}`,
+                  limit: "1"
+                });
+                const existingRows = await requestSupabase(`/rest/v1/orders?${legacyQuery.toString()}`);
+                storedRow = Array.isArray(existingRows) ? existingRows[0] : null;
+              }
+              const persistedOrder = storedRow ? mapSupabaseOrder(storedRow) : null;
+              if (!persistedOrder?.id || persistedOrder.requestFingerprint !== order.requestFingerprint) {
+                if (persistedOrder?.id) {
+                  throw createOrderError(409, "동일한 주문 요청 ID로 다른 주문을 접수할 수 없습니다.");
+                }
+                throw createOrderError(503, "주문 저장 결과를 확인하지 못했습니다.");
+              }
+              if (persistedOrder.items.length !== items.length) {
+                throw createOrderError(503, "주문 품목 저장을 최종 확인하지 못했습니다.");
+              }
+              return {
+                ok: true,
+                order: persistedOrder,
+                ...(Array.isArray(legacyRows) && legacyRows.length === 0 ? { replayed: true } : {})
+              };
+            } catch (legacyError) {
+              if (legacyError?.statusCode === 409 || legacyError?.statusCode === 503) throw legacyError;
+              if (!isMissingSupabaseTableError(legacyError, "orders")) throw legacyError;
+              error = legacyError;
+            }
+          }
+          const storageUnavailable = isMissingSupabaseTableError(error, "orders")
+            || isMissingSupabaseTableError(error, "order_items");
+          if (!storageUnavailable || !allowLocalFallback) {
+            if (storageUnavailable) {
+              throw createOrderError(503, "주문 저장소가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+            }
+            throw error;
           }
         }
       }
@@ -337,15 +436,22 @@ function createOrderStore({
         const query = new URLSearchParams({
           select: "id,order_number,business_number,company_name,contact_name,order_status,item_count,total_quote,order_note,created_at,updated_at",
           business_number: `eq.${cleanBusinessNumber}`,
+          order_status: "neq.접수처리중",
           order: "created_at.desc"
         });
         try {
           const rows = await requestSupabase(`/rest/v1/orders?${query.toString()}`);
           const orders = Array.isArray(rows) ? rows.map(mapSupabaseOrder) : [];
           const itemsByOrder = await readOrderItems(orders.map((row) => row.id).filter(Boolean));
-          return orders.map((order) => ({ ...order, items: itemsByOrder.get(order.id) || [] }));
+          return orders.map((order) => ({
+            ...order,
+            items: itemsByOrder.get(order.id)?.length ? itemsByOrder.get(order.id) : order.items
+          }));
         } catch (error) {
           if (!isMissingSupabaseTableError(error, "orders")) throw error;
+          if (!allowLocalFallback) {
+            throw createOrderError(503, "주문 저장소가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+          }
         }
       }
       return readLocalOrders().filter((order) => order.businessNumber === cleanBusinessNumber);
@@ -355,15 +461,22 @@ function createOrderStore({
       if (hasSupabaseConfig()) {
         const query = new URLSearchParams({
           select: "id,order_number,business_number,company_name,contact_name,order_status,item_count,total_quote,order_note,created_at,updated_at",
+          order_status: "neq.접수처리중",
           order: "created_at.desc"
         });
         try {
           const rows = await requestSupabase(`/rest/v1/orders?${query.toString()}`);
           const orders = Array.isArray(rows) ? rows.map(mapSupabaseOrder) : [];
           const itemsByOrder = await readOrderItems(orders.map((row) => row.id).filter(Boolean));
-          return orders.map((order) => ({ ...order, items: itemsByOrder.get(order.id) || [] }));
+          return orders.map((order) => ({
+            ...order,
+            items: itemsByOrder.get(order.id)?.length ? itemsByOrder.get(order.id) : order.items
+          }));
         } catch (error) {
           if (!isMissingSupabaseTableError(error, "orders")) throw error;
+          if (!allowLocalFallback) {
+            throw createOrderError(503, "주문 저장소가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+          }
         }
       }
       return readLocalOrders();
@@ -383,8 +496,17 @@ function createOrderStore({
         const patch = {
           order_status: status
         };
-        if (note) patch.order_note = note;
         try {
+          if (note) {
+            const existingQuery = new URLSearchParams({
+              select: "id,order_number,business_number,company_name,contact_name,order_status,item_count,total_quote,order_note,created_at,updated_at",
+              limit: "1"
+            });
+            const existingRows = await requestSupabase(`/rest/v1/orders?${existingQuery.toString()}&${filter}`);
+            const existingRow = Array.isArray(existingRows) ? existingRows[0] : null;
+            if (!existingRow) throw createOrderError(404, "상태를 변경할 주문을 찾지 못했습니다.");
+            patch.order_note = encodeOrderNote({ ...mapSupabaseOrder(existingRow), note });
+          }
           const rows = await requestSupabase(`/rest/v1/orders?${filter}`, {
             method: "PATCH",
             headers: { Prefer: "return=representation" },

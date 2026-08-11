@@ -57,6 +57,24 @@ test("admin approval rule mutation authenticates before reading the body", async
   assert.equal(sent.status, 200);
 });
 
+test("order routes enforce rate limits before reading request bodies", async () => {
+  let sent;
+  const handled = await handleAccountRoutes({
+    method: "POST",
+    url: "/api/orders",
+    headers: { host: "localhost" }
+  }, {}, {
+    allowOrderRequest: () => false,
+    readRequestBody: async () => { throw new Error("body must not be read"); },
+    createOrderFromCart: async () => { throw new Error("order must not be created"); },
+    sendJson: (_response, status, body) => { sent = { status, body }; }
+  });
+
+  assert.equal(handled, true);
+  assert.equal(sent.status, 429);
+  assert.match(sent.body.error, /주문 요청이 너무 많습니다/);
+});
+
 test("media routes do not expose process control", async () => {
   const handled = await handleMediaRoutes({
     method: "POST",

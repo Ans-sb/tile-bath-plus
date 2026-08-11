@@ -278,6 +278,7 @@ const approvalRulesService = createApprovalRulesService({
   hasSupabaseConfig,
   isMissingSupabaseTableError,
   normalizeStringArray,
+  persistenceEnabled: () => /^(1|true|yes)$/i.test(String(process.env.APPROVAL_RULES_PERSISTENCE_ENABLED || "")),
   requestSupabase
 });
 const cartStore = createCartStore({
@@ -331,8 +332,11 @@ const tileAssistantService = createTileAssistantService({
   searchCatalog: (payload) => searchTileCatalog({ ...payload, audience: "customer" }),
   projectStore: tileSalesProjectStore
 });
-const allowTileAssistantRequest = createTileAssistantRateLimiter();
-const allowMediaRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 60 * 1000 });
+const trustProxyForRateLimits = /^(1|true|yes)$/i.test(String(process.env.TRUST_PROXY || "").trim())
+  || Boolean(String(process.env.RAILWAY_ENVIRONMENT || "").trim());
+const allowTileAssistantRequest = createTileAssistantRateLimiter({ trustProxy: trustProxyForRateLimits });
+const allowMediaRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
+const allowOrderRequest = createTileAssistantRateLimiter({ limit: 12, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -446,6 +450,7 @@ function getAccountRouteContext() {
     verifyMemberSessionAccess,
     readCartRecord,
     saveCartRecord,
+    allowOrderRequest,
     createOrderFromCart,
     readMemberOrders
   };

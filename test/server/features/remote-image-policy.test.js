@@ -17,6 +17,37 @@ test("remote image policy rejects loopback URLs before fetching", async () => {
   );
 });
 
+test("public IPv6 literals are normalized before address validation", async () => {
+  let lookupHostname = "";
+  const url = await assertSafeRemoteImageUrl("https://[2001:4860:4860::8888]/tile.jpg", {
+    lookup: async (hostname) => {
+      lookupHostname = hostname;
+      return [{ address: "2001:4860:4860::8888", family: 6 }];
+    }
+  });
+  assert.equal(lookupHostname, "2001:4860:4860::8888");
+  assert.equal(buildPinnedRequestOptions(url).hostname, "2001:4860:4860::8888");
+});
+
+test("address policy rejects non-global IPv4 and IPv6 ranges", () => {
+  for (const address of [
+    "100.64.0.1",
+    "198.18.0.1",
+    "192.0.2.1",
+    "198.51.100.1",
+    "203.0.113.1",
+    "2001:db8::1",
+    "2001:2::1",
+    "2002:7f00:1::",
+    "64:ff9b:1::1",
+    "64:ff9b::7f00:1"
+  ]) {
+    assert.equal(isPrivateAddress(address), true, address);
+  }
+  assert.equal(isPrivateAddress("93.184.216.34"), false);
+  assert.equal(isPrivateAddress("2001:4860:4860::8888"), false);
+});
+
 test("private-address checks cover mapped IPv6 and multicast ranges", () => {
   assert.equal(isPrivateAddress("::ffff:7f00:1"), true);
   assert.equal(isPrivateAddress("::ffff:127.0.0.1"), true);
@@ -56,7 +87,7 @@ test("remote image fetch validates every redirect target", async () => {
   let fetchCalls = 0;
   await assert.rejects(
     readRemoteImageDataUrlSafely("https://images.example.test/tile.jpg", {
-      lookup: async () => [{ address: "203.0.113.10", family: 4 }],
+      lookup: async () => [{ address: "93.184.216.34", family: 4 }],
       fetchImpl: async () => {
         fetchCalls += 1;
         return {
@@ -70,9 +101,55 @@ test("remote image fetch validates every redirect target", async () => {
   assert.equal(fetchCalls, 1);
 });
 
+test("redirect and header-rejected responses are cancelled before returning", async () => {
+  const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
+  const makeResponse = ({ status, headers = {}, ok = false }) => {
+    const state = { bodyCancelled: false, transportCancelled: false };
+    return {
+      state,
+      response: {
+        status,
+        ok,
+        headers: new Headers(headers),
+        body: { async cancel() { state.bodyCancelled = true; } },
+        async cancel() { state.transportCancelled = true; }
+      }
+    };
+  };
+
+  const redirect = makeResponse({ status: 302, headers: { location: "https://cdn.example.test/tile.jpg" } });
+  let redirectCalls = 0;
+  await readRemoteImageDataUrlSafely("https://images.example.test/tile.jpg", {
+    lookup,
+    fetchImpl: async () => {
+      redirectCalls += 1;
+      if (redirectCalls === 1) return redirect.response;
+      assert.deepEqual(redirect.state, { bodyCancelled: true, transportCancelled: true });
+      return new Response(Uint8Array.from([1]), {
+        status: 200,
+        headers: { "content-type": "image/jpeg", "content-length": "1" }
+      });
+    }
+  });
+
+  const rejectedCases = [
+    makeResponse({ status: 500 }),
+    makeResponse({ status: 200, ok: true, headers: { "content-type": "text/plain" } }),
+    makeResponse({ status: 200, ok: true, headers: { "content-type": "image/jpeg", "content-length": "10" } })
+  ];
+  for (const rejected of rejectedCases) {
+    await assert.rejects(readRemoteImageDataUrlSafely("https://images.example.test/tile.jpg", {
+      lookup,
+      maxBytes: 5,
+      fetchImpl: async () => rejected.response
+    }));
+    assert.deepEqual(rejected.state, { bodyCancelled: true, transportCancelled: true });
+  }
+});
+
 test("remote image fetch returns a bounded image data URL", async () => {
   const result = await readRemoteImageDataUrlSafely("https://images.example.test/tile.jpg", {
-    lookup: async () => [{ address: "203.0.113.10", family: 4 }],
+    lookup: async () => [{ address: "93.184.216.34", family: 4 }],
     fetchImpl: async () => new Response(Uint8Array.from([1, 2, 3]), {
       status: 200,
       headers: { "content-type": "image/jpeg", "content-length": "3" }
