@@ -5,6 +5,7 @@ const {
   createTileAssistantRateLimiter,
   handleTileAssistantRoutes
 } = require("../../../src/server/features/tile-assistant/tile-assistant-routes");
+const { resolveClientAddress } = require("../../../src/server/security/client-address-policy");
 
 function jsonRequest(overrides = {}) {
   return {
@@ -58,6 +59,39 @@ test("rate limiter ignores spoofed forwarded addresses unless proxy trust is exp
   const base = { socket: { remoteAddress: "203.0.113.5" } };
   assert.equal(allow({ ...base, headers: { "x-forwarded-for": "1.1.1.1" } }), true);
   assert.equal(allow({ ...base, headers: { "x-forwarded-for": "2.2.2.2" } }), false);
+});
+
+test("trusted proxy rate limiting cannot be bypassed with spoofed leading addresses", () => {
+  const allow = createTileAssistantRateLimiter({ limit: 1, trustProxy: true });
+  const base = { socket: { remoteAddress: "10.0.0.5" } };
+  assert.equal(allow({ ...base, headers: { "x-forwarded-for": "1.1.1.1, 203.0.113.10" } }), true);
+  assert.equal(allow({ ...base, headers: { "x-forwarded-for": "2.2.2.2, 203.0.113.10" } }), false);
+});
+
+test("proxy-aware rate limiting keeps unrelated users in separate buckets", () => {
+  const allow = createTileAssistantRateLimiter({
+    limit: 5,
+    resolveAddress: (request) => resolveClientAddress(request, { trustProxy: true })
+  });
+  const base = { socket: { remoteAddress: "10.0.0.5" } };
+
+  for (let index = 1; index <= 6; index += 1) {
+    assert.equal(allow({
+      ...base,
+      headers: { "x-forwarded-for": `203.0.113.${index}` }
+    }), true);
+  }
+
+  const attacker = {
+    ...base,
+    headers: { "x-forwarded-for": "1.1.1.1, 203.0.113.99" }
+  };
+  for (let index = 0; index < 5; index += 1) assert.equal(allow(attacker), true);
+  assert.equal(allow(attacker), false);
+  assert.equal(allow({
+    ...base,
+    headers: { "x-forwarded-for": "2.2.2.2, 203.0.113.100" }
+  }), true);
 });
 
 test("rate limiter rejects new identities when its bounded store is full", () => {

@@ -75,6 +75,24 @@ test("order routes enforce rate limits before reading request bodies", async () 
   assert.match(sent.body.error, /주문 요청이 너무 많습니다/);
 });
 
+test("login routes enforce rate limits before reading credentials", async () => {
+  let sent;
+  const handled = await handleAccountRoutes({
+    method: "POST",
+    url: "/api/login",
+    headers: { host: "localhost" }
+  }, {}, {
+    allowLoginRequest: () => false,
+    readRequestBody: async () => { throw new Error("credentials must not be read"); },
+    loginWithSignupRequest: async () => { throw new Error("login must not run"); },
+    sendJson: (_response, status, body) => { sent = { status, body }; }
+  });
+
+  assert.equal(handled, true);
+  assert.equal(sent.status, 429);
+  assert.match(sent.body.error, /로그인 시도가 너무 많습니다/);
+});
+
 test("media routes do not expose process control", async () => {
   const handled = await handleMediaRoutes({
     method: "POST",
@@ -105,4 +123,49 @@ test("high-cost media routes enforce rate limits before reading request bodies",
   assert.equal(handled, true);
   assert.equal(sent.status, 429);
   assert.match(sent.body.error, /요청이 너무 많습니다/);
+});
+
+test("render routes authenticate before reading image bodies", async () => {
+  const calls = [];
+  await assert.rejects(() => handleMediaRoutes({
+    method: "POST",
+    url: "/api/render",
+    headers: { host: "localhost" }
+  }, {}, {
+    allowMediaRequest: () => true,
+    authorizeMediaRequest: async () => {
+      calls.push("auth");
+      const error = new Error("로그인이 필요합니다.");
+      error.statusCode = 403;
+      throw error;
+    },
+    readRequestBody: async () => {
+      calls.push("body");
+      return "{}";
+    }
+  }), /로그인이 필요합니다/);
+  assert.deepEqual(calls, ["auth"]);
+});
+
+test("business status validates signup proof before calling the external API", async () => {
+  const calls = [];
+  await assert.rejects(() => handleMediaRoutes({
+    method: "POST",
+    url: "/api/business-status",
+    headers: { host: "localhost" }
+  }, {}, {
+    allowMediaRequest: () => true,
+    readRequestBody: async () => JSON.stringify({ businessNumber: "1234567890" }),
+    authorizeBusinessStatusRequest: async () => {
+      calls.push("auth");
+      const error = new Error("간편가입 계정을 확인해주세요.");
+      error.statusCode = 403;
+      throw error;
+    },
+    checkBusinessStatus: async () => {
+      calls.push("external");
+      return {};
+    }
+  }), /간편가입 계정을 확인해주세요/);
+  assert.deepEqual(calls, ["auth"]);
 });
