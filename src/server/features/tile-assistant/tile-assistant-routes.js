@@ -5,6 +5,7 @@ function createTileAssistantRateLimiter({
   windowMs = 60 * 1000,
   maxClients = 5000,
   trustProxy = false,
+  resolveAddress = null,
   now = Date.now
 } = {}) {
   const clients = new Map();
@@ -17,7 +18,9 @@ function createTileAssistantRateLimiter({
         .filter(Boolean)
       : [];
     const forwardedAddress = forwardedAddresses.at(-1) || "";
-    const clientAddress = forwardedAddress || String(request?.socket?.remoteAddress || "unknown");
+    const clientAddress = (resolveAddress ? resolveAddress(request) : "")
+      || forwardedAddress
+      || String(request?.socket?.remoteAddress || "unknown");
     const currentTime = now();
     const current = clients.get(clientAddress);
 

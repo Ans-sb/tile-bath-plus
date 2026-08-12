@@ -65,6 +65,7 @@ const accountRoutesJs = await readText("src/server/routes/account-routes.js");
 const mediaRoutesJs = await readText("src/server/routes/media-routes.js");
 const staticPathPolicyJs = await readText("src/server/security/static-path-policy.js");
 const securityHeadersJs = await readText("src/server/security/security-headers.js");
+const clientAddressPolicyJs = await readText("src/server/security/client-address-policy.js");
 const localRequestPolicyJs = await readText("src/server/security/local-request-policy.js");
 const cartStoreJs = await readText("src/server/services/cart-store.js");
 const productResponseMapperJs = await readText("src/server/services/product-response-mapper.js");
@@ -109,8 +110,15 @@ record("securityHeaders", [
   "X-Frame-Options",
   "Referrer-Policy"
 ].every((header) => securityHeadersJs.includes(header)));
-record("localRequestSocketOnly", /socket\?\.remoteAddress/.test(localRequestPolicyJs)
-  && !/headers/.test(localRequestPolicyJs));
+record("proxyAwareClientAddress", /RAILWAY_PROJECT_ID/.test(clientAddressPolicyJs)
+  && /RAILWAY_ENVIRONMENT_ID/.test(clientAddressPolicyJs)
+  && /x-real-ip/.test(clientAddressPolicyJs)
+  && /forwardedAddresses\.at\(-1\)/.test(clientAddressPolicyJs)
+  && /resolveClientAddress/.test(serverJs));
+record("localRequestFailClosed", /isProductionEnvironment/.test(localRequestPolicyJs)
+  && /hasProxyHeaders/.test(localRequestPolicyJs)
+  && /return false/.test(localRequestPolicyJs)
+  && /isLoopbackAddress/.test(localRequestPolicyJs));
 record("independentMemberTokenSecret", /MEMBER_TOKEN_SECRET/.test(serverJs)
   && /at least 32 characters/.test(serverJs));
 record("genericServerErrors", /statusCode >= 500/.test(serverJs)

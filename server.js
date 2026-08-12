@@ -12,6 +12,7 @@ const { readRemoteImageDataUrlSafely } = require("./src/server/security/remote-i
 const { shouldBlockStaticPath } = require("./src/server/security/static-path-policy");
 const { applySecurityHeaders } = require("./src/server/security/security-headers");
 const { isLocalRequest } = require("./src/server/security/local-request-policy");
+const { resolveClientAddress, shouldTrustProxy } = require("./src/server/security/client-address-policy");
 const { serveStaticFile } = require("./src/server/static-files");
 const { handleProductRoutes } = require("./src/server/routes/product-routes");
 const { handleAccountRoutes } = require("./src/server/routes/account-routes");
@@ -158,7 +159,12 @@ const tile114UserId = String(process.env.TILE114_USER_ID || "").trim();
 const tile114Password = String(process.env.TILE114_PASSWORD || "").trim();
 const tile114LoginUrl = String(process.env.TILE114_LOGIN_URL || "https://vgtns.tile114.co.kr/Web/ExInDex.asp?PopTF=2").trim();
 const isProductionRuntime = String(process.env.NODE_ENV || "").trim().toLowerCase() === "production"
-  || Boolean(String(process.env.RAILWAY_ENVIRONMENT || "").trim());
+  || Boolean(String(
+    process.env.RAILWAY_PROJECT_ID
+    || process.env.RAILWAY_ENVIRONMENT_ID
+    || process.env.RAILWAY_ENVIRONMENT_NAME
+    || ""
+  ).trim());
 const configuredMemberTokenSecret = String(process.env.MEMBER_TOKEN_SECRET || "").trim();
 if (isProductionRuntime && configuredMemberTokenSecret.length < 32) {
   throw new Error("MEMBER_TOKEN_SECRET must be configured with at least 32 characters in production.");
@@ -339,13 +345,15 @@ const tileAssistantService = createTileAssistantService({
   searchCatalog: (payload) => searchTileCatalog({ ...payload, audience: "customer" }),
   projectStore: tileSalesProjectStore
 });
-const trustProxyForRateLimits = /^(1|true|yes)$/i.test(String(process.env.TRUST_PROXY || "").trim())
-  || Boolean(String(process.env.RAILWAY_ENVIRONMENT || "").trim());
-const allowTileAssistantRequest = createTileAssistantRateLimiter({ trustProxy: trustProxyForRateLimits });
-const allowMediaRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
-const allowOrderRequest = createTileAssistantRateLimiter({ limit: 12, windowMs: 60 * 1000, trustProxy: trustProxyForRateLimits });
-const allowLoginRequest = createTileAssistantRateLimiter({ limit: 20, windowMs: 15 * 60 * 1000, trustProxy: trustProxyForRateLimits });
-const allowSignupRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, trustProxy: trustProxyForRateLimits });
+const trustProxyForRateLimits = shouldTrustProxy();
+const resolveRateLimitAddress = (request) => resolveClientAddress(request, {
+  trustProxy: trustProxyForRateLimits
+});
+const allowTileAssistantRequest = createTileAssistantRateLimiter({ resolveAddress: resolveRateLimitAddress });
+const allowMediaRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 60 * 1000, resolveAddress: resolveRateLimitAddress });
+const allowOrderRequest = createTileAssistantRateLimiter({ limit: 12, windowMs: 60 * 1000, resolveAddress: resolveRateLimitAddress });
+const allowLoginRequest = createTileAssistantRateLimiter({ limit: 20, windowMs: 15 * 60 * 1000, resolveAddress: resolveRateLimitAddress });
+const allowSignupRequest = createTileAssistantRateLimiter({ limit: 10, windowMs: 15 * 60 * 1000, resolveAddress: resolveRateLimitAddress });
 
 const server = http.createServer(async (request, response) => {
   const requestId = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString("hex");
